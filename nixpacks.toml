@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["python311", "pango", "gdk-pixbuf", "libxml2", "libxslt", "cairo"]
+
+[phases.install]
+cmds = ["python -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r backend/requirements.txt"]
+
+[phases.build]
+cmds = ["echo 'Building Backend...'"]
+
+[start]
+cmd = ". /opt/venv/bin/activate && cd backend && gunicorn config.wsgi:application"

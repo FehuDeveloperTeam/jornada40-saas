@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 40px; }
+        h1 { text-align: center; font-size: 16pt; text-decoration: underline; margin-bottom: 30px; }
+        .header { text-align: right; margin-bottom: 40px; font-weight: bold; }
+        .clause { margin-bottom: 15px; text-align: justify; }
+        .signatures { margin-top: 80px; width: 100%; }
+        .sig-block { width: 45%; float: left; text-align: center; border-top: 1px solid black; margin-right: 5%; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        FECHA: {% now "d/m/Y" %}
+    </div>
+
+    <h1>ANEXO DE CONTRATO DE TRABAJO<br>ADECUACIÓN LEY 40 HORAS</h1>
+
+    <div class="clause">
+        En <strong>Santiago</strong>, entre <strong>{{ contrato.empleado.empresa.nombre_legal }}</strong>, RUT <strong>{{ contrato.empleado.empresa.rut }}</strong>, en adelante el "EMPLEADOR", y don/doña <strong>{{ contrato.empleado.nombres }} {{ contrato.empleado.apellidos }}</strong>, RUT <strong>{{ contrato.empleado.rut }}</strong>, en adelante el "TRABAJADOR", se ha convenido el siguiente anexo de contrato:
+    </div>
+
+    <div class="clause">
+        <strong>PRIMERO:</strong> Las partes acuerdan modificar la jornada de trabajo vigente, reduciéndola a <strong>{{ contrato.horas_semanales }} horas semanales</strong>.
+    </div>
+
+    <div class="clause">
+        <strong>SEGUNDO:</strong> La jornada se distribuirá en <strong>{{ contrato.distribucion_dias }} días</strong> a la semana, bajo la modalidad <strong>{{ contrato.get_tipo_jornada_display }}</strong>.
+    </div>
+
+    <div class="clause">
+        <strong>TERCERO:</strong> El presente anexo no altera la remuneración mensual del trabajador, manteniéndose su sueldo base íntegro de <strong>${{ contrato.sueldo_base }}</strong>.
+    </div>
+
+    <div class="signatures">
+        <div class="sig-block">Firma Empleador</div>
+        <div class="sig-block" style="float: right; margin-right: 0;">Firma Trabajador</div>
+    </div>
+</body>
+</html>
