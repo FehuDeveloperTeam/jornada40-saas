@@ -28,4 +28,8 @@ COPY . /app/
 
 # 8. Estáticos y Ejecución
 RUN python manage.py collectstatic --noinput || true
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+
+# 9. COMANDO MAESTRO: Migrar -> Crear Superusuario -> Iniciar Gunicorn
+CMD python manage.py migrate && \
+    python manage.py createsuperuser --noinput || true && \
+    gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
