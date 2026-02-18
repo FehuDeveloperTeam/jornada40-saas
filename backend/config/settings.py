@@ -16,7 +16,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-test-key')
 DEBUG = True
 
 # 1. IMPORTANTE: Permitir localhost explícitamente
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'jornada40-saas-production.up.railway.app']  # Agrega tu dominio de Vercel aquí
 
 
 # Application definition
@@ -113,7 +113,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 1. CORS: Permitir conexión desde el Frontend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://jornada40-saas.vercel.app",  # URL de Vercel (cuando la tengamos)
+    "https://jornada40-saas.vercel.app",  # URL de Vercel (cuando la tengamos)
 ]
 CORS_ALLOW_CREDENTIALS = True  # ¡Crucial! Permite pasar cookies
 
