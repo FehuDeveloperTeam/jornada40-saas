@@ -2,8 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import type { Empleado } from '../types';
 import { FileText, Plus, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
+
+    const navigate = useNavigate();
     // 1. Obtener empleados desde la API
     const { data: empleados, isLoading, error } = useQuery({
         queryKey: ['empleados'],
@@ -54,8 +57,11 @@ export default function Dashboard() {
                         <h1 className="text-2xl font-bold text-gray-900">Mis Colaboradores</h1>
                         <p className="text-gray-500">Gestiona los anexos de contrato y turnos.</p>
                     </div>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition">
-                        <Plus size={16} /> Nuevo Empleado
+                    <button 
+                        onClick={() => navigate('/crear-empleado')} // <--- AGREGAR ESTO
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition"
+                >
+                         <Plus size={16} /> Nuevo Empleado
                     </button>
                 </div>
 

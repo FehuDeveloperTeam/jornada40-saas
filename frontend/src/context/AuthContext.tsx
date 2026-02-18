@@ -1,57 +1,66 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react'; // <--- CORRECCIÓN AQUÍ (type import)
 import client from '../api/client';
-import type { User } from '../types'; // <--- Aquí agregamos 'type'
+import type { User } from '../types';
 
 interface AuthContextType {
     user: User | null;
-    isLoading: boolean;
-    login: (credentials: any) => Promise<void>;
-    logout: () => Promise<void>;
+    isAuthenticated: boolean;
+    loading: boolean;
+    login: (data: any) => Promise<void>;
+    logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) throw new Error('useAuth debe usarse dentro de un AuthProvider');
+    return context;
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
 
-    // 1. Verificar sesión al cargar la app
+    // Función para verificar si hay sesión activa
+    const checkAuth = async () => {
+        try {
+            // Pide al backend "quién soy"
+            const res = await client.get('/auth/user/');
+            setUser(res.data);
+        } catch (error) {
+            setUser(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Verificar sesión al cargar la página por primera vez
     useEffect(() => {
         checkAuth();
     }, []);
 
-    const checkAuth = async () => {
-        try {
-            // dj-rest-auth endpoint para ver usuario actual
-            const { data } = await client.get('/auth/user/');
-            setUser(data);
-        } catch (error) {
-            setUser(null);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const login = async (credentials: any) => {
-        // Login retorna un Token que se guarda en cookie HttpOnly automáticamente
-        await client.post('/auth/login/', credentials);
-        await checkAuth(); // Recargamos el usuario
+    const login = async (data: any) => {
+        // 1. Enviar credenciales (Django responde con Set-Cookie)
+        await client.post('/auth/login/', data);
+        
+        // 2. Inmediatamente pedir los datos del usuario para actualizar la UI
+        await checkAuth(); 
     };
 
     const logout = async () => {
-        await client.post('/auth/logout/');
-        setUser(null);
+        try {
+            await client.post('/auth/logout/');
+            setUser(null);
+        } catch (error) {
+            console.error("Error al salir", error);
+        }
     };
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
-};
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) throw new Error("useAuth debe usarse dentro de AuthProvider");
-    return context;
 };
