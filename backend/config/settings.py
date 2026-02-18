@@ -113,14 +113,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 1. CORS: Permitir conexión desde el Frontend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://jornada40-saas.vercel.app",  # URL de Vercel (cuando la tengamos)
 ]
 CORS_ALLOW_CREDENTIALS = True  # ¡Crucial! Permite pasar cookies
 
 # 2. CSRF: Confianza en el origen
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "https://jornada40-saas.vercel.app",
 ]
 
 # 3. REST FRAMEWORK & AUTH
@@ -152,7 +152,7 @@ RENDER_EXTERNAL_HOSTNAME = config('RAILWAY_ENVIRONMENT_NAME', default=None)
 if RENDER_EXTERNAL_HOSTNAME:
     # === ESTAMOS EN PRODUCCIÓN (Railway) ===
     DEBUG = False
-    ALLOWED_HOSTS = ['*'] # O tu dominio de railway
+    ALLOWED_HOSTS = ['jornada40-saas.vercel.app'] # O tu dominio de railway
 
     # CORS y CSRF (Aquí pondremos la URL de Vercel cuando la tengamos)
     # Por ahora permitimos todo para probar, luego lo cerramos
