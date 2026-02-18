@@ -31,5 +31,5 @@ RUN python manage.py collectstatic --noinput || true
 
 # 9. COMANDO MAESTRO: Migrar -> Crear Superusuario -> Iniciar Gunicorn
 CMD python manage.py migrate && \
-    python manage.py shell -c "from django.contrib.auth import get_user_model; User = get_user_model(); not User.objects.filter(username='admin').exists() and User.objects.create_superuser('admin', 'admin@example.com', 'admin12345')" && \
+    python manage.py createsuperuser --noinput || true && \
     gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
