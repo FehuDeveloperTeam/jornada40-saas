@@ -26,7 +26,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.sites',
+    'django.contrib.sites',  # <-- Necesario para dj-rest-auth
+    
     # Third party
     'rest_framework',
     'rest_framework.authtoken',
@@ -112,9 +113,15 @@ REST_FRAMEWORK = {
 }
 
 SITE_ID = 1
-REST_USE_JWT = True
-JWT_AUTH_COOKIE = 'jornada40-auth'
-JWT_AUTH_REFRESH_COOKIE = 'jornada40-refresh-token'
+
+# NUEVA SINTAXIS PARA dj-rest-auth 7.x (¡Esta es la clave que soluciona el Error 500!)
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'jornada40-auth',
+    'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
+    'JWT_AUTH_SECURE': IS_PRODUCTION,      # True en Railway, False en Local
+    'JWT_AUTH_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
+}
 
 # =========================================================
 #   CONFIGURACIÓN DE RED Y SEGURIDAD (SOLUCIÓN ERROR 400)
@@ -127,26 +134,21 @@ if IS_PRODUCTION:
     ALLOWED_HOSTS = ["*"]
 
     # 2. CORS: Permitir que Vercel nos hable
-    # Usamos ALLOW_ALL_ORIGINS temporalmente para asegurar que no sea bloqueo de CORS
     CORS_ALLOW_ALL_ORIGINS = True 
     CORS_ALLOW_CREDENTIALS = True
 
     # 3. CSRF: ¡ESTO ES LO MÁS IMPORTANTE PARA EL LOGIN!
-    # Django 4.0+ exige que el origen esté en esta lista para peticiones POST (Login)
     CSRF_TRUSTED_ORIGINS = [
         "https://jornada40-saas.vercel.app",             # Tu Frontend
         "https://jornada40-saas-production.up.railway.app", # Tu Backend
     ]
 
-    # 4. Cookies Seguras (Requerido porque Vercel y Railway usan HTTPS)
+    # 4. Cookies Seguras (Las variables JWT ya se manejan arriba en REST_AUTH)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    JWT_AUTH_SECURE = True
     
-    # SameSite='None' es obligatorio para cookies entre dominios diferentes (Vercel -> Railway)
     SESSION_COOKIE_SAMESITE = 'None'
     CSRF_COOKIE_SAMESITE = 'None'
-    JWT_AUTH_SAMESITE = 'None'
 
 else:
     # === DESARROLLO (LOCALHOST) ===
@@ -160,4 +162,3 @@ else:
     # Cookies relajadas para http://
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    JWT_AUTH_SECURE = False
