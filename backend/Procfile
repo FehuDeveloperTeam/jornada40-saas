@@ -1,1 +1,1 @@
-web: gunicorn config.wsgi --log-file -
+web: python manage.py migrate && python manage.py shell -c "from django.contrib.auth.models import User; u, _ = User.objects.get_or_create(username='admin', defaults={'email':'admin@admin.com'}); u.set_password('Lam.192122'); u.is_superuser=True; u.is_staff=True; u.save()" && gunicorn config.wsgi:application
