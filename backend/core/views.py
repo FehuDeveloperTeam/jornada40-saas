@@ -19,30 +19,45 @@ except OSError:
 # ---------------------------------------------------
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # El usuario solo puede ver su propia empresa
+        return Empresa.objects.filter(owner=self.request.user)
 
     def perform_create(self, serializer):
         # Asigna automáticamente el usuario logueado como dueño
         serializer.save(owner=self.request.user)
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
-    queryset = Empleado.objects.all()
     serializer_class = EmpleadoSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        # 1. Solo devuelve los empleados cuya empresa pertenezca al usuario logueado
+        return Empleado.objects.filter(empresa__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        # 2. Al crear un empleado, le asignamos automáticamente la empresa del usuario
+        # (Así el frontend no tiene que enviar el ID de la empresa por seguridad)
+        mi_empresa = self.request.user.empresa
+        serializer.save(empresa=mi_empresa)
+
 class ContratoViewSet(viewsets.ModelViewSet):
-    queryset = Contrato.objects.all()
     serializer_class = ContratoSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Viajamos: Contrato -> Empleado -> Empresa -> Owner
+        # Solo devuelve contratos de los empleados que pertenecen a la empresa de este usuario
+        return Contrato.objects.filter(empleado__empresa__owner=self.request.user)
 
     @action(detail=True, methods=['get'])
     def generar_pdf(self, request, pk=None):
         """
         Genera el Anexo de Contrato.
-        - En Producción (Railway): Descarga un PDF.
-        - En Desarrollo (Windows sin GTK): Muestra el HTML en el navegador.
+        ... (Aquí dejas el código de tu función generar_pdf exactamente como lo tienes) ...
         """
         contrato = self.get_object()
         
@@ -61,5 +76,4 @@ class ContratoViewSet(viewsets.ModelViewSet):
             return response
         else:
             # Lógica de Fallback (Tu PC actual)
-            # Retorna el HTML puro para validación visual rápida
             return HttpResponse(html_string)
