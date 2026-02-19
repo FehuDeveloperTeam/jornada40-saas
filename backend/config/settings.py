@@ -74,7 +74,7 @@ DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL', default='sqlite:///db.sqlite3'),
         conn_max_age=600,
-        ssl_require=IS_PRODUCTION # True en prod, False en local
+       
     )
 }
 
