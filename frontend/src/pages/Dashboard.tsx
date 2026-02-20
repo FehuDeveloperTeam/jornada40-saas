@@ -1,126 +1,102 @@
-import { useQuery } from '@tanstack/react-query';
-import client from '../api/client';
-import type { Empleado } from '../types';
-import { FileText, Plus, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 export default function Dashboard() {
+  const [empresa, setEmpresa] = useState(null);
+  const [empleados, setEmpleados] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    const navigate = useNavigate();
-    // 1. Obtener empleados desde la API
-    const { data: empleados, isLoading, error } = useQuery({
-        queryKey: ['empleados'],
-        queryFn: async () => {
-            const { data } = await client.get<Empleado[]>('/empleados/');
-            return data;
-        }
-    });
+  useEffect(() => {
+    // Función para ir a buscar todos los datos al backend
+    const fetchData = async () => {
+      try {
+        const config = {
+          withCredentials: true // ¡Vital para enviar la cookie de sesión!
+        };
 
-    // 2. Función para descargar el PDF
-    const handleDownloadPdf = async (contratoId: number, nombreEmpleado: string) => {
-        try {
-            const response = await client.get(`/contratos/${contratoId}/generar_pdf/`, {
-                responseType: 'blob' // Importante para descargar archivos binarios
-            });
-            
-            // Crear un link invisible para forzar la descarga en el navegador
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `Anexo_40h_${nombreEmpleado}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-        } catch (err) {
-            alert('Error al generar el PDF. Verifica que el empleado tenga contrato.');
-            console.error(err);
+        // Hacemos las dos peticiones al mismo tiempo para que cargue más rápido
+        const [empresaRes, empleadosRes] = await Promise.all([
+          axios.get('https://jornada40-saas-production.up.railway.app/api/empresas/', config),
+          axios.get('https://jornada40-saas-production.up.railway.app/api/empleados/', config)
+        ]);
+
+        // Como el backend devuelve una lista (aunque sea solo 1 empresa), tomamos la primera [0]
+        if (empresaRes.data.length > 0) {
+          setEmpresa(empresaRes.data[0]);
         }
+        // Guardamos la lista de empleados
+        setEmpleados(empleadosRes.data);
+
+      } catch (error) {
+        console.error('Error al cargar los datos del Dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (isLoading) return <div className="p-10">Cargando datos...</div>;
-    if (error) return <div className="p-10 text-red-600">Error al cargar empleados</div>;
+    fetchData();
+  }, []);
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header / Navbar simple */}
-            <nav className="bg-white shadow-sm border-b px-8 py-4 flex justify-between items-center">
-                <div className="flex items-center gap-2 text-blue-700 font-bold text-xl">
-                    <Users /> Jornada 40h SaaS
-                </div>
-                <div className="text-sm text-gray-500">Panel de Administración</div>
-            </nav>
+  if (loading) {
+    return <div className="p-10 text-center text-xl">Cargando tu espacio de trabajo... ⏳</div>;
+  }
 
-            <main className="max-w-6xl mx-auto p-8">
-                
-                <div className="flex justify-between items-end mb-6">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Mis Colaboradores</h1>
-                        <p className="text-gray-500">Gestiona los anexos de contrato y turnos.</p>
-                    </div>
-                    <button 
-                        onClick={() => navigate('/crear-empleado')} // <--- AGREGAR ESTO
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition"
-                >
-                         <Plus size={16} /> Nuevo Empleado
-                    </button>
-                </div>
+  return (
+    <div className="p-8 bg-gray-50 min-h-screen">
+      {/* SECCIÓN 1: Datos de la Empresa */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">
+          {empresa ? empresa.nombre_legal : 'Bienvenido a Jornada 40h SaaS'}
+        </h1>
+        {empresa && (
+          <p className="text-gray-500 mt-2">
+            RUT: {empresa.rut} | Giro: {empresa.giro}
+          </p>
+        )}
+      </div>
 
-                {/* Tabla de Empleados */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
-                            <tr>
-                                <th className="p-4 border-b">Nombre</th>
-                                <th className="p-4 border-b">RUT</th>
-                                <th className="p-4 border-b">Cargo</th>
-                                <th className="p-4 border-b">Jornada</th>
-                                <th className="p-4 border-b text-right">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {empleados?.map((emp) => (
-                                <tr key={emp.id} className="hover:bg-gray-50 transition">
-                                    <td className="p-4 font-medium text-gray-900">
-                                        {emp.nombres} {emp.apellidos}
-                                    </td>
-                                    <td className="p-4 text-gray-500">{emp.rut}</td>
-                                    <td className="p-4 text-gray-500">{emp.cargo}</td>
-                                    <td className="p-4">
-                                        {emp.contrato_activo ? (
-                                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">
-                                                {emp.contrato_activo.horas_semanales} Horas
-                                            </span>
-                                        ) : (
-                                            <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">
-                                                Sin Contrato
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        {emp.contrato_activo && (
-                                            <button 
-                                                onClick={() => handleDownloadPdf(emp.contrato_activo!.id, emp.apellidos)}
-                                                className="text-blue-600 hover:text-blue-800 text-sm font-medium inline-flex items-center gap-1"
-                                                title="Descargar Anexo Legal"
-                                            >
-                                                <FileText size={16} /> Anexo PDF
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            
-                            {empleados?.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="p-8 text-center text-gray-500">
-                                        No hay empleados registrados aún.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </main>
+      {/* SECCIÓN 2: Tabla de Empleados */}
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-700">Tus Empleados</h2>
+          <button className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+            + Nuevo Empleado
+          </button>
         </div>
-    );
+
+        {empleados.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">Aún no tienes empleados registrados.</p>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="p-3">RUT</th>
+                <th className="p-3">Nombre Completo</th>
+                <th className="p-3">Cargo</th>
+                <th className="p-3">Estado</th>
+                <th className="p-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {empleados.map((emp) => (
+                <tr key={emp.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3">{emp.rut}</td>
+                  <td className="p-3">{emp.nombres} {emp.apellidos}</td>
+                  <td className="p-3">{emp.cargo}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded text-xs text-white ${emp.activo ? 'bg-green-500' : 'bg-red-500'}`}>
+                      {emp.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-blue-600 cursor-pointer hover:underline">
+                    Ver Contrato
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
 }
