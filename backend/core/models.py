@@ -4,20 +4,10 @@ from django.utils import timezone
 
 # 1. EMPRESA (El Cliente del SaaS)
 class Empresa(models.Model):
-    # Relación con el usuario que se registra (Dueño de la cuenta)
-    owner = models.OneToOneField(User, on_delete=models.CASCADE, related_name='empresa')
-    
+    # ForeignKey permite que un User tenga infinitas Empresas
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='empresas')
     nombre_legal = models.CharField(max_length=255)
-    rut = models.CharField(max_length=20, unique=True, help_text="RUT de la empresa sin puntos")
-    direccion = models.CharField(max_length=255, blank=True)
-    giro = models.CharField(max_length=255, blank=True)
-    
-    # Auditoría
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.nombre_legal
+    rut = models.CharField(max_length=20, unique=True)
 
 # 2. EMPLEADO (El recurso humano)
 class Empleado(models.Model):
