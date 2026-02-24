@@ -74,7 +74,6 @@ DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL', default='sqlite:///db.sqlite3'),
         conn_max_age=600,
-       
     )
 }
 
@@ -87,8 +86,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+LANGUAGE_CODE = 'es-cl' # Lo cambié a español de Chile para que las fechas calcen mejor con tu SaaS
+TIME_ZONE = 'America/Santiago'
 USE_I18N = True
 USE_TZ = True
 
@@ -114,7 +113,7 @@ REST_FRAMEWORK = {
 
 SITE_ID = 1
 
-# NUEVA SINTAXIS PARA dj-rest-auth 7.x (¡Esta es la clave que soluciona el Error 500!)
+# NUEVA SINTAXIS PARA dj-rest-auth 7.x
 REST_AUTH = {
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': 'jornada40-auth',
@@ -124,26 +123,28 @@ REST_AUTH = {
 }
 
 # =========================================================
-#   CONFIGURACIÓN DE RED Y SEGURIDAD (SOLUCIÓN ERROR 400)
+#   CONFIGURACIÓN DE RED Y SEGURIDAD (LA SOLUCIÓN DEL 401)
 # =========================================================
 
 if IS_PRODUCTION:
     # === PRODUCCIÓN (RAILWAY) ===
     
-    # 1. ALLOWED HOSTS: El asterisco elimina el error de "Invalid HTTP_HOST header"
+    # 1. ALLOWED HOSTS
     ALLOWED_HOSTS = ["*"]
 
-    # 2. CORS: Permitir que Vercel nos hable
-    CORS_ALLOW_ALL_ORIGINS = True 
+    # 2. CORS: Lista VIP estricta (¡Adiós ALLOW_ALL_ORIGINS!)
+    CORS_ALLOWED_ORIGINS = [
+        "https://jornada40-saas.vercel.app",             # Tu Frontend en Vercel
+    ]
     CORS_ALLOW_CREDENTIALS = True
 
-    # 3. CSRF: ¡ESTO ES LO MÁS IMPORTANTE PARA EL LOGIN!
+    # 3. CSRF
     CSRF_TRUSTED_ORIGINS = [
-        "https://jornada40-saas.vercel.app",             # Tu Frontend
-        "https://jornada40-saas-production.up.railway.app", # Tu Backend
+        "https://jornada40-saas.vercel.app",             
+        "https://jornada40-saas-production.up.railway.app", 
     ]
 
-    # 4. Cookies Seguras (Las variables JWT ya se manejan arriba en REST_AUTH)
+    # 4. Cookies Seguras para dominios cruzados
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     
