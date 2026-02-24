@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { formatRut, validateRut } from '../utils/rutUtils'; // Reutilizamos tu validador mágico
+import { formatRut, validateRut } from '../utils/rutUtils';
 
 interface Empresa {
   id: number;
@@ -78,8 +78,12 @@ export default function LobbyEmpresas() {
 
     try {
       if (empresaEditando) {
-        // ACTUALIZAR (PUT)
-        await axios.put(`https://jornada40-saas-production.up.railway.app/api/empresas/${empresaEditando}/`, formData, apiConfig);
+        // ACTUALIZACIÓN PARCIAL (PATCH) ✨
+        await axios.patch(
+          `https://jornada40-saas-production.up.railway.app/api/empresas/${empresaEditando}/`, 
+          formData, 
+          apiConfig
+        );
       } else {
         // CREAR NUEVA (POST)
         await axios.post('https://jornada40-saas-production.up.railway.app/api/empresas/', formData, apiConfig);
@@ -88,9 +92,11 @@ export default function LobbyEmpresas() {
       setIsModalOpen(false);
       setLoading(true);
       fetchEmpresas(); // Recargamos la lista
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al guardar:", error);
-      alert("Hubo un error al guardar la empresa.");
+      // Si Django nos envía un motivo del rechazo, lo mostramos
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : "Hubo un error al guardar la empresa.";
+      alert(`No se pudo guardar: ${errorMsg}`);
     }
   };
 
