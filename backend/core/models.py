@@ -8,27 +8,36 @@ class Empresa(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='empresas')
     nombre_legal = models.CharField(max_length=255)
     rut = models.CharField(max_length=20, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
 # 2. EMPLEADO (El recurso humano)
 class Empleado(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='empleados')
-    
-    rut = models.CharField(max_length=20, help_text="RUT personal")
+    rut = models.CharField(max_length=20)
     nombres = models.CharField(max_length=100)
     apellidos = models.CharField(max_length=100)
-    email = models.EmailField(blank=True, null=True)
-    telefono = models.CharField(max_length=20, blank=True)
-    cargo = models.CharField(max_length=100)
     
+    # --- NUEVOS CAMPOS PARA GRAFICAR ---
+    sexo = models.CharField(max_length=20, choices=[('M', 'Masculino'), ('F', 'Femenino'), ('O', 'Otro')], blank=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True) # Para calcular el rango de edad
+    nacionalidad = models.CharField(max_length=50, default="Chilena")
+    estado_civil = models.CharField(max_length=50, blank=True)
+    comuna = models.CharField(max_length=100, blank=True) # Ubicación
+    
+    # Datos Laborales
+    departamento = models.CharField(max_length=100, blank=True)
+    cargo = models.CharField(max_length=100)
+    sucursal = models.CharField(max_length=100, blank=True)
+    modalidad = models.CharField(max_length=20, choices=[('PRESENCIAL', 'Presencial'), ('REMOTO', 'Remoto'), ('HIBRIDO', 'Híbrido')], default='PRESENCIAL')
+    
+    # Previsión y Sueldo
+    sueldo_base = models.IntegerField(default=0)
+    afp = models.CharField(max_length=50, blank=True)
+    sistema_salud = models.CharField(max_length=50, choices=[('FONASA', 'Fonasa'), ('ISAPRE', 'Isapre')], blank=True)
+    
+    # Estados
     fecha_ingreso = models.DateField()
     activo = models.BooleanField(default=True)
-
-    class Meta:
-        # Evitar duplicados de RUT dentro de la misma empresa
-        unique_together = ['empresa', 'rut']
-
-    def __str__(self):
-        return f"{self.nombres} {self.apellidos}"
 
 # 3. CONTRATO (El núcleo de la Ley 40h)
 class Contrato(models.Model):
