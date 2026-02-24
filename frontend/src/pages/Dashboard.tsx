@@ -129,18 +129,42 @@ export default function Dashboard() {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellidos) return;
 
+    // 🧹 PASO 1: Clonamos los datos para "limpiarlos" antes de enviarlos
+    const payload = { ...formData };
+
+    // Si las fechas están vacías (string vacío ""), las borramos para que Django no se confunda
+    if (payload.fecha_nacimiento === '') delete payload.fecha_nacimiento;
+    if (payload.fecha_ingreso === '') delete payload.fecha_ingreso;
+
+    // Si los menús desplegables están en "Seleccione...", los borramos
+    if (payload.sexo === '') delete payload.sexo;
+    if (payload.sistema_salud === '') delete payload.sistema_salud;
+
+    // Aseguramos que el ID de la empresa viaje como un Número entero
+    if (payload.empresa) payload.empresa = parseInt(payload.empresa.toString());
+
     try {
       if (panelMode === 'edit' && selectedEmpleado) {
-        await axios.put(`https://jornada40-saas-production.up.railway.app/api/empleados/${selectedEmpleado.id}/`, formData, apiConfig);
+        // ACTUALIZAR (PATCH en lugar de PUT)
+        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/empleados/${selectedEmpleado.id}/`, payload, apiConfig);
       } else {
-        await axios.post('https://jornada40-saas-production.up.railway.app/api/empleados/', formData, apiConfig);
+        // CREAR NUEVO (POST)
+        await axios.post('https://jornada40-saas-production.up.railway.app/api/empleados/', payload, apiConfig);
       }
+      
       setIsPanelOpen(false);
       setLoading(true);
-      fetchData(); // Recargar la tabla
-    } catch (error) {
+      fetchData(); // Recargamos la tabla
+      
+    } catch (error: any) {
       console.error("Error al guardar empleado:", error);
-      alert("Error al guardar. Revisa que todos los campos obligatorios estén llenos.");
+      
+      // 🚨 PASO 2: La alerta que nos dirá exactamente qué campo le molesta a Django
+      const errorMsg = error.response?.data 
+        ? JSON.stringify(error.response.data, null, 2) 
+        : "Revisa tu conexión o los datos ingresados.";
+        
+      alert(`Django rechazó la operación. Motivo exacto:\n\n${errorMsg}`);
     }
   };
 
