@@ -1,18 +1,18 @@
-// Da formato XX.XXX.XXX-X automáticamente
-export const formatRut = (value) => {
-  // Limpia todo lo que no sea número o la letra K
+// utils/rutUtils.ts
+
+// Recibe un string y devuelve un string (el RUT formateado)
+export const formatRut = (value: string): string => {
   let rut = value.replace(/[^0-9kK]/g, '').toUpperCase();
   if (rut.length <= 1) return rut;
 
   const cuerpo = rut.slice(0, -1);
   const dv = rut.slice(-1);
   
-  // Agrega los puntos cada 3 números y el guion
   return cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
 };
 
-// Verifica matemáticamente si el RUT es real
-export const validateRut = (rutCompleto) => {
+// Recibe un string y devuelve un boolean (true o false)
+export const validateRut = (rutCompleto: string): boolean => {
   if (!rutCompleto) return false;
   
   const limpio = rutCompleto.replace(/[^0-9kK]/g, '').toUpperCase();
@@ -24,9 +24,8 @@ export const validateRut = (rutCompleto) => {
   let suma = 0;
   let multiplo = 2;
 
-  // Algoritmo Módulo 11
   for (let i = 1; i <= cuerpo.length; i++) {
-    const index = multiplo * rutCompleto.charAt(cuerpo.length - i);
+    const index = multiplo * parseInt(limpio.charAt(cuerpo.length - i));
     suma += index;
     multiplo = multiplo < 7 ? multiplo + 1 : 2;
   }
