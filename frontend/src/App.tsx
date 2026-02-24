@@ -1,49 +1,80 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import { useAuth } from './context/AuthContext';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import type { ReactNode } from 'react';
-import CrearEmpleado from './pages/CrearEmpleado';
+import Login from './pages/Login'; 
+import LobbyEmpresas from './pages/LobbyEmpresas'; 
+import Dashboard from './pages/Dashboard'; 
 
-// Componente para proteger rutas
+// 🛡️ EL GUARDIÁN REAL (Consulta al Backend)
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-    // CORRECCIÓN AQUÍ: Cambiamos 'isLoading' por 'loading'
-    const { user, loading } = useAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-    // Usamos 'loading' para la condición
-    if (loading) return <div>Cargando...</div>;
+  useEffect(() => {
+    const verifySession = async () => {
+      try {
+        // Le preguntamos a Django si nuestra cookie actual es válida
+        await axios.get('https://jornada40-saas-production.up.railway.app/api/auth/user/', {
+          withCredentials: true
+        });
+        // Si responde 200 OK, la sesión es real y segura
+        setIsAuthenticated(true);
+      } catch (error) {
+        // Si responde 401, la cookie expiró o no existe
+        setIsAuthenticated(false);
+      }
+    };
 
-    // Si no hay usuario, mandar al login
-    if (!user) return <Navigate to="/login" />;
+    verifySession();
+  }, []);
 
-    return children;
+  // Mientras le preguntamos al backend, mostramos una pantalla de carga
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Si el backend dijo que no, lo mandamos al login
+  if (isAuthenticated === false) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  // Si el backend dijo que sí, lo dejamos entrar a la ruta protegida
+  return children;
 };
 
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Ruta Pública */}
         <Route path="/login" element={<Login />} />
-        
-        {/* Ruta protegida para el Dashboard */}
-        <Route path="/dashboard" element={
+
+        {/* Rutas Privadas y Seguras */}
+        <Route 
+          path="/empresas" 
+          element={
             <ProtectedRoute>
-                <Dashboard />
+              <LobbyEmpresas />
             </ProtectedRoute>
-        } />
+          } 
+        />
+        
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
 
-        {/* Ruta protegida para Crear Empleado */}
-        <Route path="/crear-empleado" element={
-          <ProtectedRoute>
-            <CrearEmpleado />
-          </ProtectedRoute>
-        } />
-
-        {/* Cualquier ruta desconocida redirige al Dashboard (o al login si no está autenticado) */}
-        <Route path="*" element={<Navigate to="/dashboard" />} />
+        <Route path="/" element={<Navigate to="/empresas" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
-
-export default App;

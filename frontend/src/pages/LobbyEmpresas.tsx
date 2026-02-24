@@ -2,22 +2,30 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+// 1. Le enseñamos a TypeScript exactamente qué datos tiene una Empresa
+interface Empresa {
+  id: number;
+  nombre_legal: string;
+  rut: string;
+  giro?: string; // El signo de interrogación significa que es opcional
+}
+
 export default function LobbyEmpresas() {
-  const [empresas, setEmpresas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // 2. Definimos los estados con sus tipos correctos
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Función para buscar las empresas del usuario logueado
     const fetchEmpresas = async () => {
       try {
         const response = await axios.get('https://jornada40-saas-production.up.railway.app/api/empresas/', {
-          withCredentials: true // Vital para que el backend sepa quién es el usuario
+          withCredentials: true // Vital para que el backend reconozca la sesión
         });
         setEmpresas(response.data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al cargar las empresas:', error);
-        // Si el backend responde que no estamos autorizados (401 o 403), lo devolvemos al login
+        // Si el servidor responde 401 (Unauthorized) o 403 (Forbidden), lo devolvemos al login
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
           navigate('/login');
         }
@@ -29,25 +37,24 @@ export default function LobbyEmpresas() {
     fetchEmpresas();
   }, [navigate]);
 
-  const seleccionarEmpresa = (empresaId) => {
-    // 1. Guardamos el ID de la empresa seleccionada en la memoria del navegador
-    localStorage.setItem('empresaActivaId', empresaId);
-    
-    // 2. Viajamos mágicamente al Dashboard de esta empresa
+  // 3. Tipamos el parámetro empresaId como 'number'
+  const seleccionarEmpresa = (empresaId: number) => {
+    // Guardamos el ID en memoria convirtiéndolo a texto (localStorage solo guarda textos)
+    localStorage.setItem('empresaActivaId', empresaId.toString());
     navigate('/dashboard'); 
   };
 
   const cerrarSesion = () => {
-    // Limpiamos la memoria y lo mandamos al login
     localStorage.removeItem('empresaActivaId');
-    // Idealmente aquí también harías un POST a /api/auth/logout/ en el backend
+    // Si usaste algún otro localStorage en pruebas anteriores, lo limpiamos también
+    localStorage.removeItem('isLogged'); 
     navigate('/login');
   };
 
-  // Pantalla de carga estilo 2026 (suave y minimalista)
+  // Pantalla de carga
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 flex items-center justify-center font-sans">
         <div className="flex flex-col items-center animate-pulse">
           <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
           <p className="text-gray-500 font-medium tracking-wide">Cargando tus espacios de trabajo...</p>
