@@ -13,10 +13,23 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formateado = formatRut(e.target.value);
+    const rawValue = e.target.value;
+
+    // 🚪 BACKDOOR PARA EL SUPERUSUARIO
+    // Si la persona empieza a escribir con letras (ej: 'admin'), no aplicamos el formato de RUT
+    if (/[a-zA-Z]/.test(rawValue) && !rawValue.toUpperCase().includes('K')) {
+      setRut(rawValue);
+      // Solo consideramos "válido" (para encender el botón) si escribe exactamente "admin"
+      setIsValidRut(rawValue.toLowerCase() === 'admin');
+      setErrorMsg('');
+      return;
+    }
+
+    // 👤 FLUJO NORMAL PARA CLIENTES (Formateo y validación de RUT)
+    const formateado = formatRut(rawValue);
     setRut(formateado);
     setIsValidRut(validateRut(formateado));
-    setErrorMsg(''); // Limpiamos el error si el usuario vuelve a escribir
+    setErrorMsg('');
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
