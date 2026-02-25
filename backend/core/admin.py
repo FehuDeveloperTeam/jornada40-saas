@@ -8,9 +8,9 @@ class EmpresaAdmin(admin.ModelAdmin):
 
 @admin.register(Empleado)
 class EmpleadoAdmin(admin.ModelAdmin):
-    list_display = ('rut', 'nombres', 'apellidos', 'empresa', 'cargo', 'activo')
+    list_display = ('rut', 'nombres', 'apellido_paterno', 'apellido_materno', 'empresa', 'cargo', 'activo')
     list_filter = ('empresa', 'activo', 'cargo')
-    search_fields = ('rut', 'nombres', 'apellidos')
+    search_fields = ('rut', 'nombres', 'apellido_paterno')
 
 @admin.register(Contrato)
 class ContratoAdmin(admin.ModelAdmin):

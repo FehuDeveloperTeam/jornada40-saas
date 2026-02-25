@@ -15,35 +15,49 @@ class Empresa(models.Model):
     comuna = models.CharField(max_length=100, blank=True, null=True)
     ciudad = models.CharField(max_length=100, blank=True, null=True)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
+    def __str__(self):
+        return self.nombre_legal
 
 # 2. EMPLEADO (El recurso humano)
 class Empleado(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='empleados')
     rut = models.CharField(max_length=20)
     nombres = models.CharField(max_length=100)
-    apellidos = models.CharField(max_length=100)
     
-    # --- NUEVOS CAMPOS PARA GRAFICAR ---
-    sexo = models.CharField(max_length=20, choices=[('M', 'Masculino'), ('F', 'Femenino'), ('O', 'Otro')], blank=True)
-    fecha_nacimiento = models.DateField(null=True, blank=True) # Para calcular el rango de edad
+    # --- APELLIDOS SEPARADOS ---
+    apellido_paterno = models.CharField(max_length=100)
+    apellido_materno = models.CharField(max_length=100, blank=True, null=True)
+    
+    # --- DATOS PERSONALES ---
+    sexo = models.CharField(max_length=20, choices=[('M', 'Masculino'), ('F', 'Femenino'), ('O', 'Otro')], blank=True, null=True)
+    fecha_nacimiento = models.DateField(null=True, blank=True) 
     nacionalidad = models.CharField(max_length=50, default="Chilena")
-    estado_civil = models.CharField(max_length=50, blank=True)
-    comuna = models.CharField(max_length=100, blank=True) # Ubicación
+    estado_civil = models.CharField(max_length=50, blank=True, null=True)
+    direccion = models.CharField(max_length=255, blank=True, null=True) # NUEVO
+    comuna = models.CharField(max_length=100, blank=True, null=True) 
+    numero_telefono = models.CharField(max_length=20, blank=True, null=True)
     
-    # Datos Laborales
-    departamento = models.CharField(max_length=100, blank=True)
+    # --- DATOS LABORALES ---
+    departamento = models.CharField(max_length=100, blank=True, null=True)
     cargo = models.CharField(max_length=100)
-    sucursal = models.CharField(max_length=100, blank=True)
+    sucursal = models.CharField(max_length=100, blank=True, null=True)
+    horas_laborales = models.IntegerField(default=40) # NUEVO (Ej: 40, 44, 45)
     modalidad = models.CharField(max_length=20, choices=[('PRESENCIAL', 'Presencial'), ('REMOTO', 'Remoto'), ('HIBRIDO', 'Híbrido')], default='PRESENCIAL')
     
-    # Previsión y Sueldo
+    # --- PREVISIÓN Y SUELDO ---
     sueldo_base = models.IntegerField(default=0)
-    afp = models.CharField(max_length=50, blank=True)
-    sistema_salud = models.CharField(max_length=50, choices=[('FONASA', 'Fonasa'), ('ISAPRE', 'Isapre')], blank=True)
+    afp = models.CharField(max_length=50, blank=True, null=True)
+    sistema_salud = models.CharField(max_length=50, choices=[('FONASA', 'Fonasa'), ('ISAPRE', 'Isapre')], blank=True, null=True)
     
-    # Estados
+    # --- ESTADOS Y TRAZABILIDAD ---
     fecha_ingreso = models.DateField()
     activo = models.BooleanField(default=True)
+    
+    # NUEVO: Registro interno automático (No se muestra en el form, se llena solo)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.nombres} {self.apellido_paterno}"
 
 # 3. CONTRATO (El núcleo de la Ley 40h)
 class Contrato(models.Model):
