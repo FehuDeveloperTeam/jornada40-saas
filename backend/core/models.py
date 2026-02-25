@@ -9,6 +9,12 @@ class Empresa(models.Model):
     nombre_legal = models.CharField(max_length=255)
     rut = models.CharField(max_length=20, unique=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    alias = models.CharField(max_length=100, blank=True, null=True) # Nombre de fantasía
+    giro = models.CharField(max_length=200, blank=True, null=True)
+    direccion = models.CharField(max_length=255, blank=True, null=True)
+    comuna = models.CharField(max_length=100, blank=True, null=True)
+    ciudad = models.CharField(max_length=100, blank=True, null=True)
+    sucursal = models.CharField(max_length=100, blank=True, null=True)
 
 # 2. EMPLEADO (El recurso humano)
 class Empleado(models.Model):
