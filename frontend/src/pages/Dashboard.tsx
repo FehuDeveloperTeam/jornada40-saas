@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 
-// --- TIPOS ---
+// --- TIPOS E INTERFACES ---
 interface Empresa {
   id: number;
   nombre_legal: string;
@@ -15,15 +15,19 @@ interface Empleado {
   id: number;
   rut: string;
   nombres: string;
-  apellidos: string;
+  apellido_paterno: string;
+  apellido_materno?: string;
   sexo?: string;
   fecha_nacimiento?: string;
   nacionalidad?: string;
   estado_civil?: string;
+  direccion?: string;
   comuna?: string;
+  numero_telefono?: string;
   departamento?: string;
   cargo: string;
   sucursal?: string;
+  horas_laborales?: number;
   modalidad?: string;
   sueldo_base?: number;
   afp?: string;
@@ -31,6 +35,7 @@ interface Empleado {
   fecha_ingreso?: string;
   activo: boolean;
   empresa: number;
+  creado_en?: string;
 }
 
 export default function Dashboard() {
@@ -38,19 +43,19 @@ export default function Dashboard() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   
-  // Estados del Panel Lateral (Slide-over)
+  // --- ESTADOS DEL PANEL LATERAL ---
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedEmpleado, setSelectedEmpleado] = useState<Empleado | null>(null);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
 
-  // Formulario temporal
   const [formData, setFormData] = useState<Partial<Empleado>>({});
 
   const navigate = useNavigate();
   const apiConfig = { withCredentials: true };
   const empresaActivaId = localStorage.getItem('empresaActivaId');
 
+  // --- OBTENER DATOS ---
   const fetchData = async () => {
     if (!empresaActivaId) {
       navigate('/empresas');
@@ -83,13 +88,15 @@ export default function Dashboard() {
     navigate('/empresas');
   };
 
-  // --- LÓGICA DEL PANEL ---
+  // --- MANEJADORES DEL PANEL ---
   const abrirCrear = () => {
     setPanelMode('create');
     setFormData({ 
       activo: true, 
       nacionalidad: 'Chilena', 
       modalidad: 'PRESENCIAL',
+      horas_laborales: 40,
+      sueldo_base: 0,
       empresa: parseInt(empresaActivaId!) 
     });
     setIsValidRut(false);
@@ -119,7 +126,6 @@ export default function Dashboard() {
     } else {
       setFormData(prev => ({
         ...prev,
-        // Si es un checkbox (como activo/inactivo), guardamos el boolean
         [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
       }));
     }
@@ -127,44 +133,39 @@ export default function Dashboard() {
 
   const guardarEmpleado = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidRut || !formData.nombres || !formData.apellidos) return;
+    if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
 
-    // 🧹 PASO 1: Clonamos los datos para "limpiarlos" antes de enviarlos
-    const payload = { ...formData };
+    // 🧹 CLONACIÓN Y LIMPIEZA EXTREMA DEL PAYLOAD
+    const payload: any = { ...formData };
+    
+    // 1. Eliminar campos opcionales si están vacíos (para no enviar strings vacíos a Django)
+    const camposOpcionales = [
+      'apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 
+      'direccion', 'comuna', 'numero_telefono', 'departamento', 'sucursal', 
+      'afp', 'sistema_salud', 'nacionalidad'
+    ];
+    camposOpcionales.forEach(campo => {
+      if (payload[campo] === '') delete payload[campo];
+    });
 
-    // Si las fechas están vacías (string vacío ""), las borramos para que Django no se confunda
-    if (payload.fecha_nacimiento === '') delete payload.fecha_nacimiento;
-    if (payload.fecha_ingreso === '') delete payload.fecha_ingreso;
-
-    // Si los menús desplegables están en "Seleccione...", los borramos
-    if (payload.sexo === '') delete payload.sexo;
-    if (payload.sistema_salud === '') delete payload.sistema_salud;
-
-    // Aseguramos que el ID de la empresa viaje como un Número entero
+    // 2. Asegurar que los números viajen como Enteros (Integer) y no como Textos (String)
     if (payload.empresa) payload.empresa = parseInt(payload.empresa.toString());
+    payload.horas_laborales = parseInt(payload.horas_laborales || 40);
+    payload.sueldo_base = parseInt(payload.sueldo_base || 0);
 
     try {
       if (panelMode === 'edit' && selectedEmpleado) {
-        // ACTUALIZAR (PATCH en lugar de PUT)
         await axios.patch(`https://jornada40-saas-production.up.railway.app/api/empleados/${selectedEmpleado.id}/`, payload, apiConfig);
       } else {
-        // CREAR NUEVO (POST)
         await axios.post('https://jornada40-saas-production.up.railway.app/api/empleados/', payload, apiConfig);
       }
-      
       setIsPanelOpen(false);
       setLoading(true);
-      fetchData(); // Recargamos la tabla
-      
+      fetchData(); 
     } catch (error: any) {
       console.error("Error al guardar empleado:", error);
-      
-      // 🚨 PASO 2: La alerta que nos dirá exactamente qué campo le molesta a Django
-      const errorMsg = error.response?.data 
-        ? JSON.stringify(error.response.data, null, 2) 
-        : "Revisa tu conexión o los datos ingresados.";
-        
-      alert(`Django rechazó la operación. Motivo exacto:\n\n${errorMsg}`);
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Error de conexión";
+      alert(`Django rechazó la operación:\n\n${errorMsg}`);
     }
   };
 
@@ -172,9 +173,9 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 md:p-10 bg-gray-50 min-h-screen font-sans flex">
-      <div className={`max-w-7xl mx-auto w-full transition-all duration-300 ${isPanelOpen ? 'md:mr-[400px]' : ''}`}>
+      <div className={`max-w-7xl mx-auto w-full transition-all duration-300 ${isPanelOpen ? 'md:mr-[450px]' : ''}`}>
         
-        {/* NAVEGACIÓN */}
+        {/* === NAVEGACIÓN Y HEADER === */}
         <div className="flex justify-between items-center mb-8">
           <button onClick={volverAlLobby} className="text-gray-500 hover:text-gray-900 flex items-center gap-2 font-medium transition-colors">
             <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
@@ -182,12 +183,11 @@ export default function Dashboard() {
           </button>
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
-              {empresa?.nombre_legal.charAt(0).toUpperCase()}
+              {empresa?.nombre_legal?.charAt(0)?.toUpperCase() || 'E'}
             </div>
           </div>
         </div>
 
-        {/* HEADER EMPRESA */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{empresa?.nombre_legal}</h1>
           <div className="flex gap-4 mt-3 text-sm text-gray-500 font-medium">
@@ -196,7 +196,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* TABLA DE EMPLEADOS */}
+        {/* === TABLA DE EMPLEADOS === */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
@@ -219,7 +219,7 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b-2 border-gray-100">
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">RUT</th>
-                    <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre</th>
+                    <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre Completo</th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Cargo</th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Estado</th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase text-right">Acciones</th>
@@ -229,19 +229,17 @@ export default function Dashboard() {
                   {empleados.map((emp) => (
                     <tr key={emp.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors group">
                       <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
-                      <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellidos}</td>
+                      <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
                       <td className="p-4 text-gray-600">{emp.cargo}</td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${emp.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {emp.activo ? 'Activo' : 'Inactivo'}
+                          {emp.activo ? 'Vigente' : 'Desvinculado'}
                         </span>
                       </td>
                       <td className="p-4 text-right flex justify-end gap-3">
-                        {/* BOTÓN VER (OJO) */}
                         <button onClick={() => abrirVer(emp)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
                           <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         </button>
-                        {/* BOTÓN EDITAR (LÁPIZ) */}
                         <button onClick={() => abrirEditar(emp)} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
                           <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                         </button>
@@ -255,14 +253,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ================= SLIDE-OVER PANEL (Lateral) ================= */}
+      {/* === SLIDE-OVER PANEL LATERAL === */}
       {isPanelOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden">
-          {/* Fondo oscuro translúcido */}
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsPanelOpen(false)}></div>
           
-          <div className="absolute inset-y-0 right-0 max-w-md w-full flex">
-            <div className="h-full w-full bg-white shadow-2xl flex flex-col transform transition-transform duration-300 translate-x-0">
+          <div className="absolute inset-y-0 right-0 max-w-lg w-full flex">
+            <div className="h-full w-full bg-white shadow-2xl flex flex-col transform transition-transform duration-300">
               
               {/* HEADER DEL PANEL */}
               <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
@@ -270,7 +267,6 @@ export default function Dashboard() {
                   {panelMode === 'create' ? 'Nuevo Trabajador' : panelMode === 'edit' ? 'Editar Trabajador' : 'Perfil del Trabajador'}
                 </h2>
                 <div className="flex items-center gap-2">
-                  {/* Botón rápido de editar dentro de la vista de perfil */}
                   {panelMode === 'view' && selectedEmpleado && (
                     <button onClick={() => abrirEditar(selectedEmpleado)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Cambiar a modo edición">
                       <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
@@ -282,18 +278,17 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* BODY DEL PANEL (Scrollable) */}
+              {/* BODY DEL PANEL */}
               <div className="flex-1 overflow-y-auto p-6">
                 
-                {/* MODO LECTURA (VIEW) */}
                 {panelMode === 'view' && selectedEmpleado ? (
                   <div className="space-y-6">
                     <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
                       <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl font-bold">
-                        {selectedEmpleado.nombres.charAt(0)}{selectedEmpleado.apellidos.charAt(0)}
+                        {selectedEmpleado.nombres?.charAt(0) || ''}{selectedEmpleado.apellido_paterno?.charAt(0) || ''}
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-gray-900">{selectedEmpleado.nombres} {selectedEmpleado.apellidos}</h3>
+                        <h3 className="text-xl font-bold text-gray-900">{selectedEmpleado.nombres} {selectedEmpleado.apellido_paterno} {selectedEmpleado.apellido_materno}</h3>
                         <p className="text-gray-500">{selectedEmpleado.cargo}</p>
                         <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-semibold ${selectedEmpleado.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {selectedEmpleado.activo ? 'Vigente' : 'Desvinculado'}
@@ -307,7 +302,10 @@ export default function Dashboard() {
                         <div><dt className="text-gray-500">RUT</dt><dd className="font-medium text-gray-900 font-mono">{selectedEmpleado.rut}</dd></div>
                         <div><dt className="text-gray-500">Nacionalidad</dt><dd className="font-medium text-gray-900">{selectedEmpleado.nacionalidad || '-'}</dd></div>
                         <div><dt className="text-gray-500">Fecha Nac.</dt><dd className="font-medium text-gray-900">{selectedEmpleado.fecha_nacimiento || '-'}</dd></div>
+                        <div><dt className="text-gray-500">Estado Civil</dt><dd className="font-medium text-gray-900">{selectedEmpleado.estado_civil || '-'}</dd></div>
+                        <div><dt className="text-gray-500">Teléfono</dt><dd className="font-medium text-gray-900">{selectedEmpleado.numero_telefono || '-'}</dd></div>
                         <div><dt className="text-gray-500">Comuna</dt><dd className="font-medium text-gray-900">{selectedEmpleado.comuna || '-'}</dd></div>
+                        <div className="col-span-2"><dt className="text-gray-500">Dirección</dt><dd className="font-medium text-gray-900">{selectedEmpleado.direccion || '-'}</dd></div>
                       </dl>
                     </div>
 
@@ -315,8 +313,10 @@ export default function Dashboard() {
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 mt-6">Datos Laborales</h4>
                       <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
                         <div><dt className="text-gray-500">Departamento</dt><dd className="font-medium text-gray-900">{selectedEmpleado.departamento || '-'}</dd></div>
+                        <div><dt className="text-gray-500">Sucursal</dt><dd className="font-medium text-gray-900">{selectedEmpleado.sucursal || '-'}</dd></div>
                         <div><dt className="text-gray-500">Fecha Ingreso</dt><dd className="font-medium text-gray-900">{selectedEmpleado.fecha_ingreso || '-'}</dd></div>
                         <div><dt className="text-gray-500">Modalidad</dt><dd className="font-medium text-gray-900">{selectedEmpleado.modalidad || '-'}</dd></div>
+                        <div><dt className="text-gray-500">Jornada</dt><dd className="font-medium text-gray-900">{selectedEmpleado.horas_laborales} Hrs.</dd></div>
                         <div><dt className="text-gray-500">Sueldo Base</dt><dd className="font-medium text-gray-900">${selectedEmpleado.sueldo_base?.toLocaleString('es-CL') || '0'}</dd></div>
                         <div><dt className="text-gray-500">AFP</dt><dd className="font-medium text-gray-900">{selectedEmpleado.afp || '-'}</dd></div>
                         <div><dt className="text-gray-500">Previsión Salud</dt><dd className="font-medium text-gray-900">{selectedEmpleado.sistema_salud || '-'}</dd></div>
@@ -325,70 +325,110 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   
-                  /* MODO EDICIÓN / CREACIÓN (FORMULARIO) */
+                  /* === MODO EDICIÓN / CREACIÓN === */
                   <form id="empleadoForm" onSubmit={guardarEmpleado} className="space-y-6">
                     <div className="space-y-4">
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2">Datos Personales</h4>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">RUT *</label>
                           <input type="text" name="rut" required value={formData.rut || ''} onChange={handleInputChange} placeholder="12.345.678-9" 
                                  className={`w-full px-3 py-2 rounded-lg border ${!isValidRut && formData.rut ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500'} focus:outline-none focus:ring-2`} />
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Nombres</label>
-                          <input type="text" name="nombres" required value={formData.nombres || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nombres *</label>
+                          <input type="text" name="nombres" required value={formData.nombres || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Apellidos</label>
-                          <input type="text" name="apellidos" required value={formData.apellidos || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Ap. Paterno *</label>
+                          <input type="text" name="apellido_paterno" required value={formData.apellido_paterno || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Ap. Materno</label>
+                          <input type="text" name="apellido_materno" value={formData.apellido_materno || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">F. Nacimiento</label>
-                          <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                          <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Sexo</label>
-                          <select name="sexo" value={formData.sexo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                          <select name="sexo" value={formData.sexo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none">
                             <option value="">Seleccione...</option>
                             <option value="M">Masculino</option>
                             <option value="F">Femenino</option>
                             <option value="O">Otro</option>
                           </select>
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nacionalidad</label>
+                          <input type="text" name="nacionalidad" value={formData.nacionalidad || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Estado Civil</label>
+                          <input type="text" name="estado_civil" value={formData.estado_civil || ''} onChange={handleInputChange} placeholder="Ej: Soltero" className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                          <input type="text" name="numero_telefono" value={formData.numero_telefono || ''} onChange={handleInputChange} placeholder="+569 1234 5678" className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Comuna</label>
+                          <input type="text" name="comuna" value={formData.comuna || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Completa</label>
+                          <input type="text" name="direccion" value={formData.direccion || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
                       </div>
 
                       <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2 pt-4">Datos Laborales</h4>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
-                          <input type="text" name="cargo" required value={formData.cargo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Cargo *</label>
+                          <input type="text" name="cargo" required value={formData.cargo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">F. Ingreso</label>
-                          <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
+                          <input type="text" name="departamento" value={formData.departamento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                          <input type="text" name="sucursal" value={formData.sucursal || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">F. Ingreso *</label>
+                          <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Horas Laborales</label>
+                          <input type="number" name="horas_laborales" value={formData.horas_laborales || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Modalidad</label>
-                          <select name="modalidad" value={formData.modalidad || 'PRESENCIAL'} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                          <select name="modalidad" value={formData.modalidad || 'PRESENCIAL'} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none">
                             <option value="PRESENCIAL">Presencial</option>
                             <option value="REMOTO">Remoto</option>
                             <option value="HIBRIDO">Híbrido</option>
                           </select>
                         </div>
                         <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Sueldo Base ($)</label>
+                          <input type="number" name="sueldo_base" value={formData.sueldo_base || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">AFP</label>
-                          <input type="text" name="afp" value={formData.afp || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                          <input type="text" name="afp" value={formData.afp || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Sistema Salud</label>
-                          <select name="sistema_salud" value={formData.sistema_salud || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                          <select name="sistema_salud" value={formData.sistema_salud || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none">
                             <option value="">Seleccione...</option>
                             <option value="FONASA">Fonasa</option>
                             <option value="ISAPRE">Isapre</option>
                           </select>
                         </div>
-                        <div className="col-span-2 flex items-center gap-2 mt-2">
+                        <div className="col-span-2 flex items-center gap-2 mt-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
                           <input type="checkbox" id="activo" name="activo" checked={formData.activo} onChange={handleInputChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
                           <label htmlFor="activo" className="text-sm font-medium text-gray-700">Trabajador Vigente (Activo)</label>
                         </div>
@@ -398,7 +438,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* FOOTER DEL PANEL (Botones) */}
+              {/* FOOTER DEL PANEL */}
               <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
                 {panelMode === 'view' ? (
                   <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
