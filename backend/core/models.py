@@ -2,6 +2,59 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+class Plan(models.Model):
+    nombre = models.CharField(max_length=50) # Ej: "Gratis", "Pyme", "Corporativo"
+    descripcion = models.TextField(blank=True, null=True)
+    precio = models.IntegerField(default=0) # Precio mensual en CLP
+    
+    # Aquí están los límites mágicos
+    max_empresas = models.IntegerField(default=1)
+    max_empleados = models.IntegerField(default=3)
+    
+    activo = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.nombre} ({self.max_empleados} trab.) - ${self.precio}"
+
+
+# ==========================================
+# 2. TABLA DE CLIENTES (Datos de facturación y perfil)
+# ==========================================
+class Cliente(models.Model):
+    TIPO_CLIENTE_CHOICES = [
+        ('PERSONA', 'Persona Natural'),
+        ('EMPRESA', 'Empresa (Persona Jurídica)'),
+    ]
+    
+    # Relación 1 a 1 con el usuario de Django (el que hace Login)
+    usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil_cliente')
+    
+    # Relación con el Plan que contrató
+    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    tipo_cliente = models.CharField(max_length=20, choices=TIPO_CLIENTE_CHOICES, default='PERSONA')
+    rut = models.CharField(max_length=20, unique=True)
+    
+    # --- DATOS PERSONALES (Si es Persona Natural) ---
+    nombres = models.CharField(max_length=100)
+    apellido_paterno = models.CharField(max_length=100, blank=True, null=True)
+    apellido_materno = models.CharField(max_length=100, blank=True, null=True)
+    
+    # --- DATOS COMERCIALES (Si es Empresa) ---
+    razon_social = models.CharField(max_length=255, blank=True, null=True)
+    direccion = models.CharField(max_length=255, blank=True, null=True)
+    
+    # --- CONTACTO ---
+    telefono = models.CharField(max_length=20, blank=True, null=True)
+    # Nota: El correo ya viene incluido en el modelo 'usuario' (User) de Django.
+    
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        if self.tipo_cliente == 'EMPRESA' and self.razon_social:
+            return f"{self.razon_social} ({self.plan})"
+        return f"{self.nombres} {self.apellido_paterno} ({self.plan})"
+
 # 1. EMPRESA (El Cliente del SaaS)
 class Empresa(models.Model):
     # ForeignKey permite que un User tenga infinitas Empresas
