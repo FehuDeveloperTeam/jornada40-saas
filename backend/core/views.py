@@ -35,14 +35,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # 1. Solo devuelve los empleados cuya empresa pertenezca al usuario logueado
+        # Solo devuelve los empleados cuya empresa pertenezca al usuario logueado
         return Empleado.objects.filter(empresa__owner=self.request.user)
 
     def perform_create(self, serializer):
-        # 2. Al crear un empleado, le asignamos automáticamente la empresa del usuario
-        # (Así el frontend no tiene que enviar el ID de la empresa por seguridad)
-        mi_empresa = self.request.user.empresa
-        serializer.save(empresa=mi_empresa)
+        # Como el frontend YA envía el ID de la empresa en el payload ("empresa": 1),
+        # simplemente le decimos al serializador que guarde los datos tal cual llegaron.
+        serializer.save()
 
 class ContratoViewSet(viewsets.ModelViewSet):
     serializer_class = ContratoSerializer
