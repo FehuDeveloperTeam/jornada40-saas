@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import LobbyEmpresas from './pages/LobbyEmpresas'; 
 import Dashboard from './pages/Dashboard'; 
 import Register from './pages/Register';
+import Landing from './pages/Landing';
 
 // 🛡️ EL GUARDIÁN REAL (Consulta al Backend)
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
@@ -52,6 +53,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Ruta Pública */}
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
