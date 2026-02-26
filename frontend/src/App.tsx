@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import Login from './pages/Login'; 
 import LobbyEmpresas from './pages/LobbyEmpresas'; 
 import Dashboard from './pages/Dashboard'; 
+import Register from './pages/Register';
 
 // 🛡️ EL GUARDIÁN REAL (Consulta al Backend)
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
@@ -52,6 +53,7 @@ export default function App() {
       <Routes>
         {/* Ruta Pública */}
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
         {/* Rutas Privadas y Seguras */}
         <Route 

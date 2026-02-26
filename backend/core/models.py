@@ -68,6 +68,11 @@ class Empresa(models.Model):
     comuna = models.CharField(max_length=100, blank=True, null=True)
     ciudad = models.CharField(max_length=100, blank=True, null=True)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        # ¡LA MAGIA AQUÍ! Un usuario no puede registrar el mismo RUT dos veces
+        unique_together = ['rut', 'owner']
+        
     def __str__(self):
         return self.nombre_legal
 
