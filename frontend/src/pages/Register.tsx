@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { formatRut, validateRut } from '../utils/rutUtils';
+import axios from 'axios';
 
 // --- DEFINICIÓN DE PLANES (Front-end mock) ---
 const PLANES = [
@@ -78,10 +79,36 @@ export default function Register() {
     e.preventDefault();
     if (!isValidRut) return;
 
-    // Aquí irá la llamada a Axios para enviar los datos a Django
-    console.log("Datos a enviar:", { ...formData, tipoCliente, planId: planSeleccionado });
-    alert("¡Simulación de registro exitoso! Conectaremos esto al backend pronto.");
-    navigate('/login');
+    // Bloqueamos el botón mientras carga (opcional, pero buena práctica)
+    const btn = document.getElementById('btn-submit') as HTMLButtonElement;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = 'Creando cuenta...';
+    }
+
+    const payload = {
+      ...formData,
+      tipoCliente,
+      planId: planSeleccionado
+    };
+
+    try {
+      // Usamos tu URL de Railway o localhost dependiendo de tu entorno
+      await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', payload);
+      
+      alert('¡Cuenta creada con éxito! Ahora puedes iniciar sesión.');
+      navigate('/login');
+      
+    } catch (error: any) {
+      console.error("Error en registro:", error);
+      const errorMsg = error.response?.data?.error || "Ocurrió un error al crear la cuenta.";
+      alert(`Error: ${errorMsg}`);
+      
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = 'Crear mi Cuenta';
+      }
+    }
   };
 
   return (
@@ -226,7 +253,7 @@ export default function Register() {
               </div>
             </div>
 
-            <button type="submit" disabled={!isValidRut} className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 transition-colors mt-8 shadow-lg">
+            <button type="submit" id="btn-submit" disabled={!isValidRut} className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 transition-colors mt-8 shadow-lg">
               Crear mi Cuenta
             </button>
           </form>

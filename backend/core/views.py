@@ -1,3 +1,10 @@
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
+from django.contrib.auth.models import User
+from django.db import transaction
+from .models import Plan, Cliente
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
@@ -76,3 +83,51 @@ class ContratoViewSet(viewsets.ModelViewSet):
         else:
             # Lógica de Fallback (Tu PC actual)
             return HttpResponse(html_string)
+
+# ==========================================
+# REGISTRO DE NUEVOS CLIENTES (ONBOARDING)
+# ==========================================
+@api_view(['POST'])
+@permission_classes([AllowAny]) # Permitir que cualquiera se registre sin estar logueado
+def registrar_cliente(request):
+    data = request.data
+    
+    # 1. Validaciones de seguridad (Que no existan duplicados)
+    if User.objects.filter(username=data.get('email')).exists():
+        return Response({'error': 'Este correo ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if Cliente.objects.filter(rut=data.get('rut')).exists():
+        return Response({'error': 'Este RUT ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        # transaction.atomic asegura que o se crea todo, o no se crea nada.
+        with transaction.atomic():
+            # 2. Crear el Usuario de acceso (Django User)
+            usuario = User.objects.create_user(
+                username=data.get('email'),
+                email=data.get('email'),
+                password=data.get('password')
+            )
+            
+            # 3. Asignar el Plan seleccionado
+            plan_id = data.get('planId')
+            plan_seleccionado = Plan.objects.filter(id=plan_id).first()
+            
+            # 4. Crear el Perfil del Cliente
+            Cliente.objects.create(
+                usuario=usuario,
+                plan=plan_seleccionado,
+                tipo_cliente=data.get('tipoCliente', 'PERSONA'),
+                rut=data.get('rut'),
+                nombres=data.get('nombres', ''),
+                apellido_paterno=data.get('apellido_paterno', ''),
+                apellido_materno=data.get('apellido_materno', ''),
+                razon_social=data.get('razon_social', ''),
+                direccion=data.get('direccion', ''),
+                telefono=data.get('telefono', '')
+            )
+            
+        return Response({'mensaje': '¡Cuenta creada con éxito!'}, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        return Response({'error': f'Error interno: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
