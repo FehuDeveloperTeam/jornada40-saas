@@ -12,6 +12,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
+    libcairo2-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # 5. COPIAR USANDO RUTAS RELATIVAS (El truco si el contexto falla)
