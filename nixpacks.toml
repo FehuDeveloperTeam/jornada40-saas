@@ -17,3 +17,5 @@ cmds = ["echo 'Building Backend...'"]
 
 [start]
 cmd = ". /opt/venv/bin/activate && cd backend && gunicorn config.wsgi:application"
+
+# Forzando reconstruccion desde cero
