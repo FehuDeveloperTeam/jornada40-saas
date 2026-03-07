@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,6 +11,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+from weasyprint import HTML
+import datetime
 
 from .models import Empresa, Empleado, Contrato
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer
@@ -18,11 +20,7 @@ from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializ
 # --- BLOQUE DE COMPATIBILIDAD (Windows vs Linux) ---
 # Intentamos importar WeasyPrint. Si falla (común en Windows sin GTK3),
 # desactivamos la generación de PDF y activamos el modo "Vista Previa HTML".
-try:
-    from weasyprint import HTML
-    WEASYPRINT_AVAILABLE = True
-except OSError:
-    WEASYPRINT_AVAILABLE = False
+
 # ---------------------------------------------------
 
 class EmpresaViewSet(viewsets.ModelViewSet):
@@ -59,30 +57,39 @@ class ContratoViewSet(viewsets.ModelViewSet):
         # Solo devuelve contratos de los empleados que pertenecen a la empresa de este usuario
         return Contrato.objects.filter(empleado__empresa__owner=self.request.user)
 
+    # ==========================================
+    # GENERADOR DE PDF WEASYPRINT
+    # ==========================================
     @action(detail=True, methods=['get'])
-    def generar_pdf(self, request, pk=None):
-        """
-        Genera el Anexo de Contrato.
-        ... (Aquí dejas el código de tu función generar_pdf exactamente como lo tienes) ...
-        """
-        contrato = self.get_object()
-        
-        # 1. Renderizar la plantilla con datos reales
-        # Asegúrate de que 'backend/core/templates/anexo_40h.html' exista
-        html_string = render_to_string('anexo_40h.html', {'contrato': contrato})
-        
-        # 2. Decisión basada en el entorno
-        if WEASYPRINT_AVAILABLE:
-            # Lógica para Servidor (Linux/Mac o Windows con GTK3)
+    def generar_anexo(self, request, pk=None):
+        try:
+            contrato = self.get_object() # Obtiene el contrato exacto por su ID
+            empleado = contrato.empleado
+            empresa = empleado.empresa
+
+            # 1. Preparamos los datos que irán al HTML
+            context = {
+                'contrato': contrato,
+                'empleado': empleado,
+                'empresa': empresa,
+                'fecha_actual': datetime.date.today().strftime("%d de %B de %Y")
+            }
+
+            # 2. Renderizamos el HTML con las variables
+            html_string = render_to_string('anexo_40h.html', context)
+
+            # 3. WeasyPrint hace la magia: Transforma el HTML en PDF
             pdf_file = HTML(string=html_string).write_pdf()
-            
+
+            # 4. Creamos la respuesta para que el navegador descargue el archivo
             response = HttpResponse(pdf_file, content_type='application/pdf')
-            filename = f"Anexo_40h_{contrato.empleado.rut}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            nombre_archivo = f'Anexo_40h_{empleado.rut}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+            
             return response
-        else:
-            # Lógica de Fallback (Tu PC actual)
-            return HttpResponse(html_string)
+
+        except Exception as e:
+            return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ==========================================
 # REGISTRO DE NUEVOS CLIENTES (ONBOARDING)

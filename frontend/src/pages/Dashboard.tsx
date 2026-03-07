@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false); // Nuevo estado para el botón PDF
   
   // --- ESTADOS DEL PANEL LATERAL ---
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
@@ -135,10 +136,8 @@ export default function Dashboard() {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
 
-    // 🧹 CLONACIÓN Y LIMPIEZA EXTREMA DEL PAYLOAD
     const payload: any = { ...formData };
     
-    // 1. Eliminar campos opcionales si están vacíos (para no enviar strings vacíos a Django)
     const camposOpcionales = [
       'apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 
       'direccion', 'comuna', 'numero_telefono', 'departamento', 'sucursal', 
@@ -148,7 +147,6 @@ export default function Dashboard() {
       if (payload[campo] === '') delete payload[campo];
     });
 
-    // 2. Asegurar que los números viajen como Enteros (Integer) y no como Textos (String)
     if (payload.empresa) payload.empresa = parseInt(payload.empresa.toString());
     payload.horas_laborales = parseInt(payload.horas_laborales || 40);
     payload.sueldo_base = parseInt(payload.sueldo_base || 0);
@@ -166,6 +164,50 @@ export default function Dashboard() {
       console.error("Error al guardar empleado:", error);
       const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Error de conexión";
       alert(`Django rechazó la operación:\n\n${errorMsg}`);
+    }
+  };
+
+  // ==========================================
+  // NUEVA FUNCIÓN: DESCARGAR ANEXO PDF
+  // ==========================================
+  const generarYDescargarPDF = async (empleado: Empleado) => {
+    setIsDownloading(true);
+    try {
+      // 1. Buscar si el empleado tiene un contrato asociado
+      const contratosRes = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleado.id}`, apiConfig);
+      const contratos = contratosRes.data;
+
+      if (!contratos || contratos.length === 0) {
+        alert("Este trabajador no tiene un contrato registrado en el sistema. Debes crearle un contrato primero.");
+        setIsDownloading(false);
+        return;
+      }
+
+      // Tomamos el primer contrato
+      const contratoId = contratos[0].id;
+
+      // 2. Pedir el PDF a Django usando blob (archivo binario)
+      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoId}/generar_anexo/`, {
+        ...apiConfig,
+        responseType: 'blob' 
+      });
+
+      // 3. Forzar la descarga en el navegador
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Anexo_40h_${empleado.rut}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error("Error descargando el anexo:", error);
+      alert("Hubo un problema al generar el documento. Asegúrate de que el servidor esté funcionando y WeasyPrint esté configurado.");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -439,20 +481,39 @@ export default function Dashboard() {
               </div>
 
               {/* FOOTER DEL PANEL */}
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-                {panelMode === 'view' ? (
-                  <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
-                    Cerrar
-                  </button>
-                ) : (
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+                {panelMode === 'view' && selectedEmpleado ? (
                   <>
+                    <button 
+                      onClick={() => generarYDescargarPDF(selectedEmpleado)} 
+                      disabled={isDownloading}
+                      className="flex items-center gap-2 px-5 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md"
+                    >
+                      {isDownloading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                          Descargar Anexo 40 Hrs
+                        </>
+                      )}
+                    </button>
+                    <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2.5 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
+                      Cerrar
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex w-full justify-end gap-3">
                     <button type="button" onClick={() => setIsPanelOpen(false)} className="px-5 py-2 text-gray-600 font-medium bg-transparent hover:bg-gray-200 rounded-xl transition-colors">
                       Cancelar
                     </button>
                     <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-5 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md">
                       {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Cambios'}
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             </div>

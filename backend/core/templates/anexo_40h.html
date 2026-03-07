@@ -3,40 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; margin: 40px; }
-        h1 { text-align: center; font-size: 16pt; text-decoration: underline; margin-bottom: 30px; }
-        .header { text-align: right; margin-bottom: 40px; font-weight: bold; }
-        .clause { margin-bottom: 15px; text-align: justify; }
-        .signatures { margin-top: 80px; width: 100%; }
-        .sig-block { width: 45%; float: left; text-align: center; border-top: 1px solid black; margin-right: 5%; }
+        body { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 40px; }
+        h1 { text-align: center; font-size: 18px; text-decoration: underline; }
+        p { text-align: justify; margin-bottom: 15px; }
+        .firma { margin-top: 80px; text-align: center; }
+        .linea-firma { border-top: 1px solid #000; width: 250px; margin: 0 auto; padding-top: 5px; }
     </style>
 </head>
 <body>
-    <div class="header">
-        FECHA: {% now "d/m/Y" %}
-    </div>
+    <h1>ANEXO DE CONTRATO DE TRABAJO - ADECUACIÓN LEY 40 HORAS</h1>
+    
+    <p>En la ciudad de Santiago, a {{ fecha_actual }}, entre la empresa <strong>{{ empresa.nombre_legal }}</strong>, RUT {{ empresa.rut }}, representada legalmente por quien suscribe, en adelante el "Empleador"; y don/doña <strong>{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno }}</strong>, RUT {{ empleado.rut }}, en adelante el "Trabajador", se acuerda el siguiente anexo de contrato de trabajo:</p>
 
-    <h1>ANEXO DE CONTRATO DE TRABAJO<br>ADECUACIÓN LEY 40 HORAS</h1>
+    <p><strong>PRIMERO:</strong> En cumplimiento de la Ley N° 21.561 que modifica el Código del Trabajo con el objeto de reducir la jornada laboral, las partes acuerdan que a contar de esta fecha, la jornada ordinaria de trabajo será de <strong>40 horas semanales</strong>.</p>
 
-    <div class="clause">
-        En <strong>Santiago</strong>, entre <strong>{{ contrato.empleado.empresa.nombre_legal }}</strong>, RUT <strong>{{ contrato.empleado.empresa.rut }}</strong>, en adelante el "EMPLEADOR", y don/doña <strong>{{ contrato.empleado.nombres }} {{ contrato.empleado.apellidos }}</strong>, RUT <strong>{{ contrato.empleado.rut }}</strong>, en adelante el "TRABAJADOR", se ha convenido el siguiente anexo de contrato:
-    </div>
+    <p><strong>SEGUNDO:</strong> La distribución de la jornada se realizará de la siguiente manera: [Aquí puedes agregar variables de los días y horas que tengas en la base de datos].</p>
 
-    <div class="clause">
-        <strong>PRIMERO:</strong> Las partes acuerdan modificar la jornada de trabajo vigente, reduciéndola a <strong>{{ contrato.horas_semanales }} horas semanales</strong>.
-    </div>
+    <p><strong>TERCERO:</strong> El presente anexo no modifica en forma alguna la remuneración actual del Trabajador, manteniéndose su sueldo base de <strong>${{ contrato.salario_base }}</strong> y demás asignaciones intactas.</p>
 
-    <div class="clause">
-        <strong>SEGUNDO:</strong> La jornada se distribuirá en <strong>{{ contrato.distribucion_dias }} días</strong> a la semana, bajo la modalidad <strong>{{ contrato.get_tipo_jornada_display }}</strong>.
-    </div>
+    <p>Para constancia firman las partes en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte.</p>
 
-    <div class="clause">
-        <strong>TERCERO:</strong> El presente anexo no altera la remuneración mensual del trabajador, manteniéndose su sueldo base íntegro de <strong>${{ contrato.sueldo_base }}</strong>.
-    </div>
-
-    <div class="signatures">
-        <div class="sig-block">Firma Empleador</div>
-        <div class="sig-block" style="float: right; margin-right: 0;">Firma Trabajador</div>
-    </div>
+    <table style="width: 100%; margin-top: 100px;">
+        <tr>
+            <td class="firma">
+                <div class="linea-firma">EL EMPLEADOR</div>
+                {{ empresa.nombre_legal }}<br>
+                RUT: {{ empresa.rut }}
+            </td>
+            <td class="firma">
+                <div class="linea-firma">EL TRABAJADOR</div>
+                {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>
+                RUT: {{ empleado.rut }}
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
