@@ -42,7 +42,7 @@ export default function Dashboard() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [isDownloading, setIsDownloading] = useState<boolean>(false); // Nuevo estado para el botón PDF
+  const [downloadingId, setDownloadingId] = useState<number | null>(null); // Nuevo estado para el botón PDF
   
   // --- ESTADOS DEL PANEL LATERAL ---
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
@@ -167,32 +167,43 @@ export default function Dashboard() {
     }
   };
 
-  // ==========================================
-  // NUEVA FUNCIÓN: DESCARGAR ANEXO PDF
+ // ==========================================
+  // FUNCIÓN: DESCARGAR ANEXO Y CREAR CONTRATO
   // ==========================================
   const generarYDescargarPDF = async (empleado: Empleado) => {
-    setIsDownloading(true);
+    setDownloadingId(empleado.id);
     try {
-      // 1. Buscar si el empleado tiene un contrato asociado
+      // 1. Buscar si el empleado ya tiene un contrato
       const contratosRes = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleado.id}`, apiConfig);
       const contratos = contratosRes.data;
 
+      let contratoId;
+
+      // 2. Si NO tiene contrato, se lo creamos automáticamente (Servicio Extra)
       if (!contratos || contratos.length === 0) {
-        alert("Este trabajador no tiene un contrato registrado en el sistema. Debes crearle un contrato primero.");
-        setIsDownloading(false);
-        return;
+        const payloadContrato = {
+          empleado: empleado.id,
+          tipo_contrato: 'INDEFINIDO', // Puedes cambiarlo si tienes otro por defecto
+          fecha_inicio: empleado.fecha_ingreso || new Date().toISOString().split('T')[0],
+          salario_base: empleado.sueldo_base || 0,
+          cargo: empleado.cargo || 'No especificado'
+        };
+        
+        const nuevoContratoRes = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, payloadContrato, apiConfig);
+        contratoId = nuevoContratoRes.data.id;
+        console.log("¡Contrato nuevo registrado exitosamente!");
+      } else {
+        // Si ya tiene, usamos el primero que encuentre
+        contratoId = contratos[0].id;
       }
 
-      // Tomamos el primer contrato
-      const contratoId = contratos[0].id;
-
-      // 2. Pedir el PDF a Django usando blob (archivo binario)
+      // 3. Pedir el PDF a Django
       const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoId}/generar_anexo/`, {
         ...apiConfig,
         responseType: 'blob' 
       });
 
-      // 3. Forzar la descarga en el navegador
+      // 4. Descargar el archivo
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -203,11 +214,12 @@ export default function Dashboard() {
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-    } catch (error) {
-      console.error("Error descargando el anexo:", error);
-      alert("Hubo un problema al generar el documento. Asegúrate de que el servidor esté funcionando y WeasyPrint esté configurado.");
+    } catch (error: any) {
+      console.error("Error gestionando el contrato o anexo:", error);
+      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : "Error desconocido";
+      alert(`Hubo un problema al generar el documento.\nDetalle: ${errorMsg}`);
     } finally {
-      setIsDownloading(false);
+      setDownloadingId(null);
     }
   };
 
@@ -279,12 +291,37 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td className="p-4 text-right flex justify-end gap-3">
-                        <button onClick={() => abrirVer(emp)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
-                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
-                        </button>
-                        <button onClick={() => abrirEditar(emp)} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
-                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                        </button>
+                        {/* 1. BOTÓN DESCARGAR (Verde) */}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} 
+                          disabled={downloadingId === emp.id}
+                          className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50" 
+                          title="Descargar Anexo 40 Hrs"
+                        >
+                          {downloadingId === emp.id ? (
+                            <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                          )}
+                       </button>
+
+                       {/* 2. BOTÓN VER - OJO (Azul) */}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} 
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
+                        title="Ver Perfil"
+                      >
+                         <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                      </button>
+
+                         {/* 3. BOTÓN EDITAR - LÁPIZ (Naranja) */}
+                      <button 
+                       onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} 
+                       className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" 
+                       title="Editar Trabajador"
+                      >
+                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                      </button>
                       </td>
                     </tr>
                   ))}
@@ -484,23 +521,7 @@ export default function Dashboard() {
               <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
                 {panelMode === 'view' && selectedEmpleado ? (
                   <>
-                    <button 
-                      onClick={() => generarYDescargarPDF(selectedEmpleado)} 
-                      disabled={isDownloading}
-                      className="flex items-center gap-2 px-5 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md"
-                    >
-                      {isDownloading ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Generando...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                          Descargar Anexo 40 Hrs
-                        </>
-                      )}
-                    </button>
+                    
                     <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2.5 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
                       Cerrar
                     </button>
