@@ -185,7 +185,7 @@ export default function Dashboard() {
           empleado: empleado.id,
           tipo_contrato: 'INDEFINIDO', // Puedes cambiarlo si tienes otro por defecto
           fecha_inicio: empleado.fecha_ingreso || new Date().toISOString().split('T')[0],
-          salario_base: empleado.sueldo_base || 0,
+          sueldo_base: empleado.sueldo_base || 0,
           cargo: empleado.cargo || 'No especificado'
         };
         
