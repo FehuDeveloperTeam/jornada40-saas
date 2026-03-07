@@ -111,7 +111,7 @@ def registrar_cliente(request):
         with transaction.atomic():
             # 2. Crear el Usuario de acceso (Django User)
             usuario = User.objects.create_user(
-                username=data.get('email'),
+                username=data.get('rut'),
                 email=data.get('email'),
                 password=data.get('password')
             )
