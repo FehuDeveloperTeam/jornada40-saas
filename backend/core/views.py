@@ -57,12 +57,23 @@ class ContratoViewSet(viewsets.ModelViewSet):
             empleado = contrato.empleado
             empresa = empleado.empresa
 
-            # 1. Preparamos los datos que irán al HTML
+            # 1. TRUCO PARA FECHA SIEMPRE EN ESPAÑOL
+            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            hoy = datetime.date.today()
+            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+
+            # 2. OBTENER LA CIUDAD DINÁMICAMENTE
+            # Busca si la empresa tiene comuna/ciudad, si no, usa la del empleado, si no, "Santiago"
+            ciudad = getattr(empresa, 'comuna', None) or getattr(empresa, 'ciudad', None) or getattr(empleado, 'comuna', 'Santiago')
+
+            # 3. Preparamos los datos
             context = {
                 'contrato': contrato,
                 'empleado': empleado,
                 'empresa': empresa,
-                'fecha_actual': datetime.date.today().strftime("%d de %B de %Y")
+                'fecha_actual': fecha_espanol,
+                'ciudad': ciudad.title() # Pone la primera letra en mayúscula (ej: "Concepción")
             }
 
             # 2. Obtenemos el template y lo renderizamos

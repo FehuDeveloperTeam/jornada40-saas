@@ -3,22 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        /* Márgenes legales estándar tamaño carta */
         @page {
             size: letter portrait;
-            margin: 2cm;
+            margin-top: 3cm;
+            margin-bottom: 2cm;
+            margin-left: 3cm;
+            margin-right: 3cm;
         }
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; }
-        h1 { text-align: center; font-size: 16px; text-decoration: underline; margin-bottom: 30px; }
-        p { text-align: justify; margin-bottom: 15px; }
-        .firma-container { margin-top: 80px; width: 100%; text-align: center; }
-        .firma-col { display: inline-block; width: 45%; vertical-align: top; }
-        .linea-firma { border-top: 1px solid #000; width: 80%; margin: 0 auto; padding-top: 5px; font-weight: bold;}
+        body { 
+            font-family: Helvetica, Arial, sans-serif; 
+            font-size: 11pt; 
+            line-height: 1.6; 
+            color: #000;
+        }
+        h1 { 
+            text-align: center; 
+            font-size: 13pt; 
+            text-decoration: underline; 
+            margin-bottom: 50px; 
+            font-weight: bold;
+        }
+        p { 
+            text-align: justify; 
+            margin-bottom: 20px; 
+        }
+        
+        /* === MAGIA DE LAS FIRMAS === */
+        .contenedor-firmas {
+            margin-top: 150px; /* Esto empuja las firmas hacia el fondo de la hoja */
+        }
+        .tabla-firmas {
+            width: 100%;
+            text-align: center;
+        }
+        .td-firma {
+            width: 45%;
+            vertical-align: top;
+        }
+        .linea {
+            border-top: 1px solid #000;
+            width: 80%;
+            margin: 0 auto;
+            margin-bottom: 5px; /* Pequeño espacio entre la línea y el título */
+        }
+        .texto-firma {
+            font-weight: bold;
+            font-size: 10pt;
+        }
+        .datos-firma {
+            font-size: 10pt;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
     <h1>ANEXO DE CONTRATO DE TRABAJO - ADECUACIÓN LEY 40 HORAS</h1>
     
-    <p>En la ciudad de Santiago, a {{ fecha_actual }}, entre la empresa <strong>{{ empresa.nombre_legal }}</strong>, RUT {{ empresa.rut }}, representada legalmente por quien suscribe, en adelante el "Empleador"; y don/doña <strong>{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno }}</strong>, RUT {{ empleado.rut }}, en adelante el "Trabajador", se acuerda el siguiente anexo de contrato de trabajo:</p>
+    <p>En la ciudad de {{ ciudad }}, a {{ fecha_actual }}, entre la empresa <strong>{{ empresa.nombre_legal }}</strong>, RUT {{ empresa.rut }}, representada legalmente por quien suscribe, en adelante el "Empleador"; y don/doña <strong>{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}</strong>, RUT {{ empleado.rut }}, en adelante el "Trabajador", se ha convenido el siguiente anexo de contrato de trabajo:</p>
 
     <p><strong>PRIMERO:</strong> En cumplimiento de la Ley N° 21.561 que modifica el Código del Trabajo con el objeto de reducir la jornada laboral, las partes acuerdan que a contar de esta fecha, la jornada ordinaria de trabajo será de <strong>40 horas semanales</strong>.</p>
 
@@ -28,17 +70,27 @@
 
     <p>Para constancia firman las partes en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte.</p>
 
-    <div class="firma-container">
-        <div class="firma-col">
-            <div class="linea-firma">EL EMPLEADOR</div>
-            {{ empresa.nombre_legal }}<br>
-            RUT: {{ empresa.rut }}
-        </div>
-        <div class="firma-col">
-            <div class="linea-firma">EL TRABAJADOR</div>
-            {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>
-            RUT: {{ empleado.rut }}
-        </div>
+    <div class="contenedor-firmas">
+        <table class="tabla-firmas">
+            <tr>
+                <td class="td-firma">
+                    <div class="linea"></div> <div class="texto-firma">EL EMPLEADOR</div>
+                    <div class="datos-firma">
+                        {{ empresa.nombre_legal }}<br>
+                        RUT: {{ empresa.rut }}
+                    </div>
+                </td>
+                <td style="width: 10%;"></td> <td class="td-firma">
+                    <div class="linea"></div>
+                    <div class="texto-firma">EL TRABAJADOR</div>
+                    <div class="datos-firma">
+                        {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>
+                        RUT: {{ empleado.rut }}
+                    </div>
+                </td>
+            </tr>
+        </table>
     </div>
+
 </body>
 </html>
