@@ -1,27 +1,17 @@
 from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import viewsets
 from django.contrib.auth.models import User
 from django.db import transaction
-from .models import Plan, Cliente
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from django.http import HttpResponse
-from django.template.loader import render_to_string
-#from weasyprint import HTML
+from django.template.loader import render_to_string, get_template
+from xhtml2pdf import pisa
 import datetime
 
-from .models import Empresa, Empleado, Contrato
+from .models import Plan, Cliente, Empresa, Empleado, Contrato
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer
-
-# --- BLOQUE DE COMPATIBILIDAD (Windows vs Linux) ---
-# Intentamos importar WeasyPrint. Si falla (común en Windows sin GTK3),
-# desactivamos la generación de PDF y activamos el modo "Vista Previa HTML".
-
-# ---------------------------------------------------
 
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
@@ -58,13 +48,11 @@ class ContratoViewSet(viewsets.ModelViewSet):
         return Contrato.objects.filter(empleado__empresa__owner=self.request.user)
 
     # ==========================================
-    # GENERADOR DE PDF WEASYPRINT
+    # GENERADOR DE PDF XHTML2PDF
     # ==========================================
     @action(detail=True, methods=['get'])
     def generar_anexo(self, request, pk=None):
         try:
-            from weasyprint import HTML
-            
             contrato = self.get_object() # Obtiene el contrato exacto por su ID
             empleado = contrato.empleado
             empresa = empleado.empresa
@@ -77,16 +65,21 @@ class ContratoViewSet(viewsets.ModelViewSet):
                 'fecha_actual': datetime.date.today().strftime("%d de %B de %Y")
             }
 
-            # 2. Renderizamos el HTML con las variables
-            html_string = render_to_string('anexo_40h.html', context)
+            # 2. Obtenemos el template y lo renderizamos
+            template = get_template('anexo_40h.html')
+            html = template.render(context)
 
-            # 3. WeasyPrint hace la magia: Transforma el HTML en PDF
-            pdf_file = HTML(string=html_string).write_pdf()
-
-            # 4. Creamos la respuesta para que el navegador descargue el archivo
-            response = HttpResponse(pdf_file, content_type='application/pdf')
+            # 3. Creamos la respuesta HTTP tipo PDF
+            response = HttpResponse(content_type='application/pdf')
             nombre_archivo = f'Anexo_40h_{empleado.rut}.pdf'
             response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+
+            # 4. xhtml2pdf hace la magia: Transforma el HTML en PDF
+            pisa_status = pisa.CreatePDF(html, dest=response)
+
+            # Si hay un error interno en la creación
+            if pisa_status.err:
+                return HttpResponse(f'Tuvimos algunos errores al generar el PDF <pre>{html}</pre>', status=500)
             
             return response
 

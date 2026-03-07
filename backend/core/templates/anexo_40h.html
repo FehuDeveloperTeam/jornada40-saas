@@ -3,11 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 40px; }
-        h1 { text-align: center; font-size: 18px; text-decoration: underline; }
+        @page {
+            size: letter portrait;
+            margin: 2cm;
+        }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; line-height: 1.5; }
+        h1 { text-align: center; font-size: 16px; text-decoration: underline; margin-bottom: 30px; }
         p { text-align: justify; margin-bottom: 15px; }
-        .firma { margin-top: 80px; text-align: center; }
-        .linea-firma { border-top: 1px solid #000; width: 250px; margin: 0 auto; padding-top: 5px; }
+        .firma-container { margin-top: 80px; width: 100%; text-align: center; }
+        .firma-col { display: inline-block; width: 45%; vertical-align: top; }
+        .linea-firma { border-top: 1px solid #000; width: 80%; margin: 0 auto; padding-top: 5px; font-weight: bold;}
     </style>
 </head>
 <body>
@@ -17,25 +22,23 @@
 
     <p><strong>PRIMERO:</strong> En cumplimiento de la Ley N° 21.561 que modifica el Código del Trabajo con el objeto de reducir la jornada laboral, las partes acuerdan que a contar de esta fecha, la jornada ordinaria de trabajo será de <strong>40 horas semanales</strong>.</p>
 
-    <p><strong>SEGUNDO:</strong> La distribución de la jornada se realizará de la siguiente manera: [Aquí puedes agregar variables de los días y horas que tengas en la base de datos].</p>
+    <p><strong>SEGUNDO:</strong> La distribución de la jornada se realizará de la siguiente manera: Lunes a Viernes (Ajustar según sea necesario).</p>
 
     <p><strong>TERCERO:</strong> El presente anexo no modifica en forma alguna la remuneración actual del Trabajador, manteniéndose su sueldo base de <strong>${{ contrato.sueldo_base }}</strong> y demás asignaciones intactas.</p>
 
     <p>Para constancia firman las partes en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte.</p>
 
-    <table style="width: 100%; margin-top: 100px;">
-        <tr>
-            <td class="firma">
-                <div class="linea-firma">EL EMPLEADOR</div>
-                {{ empresa.nombre_legal }}<br>
-                RUT: {{ empresa.rut }}
-            </td>
-            <td class="firma">
-                <div class="linea-firma">EL TRABAJADOR</div>
-                {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>
-                RUT: {{ empleado.rut }}
-            </td>
-        </tr>
-    </table>
+    <div class="firma-container">
+        <div class="firma-col">
+            <div class="linea-firma">EL EMPLEADOR</div>
+            {{ empresa.nombre_legal }}<br>
+            RUT: {{ empresa.rut }}
+        </div>
+        <div class="firma-col">
+            <div class="linea-firma">EL TRABAJADOR</div>
+            {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>
+            RUT: {{ empleado.rut }}
+        </div>
+    </div>
 </body>
 </html>
