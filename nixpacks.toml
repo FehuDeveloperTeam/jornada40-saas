@@ -1,27 +1,19 @@
 [phases.setup]
-# Usamos Nix solo para tener la versión exacta de Python
-nixPkgs = ["python311"]
-
-# Usamos APT (Ubuntu/Debian) para las librerías gráficas exactas que pide WeasyPrint
-aptPkgs = [
-    "libcairo2",
-    "libpango-1.0-0",
-    "libpangocairo-1.0-0",
-    "libpangoft2-1.0-0",
-    "libglib2.0-0",
-    "libgdk-pixbuf2.0-0",
-    "libffi-dev",
-    "shared-mime-info",
-    "fonts-liberation"
+# Usamos puramente Nix para que Python y las librerías gráficas compartan la misma ruta
+nixPkgs = [
+    "python311",
+    "glib",
+    "pango",
+    "cairo",
+    "gdk-pixbuf",
+    "fontconfig"
 ]
 
 [phases.install]
-# Tu lógica original intacta para crear el entorno e instalar requirements
 cmds = ["python -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r backend/requirements.txt"]
 
 [phases.build]
 cmds = ["echo 'Building Backend...'"]
 
 [start]
-# Tu comando original para arrancar Gunicorn
 cmd = ". /opt/venv/bin/activate && cd backend && gunicorn config.wsgi:application"
