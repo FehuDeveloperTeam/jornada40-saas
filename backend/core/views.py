@@ -11,7 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from weasyprint import HTML
+#from weasyprint import HTML
 import datetime
 
 from .models import Empresa, Empleado, Contrato
@@ -63,6 +63,8 @@ class ContratoViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def generar_anexo(self, request, pk=None):
         try:
+            from weasyprint import HTML
+            
             contrato = self.get_object() # Obtiene el contrato exacto por su ID
             empleado = contrato.empleado
             empresa = empleado.empresa
