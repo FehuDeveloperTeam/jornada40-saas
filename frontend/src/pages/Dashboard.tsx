@@ -125,7 +125,7 @@ export default function Dashboard() {
           alert("¡Todos los trabajadores fueron cargados exitosamente!");
         }
         
-        fetchEmpleados(); // Recargar la tabla
+        window.location.reload();
       } catch (error: any) {
         alert("Error al cargar el archivo. Verifica que las columnas del Excel tengan los nombres correctos.");
       } finally {
@@ -320,7 +320,7 @@ export default function Dashboard() {
     </button>
 
     {/* BOTÓN 3: NUEVO EMPLEADO MANUAL */}
-    <button onClick={abrirModalCrear} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
+    <button onClick={abrirCrear} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
       + Nuevo Empleado
     </button>
 </div>
