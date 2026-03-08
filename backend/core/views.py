@@ -27,9 +27,19 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         # Asigna automáticamente el usuario logueado como dueño
         serializer.save(owner=self.request.user)
 
+
 class EmpleadoViewSet(viewsets.ModelViewSet):
     serializer_class = EmpleadoSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Solo devuelve los empleados cuya empresa pertenezca al usuario logueado
+        return Empleado.objects.filter(empresa__owner=self.request.user)
+
+    def perform_create(self, serializer):
+        # Como el frontend YA envía el ID de la empresa en el payload ("empresa": 1),
+        # simplemente le decimos al serializador que guarde los datos tal cual llegaron.
+        serializer.save()
 
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
@@ -42,7 +52,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             cliente = Cliente.objects.filter(usuario=usuario).first()
             
             # ATENCIÓN: Asegúrate de que tu modelo 'Plan' tenga un campo numérico para el límite. 
-            # Aquí asumiré que se llama 'limite_trabajadores'. (Cámbialo si se llama distinto).
             limite_plan = cliente.plan.limite_trabajadores 
             
             # 2. Calcular cuánto espacio le queda
@@ -94,9 +103,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-#//Indentado correcto//
+
     @action(detail=False, methods=['post'])
-        def descargar_anexos_zip(self, request):
+    def descargar_anexos_zip(self, request):
         empleado_ids = request.data.get('empleados', [])
         
         if not empleado_ids:
@@ -163,14 +172,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         
         return response
 
-        def get_queryset(self):
-        # Solo devuelve los empleados cuya empresa pertenezca al usuario logueado
-        return Empleado.objects.filter(empresa__owner=self.request.user)
-
-        def perform_create(self, serializer):
-        # Como el frontend YA envía el ID de la empresa en el payload ("empresa": 1),
-        # simplemente le decimos al serializador que guarde los datos tal cual llegaron.
-        serializer.save()
 
 class ContratoViewSet(viewsets.ModelViewSet):
     serializer_class = ContratoSerializer
@@ -186,6 +187,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(empleado_id=empleado_id)
             
         return queryset
+
     # ==========================================
     # GENERADOR DE PDF XHTML2PDF
     # ==========================================
