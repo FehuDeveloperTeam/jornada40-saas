@@ -9,6 +9,8 @@ from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
 from xhtml2pdf import pisa
 import datetime
+import io
+import zipfile
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer
@@ -28,6 +30,138 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 class EmpleadoViewSet(viewsets.ModelViewSet):
     serializer_class = EmpleadoSerializer
     permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['post'])
+    def carga_masiva(self, request):
+        datos_excel = request.data # Recibimos la lista de empleados desde React
+        usuario = request.user
+        
+        try:
+            # 1. Identificar la empresa y el plan del cliente
+            empresa = Empresa.objects.filter(owner=usuario).first()
+            cliente = Cliente.objects.filter(usuario=usuario).first()
+            
+            # ATENCIÓN: Asegúrate de que tu modelo 'Plan' tenga un campo numérico para el límite. 
+            # Aquí asumiré que se llama 'limite_trabajadores'. (Cámbialo si se llama distinto).
+            limite_plan = cliente.plan.limite_trabajadores 
+            
+            # 2. Calcular cuánto espacio le queda
+            trabajadores_actuales = Empleado.objects.filter(empresa=empresa).count()
+            espacio_disponible = limite_plan - trabajadores_actuales
+            
+            if espacio_disponible <= 0:
+                return Response(
+                    {'error': 'No tienes espacio. Has alcanzado el límite máximo de tu plan.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            mensaje_advertencia = None
+            
+            # 3. Cortar la lista si supera el límite
+            if len(datos_excel) > espacio_disponible:
+                # Cortamos la lista hasta donde alcance
+                datos_excel = datos_excel[:espacio_disponible]
+                
+                # Obtenemos al último que logró entrar
+                ultimo = datos_excel[-1]
+                nombre_completo_ultimo = f"{ultimo.get('nombres', '')} {ultimo.get('apellido_paterno', '')} {ultimo.get('apellido_materno', '')}".strip().upper()
+                
+                mensaje_advertencia = f"¡ATENCIÓN! llegaste al total de trabajadores, se cargará hasta {nombre_completo_ultimo}"
+
+            # 4. Guardar masivamente en la base de datos
+            nuevos_empleados = []
+            with transaction.atomic(): # Esto asegura que si uno falla, no se guarde ninguno a medias
+                for item in datos_excel:
+                    empleado = Empleado(
+                        empresa=empresa,
+                        rut=item.get('rut'),
+                        nombres=item.get('nombres'),
+                        apellido_paterno=item.get('apellido_paterno'),
+                        apellido_materno=item.get('apellido_materno', ''),
+                        cargo=item.get('cargo', 'No especificado'),
+                        sueldo_base=item.get('sueldo_base', 0),
+                        fecha_ingreso=item.get('fecha_ingreso') or datetime.date.today()
+                    )
+                    nuevos_empleados.append(empleado)
+                
+                Empleado.objects.bulk_create(nuevos_empleados)
+
+            # 5. Responder al frontend
+            return Response({
+                'mensaje': 'Carga masiva exitosa',
+                'advertencia': mensaje_advertencia # Enviamos la advertencia si hubo corte
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@action(detail=False, methods=['post'])
+    def descargar_anexos_zip(self, request):
+        empleado_ids = request.data.get('empleados', [])
+        
+        if not empleado_ids:
+            return Response({'error': 'No se seleccionaron trabajadores'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 1. Creamos un archivo ZIP virtual en la memoria del servidor
+        zip_buffer = io.BytesIO()
+        
+        # Abrimos el ZIP para empezar a meterle PDFs
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for emp_id in empleado_ids:
+                try:
+                    # Validamos que el empleado sea de la empresa del usuario
+                    empleado = Empleado.objects.get(id=emp_id, empresa__owner=request.user)
+                    empresa = empleado.empresa
+                    
+                    # 2. Buscar o crear contrato automáticamente (como lo hacíamos en React)
+                    contrato = Contrato.objects.filter(empleado=empleado).first()
+                    if not contrato:
+                        contrato = Contrato.objects.create(
+                            empleado=empleado,
+                            tipo_contrato='INDEFINIDO',
+                            fecha_inicio=empleado.fecha_ingreso or datetime.date.today(),
+                            sueldo_base=empleado.sueldo_base or 0,
+                            cargo=empleado.cargo or 'No especificado'
+                        )
+                    
+                    # 3. Preparar los datos y la fecha en español
+                    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+                    hoy = datetime.date.today()
+                    fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+                    ciudad = getattr(empresa, 'comuna', None) or getattr(empresa, 'ciudad', None) or getattr(empleado, 'comuna', 'Santiago')
+
+                    context = {
+                        'contrato': contrato,
+                        'empleado': empleado,
+                        'empresa': empresa,
+                        'fecha_actual': fecha_espanol,
+                        'ciudad': ciudad.title()
+                    }
+                    
+                    # 4. Renderizar el HTML
+                    template = get_template('anexo_40h.html')
+                    html = template.render(context)
+                    
+                    # 5. Crear el PDF virtualmente
+                    pdf_buffer = io.BytesIO()
+                    pisa_status = pisa.CreatePDF(html, dest=pdf_buffer)
+                    
+                    if not pisa_status.err:
+                        # 6. Guardar el PDF dentro del ZIP con el RUT del trabajador
+                        nombre_archivo = f"Anexo_40h_{empleado.rut}.pdf"
+                        zip_file.writestr(nombre_archivo, pdf_buffer.getvalue())
+                        
+                except Exception as e:
+                    print(f"Error generando PDF para empleado {emp_id}: {e}")
+                    continue # Si falla uno, que siga con los demás
+        
+        # 7. Preparamos el ZIP para enviarlo por HTTP
+        zip_buffer.seek(0)
+        response = HttpResponse(zip_buffer, content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="Anexos_Masivos_40h.zip"'
+        
+        return response
 
     def get_queryset(self):
         # Solo devuelve los empleados cuya empresa pertenezca al usuario logueado

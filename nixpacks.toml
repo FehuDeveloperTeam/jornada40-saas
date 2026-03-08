@@ -1,13 +1,6 @@
 [phases.setup]
-# Usamos puramente Nix para que Python y las librerías gráficas compartan la misma ruta
-nixPkgs = [
-    "python311",
-    "glib",
-    "pango",
-    "cairo",
-    "gdk-pixbuf",
-    "fontconfig"
-]
+# Solo necesitamos Python, ¡adiós a las librerías gráficas problemáticas!
+nixPkgs = ["python311"]
 
 [phases.install]
 cmds = ["python -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r backend/requirements.txt"]
@@ -17,5 +10,3 @@ cmds = ["echo 'Building Backend...'"]
 
 [start]
 cmd = ". /opt/venv/bin/activate && cd backend && gunicorn config.wsgi:application"
-
-# Forzando reconstruccion desde cero

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
+import * as XLSX from 'xlsx';
 
 // --- TIPOS E INTERFACES ---
 interface Empresa {
@@ -43,7 +44,12 @@ export default function Dashboard() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null); // Nuevo estado para el botón PDF
-  
+  // Estados para Generación Masiva
+  const [isModalMasivoOpen, setIsModalMasivoOpen] = useState(false);
+  const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isGeneratingZip, setIsGeneratingZip] = useState(false);
+
   // --- ESTADOS DEL PANEL LATERAL ---
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'view'>('create');
@@ -89,6 +95,47 @@ export default function Dashboard() {
     navigate('/empresas');
   };
 
+  // ==========================================
+  // CARGA MASIVA DESDE EXCEL
+  // ==========================================
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        
+        // Convierte el Excel a JSON. (Asume que la fila 1 tiene los títulos: rut, nombres, apellido_paterno, etc)
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        // Enviamos al backend
+        const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, data, apiConfig);
+        
+        if (response.data.advertencia) {
+          // Si el backend nos mandó el aviso del límite, lo mostramos
+          alert(response.data.advertencia);
+        } else {
+          alert("¡Todos los trabajadores fueron cargados exitosamente!");
+        }
+        
+        fetchEmpleados(); // Recargar la tabla
+      } catch (error: any) {
+        alert("Error al cargar el archivo. Verifica que las columnas del Excel tengan los nombres correctos.");
+      } finally {
+        setIsUploading(false);
+        // Limpiamos el input para poder subir el mismo archivo de nuevo si se equivocó
+        e.target.value = ''; 
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
   // --- MANEJADORES DEL PANEL ---
   const abrirCrear = () => {
     setPanelMode('create');
@@ -257,10 +304,26 @@ export default function Dashboard() {
               <h2 className="text-xl font-bold text-gray-900">Directorio de Empleados</h2>
               <p className="text-sm text-gray-500 mt-1">Total registrados: {empleados.length}</p>
             </div>
-            <button onClick={abrirCrear} className="bg-black text-white px-6 py-3 rounded-xl font-medium hover:bg-gray-800 transition shadow-lg flex items-center gap-2">
-              <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-              Nuevo Empleado
-            </button>
+            <div className="flex gap-3">
+    {/* BOTÓN 1: IMPORTAR EXCEL (Oculta el input real y usa un label estilizado) */}
+    <label className="cursor-pointer px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2">
+      {isUploading ? "Cargando..." : "Importar Excel"}
+      <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+    </label>
+
+    {/* BOTÓN 2: GENERACIÓN MASIVA */}
+    <button 
+      onClick={() => setIsModalMasivoOpen(true)}
+      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+    >
+      Generación Masiva
+    </button>
+
+    {/* BOTÓN 3: NUEVO EMPLEADO MANUAL */}
+    <button onClick={abrirModalCrear} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
+      + Nuevo Empleado
+    </button>
+</div>
           </div>
 
           {empleados.length === 0 ? (
@@ -516,6 +579,118 @@ export default function Dashboard() {
                   </form>
                 )}
               </div>
+
+{/* ============================================== */}
+      {/* MODAL GENERACIÓN MASIVA                        */}
+      {/* ============================================== */}
+      {isModalMasivoOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+              <h2 className="text-xl font-bold text-gray-800">Selecciona los trabajadores para generar anexos</h2>
+              <button onClick={() => setIsModalMasivoOpen(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            
+            {/* BOTONES DE SELECCIÓN RÁPIDA */}
+            <div className="px-6 py-3 border-b bg-gray-50 flex justify-between items-center">
+              <button 
+                onClick={() => setSelectedEmpleadosIds(empleados.map(emp => emp.id))}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-800"
+              >
+                Seleccionar todos
+              </button>
+              <button 
+                onClick={() => setSelectedEmpleadosIds([])}
+                className="text-sm font-semibold text-red-600 hover:text-red-800"
+              >
+                Deseleccionar todos
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-2">
+                {empleados.map(emp => (
+                  <label key={emp.id} className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                      checked={selectedEmpleadosIds.includes(emp.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEmpleadosIds(prev => [...prev, emp.id]);
+                        } else {
+                          setSelectedEmpleadosIds(prev => prev.filter(id => id !== emp.id));
+                        }
+                      }}
+                    />
+                    <div className="ml-4">
+                      <p className="font-semibold text-gray-800">{emp.nombres} {emp.apellido_paterno}</p>
+                      <p className="text-sm text-gray-500">RUT: {emp.rut} • {emp.cargo}</p>
+                    </div>
+                  </label>
+                ))}
+                {empleados.length === 0 && (
+                  <p className="text-center text-gray-500 py-4">No hay trabajadores registrados.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">
+              <button onClick={() => setIsModalMasivoOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg">
+                Cancelar
+              </button>
+              <button 
+                disabled={selectedEmpleadosIds.length === 0 || isGeneratingZip}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex items-center gap-2"
+                onClick={async () => {
+                   setIsGeneratingZip(true);
+                   try {
+                     // 1. Pedimos el ZIP a Django enviando los IDs seleccionados
+                     const response = await axios.post(
+                       `https://jornada40-saas-production.up.railway.app/api/empleados/descargar_anexos_zip/`, 
+                       { empleados: selectedEmpleadosIds }, 
+                       { ...apiConfig, responseType: 'blob' } // CRÍTICO: Decirle que es un archivo binario
+                     );
+                     
+                     // 2. Forzamos la descarga del ZIP en el navegador
+                     const url = window.URL.createObjectURL(new Blob([response.data]));
+                     const link = document.createElement('a');
+                     link.href = url;
+                     link.setAttribute('download', 'Anexos_40h_Masivos.zip');
+                     document.body.appendChild(link);
+                     link.click();
+                     
+                     // 3. Limpiamos
+                     link.parentNode?.removeChild(link);
+                     window.URL.revokeObjectURL(url);
+                     
+                     // 4. Cerramos el modal
+                     setIsModalMasivoOpen(false);
+                     setSelectedEmpleadosIds([]); // Vaciamos la selección
+                     
+                   } catch (error) {
+                     alert("Hubo un problema al empaquetar los anexos. Inténtalo de nuevo.");
+                     console.error(error);
+                   } finally {
+                     setIsGeneratingZip(false);
+                   }
+                }}
+              >
+                {isGeneratingZip ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Comprimiendo...
+                  </>
+                ) : (
+                  `Generar ZIP (${selectedEmpleadosIds.length} Anexos)`
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
               {/* FOOTER DEL PANEL */}
               <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
