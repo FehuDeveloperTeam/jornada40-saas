@@ -94,9 +94,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@action(detail=False, methods=['post'])
-    def descargar_anexos_zip(self, request):
+#//Indentado correcto//
+    @action(detail=False, methods=['post'])
+        def descargar_anexos_zip(self, request):
         empleado_ids = request.data.get('empleados', [])
         
         if not empleado_ids:
@@ -163,11 +163,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         
         return response
 
-    def get_queryset(self):
+        def get_queryset(self):
         # Solo devuelve los empleados cuya empresa pertenezca al usuario logueado
         return Empleado.objects.filter(empresa__owner=self.request.user)
 
-    def perform_create(self, serializer):
+        def perform_create(self, serializer):
         # Como el frontend YA envía el ID de la empresa en el payload ("empresa": 1),
         # simplemente le decimos al serializador que guarde los datos tal cual llegaron.
         serializer.save()
