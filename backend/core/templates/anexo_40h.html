@@ -41,15 +41,24 @@
             width: 45%;
             vertical-align: top;
         }
-        .linea {
-            border-top: 1px solid #000;
+        .contenedor-firmas {
+            margin-top: 150px; 
+        }
+        .tabla-firmas {
+            width: 100%;
+            text-align: center;
+        }
+        .td-firma {
+            width: 45%;
+            vertical-align: top;
+        }
+        .bloque-firma {
+            border-top: 1px solid black; /* La línea va pegada justo arriba del texto */
             width: 80%;
             margin: 0 auto;
-            margin-bottom: 5px; /* Pequeño espacio entre la línea y el título */
-        }
-        .texto-firma {
-            font-weight: bold;
+            padding-top: 4px; /* Un mini espacio para que la línea no toque la letra E */
             font-size: 10pt;
+            line-height: 1.2; /* Junta el texto del Empleador con el de la Empresa */
         }
         .datos-firma {
             font-size: 10pt;
@@ -74,16 +83,15 @@
         <table class="tabla-firmas">
             <tr>
                 <td class="td-firma">
-                    <div class="linea"></div> <div class="texto-firma">EL EMPLEADOR</div>
-                    <div class="datos-firma">
+                    <div class="bloque-firma">
+                        <strong>EL EMPLEADOR</strong><br>
                         {{ empresa.nombre_legal }}<br>
                         RUT: {{ empresa.rut }}
                     </div>
                 </td>
                 <td style="width: 10%;"></td> <td class="td-firma">
-                    <div class="linea"></div>
-                    <div class="texto-firma">EL TRABAJADOR</div>
-                    <div class="datos-firma">
+                    <div class="bloque-firma">
+                        <strong>EL TRABAJADOR</strong><br>
                         {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>
                         RUT: {{ empleado.rut }}
                     </div>

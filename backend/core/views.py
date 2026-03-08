@@ -43,10 +43,15 @@ class ContratoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Viajamos: Contrato -> Empleado -> Empresa -> Owner
-        # Solo devuelve contratos de los empleados que pertenecen a la empresa de este usuario
-        return Contrato.objects.filter(empleado__empresa__owner=self.request.user)
-
+        # 1. Obtenemos todos los contratos de la empresa
+        queryset = Contrato.objects.filter(empleado__empresa__owner=self.request.user)
+        
+        # 2. LA MAGIA: Si React pide un empleado en específico, lo filtramos
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            queryset = queryset.filter(empleado_id=empleado_id)
+            
+        return queryset
     # ==========================================
     # GENERADOR DE PDF XHTML2PDF
     # ==========================================
