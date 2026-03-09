@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback} from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
@@ -39,11 +39,14 @@ interface Empleado {
   creado_en?: string;
 }
 
+const apiConfig = { withCredentials: true };
+
 export default function Dashboard() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [downloadingId, setDownloadingId] = useState<number | null>(null); // Nuevo estado para el botón PDF
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  
   // Estados para Generación Masiva
   const [isModalMasivoOpen, setIsModalMasivoOpen] = useState(false);
   const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
@@ -59,11 +62,10 @@ export default function Dashboard() {
   const [formData, setFormData] = useState<Partial<Empleado>>({});
 
   const navigate = useNavigate();
-  const apiConfig = { withCredentials: true };
   const empresaActivaId = localStorage.getItem('empresaActivaId');
 
   // --- OBTENER DATOS ---
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!empresaActivaId) {
       navigate('/empresas');
       return;
@@ -84,15 +86,48 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [empresaActivaId, navigate]); // <-- Le decimos de qué variables depende
 
   useEffect(() => {
     fetchData();
-  }, [navigate]);
+  }, [fetchData]);
 
   const volverAlLobby = () => {
     localStorage.removeItem('empresaActivaId');
     navigate('/empresas');
+  };
+
+  // ==========================================
+  // DESCARGAR PLANTILLA EXCEL ACTUALIZADA
+  // ==========================================
+  const descargarPlantillaExcel = () => {
+    const datosEjemplo = [{
+      nombres: "Juan Alberto",
+      apellido_paterno: "Pérez",
+      apellido_materno: "González",
+      rut: "12.345.678-9",
+      sexo: "M",
+      nacionalidad: "Chilena",
+      fecha_nacimiento: "1990-01-01",
+      estado_civil: "Soltero",
+      numero_telefono: "+56912345678",
+      comuna: "Santiago",
+      direccion: "Av. Providencia 123",
+      departamento: "Ventas",
+      cargo: "Vendedor",
+      sucursal: "Casa Matriz",
+      fecha_ingreso: "2023-05-01",
+      horas_laborales: 40,
+      modalidad: "PRESENCIAL",
+      sueldo_base: 500000,
+      afp: "Modelo",
+      sistema_salud: "FONASA"
+    }];
+
+    const ws = XLSX.utils.json_to_sheet(datosEjemplo);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Trabajadores");
+    XLSX.writeFile(wb, "Plantilla_Carga_Masiva.xlsx");
   };
 
   // ==========================================
@@ -112,30 +147,28 @@ export default function Dashboard() {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         
-        // Convierte el Excel a JSON. (Asume que la fila 1 tiene los títulos: rut, nombres, apellido_paterno, etc)
         const data = XLSX.utils.sheet_to_json(ws);
         
-        // Enviamos al backend
         const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, data, apiConfig);
         
         if (response.data.advertencia) {
-          // Si el backend nos mandó el aviso del límite, lo mostramos
           alert(response.data.advertencia);
         } else {
           alert("¡Todos los trabajadores fueron cargados exitosamente!");
         }
         
         window.location.reload();
-      } catch (error: any) {
+      } catch (error) {
+        console.error("Error procesando el Excel:", error);
         alert("Error al cargar el archivo. Verifica que las columnas del Excel tengan los nombres correctos.");
       } finally {
         setIsUploading(false);
-        // Limpiamos el input para poder subir el mismo archivo de nuevo si se equivocó
         e.target.value = ''; 
       }
     };
     reader.readAsBinaryString(file);
   };
+
   // --- MANEJADORES DEL PANEL ---
   const abrirCrear = () => {
     setPanelMode('create');
@@ -183,7 +216,8 @@ export default function Dashboard() {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
 
-    const payload: any = { ...formData };
+    // TypeScript strict validation - Eliminando "any"
+    const payload: Record<string, unknown> = { ...formData } as Record<string, unknown>;
     
     const camposOpcionales = [
       'apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 
@@ -194,9 +228,9 @@ export default function Dashboard() {
       if (payload[campo] === '') delete payload[campo];
     });
 
-    if (payload.empresa) payload.empresa = parseInt(payload.empresa.toString());
-    payload.horas_laborales = parseInt(payload.horas_laborales || 40);
-    payload.sueldo_base = parseInt(payload.sueldo_base || 0);
+    if (payload.empresa) payload.empresa = Number(payload.empresa);
+    payload.horas_laborales = Number(payload.horas_laborales || 40);
+    payload.sueldo_base = Number(payload.sueldo_base || 0);
 
     try {
       if (panelMode === 'edit' && selectedEmpleado) {
@@ -207,50 +241,46 @@ export default function Dashboard() {
       setIsPanelOpen(false);
       setLoading(true);
       fetchData(); 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error al guardar empleado:", error);
-      const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Error de conexión";
-      alert(`Django rechazó la operación:\n\n${errorMsg}`);
+      if (axios.isAxiosError(error)) {
+        const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Error de conexión";
+        alert(`Django rechazó la operación:\n\n${errorMsg}`);
+      } else {
+        alert("Ocurrió un error desconocido al guardar.");
+      }
     }
   };
 
- // ==========================================
-  // FUNCIÓN: DESCARGAR ANEXO Y CREAR CONTRATO
+  // ==========================================
+  // FUNCIÓN: DESCARGAR ANEXO INDIVIDUAL
   // ==========================================
   const generarYDescargarPDF = async (empleado: Empleado) => {
     setDownloadingId(empleado.id);
     try {
-      // 1. Buscar si el empleado ya tiene un contrato
       const contratosRes = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleado.id}`, apiConfig);
       const contratos = contratosRes.data;
-
       let contratoId;
 
-      // 2. Si NO tiene contrato, se lo creamos automáticamente (Servicio Extra)
       if (!contratos || contratos.length === 0) {
         const payloadContrato = {
           empleado: empleado.id,
-          tipo_contrato: 'INDEFINIDO', // Puedes cambiarlo si tienes otro por defecto
+          tipo_contrato: 'INDEFINIDO',
           fecha_inicio: empleado.fecha_ingreso || new Date().toISOString().split('T')[0],
           sueldo_base: empleado.sueldo_base || 0,
           cargo: empleado.cargo || 'No especificado'
         };
-        
         const nuevoContratoRes = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, payloadContrato, apiConfig);
         contratoId = nuevoContratoRes.data.id;
-        console.log("¡Contrato nuevo registrado exitosamente!");
       } else {
-        // Si ya tiene, usamos el primero que encuentre
         contratoId = contratos[0].id;
       }
 
-      // 3. Pedir el PDF a Django
       const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoId}/generar_anexo/`, {
         ...apiConfig,
         responseType: 'blob' 
       });
 
-      // 4. Descargar el archivo
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -261,10 +291,14 @@ export default function Dashboard() {
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error gestionando el contrato o anexo:", error);
-      const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : "Error desconocido";
-      alert(`Hubo un problema al generar el documento.\nDetalle: ${errorMsg}`);
+      if (axios.isAxiosError(error)) {
+        const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : "Error de conexión";
+        alert(`Hubo un problema al generar el documento.\nDetalle: ${errorMsg}`);
+      } else {
+        alert("Hubo un problema al generar el documento.");
+      }
     } finally {
       setDownloadingId(null);
     }
@@ -299,31 +333,36 @@ export default function Dashboard() {
 
         {/* === TABLA DE EMPLEADOS === */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+          
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Directorio de Empleados</h2>
               <p className="text-sm text-gray-500 mt-1">Total registrados: {empleados.length}</p>
             </div>
-            <div className="flex gap-3">
-    {/* BOTÓN 1: IMPORTAR EXCEL (Oculta el input real y usa un label estilizado) */}
-    <label className="cursor-pointer px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2">
-      {isUploading ? "Cargando..." : "Importar Excel"}
-      <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
-    </label>
+            
+            {/* BOTONERA SUPERIOR */}
+            <div className="flex flex-wrap gap-3 items-center">
+                <button type="button" onClick={descargarPlantillaExcel} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium flex items-center gap-2">
+                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                  Bajar Plantilla
+                </button>
 
-    {/* BOTÓN 2: GENERACIÓN MASIVA */}
-    <button 
-      onClick={() => setIsModalMasivoOpen(true)}
-      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-    >
-      Generación Masiva
-    </button>
+                <label className="cursor-pointer px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 text-sm font-medium m-0">
+                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+                  {isUploading ? "Cargando..." : "Subir Excel"}
+                  <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                </label>
 
-    {/* BOTÓN 3: NUEVO EMPLEADO MANUAL */}
-    <button onClick={abrirCrear} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
-      + Nuevo Empleado
-    </button>
-</div>
+                <button type="button" onClick={() => setIsModalMasivoOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-2">
+                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
+                  Generación Masiva
+                </button>
+
+                <button type="button" onClick={abrirCrear} className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition text-sm font-medium flex items-center gap-2">
+                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                  Nuevo Empleado
+                </button>
+            </div>
           </div>
 
           {empleados.length === 0 ? (
@@ -354,35 +393,17 @@ export default function Dashboard() {
                         </span>
                       </td>
                       <td className="p-4 text-right flex justify-end gap-3">
-                        {/* 1. BOTÓN DESCARGAR (Verde) */}
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} 
-                          disabled={downloadingId === emp.id}
-                          className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50" 
-                          title="Descargar Anexo 40 Hrs"
-                        >
+                        <button onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} disabled={downloadingId === emp.id} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50" title="Descargar Anexo 40 Hrs">
                           {downloadingId === emp.id ? (
                             <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
                           ) : (
                             <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                           )}
                        </button>
-
-                       {/* 2. BOTÓN VER - OJO (Azul) */}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} 
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
-                        title="Ver Perfil"
-                      >
+                      <button onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                       </button>
-
-                         {/* 3. BOTÓN EDITAR - LÁPIZ (Naranja) */}
-                      <button 
-                       onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} 
-                       className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" 
-                       title="Editar Trabajador"
-                      >
+                      <button onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
                         <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                       </button>
                       </td>
@@ -397,7 +418,7 @@ export default function Dashboard() {
 
       {/* === SLIDE-OVER PANEL LATERAL === */}
       {isPanelOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden">
+        <div className="fixed inset-0 z-40 overflow-hidden">
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsPanelOpen(false)}></div>
           
           <div className="absolute inset-y-0 right-0 max-w-lg w-full flex">
@@ -580,9 +601,29 @@ export default function Dashboard() {
                 )}
               </div>
 
-{/* ============================================== */}
-      {/* MODAL GENERACIÓN MASIVA                        */}
-      {/* ============================================== */}
+              {/* FOOTER DEL PANEL */}
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+                {panelMode === 'view' && selectedEmpleado ? (
+                  <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2.5 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
+                    Cerrar
+                  </button>
+                ) : (
+                  <div className="flex w-full justify-end gap-3">
+                    <button type="button" onClick={() => setIsPanelOpen(false)} className="px-5 py-2 text-gray-600 font-medium bg-transparent hover:bg-gray-200 rounded-xl transition-colors">
+                      Cancelar
+                    </button>
+                    <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-5 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md">
+                      {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Cambios'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === MODAL GENERACIÓN MASIVA === */}
       {isModalMasivoOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -647,14 +688,12 @@ export default function Dashboard() {
                 onClick={async () => {
                    setIsGeneratingZip(true);
                    try {
-                     // 1. Pedimos el ZIP a Django enviando los IDs seleccionados
                      const response = await axios.post(
                        `https://jornada40-saas-production.up.railway.app/api/empleados/descargar_anexos_zip/`, 
                        { empleados: selectedEmpleadosIds }, 
-                       { ...apiConfig, responseType: 'blob' } // CRÍTICO: Decirle que es un archivo binario
+                       { ...apiConfig, responseType: 'blob' }
                      );
                      
-                     // 2. Forzamos la descarga del ZIP en el navegador
                      const url = window.URL.createObjectURL(new Blob([response.data]));
                      const link = document.createElement('a');
                      link.href = url;
@@ -662,17 +701,15 @@ export default function Dashboard() {
                      document.body.appendChild(link);
                      link.click();
                      
-                     // 3. Limpiamos
                      link.parentNode?.removeChild(link);
                      window.URL.revokeObjectURL(url);
                      
-                     // 4. Cerramos el modal
                      setIsModalMasivoOpen(false);
-                     setSelectedEmpleadosIds([]); // Vaciamos la selección
+                     setSelectedEmpleadosIds([]); 
                      
                    } catch (error) {
+                     console.error("Error al empaquetar los anexos:", error);
                      alert("Hubo un problema al empaquetar los anexos. Inténtalo de nuevo.");
-                     console.error(error);
                    } finally {
                      setIsGeneratingZip(false);
                    }
@@ -692,30 +729,6 @@ export default function Dashboard() {
         </div>
       )}
 
-              {/* FOOTER DEL PANEL */}
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-                {panelMode === 'view' && selectedEmpleado ? (
-                  <>
-                    
-                    <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2.5 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
-                      Cerrar
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex w-full justify-end gap-3">
-                    <button type="button" onClick={() => setIsPanelOpen(false)} className="px-5 py-2 text-gray-600 font-medium bg-transparent hover:bg-gray-200 rounded-xl transition-colors">
-                      Cancelar
-                    </button>
-                    <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-5 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md">
-                      {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Cambios'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

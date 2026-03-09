@@ -66,30 +66,62 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
             mensaje_advertencia = None
             
+            # Limpiamos filas vacías por si el Excel trae basura al final
+            datos_limpios = [item for item in datos_excel if item.get('rut') and item.get('nombres')]
+
             # 3. Cortar la lista si supera el límite
-            if len(datos_excel) > espacio_disponible:
+            if len(datos_limpios) > espacio_disponible:
                 # Cortamos la lista hasta donde alcance
-                datos_excel = datos_excel[:espacio_disponible]
+                datos_limpios = datos_limpios[:espacio_disponible]
                 
                 # Obtenemos al último que logró entrar
-                ultimo = datos_excel[-1]
+                ultimo = datos_limpios[-1]
                 nombre_completo_ultimo = f"{ultimo.get('nombres', '')} {ultimo.get('apellido_paterno', '')} {ultimo.get('apellido_materno', '')}".strip().upper()
                 
                 mensaje_advertencia = f"¡ATENCIÓN! llegaste al total de trabajadores, se cargará hasta {nombre_completo_ultimo}"
 
-            # 4. Guardar masivamente en la base de datos
+            # 4. Guardar masivamente en la base de datos con TODOS los campos
             nuevos_empleados = []
             with transaction.atomic(): # Esto asegura que si uno falla, no se guarde ninguno a medias
-                for item in datos_excel:
+                for item in datos_limpios:
+                    
+                    # Manejo seguro de fechas para evitar que la BD colapse si vienen vacías
+                    fecha_nac = item.get('fecha_nacimiento')
+                    fecha_nac = fecha_nac if fecha_nac else None
+                    
+                    fecha_ing = item.get('fecha_ingreso')
+                    fecha_ing = fecha_ing if fecha_ing else datetime.date.today()
+
+                    # Limpieza de números
+                    try: horas = int(item.get('horas_laborales') or 40)
+                    except: horas = 40
+                        
+                    try: sueldo = int(item.get('sueldo_base') or 0)
+                    except: sueldo = 0
+
                     empleado = Empleado(
                         empresa=empresa,
-                        rut=item.get('rut'),
-                        nombres=item.get('nombres'),
-                        apellido_paterno=item.get('apellido_paterno'),
-                        apellido_materno=item.get('apellido_materno', ''),
-                        cargo=item.get('cargo', 'No especificado'),
-                        sueldo_base=item.get('sueldo_base', 0),
-                        fecha_ingreso=item.get('fecha_ingreso') or datetime.date.today()
+                        rut=str(item.get('rut')).strip(),
+                        nombres=str(item.get('nombres')).strip(),
+                        apellido_paterno=str(item.get('apellido_paterno', '')).strip(),
+                        apellido_materno=str(item.get('apellido_materno', '')).strip(),
+                        sexo=str(item.get('sexo', '')).strip(),
+                        nacionalidad=str(item.get('nacionalidad', '')).strip(),
+                        fecha_nacimiento=fecha_nac,
+                        estado_civil=str(item.get('estado_civil', '')).strip(),
+                        numero_telefono=str(item.get('numero_telefono', '')).strip(),
+                        comuna=str(item.get('comuna', '')).strip(),
+                        direccion=str(item.get('direccion', '')).strip(),
+                        departamento=str(item.get('departamento', '')).strip(),
+                        cargo=str(item.get('cargo', 'No especificado')).strip(),
+                        sucursal=str(item.get('sucursal', '')).strip(),
+                        fecha_ingreso=fecha_ing,
+                        horas_laborales=horas,
+                        modalidad=str(item.get('modalidad', 'PRESENCIAL')).strip(),
+                        sueldo_base=sueldo,
+                        afp=str(item.get('afp', '')).strip(),
+                        sistema_salud=str(item.get('sistema_salud', '')).strip(),
+                        activo=True
                     )
                     nuevos_empleados.append(empleado)
                 
@@ -122,7 +154,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     empleado = Empleado.objects.get(id=emp_id, empresa__owner=request.user)
                     empresa = empleado.empresa
                     
-                    # 2. Buscar o crear contrato automáticamente (como lo hacíamos en React)
+                    # 2. Buscar o crear contrato automáticamente
                     contrato = Contrato.objects.filter(empleado=empleado).first()
                     if not contrato:
                         contrato = Contrato.objects.create(
@@ -205,7 +237,6 @@ class ContratoViewSet(viewsets.ModelViewSet):
             fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
 
             # 2. OBTENER LA CIUDAD DINÁMICAMENTE
-            # Busca si la empresa tiene comuna/ciudad, si no, usa la del empleado, si no, "Santiago"
             ciudad = getattr(empresa, 'comuna', None) or getattr(empresa, 'ciudad', None) or getattr(empleado, 'comuna', 'Santiago')
 
             # 3. Preparamos los datos
@@ -214,7 +245,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
                 'empleado': empleado,
                 'empresa': empresa,
                 'fecha_actual': fecha_espanol,
-                'ciudad': ciudad.title() # Pone la primera letra en mayúscula (ej: "Concepción")
+                'ciudad': ciudad.title()
             }
 
             # 2. Obtenemos el template y lo renderizamos
@@ -229,7 +260,6 @@ class ContratoViewSet(viewsets.ModelViewSet):
             # 4. xhtml2pdf hace la magia: Transforma el HTML en PDF
             pisa_status = pisa.CreatePDF(html, dest=response)
 
-            # Si hay un error interno en la creación
             if pisa_status.err:
                 return HttpResponse(f'Tuvimos algunos errores al generar el PDF <pre>{html}</pre>', status=500)
             
@@ -242,11 +272,10 @@ class ContratoViewSet(viewsets.ModelViewSet):
 # REGISTRO DE NUEVOS CLIENTES (ONBOARDING)
 # ==========================================
 @api_view(['POST'])
-@permission_classes([AllowAny]) # Permitir que cualquiera se registre sin estar logueado
+@permission_classes([AllowAny]) 
 def registrar_cliente(request):
     data = request.data
     
-    # 1. Validaciones de seguridad (Que no existan duplicados)
     if User.objects.filter(username=data.get('email')).exists():
         return Response({'error': 'Este correo ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -254,20 +283,16 @@ def registrar_cliente(request):
         return Response({'error': 'Este RUT ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
         
     try:
-        # transaction.atomic asegura que o se crea todo, o no se crea nada.
         with transaction.atomic():
-            # 2. Crear el Usuario de acceso (Django User)
             usuario = User.objects.create_user(
                 username=data.get('rut'),
                 email=data.get('email'),
                 password=data.get('password')
             )
             
-            # 3. Asignar el Plan seleccionado
             plan_id = data.get('planId')
             plan_seleccionado = Plan.objects.filter(id=plan_id).first()
             
-            # 4. Crear el Perfil del Cliente
             Cliente.objects.create(
                 usuario=usuario,
                 plan=plan_seleccionado,
