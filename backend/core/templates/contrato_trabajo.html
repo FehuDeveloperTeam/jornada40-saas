@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Contrato de Trabajo</title>
+    <style>
+        @page { size: letter; margin: 2.5cm 2cm; }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
+        h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 30px; text-decoration: underline; }
+        p { margin-bottom: 15px; }
+        .bold { font-weight: bold; }
+        .firma-box { width: 100%; margin-top: 80px; }
+        .firma-col { width: 45%; display: inline-block; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
+        .spacer { width: 8%; display: inline-block; }
+    </style>
+</head>
+<body>
+
+    <h1>CONTRATO DE TRABAJO {{ contrato.tipo_contrato }}</h1>
+
+    <p>En <span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha_actual }}</span>, entre <span class="bold">{{ empresa.nombre_legal }}</span>, RUT <span class="bold">{{ empresa.rut }}</span>, representada legalmente por don(a) ________________________, ambos domiciliados en {{ empresa.direccion|default:"____________________" }}, comuna de {{ empresa.comuna|default:"____________________" }}, en adelante "el Empleador"; y don(a) <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno }}</span>, RUT <span class="bold">{{ empleado.rut }}</span>, de nacionalidad {{ empleado.nacionalidad }}, nacido(a) el {{ empleado.fecha_nacimiento|default:"__/__/____" }}, de estado civil {{ empleado.estado_civil|default:"_________" }}, domiciliado(a) en {{ empleado.direccion|default:"____________________" }}, comuna de {{ empleado.comuna|default:"____________________" }}, en adelante "el Trabajador", se ha convenido el siguiente contrato de trabajo:</p>
+
+    <p><span class="bold">PRIMERO. Naturaleza de los servicios:</span> El Trabajador se compromete a desempeñar el cargo de <span class="bold">{{ contrato.cargo }}</span>, realizando las funciones inherentes a dicho cargo y aquellas que el Empleador le encomiende de acuerdo a su naturaleza. Los servicios se prestarán bajo la modalidad <span class="bold">{{ empleado.modalidad }}</span> en la sucursal o recinto ubicado en {{ empleado.sucursal|default:"las dependencias del Empleador" }}.</p>
+
+    <p><span class="bold">SEGUNDO. Jornada de Trabajo:</span> 
+        {% if contrato.tipo_jornada == 'ART_22' %}
+            De conformidad a lo establecido en el inciso segundo del Artículo 22 del Código del Trabajo, el Trabajador se encontrará excluido de la limitación de jornada de trabajo, dado que prestará servicios sin fiscalización superior inmediata.
+        {% elif contrato.tipo_jornada == 'OTRO' %}
+            La jornada de trabajo será la siguiente: {{ contrato.jornada_personalizada }}.
+        {% else %}
+            La jornada ordinaria de trabajo será de <span class="bold">{{ contrato.horas_semanales }} horas semanales</span>, distribuidas en <span class="bold">{{ contrato.distribucion_dias }} días</span> a la semana. 
+            {% if contrato.tiene_colacion_imputable %}
+                El tiempo destinado a la colación se considerará imputable a la jornada de trabajo.
+            {% else %}
+                El tiempo destinado a la colación no se considerará imputable a la jornada de trabajo.
+            {% endif %}
+        {% endif %}
+    </p>
+
+    <p><span class="bold">TERCERO. Remuneración:</span> El Empleador pagará al Trabajador un Sueldo Base mensual de <span class="bold">${{ contrato.sueldo_base }}</span> pesos, pagaderos por períodos vencidos el último día hábil de cada mes. De las remuneraciones se deducirán los impuestos legales, cotizaciones previsionales, de salud (AFP {{ empleado.afp|default:"_____" }} y Sistema de Salud {{ empleado.sistema_salud|default:"_____" }}), y seguro de cesantía cuando corresponda.</p>
+
+    {% if contrato.clausulas_especiales %}
+    <p><span class="bold">CUARTO. Cláusulas Especiales:</span> Las partes acuerdan las siguientes condiciones adicionales: {{ contrato.clausulas_especiales }}</p>
+    {% endif %}
+
+    <p><span class="bold">{% if contrato.clausulas_especiales %}QUINTO{% else %}CUARTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ contrato.fecha_inicio }}</span> y tendrá el carácter de {{ contrato.tipo_contrato }}. 
+    {% if contrato.tipo_contrato == 'PLAZO_FIJO' and contrato.fecha_fin %}
+        El contrato terminará el día {{ contrato.fecha_fin }}.
+    {% endif %}
+    </p>
+
+    <p>Para constancia y en señal de conformidad, las partes firman el presente contrato en dos ejemplares de igual tenor y fecha, quedando uno en poder de cada parte.</p>
+
+    <div class="firma-box">
+        <div class="firma-col">
+            <br><br>
+            <span class="bold">{{ empresa.nombre_legal }}</span><br>
+            RUT: {{ empresa.rut }}<br>
+            Empleador
+        </div>
+        <div class="spacer"></div>
+        <div class="firma-col">
+            <br><br>
+            <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }}</span><br>
+            RUT: {{ empleado.rut }}<br>
+            Trabajador
+        </div>
+    </div>
+
+</body>
+</html>

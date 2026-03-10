@@ -927,6 +927,56 @@ export default function Dashboard() {
                         ></textarea>
                       </div>
                     </div>
+
+                    {/* NUEVO: SECCIÓN DE DESCARGA DE DOCUMENTOS */}
+                    {contratoData.id && (
+                      <div className="mt-8 pt-6 border-t border-slate-200">
+                        <h4 className="text-sm font-bold text-slate-800 mb-4">Descargar Documentos de este Trabajador</h4>
+                        <div className="flex gap-4">
+                          {/* Botón Descargar Contrato */}
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_contrato_pdf/`, { ...apiConfig, responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url; link.setAttribute('download', `Contrato_${selectedEmpleado?.rut}.pdf`);
+                                document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+                              } catch (error) { 
+                                console.error("Error descargando el contrato:", error);
+                                alert("Error descargando el contrato."); 
+                              }
+                            }}
+                            className="flex-1 px-4 py-3 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
+                          >
+                            <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5 text-blue-600"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                            Descargar Contrato Base
+                          </button>
+
+                          {/* Botón Descargar Anexo 40h */}
+                          <button 
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_anexo/`, { ...apiConfig, responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url; link.setAttribute('download', `Anexo_40h_${selectedEmpleado?.rut}.pdf`);
+                                document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+                              } catch (error) { 
+                                console.error("Error descargando el anexo:", error);
+                                alert("Error descargando el anexo."); 
+                              }
+                            }}
+                            className="flex-1 px-4 py-3 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
+                          >
+                            <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5 text-emerald-600"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                            Descargar Anexo Ley 40h
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </form>
                 )}
 

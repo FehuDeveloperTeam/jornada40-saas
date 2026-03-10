@@ -393,6 +393,47 @@ class ContratoViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=True, methods=['get'])
+    def generar_contrato_pdf(self, request, pk=None):
+        try:
+            contrato = self.get_object() 
+            empleado = contrato.empleado
+            empresa = empleado.empresa
+
+            # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
+            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            hoy = datetime.date.today()
+            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+
+            comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
+            comuna_empl = getattr(empleado, 'comuna', '') or ''
+            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
+
+            context = {
+                'contrato': contrato,
+                'empleado': empleado,
+                'empresa': empresa,
+                'fecha_actual': fecha_espanol,
+                'ciudad': ciudad_segura 
+            }
+
+            # AQUÍ LE DECIMOS QUE USE LA NUEVA PLANTILLA
+            template = get_template('contrato_trabajo.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            nombre_archivo = f'Contrato_{empleado.rut}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+
+            pisa_status = pisa.CreatePDF(html, dest=response)
+
+            if pisa_status.err:
+                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+            
+            return response
+
+        except Exception as e:
+            return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # ==========================================
 # REGISTRO DE NUEVOS CLIENTES
 # ==========================================
