@@ -47,16 +47,20 @@ export default function Register() {
   const [tipoCliente, setTipoCliente] = useState<'PERSONA' | 'EMPRESA'>('PERSONA');
   const [formData, setFormData] = useState({
     rut: '',
+    rut_representante: '', // <-- NUEVO CAMPO
     email: '',
     password: '',
     nombres: '',
     apellido_paterno: '',
     apellido_materno: '',
     razon_social: '',
+    representante_legal: '', // <-- NUEVO CAMPO
     telefono: '',
     direccion: ''
   });
+  
   const [isValidRut, setIsValidRut] = useState(true);
+  const [isValidRutRep, setIsValidRutRep] = useState(true); // <-- VALIDACIÓN NUEVA
 
   const handleSeleccionarPlan = (id: number) => {
     setPlanSeleccionado(id);
@@ -66,20 +70,30 @@ export default function Register() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    
+    // Si editan el RUT de la empresa/persona
     if (name === 'rut') {
       const formateado = formatRut(value);
       setFormData({ ...formData, rut: formateado });
       setIsValidRut(validateRut(formateado));
-    } else {
+    } 
+    // Si editan el RUT del representante legal (Aplica el mismo formato)
+    else if (name === 'rut_representante') {
+      const formateado = formatRut(value);
+      setFormData({ ...formData, rut_representante: formateado });
+      setIsValidRutRep(validateRut(formateado));
+    } 
+    // Cualquier otro campo
+    else {
       setFormData({ ...formData, [name]: value });
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidRut) return;
+    if (!isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep)) return;
 
-    // Bloqueamos el botón mientras carga (opcional, pero buena práctica)
+    // Bloqueamos el botón mientras carga
     const btn = document.getElementById('btn-submit') as HTMLButtonElement;
     if (btn) {
       btn.disabled = true;
@@ -93,15 +107,20 @@ export default function Register() {
     };
 
     try {
-      // Usamos tu URL de Railway o localhost dependiendo de tu entorno
       await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', payload);
-      
       alert('¡Cuenta creada con éxito! Ahora puedes iniciar sesión.');
       navigate('/login');
-      
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error en registro:", error);
-      const errorMsg = error.response?.data?.error || "Ocurrió un error al crear la cuenta.";
+      
+      let errorMsg = "Ocurrió un error al crear la cuenta.";
+      // Le preguntamos a TypeScript si el error viene de Axios (Backend)
+      if (axios.isAxiosError(error) && error.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      } else if (error instanceof Error) {
+        errorMsg = error.message;
+      }
+      
       alert(`Error: ${errorMsg}`);
       
       if (btn) {
@@ -110,7 +129,6 @@ export default function Register() {
       }
     }
   };
-
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       
@@ -216,10 +234,21 @@ export default function Register() {
                   </div>
                 </>
               ) : (
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
-                  <input type="text" name="razon_social" required value={formData.razon_social} onChange={handleInputChange} placeholder="Ej: Agrícola Santa Sofía SpA" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
+                <>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
+                    <input type="text" name="razon_social" required value={formData.razon_social} onChange={handleInputChange} placeholder="Ej: Agrícola Santa Sofía SpA" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  {/* NUEVOS CAMPOS REPRESENTANTE LEGAL */}
+                  <div className="col-span-2 md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Representante Legal *</label>
+                    <input type="text" name="representante_legal" required value={formData.representante_legal} onChange={handleInputChange} placeholder="Ej: Juan Pérez" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                  <div className="col-span-2 md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">RUT Representante *</label>
+                    <input type="text" name="rut_representante" required value={formData.rut_representante} onChange={handleInputChange} placeholder="12.345.678-9" className={`w-full px-4 py-3 rounded-xl border ${!isValidRutRep && formData.rut_representante ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500'} outline-none`} />
+                  </div>
+                </>
               )}
 
               {/* CAMPOS COMUNES */}
@@ -253,7 +282,12 @@ export default function Register() {
               </div>
             </div>
 
-            <button type="submit" id="btn-submit" disabled={!isValidRut} className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 transition-colors mt-8 shadow-lg">
+            <button 
+              type="submit" 
+              id="btn-submit" 
+              disabled={!isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep)} 
+              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors mt-8 shadow-lg"
+            >
               Crear mi Cuenta
             </button>
           </form>

@@ -48,7 +48,8 @@ class Empresa(models.Model):
     comuna = models.CharField(max_length=100, blank=True, null=True)
     ciudad = models.CharField(max_length=100, blank=True, null=True)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
-
+    representante_legal = models.CharField(max_length=200, blank=True, null=True)
+    rut_representante = models.CharField(max_length=20, blank=True, null=True)
     class Meta:
         unique_together = ['rut', 'owner']
         
