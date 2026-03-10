@@ -15,6 +15,37 @@ import zipfile
 from .models import Plan, Cliente, Empresa, Empleado, Contrato
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer
 
+def estandarizar_fecha(fecha_valor):
+    if not fecha_valor:
+        return None
+    
+    fecha_str = str(fecha_valor).strip()
+    
+    # 1. Si Excel lo mandó como número de serie invisible (ej: 20517)
+    try:
+        serial = float(fecha_str)
+        base = datetime.datetime(1899, 12, 30)
+        return (base + datetime.timedelta(days=serial)).date()
+    except ValueError:
+        pass
+
+    # 2. Si viene como texto, probamos todos los formatos posibles chilenos
+    formatos = [
+        '%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', 
+        '%d-%m-%y', '%d/%m/%y', '%m/%d/%y', '%m/%d/%Y'
+    ]
+    for fmt in formatos:
+        try:
+            dt = datetime.datetime.strptime(fecha_str, fmt).date()
+            # Corrección del efecto "Y2K": Si el Excel manda "56", Python a veces cree que es "2056".
+            # Si el año resulta ser mayor al actual (imposible para un nacimiento o ingreso), le restamos 100 años.
+            if dt.year > datetime.date.today().year:
+                dt = dt.replace(year=dt.year - 100)
+            return dt
+        except ValueError:
+            continue
+            
+    return None # Si de verdad mandaron algo ilegible, lo dejamos vacío
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
@@ -94,11 +125,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 for item in datos_limpios:
                     
                     # Manejo seguro de fechas para evitar que la BD colapse si vienen vacías
-                    fecha_nac = item.get('fecha_nacimiento')
-                    fecha_nac = fecha_nac if fecha_nac else None
-                    
-                    fecha_ing = item.get('fecha_ingreso')
-                    fecha_ing = fecha_ing if fecha_ing else datetime.date.today()
+                   
+                    fecha_nac = estandarizar_fecha(item.get('fecha_nacimiento'))
+                    fecha_ing = estandarizar_fecha(item.get('fecha_ingreso')) or datetime.date.today()
 
                     # Limpieza de números
                     try: horas = int(item.get('horas_laborales') or 40)
