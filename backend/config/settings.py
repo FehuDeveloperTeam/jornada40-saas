@@ -163,3 +163,27 @@ else:
     # Cookies relajadas para http://
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+    # ==========================================
+# CONFIGURACIÓN DE SESIONES (Alta Seguridad RRHH)
+# ==========================================
+
+# 1. Duración de la sesión: 30 minutos (en segundos)
+# 30 minutos * 60 segundos = 1800 segundos
+SESSION_COOKIE_AGE = 1800 
+
+# 2. Renovar la sesión automáticamente si el usuario sigue activo
+# (Esto hace que los 30 min se reinicien cada vez que hace clic o guarda algo)
+SESSION_SAVE_EVERY_REQUEST = True
+
+# 3. Cerrar la sesión inmediatamente si el usuario cierra el navegador
+# (Obligatorio por ley de protección de datos en muchos países)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# (Opcional) Si en el futuro usas JWT, ajusta sus tiempos también a minutos:
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=2),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+}
