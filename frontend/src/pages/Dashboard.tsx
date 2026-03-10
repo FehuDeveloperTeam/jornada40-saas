@@ -39,6 +39,23 @@ interface Empleado {
   creado_en?: string;
 }
 
+// NUEVA INTERFAZ: CONTRATO LEGAL
+interface Contrato {
+  id?: number;
+  empleado: number;
+  tipo_contrato: string;
+  cargo: string;
+  fecha_inicio: string;
+  fecha_fin?: string;
+  sueldo_base: number;
+  tipo_jornada: string;
+  horas_semanales: number;
+  distribucion_dias: number;
+  tiene_colacion_imputable: boolean;
+  jornada_personalizada?: string;
+  clausulas_especiales?: string;
+}
+
 const apiConfig = { withCredentials: true };
 
 export default function Dashboard() {
@@ -46,36 +63,33 @@ export default function Dashboard() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal'>('perfil');
-
-  // --- ESTADOS DE BÚSQUEDA Y FILTROS ---
-  const [searchTerm, setSearchTerm] = useState('');
   
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCargos, setSelectedCargos] = useState<string[]>([]);
   const [selectedDeptos, setSelectedDeptos] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<boolean[]>([true, false]);
-  
-  // Control de los menús desplegables
   const [openFilterDropdown, setOpenFilterDropdown] = useState<'cargo' | 'depto' | 'estado' | null>(null);
 
-  // Estados para Generación Masiva
   const [isModalMasivoOpen, setIsModalMasivoOpen] = useState(false);
   const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
 
-  // Estados del panel lateral
+  // Estados del panel lateral y Pestañas
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedEmpleado, setSelectedEmpleado] = useState<Empleado | null>(null);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal'>('perfil');
 
+  // Formularios
   const [formData, setFormData] = useState<Partial<Empleado>>({});
+  const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
+  const [isSavingContrato, setIsSavingContrato] = useState(false);
 
   const navigate = useNavigate();
   const empresaActivaId = localStorage.getItem('empresaActivaId');
 
-  // --- OBTENER DATOS ---
   const fetchData = useCallback(async () => {
     if (!empresaActivaId) {
       navigate('/empresas');
@@ -103,76 +117,46 @@ export default function Dashboard() {
     fetchData();
   }, [fetchData]);
 
-  // ==========================================
-  // INICIALIZAR FILTROS CUANDO CARGAN LOS DATOS
-  // ==========================================
   useEffect(() => {
     if (empleados.length > 0) {
       const uniqueCargos = Array.from(new Set(empleados.map(e => e.cargo || 'NO ESPECIFICADO')));
       const uniqueDeptos = Array.from(new Set(empleados.map(e => e.departamento || 'NO ESPECIFICADO')));
-      // Iniciar con todos seleccionados
       setSelectedCargos(uniqueCargos);
       setSelectedDeptos(uniqueDeptos);
       setSelectedStatuses([true, false]);
     }
   }, [empleados]);
 
-  // ==========================================
-  // MOTOR DE BÚSQUEDA Y ORDENAMIENTO (useMemo)
-  // ==========================================
-  // Obtenemos los valores únicos (dinámicos) basados en la lista real
   const allCargos = useMemo(() => Array.from(new Set(empleados.map(e => e.cargo || 'NO ESPECIFICADO'))), [empleados]);
   const allDeptos = useMemo(() => Array.from(new Set(empleados.map(e => e.departamento || 'NO ESPECIFICADO'))), [empleados]);
 
   const filteredEmpleados = useMemo(() => {
     return empleados
       .filter((emp) => {
-        // 1. Filtro Búsqueda Global (revisa todos los campos de texto importantes)
         const busqueda = searchTerm.toLowerCase();
         const textoCompleto = `${emp.nombres} ${emp.apellido_paterno} ${emp.apellido_materno || ''} ${emp.rut} ${emp.comuna || ''} ${emp.direccion || ''} ${emp.cargo} ${emp.departamento || ''}`.toLowerCase();
         if (busqueda && !textoCompleto.includes(busqueda)) return false;
-
-        // 2. Filtro Estado (Vigente / Desvinculado)
         if (!selectedStatuses.includes(emp.activo)) return false;
-
-        // 3. Filtro Cargo
         const cargoEmp = emp.cargo || 'NO ESPECIFICADO';
         if (!selectedCargos.includes(cargoEmp)) return false;
-
-        // 4. Filtro Departamento
         const deptoEmp = emp.departamento || 'NO ESPECIFICADO';
         if (!selectedDeptos.includes(deptoEmp)) return false;
-
         return true;
       })
       .sort((a, b) => {
-        // Ordenamiento mágico: Siempre los VIGENTES primero, DESVINCULADOS al final
-        if (a.activo === b.activo) {
-            // Si tienen el mismo estado, los ordena alfabéticamente por apellido
-            return a.apellido_paterno.localeCompare(b.apellido_paterno);
-        }
+        if (a.activo === b.activo) return a.apellido_paterno.localeCompare(b.apellido_paterno);
         return a.activo ? -1 : 1; 
       });
   }, [empleados, searchTerm, selectedStatuses, selectedCargos, selectedDeptos]);
 
-
-  // ==========================================
-  // MANEJADORES DE CHECKBOXES (SELECCIONAR TODOS)
-  // ==========================================
   const toggleArrayItem = <T,>(array: T[], setArray: React.Dispatch<React.SetStateAction<T[]>>, item: T) => {
-    if (array.includes(item)) {
-      setArray(array.filter(i => i !== item));
-    } else {
-      setArray([...array, item]);
-    }
+    if (array.includes(item)) setArray(array.filter(i => i !== item));
+    else setArray([...array, item]);
   };
 
   const toggleSelectAll = <T,>(allList: T[], currentList: T[], setList: React.Dispatch<React.SetStateAction<T[]>>) => {
-    if (currentList.length === allList.length) {
-      setList([]); // Deseleccionar todos
-    } else {
-      setList(allList); // Seleccionar todos
-    }
+    if (currentList.length === allList.length) setList([]);
+    else setList(allList);
   };
 
   const volverAlLobby = () => {
@@ -228,11 +212,8 @@ export default function Dashboard() {
         
         const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, data, apiConfig);
         
-        if (response.data.advertencia) {
-          alert(response.data.advertencia);
-        } else {
-          alert("¡Todos los trabajadores fueron cargados exitosamente!");
-        }
+        if (response.data.advertencia) alert(response.data.advertencia);
+        else alert("¡Todos los trabajadores fueron cargados exitosamente!");
         
         window.location.reload();
       } catch (error) {
@@ -251,6 +232,52 @@ export default function Dashboard() {
     reader.readAsArrayBuffer(file);
   };
 
+  // ==========================================
+  // CARGAR CONTRATO AL ABRIR EL PANEL
+  // ==========================================
+  const fetchContrato = async (empleadoId: number) => {
+    try {
+      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleadoId}`, apiConfig);
+      if (response.data && response.data.length > 0) {
+        setContratoData(response.data[0]); // Si ya existe, lo cargamos
+      } else {
+        // Si no existe, preparamos un borrador vacío basado en los datos del empleado
+        const emp = empleados.find(e => e.id === empleadoId);
+        setContratoData({
+          empleado: empleadoId,
+          tipo_contrato: 'INDEFINIDO',
+          tipo_jornada: 'ORDINARIA',
+          cargo: emp?.cargo || 'NO ESPECIFICADO',
+          sueldo_base: emp?.sueldo_base || 0,
+          horas_semanales: 44,
+          distribucion_dias: 5,
+          fecha_inicio: emp?.fecha_ingreso || new Date().toISOString().split('T')[0],
+          tiene_colacion_imputable: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error al cargar el contrato:", error);
+    }
+  };
+
+  const abrirVer = (emp: Empleado) => {
+    setSelectedEmpleado(emp);
+    setPanelMode('view');
+    setActiveTab('perfil');
+    fetchContrato(emp.id); // Buscamos su contrato en secreto
+    setIsPanelOpen(true);
+  };
+
+  const abrirEditar = (emp: Empleado) => {
+    setSelectedEmpleado(emp);
+    setFormData({ ...emp });
+    setIsValidRut(true);
+    setPanelMode('edit');
+    setActiveTab('perfil');
+    fetchContrato(emp.id); // Buscamos su contrato en secreto
+    setIsPanelOpen(true);
+  };
+
   const abrirCrear = () => {
     setPanelMode('create');
     setFormData({ 
@@ -266,23 +293,7 @@ export default function Dashboard() {
     setIsPanelOpen(true);
   };
 
-  const abrirVer = (emp: Empleado) => {
-    setSelectedEmpleado(emp);
-    setPanelMode('view');
-    setActiveTab('perfil');
-    setIsPanelOpen(true);
-  };
-
-  const abrirEditar = (emp: Empleado) => {
-    setSelectedEmpleado(emp);
-    setFormData({ ...emp });
-    setIsValidRut(true);
-    setPanelMode('edit');
-    setActiveTab('perfil');
-    setIsPanelOpen(true);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     if (name === 'rut') {
       const formateado = formatRut(value);
@@ -296,20 +307,44 @@ export default function Dashboard() {
     }
   };
 
+  // ==========================================
+  // MANEJADOR DEL FORMULARIO DE CONTRATOS
+  // ==========================================
+  const handleContratoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    setContratoData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }));
+  };
+
+  const guardarContrato = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingContrato(true);
+    try {
+      if (contratoData.id) {
+        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/`, contratoData, apiConfig);
+        alert("¡Contrato actualizado exitosamente!");
+      } else {
+        const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, contratoData, apiConfig);
+        setContratoData(res.data);
+        alert("¡Contrato creado exitosamente!");
+      }
+    } catch (error) {
+      console.error("Error guardando contrato:", error);
+      alert("Hubo un error al guardar las condiciones del contrato.");
+    } finally {
+      setIsSavingContrato(false);
+    }
+  };
+
   const guardarEmpleado = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
 
     const payload: Record<string, unknown> = { ...formData } as Record<string, unknown>;
-    
-    const camposOpcionales = [
-      'apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 
-      'direccion', 'comuna', 'numero_telefono', 'departamento', 'sucursal', 
-      'afp', 'sistema_salud', 'nacionalidad'
-    ];
-    camposOpcionales.forEach(campo => {
-      if (payload[campo] === '') delete payload[campo];
-    });
+    const camposOpcionales = ['apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 'direccion', 'comuna', 'numero_telefono', 'departamento', 'sucursal', 'afp', 'sistema_salud', 'nacionalidad'];
+    camposOpcionales.forEach(campo => { if (payload[campo] === '') delete payload[campo]; });
 
     if (payload.empresa) payload.empresa = Number(payload.empresa);
     payload.horas_laborales = Number(payload.horas_laborales || 40);
@@ -339,10 +374,9 @@ export default function Dashboard() {
     setDownloadingId(empleado.id);
     try {
       const contratosRes = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleado.id}`, apiConfig);
-      const contratos = contratosRes.data;
       let contratoId;
 
-      if (!contratos || contratos.length === 0) {
+      if (!contratosRes.data || contratosRes.data.length === 0) {
         const payloadContrato = {
           empleado: empleado.id,
           tipo_contrato: 'INDEFINIDO',
@@ -353,12 +387,11 @@ export default function Dashboard() {
         const nuevoContratoRes = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, payloadContrato, apiConfig);
         contratoId = nuevoContratoRes.data.id;
       } else {
-        contratoId = contratos[0].id;
+        contratoId = contratosRes.data[0].id;
       }
 
       const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoId}/generar_anexo/`, {
-        ...apiConfig,
-        responseType: 'blob' 
+        ...apiConfig, responseType: 'blob' 
       });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -367,18 +400,12 @@ export default function Dashboard() {
       link.setAttribute('download', `Anexo_40h_${empleado.rut}.pdf`);
       document.body.appendChild(link);
       link.click();
-      
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
 
     } catch (error) {
       console.error("Error gestionando el contrato o anexo:", error);
-      if (axios.isAxiosError(error)) {
-        const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : "Error de conexión";
-        alert(`Hubo un problema al generar el documento.\nDetalle: ${errorMsg}`);
-      } else {
-        alert("Hubo un problema al generar el documento.");
-      }
+      alert("Hubo un problema al generar el documento.");
     } finally {
       setDownloadingId(null);
     }
@@ -390,7 +417,6 @@ export default function Dashboard() {
     <div className="p-6 md:p-10 bg-gray-50 min-h-screen font-sans flex" onClick={() => setOpenFilterDropdown(null)}>
       <div className={`max-w-7xl mx-auto w-full transition-all duration-300 ${isPanelOpen ? 'md:mr-[450px]' : ''}`}>
         
-        {/* === NAVEGACIÓN Y HEADER === */}
         <div className="flex justify-between items-center mb-8">
           <button onClick={volverAlLobby} className="text-gray-500 hover:text-gray-900 flex items-center gap-2 font-medium transition-colors">
             <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
@@ -411,7 +437,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* === TABLA DE EMPLEADOS === */}
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 min-h-[500px]">
           
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -420,7 +445,6 @@ export default function Dashboard() {
               <p className="text-sm text-gray-500 mt-1">Mostrando {filteredEmpleados.length} de {empleados.length}</p>
             </div>
 
-            {/* BARRA DE BÚSQUEDA GLOBAL */}
             <div className="relative w-full md:w-64">
                 <input 
                   type="text" 
@@ -434,7 +458,6 @@ export default function Dashboard() {
                 </svg>
             </div>
             
-            {/* BOTONERA SUPERIOR */}
             <div className="flex flex-wrap gap-3 items-center">
                 <button type="button" onClick={descargarPlantillaExcel} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium flex items-center gap-2">
                   <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
@@ -471,7 +494,6 @@ export default function Dashboard() {
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">RUT</th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre Completo</th>
                     
-                    {/* FILTRO DEPARTAMENTO */}
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase relative">
                       <button onClick={(e) => { e.stopPropagation(); setOpenFilterDropdown(openFilterDropdown === 'depto' ? null : 'depto'); }} className="flex items-center gap-1 hover:text-gray-600 outline-none">
                         DEPARTAMENTO
@@ -493,7 +515,6 @@ export default function Dashboard() {
                       )}
                     </th>
 
-                    {/* FILTRO CARGO */}
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase relative">
                       <button onClick={(e) => { e.stopPropagation(); setOpenFilterDropdown(openFilterDropdown === 'cargo' ? null : 'cargo'); }} className="flex items-center gap-1 hover:text-gray-600 outline-none">
                         CARGO
@@ -515,7 +536,6 @@ export default function Dashboard() {
                       )}
                     </th>
 
-                    {/* FILTRO ESTADO */}
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase relative">
                       <button onClick={(e) => { e.stopPropagation(); setOpenFilterDropdown(openFilterDropdown === 'estado' ? null : 'estado'); }} className="flex items-center gap-1 hover:text-gray-600 outline-none">
                         ESTADO
@@ -585,7 +605,6 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-40 overflow-hidden">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={(e) => { e.stopPropagation(); setIsPanelOpen(false); }}></div>
           
-          {/* Cambiamos max-w-lg por max-w-4xl para hacerlo ancho y corporativo */}
           <div className="absolute inset-y-0 right-0 max-w-4xl w-full flex shadow-2xl">
             <div className="h-full w-full bg-white flex flex-col transform transition-transform duration-300" onClick={(e) => e.stopPropagation()}>
               
@@ -664,7 +683,6 @@ export default function Dashboard() {
                   <>
                     {panelMode === 'view' && selectedEmpleado ? (
                       <div className="grid grid-cols-2 gap-10">
-                        {/* Columna Izquierda: Datos Personales */}
                         <div className="space-y-6">
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Información Personal</h4>
                           <dl className="space-y-4 text-sm">
@@ -677,7 +695,6 @@ export default function Dashboard() {
                           </dl>
                         </div>
 
-                        {/* Columna Derecha: Datos Laborales */}
                         <div className="space-y-6">
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Condiciones Laborales</h4>
                           <dl className="space-y-4 text-sm">
@@ -693,12 +710,9 @@ export default function Dashboard() {
                         </div>
                       </div>
                     ) : (
-                      /* === FORMULARIO DE EDICIÓN / CREACIÓN === */
                       <form id="empleadoForm" onSubmit={guardarEmpleado} className="grid grid-cols-2 gap-10">
-                        {/* Todo el formulario actual mantenido, pero distribuido en 2 columnas */}
                         <div className="space-y-5">
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Datos Personales</h4>
-                          
                           <div className="grid grid-cols-2 gap-4">
                             <div className="col-span-2">
                               <label className="block text-xs font-semibold text-slate-600 mb-1">RUT *</label>
@@ -745,7 +759,6 @@ export default function Dashboard() {
 
                         <div className="space-y-5">
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Datos Laborales</h4>
-                          
                           <div className="grid grid-cols-2 gap-4">
                             <div className="col-span-2">
                               <label className="block text-xs font-semibold text-slate-600 mb-1">Cargo *</label>
@@ -792,7 +805,6 @@ export default function Dashboard() {
                               </select>
                             </div>
                             
-                            {/* Toggle Switch moderno para Vigencia */}
                             <div className="col-span-2 flex items-center justify-between mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                               <div>
                                 <p className="text-sm font-semibold text-slate-900">Estado del Trabajador</p>
@@ -810,15 +822,114 @@ export default function Dashboard() {
                   </>
                 )}
 
-                {/* PLACEHOLDERS PARA LAS NUEVAS PESTAÑAS (Fase 2, 3 y 4) */}
+                {/* ========================================== */}
+                {/* PESTAÑA 2: EL NUEVO MÓDULO DE CONTRATOS    */}
+                {/* ========================================== */}
                 {activeTab === 'contratos' && (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                    <h3 className="text-lg font-semibold text-slate-700">Módulo de Contratos</h3>
-                    <p className="text-sm mt-2 text-center max-w-sm">Aquí integraremos la selección de jornadas (Art. 22), teletrabajo y cláusulas personalizadas.</p>
-                  </div>
+                  <form id="contratoForm" onSubmit={guardarContrato} className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">Condiciones del Contrato</h3>
+                        <p className="text-sm text-slate-500">Ajusta las cláusulas y jornadas de acuerdo a la Ley</p>
+                      </div>
+                      <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-100">
+                        {contratoData.id ? 'Editando Existente' : 'Nuevo Contrato'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Contrato</label>
+                        <select name="tipo_contrato" required value={contratoData.tipo_contrato || 'INDEFINIDO'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50">
+                          <option value="INDEFINIDO">Indefinido</option>
+                          <option value="PLAZO_FIJO">Plazo Fijo</option>
+                          <option value="OBRA_FAENA">Por Obra o Faena</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Inicio del Contrato</label>
+                        <input type="date" name="fecha_inicio" required value={contratoData.fecha_inicio || ''} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50" />
+                      </div>
+
+                      {contratoData.tipo_contrato === 'PLAZO_FIJO' && (
+                        <div className="col-span-2 bg-orange-50 p-4 rounded-xl border border-orange-100 flex gap-4">
+                          <div className="w-1/2">
+                            <label className="block text-xs font-semibold text-orange-800 mb-1">Fecha de Término (Opcional)</label>
+                            <input type="date" name="fecha_fin" value={contratoData.fecha_fin || ''} onChange={handleContratoChange} className="w-full px-3 py-2 rounded-lg border border-orange-200 outline-none" />
+                          </div>
+                          <div className="w-1/2 flex items-center text-xs text-orange-700 font-medium">
+                            <p>Si es plazo fijo, puedes definir la fecha exacta en la que terminará la relación laboral.</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="col-span-2">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Jornada Laboral</label>
+                        <select name="tipo_jornada" required value={contratoData.tipo_jornada || 'ORDINARIA'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50">
+                          <option value="ORDINARIA">Ordinaria (Lunes a Viernes/Sábado)</option>
+                          <option value="TURNOS">Turnos Rotativos</option>
+                          <option value="BISMANAL">Jornada Bismanal</option>
+                          <option value="ART_22">Artículo 22 (Sin límite de horario)</option>
+                          <option value="PARCIAL">Part-Time</option>
+                          <option value="OTRO">Otra (Jornada Personalizada)</option>
+                        </select>
+                      </div>
+
+                      {/* --- CAJA DINÁMICA: SÓLO APARECE SI ELIGE "OTRO" --- */}
+                      {contratoData.tipo_jornada === 'OTRO' && (
+                        <div className="col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                          <label className="block text-xs font-semibold text-blue-800 mb-1">Detalle de la Jornada Personalizada</label>
+                          <textarea 
+                            name="jornada_personalizada" 
+                            rows={3} 
+                            value={contratoData.jornada_personalizada || ''} 
+                            onChange={handleContratoChange} 
+                            placeholder="Ej: El trabajador prestará servicios los días lunes, miércoles y viernes de 09:00 a 14:00 horas..."
+                            className="w-full px-3 py-2 rounded-lg border border-blue-200 outline-none resize-none"
+                          ></textarea>
+                        </div>
+                      )}
+
+                      {/* Solo muestra horas y días si NO es Art 22 */}
+                      {contratoData.tipo_jornada !== 'ART_22' && (
+                        <>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Horas Semanales (Ley 40h)</label>
+                            <input type="number" step="0.5" name="horas_semanales" value={contratoData.horas_semanales || 44} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 outline-none bg-slate-50" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Días a la semana</label>
+                            <input type="number" name="distribucion_dias" value={contratoData.distribucion_dias || 5} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 outline-none bg-slate-50" />
+                          </div>
+                          <div className="col-span-2 flex items-center justify-between mt-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Tiempo de Colación</p>
+                                <p className="text-xs text-slate-500">¿El horario de colación se considera dentro de la jornada de trabajo?</p>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="tiene_colacion_imputable" checked={contratoData.tiene_colacion_imputable || false} onChange={handleContratoChange} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                              </label>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="col-span-2 mt-2">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Cláusulas Especiales (Opcional)</label>
+                        <textarea 
+                          name="clausulas_especiales" 
+                          rows={4} 
+                          value={contratoData.clausulas_especiales || ''} 
+                          onChange={handleContratoChange} 
+                          placeholder="Escribe aquí acuerdos de teletrabajo, confidencialidad, bonos por meta, uso de uniforme, etc."
+                          className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 resize-none"
+                        ></textarea>
+                      </div>
+                    </div>
+                  </form>
                 )}
-                
+
                 {activeTab === 'liquidaciones' && (
                   <div className="h-full flex flex-col items-center justify-center text-slate-500">
                     <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -838,7 +949,7 @@ export default function Dashboard() {
 
               {/* FOOTER DEL PANEL */}
               <div className="px-8 py-4 border-t border-gray-200 bg-white flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                {panelMode === 'view' ? (
+                {panelMode === 'view' && activeTab === 'perfil' ? (
                   <div className="w-full flex justify-end">
                     <button onClick={() => setIsPanelOpen(false)} className="px-6 py-2.5 text-slate-700 font-semibold bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-sm">
                       Cerrar Ficha
@@ -849,10 +960,18 @@ export default function Dashboard() {
                     <button type="button" onClick={() => { setIsPanelOpen(false); setActiveTab('perfil'); }} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
                       Cancelar
                     </button>
-                    <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md flex items-center gap-2">
-                      <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                      {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Cambios'}
-                    </button>
+                    
+                    {/* BOTÓN DINÁMICO: Cambia según la pestaña activa */}
+                    {activeTab === 'perfil' ? (
+                      <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md flex items-center gap-2">
+                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                        {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Perfil'}
+                      </button>
+                    ) : activeTab === 'contratos' ? (
+                      <button type="submit" form="contratoForm" disabled={isSavingContrato} className="px-8 py-2.5 text-white font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 rounded-xl transition-colors shadow-md flex items-center gap-2">
+                        {isSavingContrato ? 'Guardando...' : 'Guardar Contrato Legal'}
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -861,28 +980,19 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* === MODAL GENERACIÓN MASIVA === */}
       {isModalMasivoOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold text-gray-800">Selecciona los trabajadores para generar anexos</h2>
-              <button onClick={() => setIsModalMasivoOpen(false)} className="text-gray-400 hover:text-gray-600">
-                ✕
-              </button>
+              <h2 className="text-xl font-bold text-gray-800">Selecciona los trabajadores</h2>
+              <button onClick={() => setIsModalMasivoOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             
             <div className="px-6 py-3 border-b bg-gray-50 flex justify-between items-center">
-              <button 
-                onClick={() => setSelectedEmpleadosIds(empleados.filter(e => e.activo).map(emp => emp.id))}
-                className="text-sm font-semibold text-blue-600 hover:text-blue-800"
-              >
-                Seleccionar todos (solo vigentes)
+              <button onClick={() => setSelectedEmpleadosIds(empleados.filter(e => e.activo).map(emp => emp.id))} className="text-sm font-semibold text-blue-600 hover:text-blue-800">
+                Seleccionar todos (vigentes)
               </button>
-              <button 
-                onClick={() => setSelectedEmpleadosIds([])}
-                className="text-sm font-semibold text-red-600 hover:text-red-800"
-              >
+              <button onClick={() => setSelectedEmpleadosIds([])} className="text-sm font-semibold text-red-600 hover:text-red-800">
                 Deseleccionar todos
               </button>
             </div>
@@ -895,7 +1005,7 @@ export default function Dashboard() {
                       type="checkbox" 
                       className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
                       checked={selectedEmpleadosIds.includes(emp.id)}
-                      disabled={!emp.activo} // No dejar seleccionar desvinculados
+                      disabled={!emp.activo} 
                       onChange={(e) => {
                         if (e.target.checked) setSelectedEmpleadosIds(prev => [...prev, emp.id]);
                         else setSelectedEmpleadosIds(prev => prev.filter(id => id !== emp.id));
@@ -907,27 +1017,18 @@ export default function Dashboard() {
                     </div>
                   </label>
                 ))}
-                {filteredEmpleados.length === 0 && (
-                  <p className="text-center text-gray-500 py-4">No hay trabajadores para mostrar.</p>
-                )}
               </div>
             </div>
 
             <div className="px-6 py-4 border-t flex justify-end gap-3 bg-gray-50">
-              <button onClick={() => setIsModalMasivoOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg">
-                Cancelar
-              </button>
+              <button onClick={() => setIsModalMasivoOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg">Cancelar</button>
               <button 
                 disabled={selectedEmpleadosIds.length === 0 || isGeneratingZip}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex items-center gap-2"
                 onClick={async () => {
                    setIsGeneratingZip(true);
                    try {
-                     const response = await axios.post(
-                       `https://jornada40-saas-production.up.railway.app/api/empleados/descargar_anexos_zip/`, 
-                       { empleados: selectedEmpleadosIds }, 
-                       { ...apiConfig, responseType: 'blob' }
-                     );
+                     const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/descargar_anexos_zip/`, { empleados: selectedEmpleadosIds }, { ...apiConfig, responseType: 'blob' });
                      const url = window.URL.createObjectURL(new Blob([response.data]));
                      const link = document.createElement('a');
                      link.href = url;
@@ -936,32 +1037,22 @@ export default function Dashboard() {
                      link.click();
                      link.parentNode?.removeChild(link);
                      window.URL.revokeObjectURL(url);
-                     
                      setIsModalMasivoOpen(false);
                      setSelectedEmpleadosIds([]); 
-                     
                    } catch (error) {
-                    console.error("Error al generar el ZIP:", error);
+                    console.error("Error al generar ZIP:", error);
                      alert("Hubo un problema al empaquetar los anexos. Inténtalo de nuevo.");
                    } finally {
                      setIsGeneratingZip(false);
                    }
                 }}
               >
-                {isGeneratingZip ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Comprimiendo...
-                  </>
-                ) : (
-                  `Generar ZIP (${selectedEmpleadosIds.length})`
-                )}
+                {isGeneratingZip ? 'Comprimiendo...' : `Generar ZIP (${selectedEmpleadosIds.length})`}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
