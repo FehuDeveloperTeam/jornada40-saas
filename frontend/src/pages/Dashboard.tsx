@@ -131,7 +131,7 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // CARGA MASIVA DESDE EXCEL
+  // CARGA MASIVA DESDE EXCEL (MODERNA Y SEGURA)
   // ==========================================
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -142,12 +142,15 @@ export default function Dashboard() {
 
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        // Leemos el archivo como ArrayBuffer (el estándar moderno)
+        const arrayBuffer = evt.target?.result as ArrayBuffer;
+        
+        // Le decimos a XLSX que está recibiendo un 'array'
+        const wb = XLSX.read(arrayBuffer, { type: 'array' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         
-        const data = XLSX.utils.sheet_to_json(ws);
+        const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
         
         const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, data, apiConfig);
         
@@ -160,13 +163,21 @@ export default function Dashboard() {
         window.location.reload();
       } catch (error) {
         console.error("Error procesando el Excel:", error);
-        alert("Error al cargar el archivo. Verifica que las columnas del Excel tengan los nombres correctos.");
+        
+        if (axios.isAxiosError(error)) {
+          const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : error.message;
+          alert(`Django rechazó el archivo:\n\n${errorMsg}`);
+        } else {
+          alert("Error al leer el archivo Excel en tu computador.");
+        }
       } finally {
         setIsUploading(false);
         e.target.value = ''; 
       }
     };
-    reader.readAsBinaryString(file);
+    
+    // Usamos el método moderno en lugar de readAsBinaryString
+    reader.readAsArrayBuffer(file);
   };
 
   // --- MANEJADORES DEL PANEL ---
