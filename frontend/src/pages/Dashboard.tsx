@@ -46,7 +46,8 @@ export default function Dashboard() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
-  
+  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal'>('perfil');
+
   // --- ESTADOS DE BÚSQUEDA Y FILTROS ---
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -261,12 +262,14 @@ export default function Dashboard() {
       empresa: parseInt(empresaActivaId!) 
     });
     setIsValidRut(false);
+    setActiveTab('perfil');
     setIsPanelOpen(true);
   };
 
   const abrirVer = (emp: Empleado) => {
     setSelectedEmpleado(emp);
     setPanelMode('view');
+    setActiveTab('perfil');
     setIsPanelOpen(true);
   };
 
@@ -275,6 +278,7 @@ export default function Dashboard() {
     setFormData({ ...emp });
     setIsValidRut(true);
     setPanelMode('edit');
+    setActiveTab('perfil');
     setIsPanelOpen(true);
   };
 
@@ -576,203 +580,277 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* === SLIDE-OVER PANEL LATERAL === */}
+      {/* === SLIDE-OVER PANEL LATERAL (UI 2026 - WIDE DRAWER) === */}
       {isPanelOpen && (
         <div className="fixed inset-0 z-40 overflow-hidden">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={(e) => { e.stopPropagation(); setIsPanelOpen(false); }}></div>
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={(e) => { e.stopPropagation(); setIsPanelOpen(false); }}></div>
           
-          <div className="absolute inset-y-0 right-0 max-w-lg w-full flex">
-            <div className="h-full w-full bg-white shadow-2xl flex flex-col transform transition-transform duration-300" onClick={(e) => e.stopPropagation()}>
+          {/* Cambiamos max-w-lg por max-w-4xl para hacerlo ancho y corporativo */}
+          <div className="absolute inset-y-0 right-0 max-w-4xl w-full flex shadow-2xl">
+            <div className="h-full w-full bg-white flex flex-col transform transition-transform duration-300" onClick={(e) => e.stopPropagation()}>
               
               {/* HEADER DEL PANEL */}
-              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h2 className="text-xl font-bold text-gray-900">
-                  {panelMode === 'create' ? 'Nuevo Trabajador' : panelMode === 'edit' ? 'Editar Trabajador' : 'Perfil del Trabajador'}
-                </h2>
+              <div className="px-8 py-6 border-b border-gray-200 flex items-start justify-between bg-white">
+                <div className="flex items-center gap-5">
+                  {panelMode !== 'create' && selectedEmpleado ? (
+                    <div className="w-16 h-16 bg-slate-800 text-white rounded-2xl flex items-center justify-center text-2xl font-bold shadow-sm">
+                      {selectedEmpleado.nombres?.charAt(0) || ''}{selectedEmpleado.apellido_paterno?.charAt(0) || ''}
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-sm">
+                      +
+                    </div>
+                  )}
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                      {panelMode === 'create' ? 'Nuevo Trabajador' : `${selectedEmpleado?.nombres} ${selectedEmpleado?.apellido_paterno}`}
+                    </h2>
+                    {panelMode !== 'create' && selectedEmpleado && (
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span className="text-slate-500 font-medium">{selectedEmpleado.cargo}</span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-500 font-mono text-sm">{selectedEmpleado.rut}</span>
+                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold tracking-wide ${selectedEmpleado.activo ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20' : 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/20'}`}>
+                          {selectedEmpleado.activo ? 'VIGENTE' : 'DESVINCULADO'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
                 <div className="flex items-center gap-2">
                   {panelMode === 'view' && selectedEmpleado && (
-                    <button onClick={() => abrirEditar(selectedEmpleado)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Cambiar a modo edición">
-                      <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                    <button onClick={() => setPanelMode('edit')} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm flex items-center gap-2">
+                      <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                      Editar Ficha
                     </button>
                   )}
-                  <button onClick={() => setIsPanelOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
-                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                  <button onClick={() => setIsPanelOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               </div>
 
+              {/* SISTEMA DE PESTAÑAS (TABS) */}
+              {panelMode !== 'create' && (
+                <div className="px-8 border-b border-gray-200 bg-slate-50/50">
+                  <nav className="flex gap-6 -mb-px">
+                    {[
+                      { id: 'perfil', label: 'Datos Generales' },
+                      { id: 'contratos', label: 'Contratos y Anexos' },
+                      { id: 'liquidaciones', label: 'Liquidaciones' },
+                      { id: 'legal', label: 'Historial Legal (Finiquitos)' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal')}
+                        className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
+                          activeTab === tab.id
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              )}
+
               {/* BODY DEL PANEL */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30">
                 
-                {panelMode === 'view' && selectedEmpleado ? (
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
-                      <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-2xl font-bold">
-                        {selectedEmpleado.nombres?.charAt(0) || ''}{selectedEmpleado.apellido_paterno?.charAt(0) || ''}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900">{selectedEmpleado.nombres} {selectedEmpleado.apellido_paterno} {selectedEmpleado.apellido_materno}</h3>
-                        <p className="text-gray-500 capitalize">{selectedEmpleado.cargo.toLowerCase()}</p>
-                        <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-semibold ${selectedEmpleado.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {selectedEmpleado.activo ? 'Vigente' : 'Desvinculado'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Datos Personales</h4>
-                      <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-                        <div><dt className="text-gray-500">RUT</dt><dd className="font-medium text-gray-900 font-mono">{selectedEmpleado.rut}</dd></div>
-                        <div><dt className="text-gray-500">Nacionalidad</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.nacionalidad?.toLowerCase() || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Fecha Nac.</dt><dd className="font-medium text-gray-900">{selectedEmpleado.fecha_nacimiento || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Estado Civil</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.estado_civil?.toLowerCase() || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Teléfono</dt><dd className="font-medium text-gray-900">{selectedEmpleado.numero_telefono || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Comuna</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.comuna?.toLowerCase() || '-'}</dd></div>
-                        <div className="col-span-2"><dt className="text-gray-500">Dirección</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.direccion?.toLowerCase() || '-'}</dd></div>
-                      </dl>
-                    </div>
+                {activeTab === 'perfil' && (
+                  <>
+                    {panelMode === 'view' && selectedEmpleado ? (
+                      <div className="grid grid-cols-2 gap-10">
+                        {/* Columna Izquierda: Datos Personales */}
+                        <div className="space-y-6">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Información Personal</h4>
+                          <dl className="space-y-4 text-sm">
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Nacionalidad</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.nacionalidad?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Fecha Nac.</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.fecha_nacimiento || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Estado Civil</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.estado_civil?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Teléfono</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.numero_telefono || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Comuna</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.comuna?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Dirección</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.direccion?.toLowerCase() || '-'}</dd></div>
+                          </dl>
+                        </div>
 
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 mt-6">Datos Laborales</h4>
-                      <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-                        <div><dt className="text-gray-500">Departamento</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.departamento?.toLowerCase() || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Sucursal</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.sucursal?.toLowerCase() || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Fecha Ingreso</dt><dd className="font-medium text-gray-900">{selectedEmpleado.fecha_ingreso || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Modalidad</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.modalidad?.toLowerCase() || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Jornada</dt><dd className="font-medium text-gray-900">{selectedEmpleado.horas_laborales} Hrs.</dd></div>
-                        <div><dt className="text-gray-500">Sueldo Base</dt><dd className="font-medium text-gray-900">${selectedEmpleado.sueldo_base?.toLocaleString('es-CL') || '0'}</dd></div>
-                        <div><dt className="text-gray-500">AFP</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.afp?.toLowerCase() || '-'}</dd></div>
-                        <div><dt className="text-gray-500">Previsión Salud</dt><dd className="font-medium text-gray-900 capitalize">{selectedEmpleado.sistema_salud?.toLowerCase() || '-'}</dd></div>
-                      </dl>
-                    </div>
+                        {/* Columna Derecha: Datos Laborales */}
+                        <div className="space-y-6">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Condiciones Laborales</h4>
+                          <dl className="space-y-4 text-sm">
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Departamento</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.departamento?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Sucursal</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.sucursal?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Fecha Ingreso</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.fecha_ingreso || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Modalidad</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.modalidad?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Jornada</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.horas_laborales} Hrs.</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Sueldo Base</dt><dd className="col-span-2 font-semibold text-slate-900">${selectedEmpleado.sueldo_base?.toLocaleString('es-CL') || '0'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Previsión AFP</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.afp?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Salud</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.sistema_salud?.toLowerCase() || '-'}</dd></div>
+                          </dl>
+                        </div>
+                      </div>
+                    ) : (
+                      /* === FORMULARIO DE EDICIÓN / CREACIÓN === */
+                      <form id="empleadoForm" onSubmit={guardarEmpleado} className="grid grid-cols-2 gap-10">
+                        {/* Todo el formulario actual mantenido, pero distribuido en 2 columnas */}
+                        <div className="space-y-5">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Datos Personales</h4>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">RUT *</label>
+                              <input type="text" name="rut" required value={formData.rut || ''} onChange={handleInputChange} placeholder="12.345.678-9" 
+                                     className={`w-full px-3 py-2 rounded-lg border ${!isValidRut && formData.rut ? 'border-red-400 focus:ring-red-400 bg-red-50' : 'border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'} outline-none transition-all`} />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Nombres *</label>
+                              <input type="text" name="nombres" required value={formData.nombres || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Ap. Paterno *</label>
+                              <input type="text" name="apellido_paterno" required value={formData.apellido_paterno || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Ap. Materno</label>
+                              <input type="text" name="apellido_materno" value={formData.apellido_materno || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Nacionalidad</label>
+                              <input type="text" name="nacionalidad" value={formData.nacionalidad || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">F. Nacimiento</label>
+                              <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Estado Civil</label>
+                              <input type="text" name="estado_civil" value={formData.estado_civil || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Teléfono</label>
+                              <input type="text" name="numero_telefono" value={formData.numero_telefono || ''} onChange={handleInputChange} placeholder="+569" className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Comuna y Dirección</label>
+                              <div className="flex gap-2">
+                                <input type="text" name="comuna" placeholder="Comuna" value={formData.comuna || ''} onChange={handleInputChange} className="w-1/3 px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                                <input type="text" name="direccion" placeholder="Calle y número" value={formData.direccion || ''} onChange={handleInputChange} className="w-2/3 px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-5">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Datos Laborales</h4>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Cargo *</label>
+                              <input type="text" name="cargo" required value={formData.cargo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Departamento</label>
+                              <input type="text" name="departamento" value={formData.departamento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Sucursal</label>
+                              <input type="text" name="sucursal" value={formData.sucursal || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha Ingreso *</label>
+                              <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Sueldo Base ($)</label>
+                              <input type="number" name="sueldo_base" value={formData.sueldo_base || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Jornada (Horas)</label>
+                              <input type="number" name="horas_laborales" value={formData.horas_laborales || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Modalidad</label>
+                              <select name="modalidad" value={formData.modalidad || 'PRESENCIAL'} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700">
+                                <option value="PRESENCIAL">PRESENCIAL</option>
+                                <option value="REMOTO">REMOTO</option>
+                                <option value="HIBRIDO">HÍBRIDO</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">AFP</label>
+                              <input type="text" name="afp" value={formData.afp || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-slate-600 mb-1">Sistema de Salud</label>
+                              <select name="sistema_salud" value={formData.sistema_salud || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700">
+                                <option value="">Seleccione...</option>
+                                <option value="FONASA">FONASA</option>
+                                <option value="ISAPRE">ISAPRE</option>
+                              </select>
+                            </div>
+                            
+                            {/* Toggle Switch moderno para Vigencia */}
+                            <div className="col-span-2 flex items-center justify-between mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Estado del Trabajador</p>
+                                <p className="text-xs text-slate-500 mt-0.5">Desactivar para marcar como desvinculado</p>
+                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="activo" checked={formData.activo} onChange={handleInputChange} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </form>
+                    )}
+                  </>
+                )}
+
+                {/* PLACEHOLDERS PARA LAS NUEVAS PESTAÑAS (Fase 2, 3 y 4) */}
+                {activeTab === 'contratos' && (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
+                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                    <h3 className="text-lg font-semibold text-slate-700">Módulo de Contratos</h3>
+                    <p className="text-sm mt-2 text-center max-w-sm">Aquí integraremos la selección de jornadas (Art. 22), teletrabajo y cláusulas personalizadas.</p>
                   </div>
-                ) : (
-                  
-                  /* === MODO EDICIÓN / CREACIÓN === */
-                  <form id="empleadoForm" onSubmit={guardarEmpleado} className="space-y-6">
-                    <div className="space-y-4">
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2">Datos Personales</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">RUT *</label>
-                          <input type="text" name="rut" required value={formData.rut || ''} onChange={handleInputChange} placeholder="12.345.678-9" 
-                                 className={`w-full px-3 py-2 rounded-lg border ${!isValidRut && formData.rut ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500'} focus:outline-none focus:ring-2`} />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Nombres *</label>
-                          <input type="text" name="nombres" required value={formData.nombres || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Ap. Paterno *</label>
-                          <input type="text" name="apellido_paterno" required value={formData.apellido_paterno || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Ap. Materno</label>
-                          <input type="text" name="apellido_materno" value={formData.apellido_materno || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">F. Nacimiento</label>
-                          <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Sexo</label>
-                          <select name="sexo" value={formData.sexo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="">Seleccione...</option>
-                            <option value="M">Masculino</option>
-                            <option value="F">Femenino</option>
-                            <option value="O">Otro</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Nacionalidad</label>
-                          <input type="text" name="nacionalidad" value={formData.nacionalidad || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Estado Civil</label>
-                          <input type="text" name="estado_civil" value={formData.estado_civil || ''} onChange={handleInputChange} placeholder="Ej: Soltero" className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                          <input type="text" name="numero_telefono" value={formData.numero_telefono || ''} onChange={handleInputChange} placeholder="+569 1234 5678" className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Comuna</label>
-                          <input type="text" name="comuna" value={formData.comuna || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Completa</label>
-                          <input type="text" name="direccion" value={formData.direccion || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                      </div>
+                )}
+                
+                {activeTab === 'liquidaciones' && (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
+                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    <h3 className="text-lg font-semibold text-slate-700">Módulo de Remuneraciones</h3>
+                    <p className="text-sm mt-2 text-center max-w-sm">Próximamente: Cálculos automáticos de haberes imponibles y generación de liquidaciones de sueldo.</p>
+                  </div>
+                )}
 
-                      <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b pb-2 pt-4">Datos Laborales</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Cargo *</label>
-                          <input type="text" name="cargo" required value={formData.cargo || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-                          <input type="text" name="departamento" value={formData.departamento || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
-                          <input type="text" name="sucursal" value={formData.sucursal || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">F. Ingreso *</label>
-                          <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Horas Laborales</label>
-                          <input type="number" name="horas_laborales" value={formData.horas_laborales || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Modalidad</label>
-                          <select name="modalidad" value={formData.modalidad || 'PRESENCIAL'} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="PRESENCIAL">Presencial</option>
-                            <option value="REMOTO">Remoto</option>
-                            <option value="HIBRIDO">Híbrido</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Sueldo Base ($)</label>
-                          <input type="number" name="sueldo_base" value={formData.sueldo_base || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">AFP</label>
-                          <input type="text" name="afp" value={formData.afp || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none uppercase" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Sistema Salud</label>
-                          <select name="sistema_salud" value={formData.sistema_salud || ''} onChange={handleInputChange} className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="">Seleccione...</option>
-                            <option value="FONASA">Fonasa</option>
-                            <option value="ISAPRE">Isapre</option>
-                          </select>
-                        </div>
-                        <div className="col-span-2 flex items-center gap-2 mt-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                          <input type="checkbox" id="activo" name="activo" checked={formData.activo} onChange={handleInputChange} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                          <label htmlFor="activo" className="text-sm font-medium text-gray-700">Trabajador Vigente (Activo)</label>
-                        </div>
-                      </div>
-                    </div>
-                  </form>
+                {activeTab === 'legal' && (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
+                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z" /></svg>
+                    <h3 className="text-lg font-semibold text-slate-700">Historial Legal y Finiquitos</h3>
+                    <p className="text-sm mt-2 text-center max-w-sm">Aquí se guardarán las Cartas de Amonestación, Despidos y los Finiquitos matemáticos automatizados.</p>
+                  </div>
                 )}
               </div>
 
               {/* FOOTER DEL PANEL */}
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-                {panelMode === 'view' && selectedEmpleado ? (
-                  <button onClick={() => setIsPanelOpen(false)} className="px-5 py-2.5 text-gray-700 font-medium bg-white border border-gray-300 hover:bg-gray-50 rounded-xl transition-colors">
-                    Cerrar
-                  </button>
+              <div className="px-8 py-4 border-t border-gray-200 bg-white flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                {panelMode === 'view' ? (
+                  <div className="w-full flex justify-end">
+                    <button onClick={() => setIsPanelOpen(false)} className="px-6 py-2.5 text-slate-700 font-semibold bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-sm">
+                      Cerrar Ficha
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex w-full justify-end gap-3">
-                    <button type="button" onClick={() => setIsPanelOpen(false)} className="px-5 py-2 text-gray-600 font-medium bg-transparent hover:bg-gray-200 rounded-xl transition-colors">
+                    <button type="button" onClick={() => { setIsPanelOpen(false); setActiveTab('perfil'); }} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
                       Cancelar
                     </button>
-                    <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-5 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md">
+                    <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md flex items-center gap-2">
+                      <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                       {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Cambios'}
                     </button>
                   </div>
