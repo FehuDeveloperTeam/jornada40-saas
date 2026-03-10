@@ -21,7 +21,6 @@ from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializ
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
 # ==========================================
 def limpiar_rut(rut):
-    # Deja solo números y la letra K
     return re.sub(r'[^0-9kK]', '', str(rut)).upper()
 
 def formatear_rut(rut):
@@ -107,19 +106,20 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         return Empresa.objects.filter(owner=self.request.user)
 
     def perform_create(self, serializer):
-        # Formatear RUT de empresa automáticamente al crear
+        # Convertir todo a mayúsculas
+        datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
-            serializer.save(owner=self.request.user, rut=formatear_rut(rut_raw))
-        else:
-            serializer.save(owner=self.request.user)
+            datos_mayusculas['rut'] = formatear_rut(rut_raw)
+        serializer.save(owner=self.request.user, **datos_mayusculas)
             
     def perform_update(self, serializer):
+        # Convertir todo a mayúsculas
+        datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
-            serializer.save(rut=formatear_rut(rut_raw))
-        else:
-            serializer.save()
+            datos_mayusculas['rut'] = formatear_rut(rut_raw)
+        serializer.save(**datos_mayusculas)
 
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
@@ -130,7 +130,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         return Empleado.objects.filter(empresa__owner=self.request.user)
 
     def perform_create(self, serializer):
-        # MODO INDIVIDUAL: Formatear y evitar duplicados al crear desde React
+        # 1. Transformar todos los campos de texto a UPPERCASE
+        datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
+        
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
             if not validar_rut(rut_raw):
@@ -138,12 +140,15 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             rut_form = formatear_rut(rut_raw)
             if Empleado.objects.filter(empresa__owner=self.request.user, rut=rut_form).exists():
                 raise ValidationError({'error': 'Este trabajador ya está registrado en la empresa.'})
-            serializer.save(rut=rut_form)
-        else:
-            serializer.save()
+            
+            datos_mayusculas['rut'] = rut_form
+            
+        serializer.save(**datos_mayusculas)
 
     def perform_update(self, serializer):
-        # MODO INDIVIDUAL: Formatear y evitar duplicados al editar
+        # 1. Transformar todos los campos de texto a UPPERCASE
+        datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
+        
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
             if not validar_rut(rut_raw):
@@ -151,9 +156,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             rut_form = formatear_rut(rut_raw)
             if Empleado.objects.filter(empresa__owner=self.request.user, rut=rut_form).exclude(id=serializer.instance.id).exists():
                 raise ValidationError({'error': 'Ya existe otro trabajador con este RUT.'})
-            serializer.save(rut=rut_form)
-        else:
-            serializer.save()
+            
+            datos_mayusculas['rut'] = rut_form
+            
+        serializer.save(**datos_mayusculas)
 
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
@@ -171,42 +177,33 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     return Response({'error': 'Tu cuenta no tiene un plan activo. Contacta a soporte.'}, status=status.HTTP_400_BAD_REQUEST)
                 limite_plan = cliente.plan.limite_trabajadores 
             
-            # Limpiar filas vacías
             datos_limpios = [item for item in datos_excel if item.get('rut') and item.get('nombres')]
 
-            # --- LA NUEVA MAGIA: VALIDAR RUT Y FILTRAR DUPLICADOS ---
             ruts_empresa_actual = set(Empleado.objects.filter(empresa=empresa).values_list('rut', flat=True))
             datos_validados = []
             
             for item in datos_limpios:
                 rut_raw = str(item.get('rut', '')).strip()
-                nombre = str(item.get('nombres', '')).strip()
-                apellido = str(item.get('apellido_paterno', '')).strip()
+                nombre = str(item.get('nombres', '')).strip().upper() # Validamos en mayúscula
+                apellido = str(item.get('apellido_paterno', '')).strip().upper() # Validamos en mayúscula
                 
-                # 1. Si el RUT es inválido, abortamos TODA la operación con tu mensaje
                 if not validar_rut(rut_raw):
                     return Response({
                         'error': f'El rut de {nombre} {apellido} está mal ingresado, favor revisar e inténtelo nuevamente.'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                # 2. Formateamos a estándar con puntos y guion
                 rut_formateado = formatear_rut(rut_raw)
                 
-                # 3. Si ya existe en BD, simplemente lo ignoramos (evitamos el duplicado silenciosamente)
                 if rut_formateado in ruts_empresa_actual:
                     continue
                 
-                # Lo aprobamos y lo guardamos en memoria
                 item['rut'] = rut_formateado
                 datos_validados.append(item)
-                # Añadimos al Set para que si el contador puso a la misma persona 2 veces en el Excel, también lo ignore
                 ruts_empresa_actual.add(rut_formateado)
 
-            # Si después de filtrar duplicados no queda nadie nuevo
             if len(datos_validados) == 0:
                 return Response({'advertencia': 'No se cargaron trabajadores nuevos (Todos ya existían en la base de datos).'}, status=status.HTTP_200_OK)
 
-            # Recalcular cupos con los validados
             trabajadores_actuales = Empleado.objects.filter(empresa=empresa).count()
             espacio_disponible = limite_plan - trabajadores_actuales
             
@@ -234,26 +231,29 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
                     empleado = Empleado(
                         empresa=empresa,
-                        rut=item.get('rut'), # Aquí ya viene perfectamente formateado
-                        nombres=str(item.get('nombres')).strip(),
-                        apellido_paterno=str(item.get('apellido_paterno', '')).strip(),
-                        apellido_materno=str(item.get('apellido_materno', '')).strip(),
-                        sexo=str(item.get('sexo', '')).strip(),
-                        nacionalidad=str(item.get('nacionalidad', '')).strip(),
+                        rut=item.get('rut'),
+                        # ==========================================
+                        # TODO A MAYÚSCULAS ANTES DE GUARDAR
+                        # ==========================================
+                        nombres=str(item.get('nombres', '')).strip().upper(),
+                        apellido_paterno=str(item.get('apellido_paterno', '')).strip().upper(),
+                        apellido_materno=str(item.get('apellido_materno', '')).strip().upper(),
+                        sexo=str(item.get('sexo', '')).strip().upper(),
+                        nacionalidad=str(item.get('nacionalidad', '')).strip().upper(),
                         fecha_nacimiento=fecha_nac,
-                        estado_civil=str(item.get('estado_civil', '')).strip(),
-                        numero_telefono=str(item.get('numero_telefono', '')).strip(),
-                        comuna=str(item.get('comuna', '')).strip(),
-                        direccion=str(item.get('direccion', '')).strip(),
-                        departamento=str(item.get('departamento', '')).strip(),
-                        cargo=str(item.get('cargo', 'No especificado')).strip(),
-                        sucursal=str(item.get('sucursal', '')).strip(),
+                        estado_civil=str(item.get('estado_civil', '')).strip().upper(),
+                        numero_telefono=str(item.get('numero_telefono', '')).strip().upper(),
+                        comuna=str(item.get('comuna', '')).strip().upper(),
+                        direccion=str(item.get('direccion', '')).strip().upper(),
+                        departamento=str(item.get('departamento', '')).strip().upper(),
+                        cargo=str(item.get('cargo', 'NO ESPECIFICADO')).strip().upper(),
+                        sucursal=str(item.get('sucursal', '')).strip().upper(),
                         fecha_ingreso=fecha_ing,
                         horas_laborales=horas,
-                        modalidad=str(item.get('modalidad', 'PRESENCIAL')).strip(),
+                        modalidad=str(item.get('modalidad', 'PRESENCIAL')).strip().upper(),
                         sueldo_base=sueldo,
-                        afp=str(item.get('afp', '')).strip(),
-                        sistema_salud=str(item.get('sistema_salud', '')).strip(),
+                        afp=str(item.get('afp', '')).strip().upper(),
+                        sistema_salud=str(item.get('sistema_salud', '')).strip().upper(),
                         activo=True
                     )
                     nuevos_empleados.append(empleado)
@@ -289,7 +289,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         except: s_base = 0
                         
                         f_inicio = empleado.fecha_ingreso if isinstance(empleado.fecha_ingreso, datetime.date) else datetime.date.today()
-                        c_cargo = str(empleado.cargo).strip() if empleado.cargo else 'No especificado'
+                        c_cargo = str(empleado.cargo).strip().upper() if empleado.cargo else 'NO ESPECIFICADO'
                         
                         try:
                             contrato = Contrato.objects.create(
@@ -312,14 +312,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     
                     comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
                     comuna_empl = getattr(empleado, 'comuna', '') or ''
-                    ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip()
+                    ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
 
                     context = {
                         'contrato': contrato,
                         'empleado': empleado,
                         'empresa': empresa,
                         'fecha_actual': fecha_espanol,
-                        'ciudad': ciudad_segura.title()
+                        'ciudad': ciudad_segura
                     }
                     
                     template = get_template('anexo_40h.html')
@@ -366,14 +366,14 @@ class ContratoViewSet(viewsets.ModelViewSet):
 
             comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
             comuna_empl = getattr(empleado, 'comuna', '') or ''
-            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip()
+            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
 
             context = {
                 'contrato': contrato,
                 'empleado': empleado,
                 'empresa': empresa,
                 'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura.title() 
+                'ciudad': ciudad_segura 
             }
 
             template = get_template('anexo_40h.html')
@@ -401,13 +401,12 @@ class ContratoViewSet(viewsets.ModelViewSet):
 def registrar_cliente(request):
     data = request.data.copy() if hasattr(request.data, 'copy') else request.data
     
-    # 1. Validar y formatear el RUT del nuevo cliente
     rut_raw = data.get('rut', '')
     if not validar_rut(rut_raw):
         return Response({'error': 'El RUT ingresado no es válido. Verifique el formato.'}, status=status.HTTP_400_BAD_REQUEST)
         
     rut_formateado = formatear_rut(rut_raw)
-    data['rut'] = rut_formateado # Sobrescribimos con la versión elegante
+    data['rut'] = rut_formateado 
     
     if User.objects.filter(username=data.get('email')).exists():
         return Response({'error': 'Este correo ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -418,7 +417,7 @@ def registrar_cliente(request):
     try:
         with transaction.atomic():
             usuario = User.objects.create_user(
-                username=rut_formateado, # El login se hará con el RUT formateado siempre
+                username=rut_formateado, 
                 email=data.get('email'),
                 password=data.get('password')
             )
@@ -429,14 +428,14 @@ def registrar_cliente(request):
             Cliente.objects.create(
                 usuario=usuario,
                 plan=plan_seleccionado,
-                tipo_cliente=data.get('tipoCliente', 'PERSONA'),
+                tipo_cliente=str(data.get('tipoCliente', 'PERSONA')).upper(),
                 rut=rut_formateado,
-                nombres=data.get('nombres', ''),
-                apellido_paterno=data.get('apellido_paterno', ''),
-                apellido_materno=data.get('apellido_materno', ''),
-                razon_social=data.get('razon_social', ''),
-                direccion=data.get('direccion', ''),
-                telefono=data.get('telefono', '')
+                nombres=str(data.get('nombres', '')).upper(),
+                apellido_paterno=str(data.get('apellido_paterno', '')).upper(),
+                apellido_materno=str(data.get('apellido_materno', '')).upper(),
+                razon_social=str(data.get('razon_social', '')).upper(),
+                direccion=str(data.get('direccion', '')).upper(),
+                telefono=str(data.get('telefono', '')).upper()
             )
             
         return Response({'mensaje': '¡Cuenta creada con éxito!'}, status=status.HTTP_201_CREATED)
