@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ documento.get_tipo_display }}</title>
+    <style>
+        @page { size: letter; margin: 2.5cm 2cm; }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
+        h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 30px; text-decoration: underline; text-transform: uppercase; }
+        .bold { font-weight: bold; }
+        .firma-box { width: 100%; margin-top: 80px; }
+        .firma-col { width: 45%; display: inline-block; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
+        .spacer { width: 8%; display: inline-block; }
+        .fecha { text-align: right; margin-bottom: 40px; }
+    </style>
+</head>
+<body>
+
+    <div class="fecha">
+        <span class="bold">{{ ciudad|title }}</span>, a <span class="bold">{{ fecha_actual }}</span>
+    </div>
+
+    <h1>{{ documento.get_tipo_display }}</h1>
+
+    <p><span class="bold">Señor(a):</span> {{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}<br>
+    <span class="bold">RUT:</span> {{ empleado.rut }}<br>
+    <span class="bold">Cargo:</span> {{ empleado.cargo }}<br>
+    <span class="bold">Presente.</span></p>
+
+    <p>De nuestra consideración:</p>
+
+    {% if documento.tipo == 'AMONESTACION' %}
+        <p>Por medio de la presente, la empresa <span class="bold">{{ empresa.nombre_legal }}</span>, viene en amonestar a usted por escrito, dejando constancia de la siguiente situación y/o falta a sus obligaciones laborales:</p>
+        <p>{{ documento.hechos|linebreaks }}</p>
+        <p>Le instamos a corregir esta conducta, recordándole que el cumplimiento de sus obligaciones y de los reglamentos internos es fundamental para el buen desarrollo de la relación laboral. Una reiteración de hechos similares podría facultar a la empresa para tomar medidas más severas, de acuerdo con la legislación laboral vigente.</p>
+    
+    {% elif documento.tipo == 'DESPIDO' %}
+        <p>Por medio de la presente, lamentamos comunicarle que la empresa <span class="bold">{{ empresa.nombre_legal }}</span> ha decidido poner término a su contrato de trabajo a contar de esta fecha.</p>
+        <p>La causal legal que fundamenta esta decisión es la contemplada en: <span class="bold">{{ documento.causal_legal }}</span>.</p>
+        <p>Los hechos en que se funda esta decisión son los siguientes:</p>
+        <p>{{ documento.hechos|linebreaks }}</p>
+        {% if documento.aviso_previo_pagado %}
+            <p>Se deja constancia que la empresa indemnizará el mes de aviso previo (Art. 162 del Código del Trabajo), conforme a lo dispuesto en la legislación vigente.</p>
+        {% else %}
+            <p>La presente comunicación se entrega con la anticipación legal correspondiente.</p>
+        {% endif %}
+        <p>Sus cotizaciones previsionales se encuentran al día. Su finiquito estará a su disposición dentro de los plazos legales en la notaría respectiva.</p>
+    
+    {% else %}
+        <p>Por medio del presente documento se deja constancia de lo siguiente:</p>
+        <p>{{ documento.hechos|linebreaks }}</p>
+    {% endif %}
+
+    <p>Agradecemos firmar la copia de este documento en señal de recepción.</p>
+
+    <table class="firma-box">
+        <tr>
+            <td class="firma-col">
+                <br><br>
+                <span class="bold">{{ empresa.nombre_legal }}</span><br>
+                RUT: {{ empresa.rut }}<br>
+                p.p. {{ empresa.representante_legal|default:"________________________" }}<br>
+                Empleador
+            </td>
+            <td style="width: 10%;"></td>
+            <td class="firma-col">
+                <br><br>
+                <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }}</span><br>
+                RUT: {{ empleado.rut }}<br>
+                Recibí conforme (Trabajador)
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

@@ -14,8 +14,8 @@ import io
 import zipfile
 import re
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer
 
 # ==========================================
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
@@ -98,6 +98,59 @@ def estandarizar_fecha(fecha_valor):
             
     return None
 
+class DocumentoLegalViewSet(viewsets.ModelViewSet):
+    queryset = DocumentoLegal.objects.all().order_by('-fecha_emision', '-creado_en')
+    serializer_class = DocumentoLegalSerializer
+    permission_classes = [IsAuthenticated]
+
+    # Filtro para buscar solo los documentos de un empleado específico
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        empleado_id = self.request.query_params.get('empleado', None)
+        if empleado_id is not None:
+            queryset = queryset.filter(empleado_id=empleado_id)
+        return queryset
+
+    @action(detail=True, methods=['get'])
+    def generar_pdf(self, request, pk=None):
+        try:
+            documento = self.get_object()
+            empleado = documento.empleado
+            empresa = empleado.empresa
+
+            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            hoy = documento.fecha_emision
+            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+
+            comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
+            comuna_empl = getattr(empleado, 'comuna', '') or ''
+            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
+
+            context = {
+                'documento': documento,
+                'empleado': empleado,
+                'empresa': empresa,
+                'fecha_actual': fecha_espanol,
+                'ciudad': ciudad_segura
+            }
+
+            template = get_template('documento_legal.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            # Nombra el archivo según el tipo de documento (Ej: AMONESTACION_12345678-9.pdf)
+            nombre_archivo = f'{documento.tipo}_{empleado.rut}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+
+            pisa_status = pisa.CreatePDF(html, dest=response)
+
+            if pisa_status.err:
+                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+            
+            return response
+
+        except Exception as e:
+            return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]

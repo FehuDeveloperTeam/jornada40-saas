@@ -138,3 +138,31 @@ class Contrato(models.Model):
 
     def __str__(self):
         return f"Contrato {self.tipo_contrato} - {self.empleado} - {self.horas_semanales}h"
+# ==========================================
+# 4. HISTORIAL LEGAL (Amonestaciones y Despidos)
+# ==========================================
+class DocumentoLegal(models.Model):
+    TIPO_DOCUMENTO_CHOICES = [
+        ('AMONESTACION', 'Carta de Amonestación'),
+        ('DESPIDO', 'Carta de Término de Contrato (Despido)'),
+        ('MUTUO_ACUERDO', 'Renuncia / Mutuo Acuerdo'),
+        ('CONSTANCIA', 'Constancia Laboral'),
+    ]
+
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='documentos_legales')
+    tipo = models.CharField(max_length=20, choices=TIPO_DOCUMENTO_CHOICES)
+    fecha_emision = models.DateField()
+    
+    # Causal legal invocada (Ej: "Artículo 160 N°3 del Código del Trabajo")
+    causal_legal = models.CharField(max_length=255, blank=True, null=True) 
+    
+    # Descripción detallada de los hechos que motivan la carta
+    hechos = models.TextField()
+    
+    # Para cartas de despido: indicar si se pagan o no los días de aviso previo
+    aviso_previo_pagado = models.BooleanField(default=False)
+    
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} - {self.empleado.rut} ({self.fecha_emision})"
