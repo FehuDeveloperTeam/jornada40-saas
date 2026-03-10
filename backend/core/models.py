@@ -115,13 +115,23 @@ class Contrato(models.Model):
     
     # 2. Datos de la Ley 40 Horas y Jornadas
     tipo_jornada = models.CharField(max_length=20, choices=TIPO_JORNADA_CHOICES, default='ORDINARIA')
-    horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=44.0, help_text="Ej: 40.0, 44.0")
-    distribucion_dias = models.IntegerField(default=5, help_text="Días a la semana (Ej: 5 o 6)")
-    tiene_colacion_imputable = models.BooleanField(default=False, help_text="¿Colación dentro de la jornada?")
+    horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=44.0)
+    distribucion_dias = models.IntegerField(default=5)
     
-    # 3. Textos Libres Legales (Para la opción "OTRO" y Cláusulas)
-    jornada_personalizada = models.TextField(blank=True, null=True, help_text="Se usa solo si eligen 'OTRO' en jornada")
-    clausulas_especiales = models.TextField(blank=True, null=True, help_text="Pactos de teletrabajo, confidencialidad, bonos, etc.")
+    # NUEVO: Matriz de Horarios en JSON y colación
+    distribucion_horario = models.JSONField(default=dict, blank=True, null=True) 
+    
+    # 3. Variables Financieras (Quincena, Día de pago y Gratificación)
+    dia_pago = models.IntegerField(default=5)
+    gratificacion_legal = models.CharField(max_length=20, choices=[('MENSUAL', 'Mensual (Art. 50)'), ('ANUAL', 'Anual (Art. 47)')], default='MENSUAL')
+    tiene_quincena = models.BooleanField(default=False)
+    dia_quincena = models.IntegerField(null=True, blank=True)
+    monto_quincena = models.IntegerField(null=True, blank=True)
+    
+    # 4. Arreglos Dinámicos (Listas en vez de texto plano)
+    jornada_personalizada = models.TextField(blank=True, null=True)
+    funciones_especificas = models.JSONField(default=list, blank=True, null=True)
+    clausulas_especiales = models.JSONField(default=list, blank=True, null=True)
 
     creado_en = models.DateTimeField(auto_now_add=True)
 

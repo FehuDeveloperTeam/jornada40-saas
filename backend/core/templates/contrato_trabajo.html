@@ -4,68 +4,117 @@
     <meta charset="UTF-8">
     <title>Contrato de Trabajo</title>
     <style>
-        @page { size: letter; margin: 2.5cm 2cm; }
+        /* Paginación y márgenes */
+        @page {
+            size: letter;
+            margin: 2.5cm 2cm 2.5cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm; height: 1cm; text-align: right; font-size: 9pt; color: #666;
+            }
+        }
         body { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
-        h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 30px; text-decoration: underline; }
+        h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 25px; text-decoration: underline; }
         p { margin-bottom: 15px; }
         .bold { font-weight: bold; }
-        .firma-box { width: 100%; margin-top: 80px; }
-        .firma-col { width: 45%; display: inline-block; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
-        .spacer { width: 8%; display: inline-block; }
+        ul { margin-top: 5px; margin-bottom: 15px; }
+        li { margin-bottom: 5px; }
+        /* Tabla de Firmas Inquebrantable */
+        table.firmas { width: 100%; margin-top: 80px; page-break-inside: avoid; }
+        td.col-firma { width: 45%; text-align: center; vertical-align: bottom; }
+        .linea-firma { border-top: 1px solid #000; padding-top: 5px; margin-top: 60px; font-weight: bold; }
     </style>
 </head>
 <body>
+
+    <div id="footer_content">
+        Página <pdf:pagenumber> de <pdf:pagecount>
+    </div>
 
     <h1>CONTRATO DE TRABAJO {{ contrato.tipo_contrato }}</h1>
 
     <p>En <span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha_actual }}</span>, entre <span class="bold">{{ empresa.nombre_legal }}</span>, RUT <span class="bold">{{ empresa.rut }}</span>, representada legalmente por don(a) ________________________, ambos domiciliados en {{ empresa.direccion|default:"____________________" }}, comuna de {{ empresa.comuna|default:"____________________" }}, en adelante "el Empleador"; y don(a) <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno }}</span>, RUT <span class="bold">{{ empleado.rut }}</span>, de nacionalidad {{ empleado.nacionalidad }}, nacido(a) el {{ empleado.fecha_nacimiento|default:"__/__/____" }}, de estado civil {{ empleado.estado_civil|default:"_________" }}, domiciliado(a) en {{ empleado.direccion|default:"____________________" }}, comuna de {{ empleado.comuna|default:"____________________" }}, en adelante "el Trabajador", se ha convenido el siguiente contrato de trabajo:</p>
 
-    <p><span class="bold">PRIMERO. Naturaleza de los servicios:</span> El Trabajador se compromete a desempeñar el cargo de <span class="bold">{{ contrato.cargo }}</span>, realizando las funciones inherentes a dicho cargo y aquellas que el Empleador le encomiende de acuerdo a su naturaleza. Los servicios se prestarán bajo la modalidad <span class="bold">{{ empleado.modalidad }}</span> en la sucursal o recinto ubicado en {{ empleado.sucursal|default:"las dependencias del Empleador" }}.</p>
+    <p><span class="bold">PRIMERO. Naturaleza de los servicios:</span> El Trabajador se compromete a desempeñar el cargo de <span class="bold">{{ contrato.cargo }}</span>. 
+    {% if contrato.funciones_especificas %}
+        Entre sus funciones principales, sin que esta enumeración sea excluyente de otras afines, se encuentran:
+        <ul>
+        {% for funcion in contrato.funciones_especificas %}
+            <li>{{ funcion }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        realizando las funciones inherentes a dicho cargo y aquellas que el Empleador le encomiende de acuerdo a su naturaleza. 
+    {% endif %}
+    
+    {% if empleado.modalidad == 'HIBRIDO' %}
+        Los servicios se prestarán bajo la modalidad <span class="bold">Híbrida</span>, combinando trabajo presencial en {{ empleado.sucursal|default:"las dependencias del Empleador" }} y trabajo a distancia (Teletrabajo) desde el domicilio del trabajador, conforme a lo establecido en la Ley N° 21.220.
+    {% else %}
+        Los servicios se prestarán bajo la modalidad <span class="bold">{{ empleado.modalidad }}</span> en {{ empleado.sucursal|default:"las dependencias del Empleador" }}.
+    {% endif %}
+    </p>
 
     <p><span class="bold">SEGUNDO. Jornada de Trabajo:</span> 
         {% if contrato.tipo_jornada == 'ART_22' %}
-            De conformidad a lo establecido en el inciso segundo del Artículo 22 del Código del Trabajo, el Trabajador se encontrará excluido de la limitación de jornada de trabajo, dado que prestará servicios sin fiscalización superior inmediata.
+            De conformidad a lo establecido en el inciso segundo del Artículo 22 del Código del Trabajo, el Trabajador se encontrará excluido de la limitación de jornada de trabajo.
         {% elif contrato.tipo_jornada == 'OTRO' %}
             La jornada de trabajo será la siguiente: {{ contrato.jornada_personalizada }}.
         {% else %}
-            La jornada ordinaria de trabajo será de <span class="bold">{{ contrato.horas_semanales }} horas semanales</span>, distribuidas en <span class="bold">{{ contrato.distribucion_dias }} días</span> a la semana. 
-            {% if contrato.tiene_colacion_imputable %}
-                El tiempo destinado a la colación se considerará imputable a la jornada de trabajo.
-            {% else %}
-                El tiempo destinado a la colación no se considerará imputable a la jornada de trabajo.
-            {% endif %}
+            La jornada ordinaria de trabajo será de <span class="bold">{{ contrato.horas_semanales }} horas semanales</span>, distribuidas en <span class="bold">{{ contrato.distribucion_dias }} días</span> a la semana, con el siguiente detalle de turnos y colaciones acordadas (el tiempo de colación no es imputable a la jornada laboral):
+            <ul>
+            {% for dia, horario in contrato.distribucion_horario.items %}
+                {% if horario.activo %}
+                <li><span class="bold">{{ dia|title }}:</span> De {{ horario.entrada }} a {{ horario.salida }} hrs. (Colación: {{ horario.colacion }} minutos).</li>
+                {% endif %}
+            {% endfor %}
+            </ul>
         {% endif %}
     </p>
 
-    <p><span class="bold">TERCERO. Remuneración:</span> El Empleador pagará al Trabajador un Sueldo Base mensual de <span class="bold">${{ contrato.sueldo_base }}</span> pesos, pagaderos por períodos vencidos el último día hábil de cada mes. De las remuneraciones se deducirán los impuestos legales, cotizaciones previsionales, de salud (AFP {{ empleado.afp|default:"_____" }} y Sistema de Salud {{ empleado.sistema_salud|default:"_____" }}), y seguro de cesantía cuando corresponda.</p>
+    <p><span class="bold">TERCERO. Remuneración y Forma de Pago:</span> El Empleador pagará al Trabajador un Sueldo Base mensual de <span class="bold">${{ contrato.sueldo_base }}</span> pesos. 
+    
+    El pago de la remuneración se realizará a más tardar el día <span class="bold">{{ contrato.dia_pago }} de cada mes</span>.
+    
+    {% if contrato.tiene_quincena %}
+        Adicionalmente, las partes acuerdan el pago de un anticipo quincenal de remuneraciones (Quincena) pagadero el día <span class="bold">{{ contrato.dia_quincena }}</span> de cada mes, por un monto de <span class="bold">${{ contrato.monto_quincena }}</span> pesos.
+    {% endif %}
+    
+    El Empleador pagará la Gratificación Legal en su modalidad <span class="bold">{% if contrato.gratificacion_legal == 'MENSUAL' %}Mensual (Art. 50 del Código del Trabajo){% else %}Anual (Art. 47 del Código del Trabajo){% endif %}</span>. De las remuneraciones se deducirán los impuestos, cotizaciones previsionales de AFP ({{ empleado.afp|default:"_____" }}) y Salud ({{ empleado.sistema_salud|default:"_____" }}).
+    </p>
 
     {% if contrato.clausulas_especiales %}
-    <p><span class="bold">CUARTO. Cláusulas Especiales:</span> Las partes acuerdan las siguientes condiciones adicionales: {{ contrato.clausulas_especiales }}</p>
+    <p><span class="bold">CUARTO. Cláusulas Especiales:</span> Las partes acuerdan además:
+        <ul>
+        {% for clausula in contrato.clausulas_especiales %}
+            <li>{{ clausula }}</li>
+        {% endfor %}
+        </ul>
+    </p>
     {% endif %}
 
-    <p><span class="bold">{% if contrato.clausulas_especiales %}QUINTO{% else %}CUARTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ contrato.fecha_inicio }}</span> y tendrá el carácter de {{ contrato.tipo_contrato }}. 
+    <p><span class="bold">{% if contrato.clausulas_especiales %}QUINTO{% else %}CUARTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ contrato.fecha_inicio }}</span> y tendrá el carácter de {{ contrato.tipo_contrato|lower }}. 
     {% if contrato.tipo_contrato == 'PLAZO_FIJO' and contrato.fecha_fin %}
         El contrato terminará el día {{ contrato.fecha_fin }}.
     {% endif %}
     </p>
 
-    <p>Para constancia y en señal de conformidad, las partes firman el presente contrato en dos ejemplares de igual tenor y fecha, quedando uno en poder de cada parte.</p>
+    <p>Para constancia y en señal de conformidad, las partes firman el presente contrato en dos ejemplares de igual tenor y fecha.</p>
 
-    <div class="firma-box">
-        <div class="firma-col">
-            <br><br>
-            <span class="bold">{{ empresa.nombre_legal }}</span><br>
-            RUT: {{ empresa.rut }}<br>
-            Empleador
-        </div>
-        <div class="spacer"></div>
-        <div class="firma-col">
-            <br><br>
-            <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }}</span><br>
-            RUT: {{ empleado.rut }}<br>
-            Trabajador
-        </div>
-    </div>
+    <table class="firmas">
+        <tr>
+            <td class="col-firma">
+                <div class="linea-firma">
+                    {{ empresa.nombre_legal }}<br>RUT: {{ empresa.rut }}<br>Empleador
+                </div>
+            </td>
+            <td style="width: 10%;"></td>
+            <td class="col-firma">
+                <div class="linea-firma">
+                    {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>RUT: {{ empleado.rut }}<br>Trabajador
+                </div>
+            </td>
+        </tr>
+    </table>
 
 </body>
 </html>

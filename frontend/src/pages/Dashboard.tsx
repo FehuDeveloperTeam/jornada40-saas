@@ -39,7 +39,15 @@ interface Empleado {
   creado_en?: string;
 }
 
-// NUEVA INTERFAZ: CONTRATO LEGAL
+interface HorarioDia {
+  activo: boolean;
+  entrada: string;
+  salida: string;
+  colacion: number;
+}
+
+type HorarioSemana = Record<string, HorarioDia>;
+
 interface Contrato {
   id?: number;
   empleado: number;
@@ -53,10 +61,27 @@ interface Contrato {
   distribucion_dias: number;
   tiene_colacion_imputable: boolean;
   jornada_personalizada?: string;
-  clausulas_especiales?: string;
+  clausulas_especiales?: string[];
+  dia_pago: number;
+  gratificacion_legal: string;
+  tiene_quincena: boolean;
+  dia_quincena?: number;
+  monto_quincena?: number;
+  funciones_especificas?: string[];
+  distribucion_horario?: HorarioSemana;
 }
 
 const apiConfig = { withCredentials: true };
+
+const defaultHorario: HorarioSemana = {
+  lunes: { activo: true, entrada: '09:00', salida: '18:00', colacion: 60 },
+  martes: { activo: true, entrada: '09:00', salida: '18:00', colacion: 60 },
+  miercoles: { activo: true, entrada: '09:00', salida: '18:00', colacion: 60 },
+  jueves: { activo: true, entrada: '09:00', salida: '18:00', colacion: 60 },
+  viernes: { activo: true, entrada: '09:00', salida: '18:00', colacion: 60 },
+  sabado: { activo: false, entrada: '09:00', salida: '14:00', colacion: 0 },
+  domingo: { activo: false, entrada: '09:00', salida: '14:00', colacion: 0 },
+};
 
 export default function Dashboard() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
@@ -86,6 +111,25 @@ export default function Dashboard() {
   const [formData, setFormData] = useState<Partial<Empleado>>({});
   const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
   const [isSavingContrato, setIsSavingContrato] = useState(false);
+  
+  // Estados para la Fase 2 (Listas y Horarios)
+  const [funciones, setFunciones] = useState<string[]>([]);
+  const [clausulas, setClausulas] = useState<string[]>([]);
+  const [horario, setHorario] = useState<HorarioSemana>(defaultHorario);
+
+  // Calculadora Matemática en tiempo real
+  const totalHorasCalculadas = useMemo(() => {
+    let total = 0;
+    Object.values(horario).forEach((dia: HorarioDia) => {
+      if (dia.activo && dia.entrada && dia.salida) {
+        const [he, me] = dia.entrada.split(':').map(Number);
+        const [hs, ms] = dia.salida.split(':').map(Number);
+        const minsTrabajados = ((hs * 60 + ms) - (he * 60 + me)) - (dia.colacion || 0);
+        if (minsTrabajados > 0) total += (minsTrabajados / 60);
+      }
+    });
+    return total;
+  }, [horario]);
 
   const navigate = useNavigate();
   const empresaActivaId = localStorage.getItem('empresaActivaId');
@@ -239,9 +283,16 @@ export default function Dashboard() {
     try {
       const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleadoId}`, apiConfig);
       if (response.data && response.data.length > 0) {
-        setContratoData(response.data[0]); // Si ya existe, lo cargamos
+        const contrato = response.data[0];
+        setContratoData(contrato);
+        setFunciones(contrato.funciones_especificas || []);
+        setClausulas(contrato.clausulas_especiales || []);
+        if (contrato.distribucion_horario && Object.keys(contrato.distribucion_horario).length > 0) {
+            setHorario(contrato.distribucion_horario);
+        } else {
+            setHorario(defaultHorario);
+        }
       } else {
-        // Si no existe, preparamos un borrador vacío basado en los datos del empleado
         const emp = empleados.find(e => e.id === empleadoId);
         setContratoData({
           empleado: empleadoId,
@@ -253,7 +304,13 @@ export default function Dashboard() {
           distribucion_dias: 5,
           fecha_inicio: emp?.fecha_ingreso || new Date().toISOString().split('T')[0],
           tiene_colacion_imputable: false,
+          dia_pago: 5,
+          gratificacion_legal: 'MENSUAL',
+          tiene_quincena: false
         });
+        setFunciones([]);
+        setClausulas([]);
+        setHorario(defaultHorario);
       }
     } catch (error) {
       console.error("Error al cargar el contrato:", error);
@@ -264,7 +321,7 @@ export default function Dashboard() {
     setSelectedEmpleado(emp);
     setPanelMode('view');
     setActiveTab('perfil');
-    fetchContrato(emp.id); // Buscamos su contrato en secreto
+    fetchContrato(emp.id); 
     setIsPanelOpen(true);
   };
 
@@ -274,7 +331,7 @@ export default function Dashboard() {
     setIsValidRut(true);
     setPanelMode('edit');
     setActiveTab('perfil');
-    fetchContrato(emp.id); // Buscamos su contrato en secreto
+    fetchContrato(emp.id); 
     setIsPanelOpen(true);
   };
 
@@ -307,9 +364,6 @@ export default function Dashboard() {
     }
   };
 
-  // ==========================================
-  // MANEJADOR DEL FORMULARIO DE CONTRATOS
-  // ==========================================
   const handleContratoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     setContratoData(prev => ({
@@ -318,15 +372,26 @@ export default function Dashboard() {
     }));
   };
 
+  // ==========================================
+  // MANEJADOR PARA GUARDAR CONTRATOS (Con Arrays)
+  // ==========================================
   const guardarContrato = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingContrato(true);
+
+    const payload = {
+      ...contratoData,
+      funciones_especificas: funciones,
+      clausulas_especiales: clausulas,
+      distribucion_horario: horario
+    };
+
     try {
       if (contratoData.id) {
-        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/`, contratoData, apiConfig);
+        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/`, payload, apiConfig);
         alert("¡Contrato actualizado exitosamente!");
       } else {
-        const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, contratoData, apiConfig);
+        const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, payload, apiConfig);
         setContratoData(res.data);
         alert("¡Contrato creado exitosamente!");
       }
@@ -336,6 +401,31 @@ export default function Dashboard() {
     } finally {
       setIsSavingContrato(false);
     }
+  };
+
+  // ==========================================
+  // FUNCIONES DE DESCARGA PDF
+  // ==========================================
+  const descargarContratoPDF = async () => {
+    try {
+      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_contrato_pdf/`, { ...apiConfig, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url; link.setAttribute('download', `Contrato_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) { console.error(error); alert("Error descargando el contrato."); }
+  };
+
+  const descargarAnexoPDF = async () => {
+    try {
+      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_anexo/`, { ...apiConfig, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url; link.setAttribute('download', `Anexo_40h_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) { console.error(error); alert("Error descargando el anexo."); }
   };
 
   const guardarEmpleado = async (e: React.FormEvent) => {
@@ -823,158 +913,185 @@ export default function Dashboard() {
                 )}
 
                 {/* ========================================== */}
-                {/* PESTAÑA 2: EL NUEVO MÓDULO DE CONTRATOS    */}
+                {/* PESTAÑA 2: MÓDULO DE CONTRATOS AVANZADO    */}
                 {/* ========================================== */}
                 {activeTab === 'contratos' && (
-                  <form id="contratoForm" onSubmit={guardarContrato} className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-center border-b border-slate-200 pb-4 mb-6">
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900">Condiciones del Contrato</h3>
-                        <p className="text-sm text-slate-500">Ajusta las cláusulas y jornadas de acuerdo a la Ley</p>
+                  <form id="contratoForm" onSubmit={guardarContrato} className="max-w-4xl mx-auto space-y-8 pb-10">
+                    {/* SECCIÓN 1: DATOS CLAVES */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">1. Condiciones Generales</h3>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Contrato</label>
+                          <select name="tipo_contrato" required value={contratoData.tipo_contrato || 'INDEFINIDO'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50">
+                            <option value="INDEFINIDO">Indefinido</option>
+                            <option value="PLAZO_FIJO">Plazo Fijo</option>
+                            <option value="OBRA_FAENA">Por Obra o Faena</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Inicio</label>
+                          <input type="date" name="fecha_inicio" required value={contratoData.fecha_inicio || ''} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50" />
+                        </div>
+                        {contratoData.tipo_contrato === 'PLAZO_FIJO' && (
+                          <div className="col-span-2 bg-orange-50 p-4 rounded-xl border border-orange-100 flex gap-4">
+                            <div className="w-1/2">
+                              <label className="block text-xs font-semibold text-orange-800 mb-1">Fecha de Término</label>
+                              <input type="date" name="fecha_fin" required value={contratoData.fecha_fin || ''} onChange={handleContratoChange} className="w-full px-3 py-2 rounded-lg border border-orange-200" />
+                            </div>
+                            <p className="w-1/2 text-xs text-orange-700 flex items-center">Indica la fecha exacta en la que terminará la relación laboral.</p>
+                          </div>
+                        )}
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-2">Funciones a Desempeñar (Opcional)</label>
+                          <p className="text-xs text-slate-500 mb-2">Por defecto se incluirá un texto legal genérico. Si agregas ítems aquí, se listarán en el contrato.</p>
+                          {funciones.map((func, index) => (
+                            <div key={index} className="flex gap-2 mb-2">
+                              <input type="text" value={func} onChange={(e) => { const newF = [...funciones]; newF[index] = e.target.value; setFunciones(newF); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white" placeholder="Ej: Atención a público y ventas..." />
+                              <button type="button" onClick={() => setFunciones(funciones.filter((_, i) => i !== index))} className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold">✕</button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={() => setFunciones([...funciones, ""])} className="text-sm text-blue-600 font-semibold mt-1">+ Agregar Función Específica</button>
+                        </div>
                       </div>
-                      <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-100">
-                        {contratoData.id ? 'Editando Existente' : 'Nuevo Contrato'}
-                      </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Contrato</label>
-                        <select name="tipo_contrato" required value={contratoData.tipo_contrato || 'INDEFINIDO'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50">
-                          <option value="INDEFINIDO">Indefinido</option>
-                          <option value="PLAZO_FIJO">Plazo Fijo</option>
-                          <option value="OBRA_FAENA">Por Obra o Faena</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Inicio del Contrato</label>
-                        <input type="date" name="fecha_inicio" required value={contratoData.fecha_inicio || ''} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50" />
-                      </div>
-
-                      {contratoData.tipo_contrato === 'PLAZO_FIJO' && (
-                        <div className="col-span-2 bg-orange-50 p-4 rounded-xl border border-orange-100 flex gap-4">
-                          <div className="w-1/2">
-                            <label className="block text-xs font-semibold text-orange-800 mb-1">Fecha de Término (Opcional)</label>
-                            <input type="date" name="fecha_fin" value={contratoData.fecha_fin || ''} onChange={handleContratoChange} className="w-full px-3 py-2 rounded-lg border border-orange-200 outline-none" />
-                          </div>
-                          <div className="w-1/2 flex items-center text-xs text-orange-700 font-medium">
-                            <p>Si es plazo fijo, puedes definir la fecha exacta en la que terminará la relación laboral.</p>
-                          </div>
+                    {/* SECCIÓN 2: FINANZAS Y PAGOS */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">2. Remuneraciones y Quincena</h3>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Día de Pago (Mensual)</label>
+                          <input type="number" min="1" max="31" name="dia_pago" required value={contratoData.dia_pago || 5} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50" />
                         </div>
-                      )}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Gratificación Legal</label>
+                          <select name="gratificacion_legal" value={contratoData.gratificacion_legal || 'MENSUAL'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50">
+                            <option value="MENSUAL">Mensual (Art. 50 - 25% con tope)</option>
+                            <option value="ANUAL">Anual (Art. 47 - 30% utilidades)</option>
+                          </select>
+                        </div>
+                        
+                        <div className="col-span-2 flex items-center gap-3">
+                          <input type="checkbox" name="tiene_quincena" checked={contratoData.tiene_quincena || false} onChange={handleContratoChange} className="w-5 h-5 text-blue-600" />
+                          <label className="font-semibold text-slate-700">El trabajador recibirá Anticipo Quincenal</label>
+                        </div>
 
-                      <div className="col-span-2">
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Jornada Laboral</label>
-                        <select name="tipo_jornada" required value={contratoData.tipo_jornada || 'ORDINARIA'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50">
-                          <option value="ORDINARIA">Ordinaria (Lunes a Viernes/Sábado)</option>
-                          <option value="TURNOS">Turnos Rotativos</option>
-                          <option value="BISMANAL">Jornada Bismanal</option>
+                        {contratoData.tiene_quincena && (
+                          <div className="col-span-2 grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <div>
+                              <label className="block text-xs font-semibold text-blue-800 mb-1">Día de la Quincena</label>
+                              <input type="number" min="1" max="31" name="dia_quincena" value={contratoData.dia_quincena || 15} onChange={handleContratoChange} className="w-full px-3 py-2 rounded-lg border border-blue-200" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-blue-800 mb-1">Monto de la Quincena ($)</label>
+                              <input type="number" min="10000" max={contratoData.sueldo_base || 5000000} name="monto_quincena" value={contratoData.monto_quincena || ''} onChange={handleContratoChange} placeholder="Ej: 150000" className="w-full px-3 py-2 rounded-lg border border-blue-200" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* SECCIÓN 3: CONSTRUCTOR DE HORARIOS */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <div className="flex justify-between items-end mb-4 border-b pb-2">
+                        <h3 className="text-lg font-bold text-slate-900">3. Jornada Laboral</h3>
+                        <div className="text-right">
+                          <label className="block text-xs font-semibold text-slate-600">Límite Legal (Hrs Semanales)</label>
+                          <input type="number" step="0.5" name="horas_semanales" value={contratoData.horas_semanales || 44} onChange={handleContratoChange} className="w-24 px-2 py-1 text-center font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg" />
+                        </div>
+                      </div>
+
+                      <div className="mb-6">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Jornada</label>
+                        <select name="tipo_jornada" required value={contratoData.tipo_jornada || 'ORDINARIA'} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50">
+                          <option value="ORDINARIA">Ordinaria (Asignar Horarios)</option>
                           <option value="ART_22">Artículo 22 (Sin límite de horario)</option>
-                          <option value="PARCIAL">Part-Time</option>
-                          <option value="OTRO">Otra (Jornada Personalizada)</option>
+                          <option value="OTRO">Otra (Redactar manualmente)</option>
                         </select>
                       </div>
 
-                      {/* --- CAJA DINÁMICA: SÓLO APARECE SI ELIGE "OTRO" --- */}
                       {contratoData.tipo_jornada === 'OTRO' && (
-                        <div className="col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
-                          <label className="block text-xs font-semibold text-blue-800 mb-1">Detalle de la Jornada Personalizada</label>
-                          <textarea 
-                            name="jornada_personalizada" 
-                            rows={3} 
-                            value={contratoData.jornada_personalizada || ''} 
-                            onChange={handleContratoChange} 
-                            placeholder="Ej: El trabajador prestará servicios los días lunes, miércoles y viernes de 09:00 a 14:00 horas..."
-                            className="w-full px-3 py-2 rounded-lg border border-blue-200 outline-none resize-none"
-                          ></textarea>
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
+                          <label className="block text-xs font-semibold text-blue-800 mb-1">Detalle de la Jornada</label>
+                          <textarea name="jornada_personalizada" rows={3} value={contratoData.jornada_personalizada || ''} onChange={handleContratoChange} className="w-full px-3 py-2 rounded-lg border border-blue-200 resize-none"></textarea>
                         </div>
                       )}
 
-                      {/* Solo muestra horas y días si NO es Art 22 */}
-                      {contratoData.tipo_jornada !== 'ART_22' && (
-                        <>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Horas Semanales (Ley 40h)</label>
-                            <input type="number" step="0.5" name="horas_semanales" value={contratoData.horas_semanales || 44} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 outline-none bg-slate-50" />
+                      {/* MATRIZ DE HORARIOS (Solo visible en Jornada Ordinaria) */}
+                      {contratoData.tipo_jornada === 'ORDINARIA' && (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-12 gap-2 text-xs font-bold text-slate-500 uppercase text-center px-2">
+                            <div className="col-span-1">Día</div>
+                            <div className="col-span-3 text-left">Habilitado</div>
+                            <div className="col-span-2">Entrada</div>
+                            <div className="col-span-2">Salida</div>
+                            <div className="col-span-2">Colación (Min)</div>
+                            <div className="col-span-2">Total Día</div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Días a la semana</label>
-                            <input type="number" name="distribucion_dias" value={contratoData.distribucion_dias || 5} onChange={handleContratoChange} className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:border-blue-500 outline-none bg-slate-50" />
-                          </div>
-                          <div className="col-span-2 flex items-center justify-between mt-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-900">Tiempo de Colación</p>
-                                <p className="text-xs text-slate-500">¿El horario de colación se considera dentro de la jornada de trabajo?</p>
-                              </div>
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="tiene_colacion_imputable" checked={contratoData.tiene_colacion_imputable || false} onChange={handleContratoChange} className="sr-only peer" />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                              </label>
-                          </div>
-                        </>
-                      )}
+                          
+                          {['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].map((dia) => {
+                            const datos = horario[dia] || { activo: false, entrada: '09:00', salida: '18:00', colacion: 60 };
+                            
+                            // Matemática del día
+                            let horasDia = 0;
+                            if (datos.activo && datos.entrada && datos.salida) {
+                              const [he, me] = datos.entrada.split(':').map(Number);
+                              const [hs, ms] = datos.salida.split(':').map(Number);
+                              const minsTrabajados = ((hs * 60 + ms) - (he * 60 + me)) - datos.colacion;
+                              if (minsTrabajados > 0) horasDia = minsTrabajados / 60;
+                            }
 
-                      <div className="col-span-2 mt-2">
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Cláusulas Especiales (Opcional)</label>
-                        <textarea 
-                          name="clausulas_especiales" 
-                          rows={4} 
-                          value={contratoData.clausulas_especiales || ''} 
-                          onChange={handleContratoChange} 
-                          placeholder="Escribe aquí acuerdos de teletrabajo, confidencialidad, bonos por meta, uso de uniforme, etc."
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-slate-50 resize-none"
-                        ></textarea>
-                      </div>
+                            return (
+                              <div key={dia} className={`grid grid-cols-12 gap-2 items-center p-2 rounded-lg border ${datos.activo ? 'bg-white border-blue-100 shadow-sm' : 'bg-slate-50 border-slate-100 opacity-60'}`}>
+                                <div className="col-span-1 text-xs font-bold text-slate-400 text-center">{dia.substring(0,2).toUpperCase()}</div>
+                                <div className="col-span-3">
+                                  <label className="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" checked={datos.activo} onChange={(e) => setHorario({...horario, [dia]: {...datos, activo: e.target.checked}})} className="sr-only peer" />
+                                    <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                  </label>
+                                </div>
+                                <div className="col-span-2"><input type="time" disabled={!datos.activo} value={datos.entrada} onChange={(e) => setHorario({...horario, [dia]: {...datos, entrada: e.target.value}})} className="w-full text-sm p-1 border rounded" /></div>
+                                <div className="col-span-2"><input type="time" disabled={!datos.activo} value={datos.salida} onChange={(e) => setHorario({...horario, [dia]: {...datos, salida: e.target.value}})} className="w-full text-sm p-1 border rounded" /></div>
+                                <div className="col-span-2"><input type="number" step="15" disabled={!datos.activo} value={datos.colacion} onChange={(e) => setHorario({...horario, [dia]: {...datos, colacion: Number(e.target.value)}})} className="w-full text-sm p-1 border rounded text-center" /></div>
+                                <div className="col-span-2 text-center font-mono font-bold text-slate-700">{horasDia.toFixed(1)}h</div>
+                              </div>
+                            );
+                          })}
+
+                          {/* CALCULADOR FINAL */}
+                          <div className={`mt-4 p-4 rounded-xl flex justify-between items-center border ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                            <span className="font-bold text-slate-700">Horas asignadas en la semana:</span>
+                            <div className="text-right">
+                              <span className={`text-2xl font-black ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'text-red-600' : 'text-emerald-600'}`}>
+                                {totalHorasCalculadas.toFixed(1)} / {contratoData.horas_semanales || 44}
+                              </span>
+                              <p className={`text-xs font-bold uppercase mt-1 ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'text-red-500' : 'text-emerald-600'}`}>
+                                {totalHorasCalculadas > (contratoData.horas_semanales || 44) ? '¡Has sobrepasado el límite!' : `Quedan ${((contratoData.horas_semanales || 44) - totalHorasCalculadas).toFixed(1)} horas libres`}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {/* NUEVO: SECCIÓN DE DESCARGA DE DOCUMENTOS */}
-                    {contratoData.id && (
-                      <div className="mt-8 pt-6 border-t border-slate-200">
-                        <h4 className="text-sm font-bold text-slate-800 mb-4">Descargar Documentos de este Trabajador</h4>
-                        <div className="flex gap-4">
-                          {/* Botón Descargar Contrato */}
-                          <button 
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_contrato_pdf/`, { ...apiConfig, responseType: 'blob' });
-                                const url = window.URL.createObjectURL(new Blob([response.data]));
-                                const link = document.createElement('a');
-                                link.href = url; link.setAttribute('download', `Contrato_${selectedEmpleado?.rut}.pdf`);
-                                document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
-                              } catch (error) { 
-                                console.error("Error descargando el contrato:", error);
-                                alert("Error descargando el contrato."); 
-                              }
-                            }}
-                            className="flex-1 px-4 py-3 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
-                          >
-                            <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5 text-blue-600"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                            Descargar Contrato Base
-                          </button>
-
-                          {/* Botón Descargar Anexo 40h */}
-                          <button 
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_anexo/`, { ...apiConfig, responseType: 'blob' });
-                                const url = window.URL.createObjectURL(new Blob([response.data]));
-                                const link = document.createElement('a');
-                                link.href = url; link.setAttribute('download', `Anexo_40h_${selectedEmpleado?.rut}.pdf`);
-                                document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
-                              } catch (error) { 
-                                console.error("Error descargando el anexo:", error);
-                                alert("Error descargando el anexo."); 
-                              }
-                            }}
-                            className="flex-1 px-4 py-3 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
-                          >
-                            <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5 text-emerald-600"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                            Descargar Anexo Ley 40h
-                          </button>
+                    {/* SECCIÓN 4: CLÁUSULAS ESPECIALES */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                      <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">4. Cláusulas Adicionales</h3>
+                      {clausulas.map((clausula, index) => (
+                        <div key={index} className="flex gap-2 mb-3">
+                          <textarea rows={2} value={clausula} onChange={(e) => { const newC = [...clausulas]; newC[index] = e.target.value; setClausulas(newC); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 resize-none" placeholder="Ej: Se acuerda un bono de productividad de..." />
+                          <button type="button" onClick={() => setClausulas(clausulas.filter((_, i) => i !== index))} className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold">✕</button>
                         </div>
+                      ))}
+                      <button type="button" onClick={() => setClausulas([...clausulas, ""])} className="text-sm text-blue-600 font-semibold">+ Añadir Nueva Cláusula</button>
+                    </div>
+
+                    {/* DESCARGAS (Solo si ya está guardado) */}
+                    {contratoData.id && (
+                      <div className="flex gap-4">
+                        <button type="button" onClick={descargarContratoPDF} className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-xl font-semibold shadow-sm hover:bg-slate-900 transition-colors">Descargar Contrato Base</button>
+                        <button type="button" onClick={descargarAnexoPDF} className="flex-1 px-4 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 transition-colors">Descargar Anexo Ley 40h</button>
                       </div>
                     )}
                   </form>
@@ -1013,12 +1130,17 @@ export default function Dashboard() {
                     
                     {/* BOTÓN DINÁMICO: Cambia según la pestaña activa */}
                     {activeTab === 'perfil' ? (
-                      <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors shadow-md flex items-center gap-2">
+                      <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2">
                         <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                         {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Perfil'}
                       </button>
                     ) : activeTab === 'contratos' ? (
-                      <button type="submit" form="contratoForm" disabled={isSavingContrato} className="px-8 py-2.5 text-white font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 rounded-xl transition-colors shadow-md flex items-center gap-2">
+                      <button 
+                        type="submit" 
+                        form="contratoForm" 
+                        disabled={isSavingContrato || (contratoData.tipo_jornada === 'ORDINARIA' && totalHorasCalculadas > (contratoData.horas_semanales || 44))} 
+                        className="px-8 py-2.5 text-white font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2"
+                      >
                         {isSavingContrato ? 'Guardando...' : 'Guardar Contrato Legal'}
                       </button>
                     ) : null}
