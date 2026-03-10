@@ -47,14 +47,23 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         usuario = request.user
         
         try:
-            # 1. Identificar la empresa y el plan del cliente
+            # 1. Identificar la empresa del usuario
             empresa = Empresa.objects.filter(owner=usuario).first()
-            cliente = Cliente.objects.filter(usuario=usuario).first()
             
-            # ATENCIÓN: Asegúrate de que tu modelo 'Plan' tenga un campo numérico para el límite. 
-            limite_plan = cliente.plan.limite_trabajadores 
+            # 2. DEFINIR EL LÍMITE (Evitando el error del Admin)
+            if usuario.is_superuser:
+                limite_plan = 999999  # El admin tiene cupos ilimitados
+            else:
+                cliente = Cliente.objects.filter(usuario=usuario).first()
+                # Validación extra por si un cliente normal se quedó sin plan por algún error
+                if not cliente or not getattr(cliente, 'plan', None):
+                    return Response(
+                        {'error': 'Tu cuenta no tiene un plan activo. Contacta a soporte.'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                limite_plan = cliente.plan.limite_trabajadores 
             
-            # 2. Calcular cuánto espacio le queda
+            # 3. Calcular cuánto espacio le queda
             trabajadores_actuales = Empleado.objects.filter(empresa=empresa).count()
             espacio_disponible = limite_plan - trabajadores_actuales
             
@@ -68,7 +77,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             
             # Limpiamos filas vacías por si el Excel trae basura al final
             datos_limpios = [item for item in datos_excel if item.get('rut') and item.get('nombres')]
-
             # 3. Cortar la lista si supera el límite
             if len(datos_limpios) > espacio_disponible:
                 # Cortamos la lista hasta donde alcance
