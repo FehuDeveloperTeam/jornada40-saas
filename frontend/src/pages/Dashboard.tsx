@@ -383,7 +383,7 @@ export default function Dashboard() {
       ...contratoData,
       funciones_especificas: funciones,
       clausulas_especiales: clausulas,
-      distribucion_horario: horario
+      distribucion_horario: horario, // <-- ¡Aquí es donde faltaba la coma!
       dia_quincena: contratoData.tiene_quincena ? (contratoData.dia_quincena || 15) : null,
       monto_quincena: contratoData.tiene_quincena ? Number(contratoData.monto_quincena) : null
     };
