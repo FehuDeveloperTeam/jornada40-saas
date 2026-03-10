@@ -3,51 +3,32 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 class Plan(models.Model):
-    nombre = models.CharField(max_length=50) # Ej: "Gratis", "Pyme", "Corporativo"
+    nombre = models.CharField(max_length=50) 
     descripcion = models.TextField(blank=True, null=True)
-    precio = models.IntegerField(default=0) # Precio mensual en CLP
-    
-    # Aquí están los límites mágicos
+    precio = models.IntegerField(default=0) 
     max_empresas = models.IntegerField(default=1)
-    max_empleados = models.IntegerField(default=3)
-    
+    limite_trabajadores = models.IntegerField(default=3) # Ajustado al nombre que usa views.py
     activo = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.nombre} ({self.max_empleados} trab.) - ${self.precio}"
+        return f"{self.nombre} ({self.limite_trabajadores} trab.) - ${self.precio}"
 
 
-# ==========================================
-# 2. TABLA DE CLIENTES (Datos de facturación y perfil)
-# ==========================================
 class Cliente(models.Model):
     TIPO_CLIENTE_CHOICES = [
         ('PERSONA', 'Persona Natural'),
         ('EMPRESA', 'Empresa (Persona Jurídica)'),
     ]
-    
-    # Relación 1 a 1 con el usuario de Django (el que hace Login)
     usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil_cliente')
-    
-    # Relación con el Plan que contrató
     plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, blank=True)
-    
     tipo_cliente = models.CharField(max_length=20, choices=TIPO_CLIENTE_CHOICES, default='PERSONA')
     rut = models.CharField(max_length=20, unique=True)
-    
-    # --- DATOS PERSONALES (Si es Persona Natural) ---
     nombres = models.CharField(max_length=100)
     apellido_paterno = models.CharField(max_length=100, blank=True, null=True)
     apellido_materno = models.CharField(max_length=100, blank=True, null=True)
-    
-    # --- DATOS COMERCIALES (Si es Empresa) ---
     razon_social = models.CharField(max_length=255, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
-    
-    # --- CONTACTO ---
     telefono = models.CharField(max_length=20, blank=True, null=True)
-    # Nota: El correo ya viene incluido en el modelo 'usuario' (User) de Django.
-    
     creado_en = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -55,14 +36,13 @@ class Cliente(models.Model):
             return f"{self.razon_social} ({self.plan})"
         return f"{self.nombres} {self.apellido_paterno} ({self.plan})"
 
-# 1. EMPRESA (El Cliente del SaaS)
+
 class Empresa(models.Model):
-    # ForeignKey permite que un User tenga infinitas Empresas
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='empresas')
     nombre_legal = models.CharField(max_length=255)
     rut = models.CharField(max_length=20, unique=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-    alias = models.CharField(max_length=100, blank=True, null=True) # Nombre de fantasía
+    alias = models.CharField(max_length=100, blank=True, null=True) 
     giro = models.CharField(max_length=200, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
     comuna = models.CharField(max_length=100, blank=True, null=True)
@@ -70,75 +50,80 @@ class Empresa(models.Model):
     sucursal = models.CharField(max_length=100, blank=True, null=True)
 
     class Meta:
-        # ¡LA MAGIA AQUÍ! Un usuario no puede registrar el mismo RUT dos veces
         unique_together = ['rut', 'owner']
         
     def __str__(self):
         return self.nombre_legal
 
-# 2. EMPLEADO (El recurso humano)
+
 class Empleado(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='empleados')
     rut = models.CharField(max_length=20)
     nombres = models.CharField(max_length=100)
-    
-    # --- APELLIDOS SEPARADOS ---
     apellido_paterno = models.CharField(max_length=100)
     apellido_materno = models.CharField(max_length=100, blank=True, null=True)
-    
-    # --- DATOS PERSONALES ---
     sexo = models.CharField(max_length=20, choices=[('M', 'Masculino'), ('F', 'Femenino'), ('O', 'Otro')], blank=True, null=True)
     fecha_nacimiento = models.DateField(null=True, blank=True) 
     nacionalidad = models.CharField(max_length=50, default="Chilena")
     estado_civil = models.CharField(max_length=50, blank=True, null=True)
-    direccion = models.CharField(max_length=255, blank=True, null=True) # NUEVO
+    direccion = models.CharField(max_length=255, blank=True, null=True) 
     comuna = models.CharField(max_length=100, blank=True, null=True) 
     numero_telefono = models.CharField(max_length=20, blank=True, null=True)
-    
-    # --- DATOS LABORALES ---
     departamento = models.CharField(max_length=100, blank=True, null=True)
     cargo = models.CharField(max_length=100)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
-    horas_laborales = models.IntegerField(default=40) # NUEVO (Ej: 40, 44, 45)
+    horas_laborales = models.IntegerField(default=40) 
     modalidad = models.CharField(max_length=20, choices=[('PRESENCIAL', 'Presencial'), ('REMOTO', 'Remoto'), ('HIBRIDO', 'Híbrido')], default='PRESENCIAL')
-    
-    # --- PREVISIÓN Y SUELDO ---
     sueldo_base = models.IntegerField(default=0)
     afp = models.CharField(max_length=50, blank=True, null=True)
     sistema_salud = models.CharField(max_length=50, choices=[('FONASA', 'Fonasa'), ('ISAPRE', 'Isapre')], blank=True, null=True)
-    
-    # --- ESTADOS Y TRAZABILIDAD ---
     fecha_ingreso = models.DateField()
     activo = models.BooleanField(default=True)
-    
-    # NUEVO: Registro interno automático (No se muestra en el form, se llena solo)
     creado_en = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"{self.nombres} {self.apellido_paterno}"
 
-# 3. CONTRATO (El núcleo de la Ley 40h)
+
+# ==========================================
+# 3. CONTRATO (El núcleo Legal del SaaS)
+# ==========================================
 class Contrato(models.Model):
-    TIPO_JORNADA = [
+    TIPO_CONTRATO_CHOICES = [
+        ('INDEFINIDO', 'Indefinido'),
+        ('PLAZO_FIJO', 'Plazo Fijo'),
+        ('OBRA_FAENA', 'Por Obra o Faena'),
+    ]
+
+    TIPO_JORNADA_CHOICES = [
         ('ORDINARIA', 'Ordinaria (Lunes a Viernes/Sábado)'),
+        ('TURNOS', 'Turnos Rotativos'),
         ('BISMANAL', 'Bismanal'),
-        ('ART_22', 'Artículo 22 (Sin horario)'),
+        ('ART_22', 'Artículo 22 (Sin límite de horario)'),
         ('PARCIAL', 'Part-Time'),
+        ('OTRO', 'Otra (Jornada Personalizada)'),
     ]
 
     empleado = models.OneToOneField(Empleado, on_delete=models.CASCADE, related_name='contrato_activo')
     
-    # Datos de la Ley 40 Horas
-    horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=44.0, help_text="Ej: 40.0, 44.0, 45.0")
-    distribucion_dias = models.IntegerField(default=5, help_text="Días de trabajo a la semana (Ej: 5 o 6)")
-    
-    tipo_jornada = models.CharField(max_length=20, choices=TIPO_JORNADA, default='ORDINARIA')
-    sueldo_base = models.IntegerField()
-    
-    tiene_colacion_imputable = models.BooleanField(default=False, help_text="¿El tiempo de colación es parte de la jornada?")
-    
+    # 1. Datos Claves del Contrato
+    tipo_contrato = models.CharField(max_length=20, choices=TIPO_CONTRATO_CHOICES, default='INDEFINIDO')
+    cargo = models.CharField(max_length=100, default="No especificado")
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField(null=True, blank=True)
+    sueldo_base = models.IntegerField()
+    
+    # 2. Datos de la Ley 40 Horas y Jornadas
+    tipo_jornada = models.CharField(max_length=20, choices=TIPO_JORNADA_CHOICES, default='ORDINARIA')
+    horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=44.0, help_text="Ej: 40.0, 44.0")
+    distribucion_dias = models.IntegerField(default=5, help_text="Días a la semana (Ej: 5 o 6)")
+    tiene_colacion_imputable = models.BooleanField(default=False, help_text="¿Colación dentro de la jornada?")
+    
+    # 3. Textos Libres Legales (Para la opción "OTRO" y Cláusulas)
+    jornada_personalizada = models.TextField(blank=True, null=True, help_text="Se usa solo si eligen 'OTRO' en jornada")
+    clausulas_especiales = models.TextField(blank=True, null=True, help_text="Pactos de teletrabajo, confidencialidad, bonos, etc.")
+
+    creado_en = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Contrato de {self.empleado} - {self.horas_semanales}h"
+        return f"Contrato {self.tipo_contrato} - {self.empleado} - {self.horas_semanales}h"

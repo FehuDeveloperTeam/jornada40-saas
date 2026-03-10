@@ -6,7 +6,7 @@ from .models import Empresa, Empleado, Contrato, Plan, Cliente
 # ==========================================
 @admin.register(Plan)
 class PlanAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'precio', 'max_empresas', 'max_empleados', 'activo')
+    list_display = ('nombre', 'precio', 'max_empresas', 'limite_trabajadores', 'activo')
     list_filter = ('activo',)
     search_fields = ('nombre',)
 
