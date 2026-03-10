@@ -65,10 +65,22 @@ interface Contrato {
   dia_pago: number;
   gratificacion_legal: string;
   tiene_quincena: boolean;
-  dia_quincena?: number;
-  monto_quincena?: number;
+  dia_quincena?: number | null;
+  monto_quincena?: number | null;
   funciones_especificas?: string[];
   distribucion_horario?: HorarioSemana;
+}
+
+// NUEVA INTERFAZ: DOCUMENTO LEGAL
+interface DocumentoLegal {
+  id?: number;
+  empleado: number;
+  tipo: string;
+  fecha_emision: string;
+  causal_legal?: string;
+  hechos: string;
+  aviso_previo_pagado: boolean;
+  creado_en?: string;
 }
 
 const apiConfig = { withCredentials: true };
@@ -112,10 +124,16 @@ export default function Dashboard() {
   const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
   const [isSavingContrato, setIsSavingContrato] = useState(false);
   
-  // Estados para la Fase 2 (Listas y Horarios)
+  // Estados de Contratos
   const [funciones, setFunciones] = useState<string[]>([]);
   const [clausulas, setClausulas] = useState<string[]>([]);
   const [horario, setHorario] = useState<HorarioSemana>(defaultHorario);
+
+  // Estados para Documentos Legales (Fase 3)
+  const [documentosLegales, setDocumentosLegales] = useState<DocumentoLegal[]>([]);
+  const [documentoData, setDocumentoData] = useState<Partial<DocumentoLegal>>({});
+  const [showDocumentoForm, setShowDocumentoForm] = useState(false);
+  const [isSavingDocumento, setIsSavingDocumento] = useState(false);
 
   // Calculadora Matemática en tiempo real
   const totalHorasCalculadas = useMemo(() => {
@@ -277,13 +295,14 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // CARGAR CONTRATO AL ABRIR EL PANEL
+  // CARGAR DATOS AL ABRIR EL PANEL
   // ==========================================
-  const fetchContrato = async (empleadoId: number) => {
+  const fetchContratoYDocumentos = async (empleadoId: number) => {
     try {
-      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleadoId}`, apiConfig);
-      if (response.data && response.data.length > 0) {
-        const contrato = response.data[0];
+      // 1. Cargar Contrato
+      const resContrato = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleadoId}`, apiConfig);
+      if (resContrato.data && resContrato.data.length > 0) {
+        const contrato = resContrato.data[0];
         setContratoData(contrato);
         setFunciones(contrato.funciones_especificas || []);
         setClausulas(contrato.clausulas_especiales || []);
@@ -312,8 +331,14 @@ export default function Dashboard() {
         setClausulas([]);
         setHorario(defaultHorario);
       }
+
+      // 2. Cargar Documentos Legales (Fase 3)
+      const resDocs = await axios.get(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/?empleado=${empleadoId}`, apiConfig);
+      setDocumentosLegales(resDocs.data);
+      setShowDocumentoForm(false);
+
     } catch (error) {
-      console.error("Error al cargar el contrato:", error);
+      console.error("Error al cargar datos del panel:", error);
     }
   };
 
@@ -321,7 +346,7 @@ export default function Dashboard() {
     setSelectedEmpleado(emp);
     setPanelMode('view');
     setActiveTab('perfil');
-    fetchContrato(emp.id); 
+    fetchContratoYDocumentos(emp.id); 
     setIsPanelOpen(true);
   };
 
@@ -331,7 +356,7 @@ export default function Dashboard() {
     setIsValidRut(true);
     setPanelMode('edit');
     setActiveTab('perfil');
-    fetchContrato(emp.id); 
+    fetchContratoYDocumentos(emp.id); 
     setIsPanelOpen(true);
   };
 
@@ -373,7 +398,7 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // MANEJADOR PARA GUARDAR CONTRATOS (Con Arrays)
+  // MANEJADOR PARA GUARDAR CONTRATOS
   // ==========================================
   const guardarContrato = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,7 +408,7 @@ export default function Dashboard() {
       ...contratoData,
       funciones_especificas: funciones,
       clausulas_especiales: clausulas,
-      distribucion_horario: horario, // <-- ¡Aquí es donde faltaba la coma!
+      distribucion_horario: horario,
       dia_quincena: contratoData.tiene_quincena ? (contratoData.dia_quincena || 15) : null,
       monto_quincena: contratoData.tiene_quincena ? Number(contratoData.monto_quincena) : null
     };
@@ -406,7 +431,42 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // FUNCIONES DE DESCARGA PDF
+  // NUEVO: MANEJADOR PARA GUARDAR DOCUMENTOS LEGALES
+  // ==========================================
+  const guardarDocumentoLegal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingDocumento(true);
+
+    try {
+      const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/`, documentoData, apiConfig);
+      setDocumentosLegales(prev => [res.data, ...prev]);
+      setShowDocumentoForm(false);
+      alert("¡Documento legal generado exitosamente!");
+    } catch (error) {
+      console.error("Error guardando documento:", error);
+      alert("Hubo un error al guardar el documento.");
+    } finally {
+      setIsSavingDocumento(false);
+    }
+  };
+
+  const descargarDocumentoPDF = async (docId: number, tipo: string) => {
+    try {
+      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/${docId}/generar_pdf/`, { ...apiConfig, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url; 
+      link.setAttribute('download', `${tipo}_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) { 
+      console.error(error); 
+      alert("Error descargando el documento legal."); 
+    }
+  };
+
+  // ==========================================
+  // FUNCIONES DE DESCARGA PDF DE CONTRATOS
   // ==========================================
   const descargarContratoPDF = async () => {
     try {
@@ -750,7 +810,7 @@ export default function Dashboard() {
                       { id: 'perfil', label: 'Datos Generales' },
                       { id: 'contratos', label: 'Contratos y Anexos' },
                       { id: 'liquidaciones', label: 'Liquidaciones' },
-                      { id: 'legal', label: 'Historial Legal (Finiquitos)' },
+                      { id: 'legal', label: 'Historial Legal' },
                     ].map((tab) => (
                       <button
                         key={tab.id}
@@ -915,11 +975,10 @@ export default function Dashboard() {
                 )}
 
                 {/* ========================================== */}
-                {/* PESTAÑA 2: MÓDULO DE CONTRATOS AVANZADO    */}
+                {/* PESTAÑA 2: CONTRATOS                       */}
                 {/* ========================================== */}
                 {activeTab === 'contratos' && (
                   <form id="contratoForm" onSubmit={guardarContrato} className="max-w-4xl mx-auto space-y-8 pb-10">
-                    {/* SECCIÓN 1: DATOS CLAVES */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                       <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">1. Condiciones Generales</h3>
                       <div className="grid grid-cols-2 gap-6">
@@ -958,7 +1017,6 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* SECCIÓN 2: FINANZAS Y PAGOS */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                       <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">2. Remuneraciones y Quincena</h3>
                       <div className="grid grid-cols-2 gap-6">
@@ -994,7 +1052,6 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* SECCIÓN 3: CONSTRUCTOR DE HORARIOS */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                       <div className="flex justify-between items-end mb-4 border-b pb-2">
                         <h3 className="text-lg font-bold text-slate-900">3. Jornada Laboral</h3>
@@ -1020,7 +1077,6 @@ export default function Dashboard() {
                         </div>
                       )}
 
-                      {/* MATRIZ DE HORARIOS (Solo visible en Jornada Ordinaria) */}
                       {contratoData.tipo_jornada === 'ORDINARIA' && (
                         <div className="space-y-3">
                           <div className="grid grid-cols-12 gap-2 text-xs font-bold text-slate-500 uppercase text-center px-2">
@@ -1034,8 +1090,6 @@ export default function Dashboard() {
                           
                           {['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'].map((dia) => {
                             const datos = horario[dia] || { activo: false, entrada: '09:00', salida: '18:00', colacion: 60 };
-                            
-                            // Matemática del día
                             let horasDia = 0;
                             if (datos.activo && datos.entrada && datos.salida) {
                               const [he, me] = datos.entrada.split(':').map(Number);
@@ -1061,7 +1115,6 @@ export default function Dashboard() {
                             );
                           })}
 
-                          {/* CALCULADOR FINAL */}
                           <div className={`mt-4 p-4 rounded-xl flex justify-between items-center border ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                             <span className="font-bold text-slate-700">Horas asignadas en la semana:</span>
                             <div className="text-right">
@@ -1077,7 +1130,6 @@ export default function Dashboard() {
                       )}
                     </div>
 
-                    {/* SECCIÓN 4: CLÁUSULAS ESPECIALES */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                       <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">4. Cláusulas Adicionales</h3>
                       {clausulas.map((clausula, index) => (
@@ -1089,16 +1141,22 @@ export default function Dashboard() {
                       <button type="button" onClick={() => setClausulas([...clausulas, ""])} className="text-sm text-blue-600 font-semibold">+ Añadir Nueva Cláusula</button>
                     </div>
 
-                    {/* DESCARGAS (Solo si ya está guardado) */}
                     {contratoData.id && (
                       <div className="flex gap-4">
-                        <button type="button" onClick={descargarContratoPDF} className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-xl font-semibold shadow-sm hover:bg-slate-900 transition-colors">Descargar Contrato Base</button>
-                        <button type="button" onClick={descargarAnexoPDF} className="flex-1 px-4 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 transition-colors">Descargar Anexo Ley 40h</button>
+                        <button type="button" onClick={descargarContratoPDF} className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-xl font-semibold shadow-sm hover:bg-slate-900 transition-colors flex items-center justify-center gap-2">
+                          Descargar Contrato Base
+                        </button>
+                        <button type="button" onClick={descargarAnexoPDF} className="flex-1 px-4 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
+                          Descargar Anexo Ley 40h
+                        </button>
                       </div>
                     )}
                   </form>
                 )}
 
+                {/* ========================================== */}
+                {/* PESTAÑA 3: LIQUIDACIONES (Próximamente)    */}
+                {/* ========================================== */}
                 {activeTab === 'liquidaciones' && (
                   <div className="h-full flex flex-col items-center justify-center text-slate-500">
                     <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -1107,13 +1165,159 @@ export default function Dashboard() {
                   </div>
                 )}
 
+                {/* ========================================== */}
+                {/* PESTAÑA 4: HISTORIAL LEGAL (FASE 3)        */}
+                {/* ========================================== */}
                 {activeTab === 'legal' && (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z" /></svg>
-                    <h3 className="text-lg font-semibold text-slate-700">Historial Legal y Finiquitos</h3>
-                    <p className="text-sm mt-2 text-center max-w-sm">Aquí se guardarán las Cartas de Amonestación, Despidos y los Finiquitos matemáticos automatizados.</p>
+                  <div className="max-w-4xl mx-auto">
+                    
+                    {!showDocumentoForm ? (
+                      /* VISTA: LISTA DE DOCUMENTOS */
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-center border-b pb-4">
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-900">Historial de Documentos</h3>
+                            <p className="text-sm text-slate-500">Cartas de amonestación, despidos y constancias.</p>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setDocumentoData({
+                                empleado: selectedEmpleado?.id,
+                                tipo: 'AMONESTACION',
+                                fecha_emision: new Date().toISOString().split('T')[0],
+                                hechos: '',
+                                causal_legal: '',
+                                aviso_previo_pagado: false
+                              });
+                              setShowDocumentoForm(true);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                          >
+                            + Nuevo Documento
+                          </button>
+                        </div>
+
+                        {documentosLegales.length === 0 ? (
+                          <div className="text-center py-16 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                            <p className="text-slate-500 font-medium">No hay documentos legales registrados para este trabajador.</p>
+                          </div>
+                        ) : (
+                          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                  <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Fecha</th>
+                                  <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Tipo Documento</th>
+                                  <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Acciones</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {documentosLegales.map(doc => (
+                                  <tr key={doc.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                    <td className="p-4 text-sm font-medium text-slate-900">{doc.fecha_emision}</td>
+                                    <td className="p-4">
+                                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                        doc.tipo === 'DESPIDO' ? 'bg-red-100 text-red-700' :
+                                        doc.tipo === 'AMONESTACION' ? 'bg-orange-100 text-orange-700' :
+                                        'bg-slate-100 text-slate-700'
+                                      }`}>
+                                        {doc.tipo.replace('_', ' ')}
+                                      </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                      <button 
+                                        onClick={() => descargarDocumentoPDF(doc.id!, doc.tipo)}
+                                        className="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center justify-end gap-1 ml-auto"
+                                      >
+                                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                        Descargar PDF
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                    ) : (
+
+                      /* VISTA: FORMULARIO CREAR DOCUMENTO */
+                      <form id="documentoForm" onSubmit={guardarDocumentoLegal} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                        <div className="flex justify-between items-center border-b pb-4 mb-4">
+                          <h3 className="text-lg font-bold text-slate-900">Redactar Documento Legal</h3>
+                          <button type="button" onClick={() => setShowDocumentoForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Tipo de Documento</label>
+                            <select 
+                              required
+                              value={documentoData.tipo} 
+                              onChange={(e) => setDocumentoData({...documentoData, tipo: e.target.value})} 
+                              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50 font-medium"
+                            >
+                              <option value="AMONESTACION">Carta de Amonestación</option>
+                              <option value="DESPIDO">Carta de Despido (Término de Contrato)</option>
+                              <option value="CONSTANCIA">Constancia Laboral</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Emisión</label>
+                            <input 
+                              type="date" 
+                              required 
+                              value={documentoData.fecha_emision} 
+                              onChange={(e) => setDocumentoData({...documentoData, fecha_emision: e.target.value})} 
+                              className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50" 
+                            />
+                          </div>
+
+                          {/* CAMPO ESPECÍFICO PARA DESPIDO */}
+                          {documentoData.tipo === 'DESPIDO' && (
+                            <>
+                              <div className="col-span-2 bg-red-50 p-4 rounded-xl border border-red-100">
+                                <label className="block text-xs font-bold text-red-800 mb-1">Causal Legal a Invocar</label>
+                                <input 
+                                  type="text" 
+                                  required 
+                                  value={documentoData.causal_legal || ''} 
+                                  onChange={(e) => setDocumentoData({...documentoData, causal_legal: e.target.value})} 
+                                  placeholder="Ej: Artículo 161 inc. 1 (Necesidades de la Empresa)" 
+                                  className="w-full px-3 py-2 rounded-lg border border-red-200 outline-none" 
+                                />
+                              </div>
+                              <div className="col-span-2 flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <input 
+                                  type="checkbox" 
+                                  checked={documentoData.aviso_previo_pagado} 
+                                  onChange={(e) => setDocumentoData({...documentoData, aviso_previo_pagado: e.target.checked})} 
+                                  className="w-5 h-5 text-blue-600" 
+                                />
+                                <label className="font-semibold text-slate-700">Se pagará el mes de aviso previo (indemnización sustitutiva)</label>
+                              </div>
+                            </>
+                          )}
+
+                          <div className="col-span-2">
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Relato de los Hechos (Fundamento Legal)</label>
+                            <textarea 
+                              required 
+                              rows={5} 
+                              value={documentoData.hechos} 
+                              onChange={(e) => setDocumentoData({...documentoData, hechos: e.target.value})} 
+                              placeholder="Redacte detalladamente los hechos y motivos que fundamentan este documento..." 
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 resize-none"
+                            ></textarea>
+                          </div>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 )}
+
               </div>
 
               {/* FOOTER DEL PANEL */}
@@ -1126,14 +1330,17 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="flex w-full justify-end gap-3">
-                    <button type="button" onClick={() => { setIsPanelOpen(false); setActiveTab('perfil'); }} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
-                      Cancelar
-                    </button>
                     
-                    {/* BOTÓN DINÁMICO: Cambia según la pestaña activa */}
+                    {/* Botón Cancelar Global */}
+                    {(!showDocumentoForm || activeTab !== 'legal') && (
+                      <button type="button" onClick={() => { setIsPanelOpen(false); setActiveTab('perfil'); }} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
+                        Cancelar
+                      </button>
+                    )}
+                    
+                    {/* BOTÓN DINÁMICO: Cambia según la pestaña y estado activo */}
                     {activeTab === 'perfil' ? (
                       <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2">
-                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                         {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Perfil'}
                       </button>
                     ) : activeTab === 'contratos' ? (
@@ -1145,6 +1352,20 @@ export default function Dashboard() {
                       >
                         {isSavingContrato ? 'Guardando...' : 'Guardar Contrato Legal'}
                       </button>
+                    ) : (activeTab === 'legal' && showDocumentoForm) ? (
+                      <>
+                        <button type="button" onClick={() => setShowDocumentoForm(false)} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
+                          Volver al Historial
+                        </button>
+                        <button 
+                          type="submit" 
+                          form="documentoForm" 
+                          disabled={isSavingDocumento} 
+                          className="px-8 py-2.5 text-white font-semibold bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 rounded-xl transition-colors shadow-md flex items-center gap-2"
+                        >
+                          {isSavingDocumento ? 'Generando...' : 'Guardar y Generar Documento'}
+                        </button>
+                      </>
                     ) : null}
                   </div>
                 )}
@@ -1154,6 +1375,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* MODAL DESCARGA MASIVA */}
       {isModalMasivoOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
