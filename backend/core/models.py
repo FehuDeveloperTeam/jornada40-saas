@@ -166,3 +166,48 @@ class DocumentoLegal(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.empleado.rut} ({self.fecha_emision})"
+
+    # ==========================================
+# 5. LIQUIDACIONES DE SUELDO (Remuneraciones)
+# ==========================================
+class Liquidacion(models.Model):
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='liquidaciones')
+    mes = models.IntegerField()  # 1 al 12
+    anio = models.IntegerField() # Ej: 2026
+    
+    # --- HABERES (Ingresos) ---
+    dias_trabajados = models.IntegerField(default=30)
+    sueldo_base = models.IntegerField(default=0)
+    gratificacion = models.IntegerField(default=0)
+    bonos_imponibles = models.IntegerField(default=0)
+    
+    # Asignaciones familiares, movilización, colación (No pagan AFP/Salud)
+    haberes_no_imponibles = models.IntegerField(default=0) 
+    
+    # --- DESCUENTOS LEGALES ---
+    afp_nombre = models.CharField(max_length=50, blank=True, null=True)
+    afp_monto = models.IntegerField(default=0)
+    
+    salud_nombre = models.CharField(max_length=50, blank=True, null=True)
+    salud_monto = models.IntegerField(default=0)
+    
+    seguro_cesantia = models.IntegerField(default=0)
+    impuesto_unico = models.IntegerField(default=0)
+    
+    # --- OTROS DESCUENTOS ---
+    anticipo_quincena = models.IntegerField(default=0)
+    
+    # --- TOTALES MATEMÁTICOS ---
+    total_imponible = models.IntegerField(default=0)
+    total_haberes = models.IntegerField(default=0)
+    total_descuentos = models.IntegerField(default=0)
+    sueldo_liquido = models.IntegerField(default=0)
+    
+    fecha_emision = models.DateField(auto_now_add=True)
+
+    class Meta:
+        # Evita que se generen dos liquidaciones para el mismo empleado en el mismo mes y año
+        unique_together = ('empleado', 'mes', 'anio') 
+
+    def __str__(self):
+        return f"Liquidación {self.mes}/{self.anio} - {self.empleado.rut}"
