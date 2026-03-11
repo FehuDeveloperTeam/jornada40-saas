@@ -83,6 +83,29 @@ interface DocumentoLegal {
   creado_en?: string;
 }
 
+interface Liquidacion {
+  id?: number;
+  empleado: number;
+  mes: number;
+  anio: number;
+  dias_trabajados: number;
+  sueldo_base: number;
+  gratificacion: number;
+  bonos_imponibles: number;
+  haberes_no_imponibles: number;
+  afp_nombre?: string;
+  afp_monto: number;
+  salud_nombre?: string;
+  salud_monto: number;
+  seguro_cesantia: number;
+  anticipo_quincena: number;
+  total_imponible: number;
+  total_haberes: number;
+  total_descuentos: number;
+  sueldo_liquido: number;
+  fecha_emision?: string;
+}
+
 const apiConfig = { withCredentials: true };
 
 const defaultHorario: HorarioSemana = {
@@ -123,6 +146,18 @@ export default function Dashboard() {
   const [formData, setFormData] = useState<Partial<Empleado>>({});
   const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
   const [isSavingContrato, setIsSavingContrato] = useState(false);
+
+  // Estados para Liquidaciones (Fase 4)
+  const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
+  const [showLiqForm, setShowLiqForm] = useState(false);
+  const [isGeneratingLiq, setIsGeneratingLiq] = useState(false);
+  const [liqFormData, setLiqFormData] = useState({
+    mes: new Date().getMonth() + 1,
+    anio: new Date().getFullYear(),
+    dias_trabajados: 30,
+    bonos_imponibles: 0,
+    haberes_no_imponibles: 0
+  });
   
   // Estados de Contratos
   const [funciones, setFunciones] = useState<string[]>([]);
@@ -337,6 +372,11 @@ export default function Dashboard() {
       setDocumentosLegales(resDocs.data);
       setShowDocumentoForm(false);
 
+      // 3. Cargar Liquidaciones (Fase 4)
+      const resLiq = await axios.get(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/?empleado=${empleadoId}`, apiConfig);
+      setLiquidaciones(resLiq.data);
+      setShowLiqForm(false);
+
     } catch (error) {
       console.error("Error al cargar datos del panel:", error);
     }
@@ -447,6 +487,30 @@ export default function Dashboard() {
       alert("Hubo un error al guardar el documento.");
     } finally {
       setIsSavingDocumento(false);
+    }
+  };
+
+  // ==========================================
+  // MANEJADOR PARA GENERAR LIQUIDACIÓN
+  // ==========================================
+  const generarLiquidacion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsGeneratingLiq(true);
+    try {
+      const payload = { ...liqFormData, empleado: selectedEmpleado?.id };
+      const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/`, payload, apiConfig);
+      setLiquidaciones(prev => [res.data, ...prev]);
+      setShowLiqForm(false);
+      alert("¡Liquidación calculada y generada exitosamente!");
+    } catch (error) {
+      console.error("Error generando liquidación:", error);
+      if (axios.isAxiosError(error) && error.response?.data?.error) {
+        alert(`Error: ${error.response.data.error}`);
+      } else {
+        alert("Ocurrió un error al calcular la liquidación.");
+      }
+    } finally {
+      setIsGeneratingLiq(false);
     }
   };
 
@@ -1155,13 +1219,96 @@ export default function Dashboard() {
                 )}
 
                 {/* ========================================== */}
-                {/* PESTAÑA 3: LIQUIDACIONES (Próximamente)    */}
+                {/* PESTAÑA 3: LIQUIDACIONES                   */}
                 {/* ========================================== */}
                 {activeTab === 'liquidaciones' && (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="1" stroke="currentColor" className="w-16 h-16 text-slate-300 mb-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    <h3 className="text-lg font-semibold text-slate-700">Módulo de Remuneraciones</h3>
-                    <p className="text-sm mt-2 text-center max-w-sm">Próximamente: Cálculos automáticos de haberes imponibles y generación de liquidaciones de sueldo.</p>
+                  <div className="max-w-4xl mx-auto">
+                    
+                    {!showLiqForm ? (
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+                          <div>
+                            <h3 className="text-lg font-extrabold text-slate-900">Historial de Remuneraciones</h3>
+                            <p className="text-sm font-medium text-slate-500">Nómina mensual, haberes y descuentos legales.</p>
+                          </div>
+                          <button onClick={() => setShowLiqForm(true)} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-md shadow-slate-900/10 hover:bg-slate-800 transition-all flex items-center gap-2">
+                            + Calcular Mes
+                          </button>
+                        </div>
+
+                        {liquidaciones.length === 0 ? (
+                          <div className="text-center py-16 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                            <p className="text-slate-500 font-medium">No hay liquidaciones emitidas para este trabajador.</p>
+                          </div>
+                        ) : (
+                          <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Periodo</th>
+                                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Total Imponible</th>
+                                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Descuentos Legales</th>
+                                  <th className="p-4 text-xs font-extrabold text-slate-900 uppercase tracking-wider text-right">Líquido a Pagar</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {liquidaciones.map(liq => (
+                                  <tr key={liq.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                    <td className="p-4 text-sm font-bold text-slate-900">{liq.mes}/{liq.anio}</td>
+                                    <td className="p-4 text-sm font-medium text-slate-600">${liq.total_imponible.toLocaleString('es-CL')}</td>
+                                    <td className="p-4 text-sm font-medium text-rose-600">-${liq.total_descuentos.toLocaleString('es-CL')}</td>
+                                    <td className="p-4 text-right font-extrabold text-emerald-600 text-lg">
+                                      ${liq.sueldo_liquido.toLocaleString('es-CL')}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <form id="liqForm" onSubmit={generarLiquidacion} className="bg-white p-8 rounded-[1.5rem] shadow-sm border border-slate-200 space-y-6">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+                          <h3 className="text-lg font-extrabold text-slate-900">Configurar Liquidación</h3>
+                          <button type="button" onClick={() => setShowLiqForm(false)} className="text-slate-400 hover:text-slate-900 font-bold">✕ Cerrar</button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Mes a liquidar</label>
+                            <select required value={liqFormData.mes} onChange={(e) => setLiqFormData({...liqFormData, mes: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-slate-50 outline-none font-bold text-slate-700">
+                              {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>Mes {m}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Año</label>
+                            <input type="number" required value={liqFormData.anio} onChange={(e) => setLiqFormData({...liqFormData, anio: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-slate-50 outline-none font-bold text-slate-700" />
+                          </div>
+
+                          <div className="col-span-2 bg-blue-50/50 p-5 rounded-xl border border-blue-100">
+                            <label className="block text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Días Trabajados en el mes</label>
+                            <p className="text-xs text-blue-600 mb-3">Si pones menos de 30, el sueldo base se calculará proporcionalmente.</p>
+                            <input type="number" min="0" max="30" required value={liqFormData.dias_trabajados} onChange={(e) => setLiqFormData({...liqFormData, dias_trabajados: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-blue-500 outline-none font-bold text-blue-900 bg-white" />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Bonos Imponibles ($)</label>
+                            <input type="number" min="0" value={liqFormData.bonos_imponibles} onChange={(e) => setLiqFormData({...liqFormData, bonos_imponibles: Number(e.target.value)})} placeholder="Ej: Bonos de producción" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-medium" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Haberes NO Imponibles ($)</label>
+                            <input type="number" min="0" value={liqFormData.haberes_no_imponibles} onChange={(e) => setLiqFormData({...liqFormData, haberes_no_imponibles: Number(e.target.value)})} placeholder="Ej: Colación, Movilización" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-medium" />
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 flex justify-end">
+                          <button type="submit" disabled={isGeneratingLiq} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all shadow-md">
+                            {isGeneratingLiq ? 'Calculando...' : 'Calcular Liquidación'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 )}
 
