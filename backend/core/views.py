@@ -13,9 +13,10 @@ import datetime
 import io
 import zipfile
 import re
+import math
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
 
 # ==========================================
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
@@ -536,3 +537,103 @@ def registrar_cliente(request):
     
     except Exception as e:
         return Response({'error': f'Error interno: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+class LiquidacionViewSet(viewsets.ModelViewSet):
+    queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
+    serializer_class = LiquidacionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        empleado_id = self.request.query_params.get('empleado', None)
+        if empleado_id is not None:
+            queryset = queryset.filter(empleado_id=empleado_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        empleado_id = data.get('empleado')
+        
+        try:
+            empleado = Empleado.objects.get(id=empleado_id)
+            # Buscar el contrato activo para sacar los datos financieros
+            contrato = Contrato.objects.filter(empleado=empleado).first()
+            
+            if not contrato:
+                return Response({'error': 'El trabajador no tiene un contrato activo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 1. DATOS DE ENTRADA
+            dias_trabajados = int(data.get('dias_trabajados', 30))
+            bonos_imponibles = int(data.get('bonos_imponibles', 0))
+            haberes_no_imponibles = int(data.get('haberes_no_imponibles', 0)) # Ej: Colación, Movilización
+            
+            sueldo_base_mensual = contrato.sueldo_base
+            
+            # 2. CÁLCULO DE HABERES
+            sueldo_base_proporcional = math.floor((sueldo_base_mensual / 30) * dias_trabajados)
+            
+            # Gratificación Legal (Art 50) - 25% con tope legal (Tope 2024/2026 aprox $200.000)
+            tope_gratificacion = 200000 
+            gratificacion_calculada = math.floor((sueldo_base_proporcional + bonos_imponibles) * 0.25)
+            gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if contrato.gratificacion_legal == 'MENSUAL' else 0
+
+            total_imponible = sueldo_base_proporcional + bonos_imponibles + gratificacion_final
+            total_haberes = total_imponible + haberes_no_imponibles
+
+            # 3. CÁLCULO DE DESCUENTOS LEGALES
+            # Tasas AFP (Valores referenciales estándar)
+            tasas_afp = {
+                'MODELO': 0.1058,
+                'HABITAT': 0.1127,
+                'PROVIDA': 0.1145,
+                'CAPITAL': 0.1144,
+                'CUPRUM': 0.1144,
+                'PLANVITAL': 0.1116,
+                'UNO': 0.1049
+            }
+            nombre_afp = (empleado.afp or 'MODELO').upper()
+            tasa_afp = tasas_afp.get(nombre_afp, 0.11) # Por defecto 11% si no coincide
+            afp_monto = math.floor(total_imponible * tasa_afp)
+
+            # Salud (7%)
+            salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
+            salud_monto = math.floor(total_imponible * 0.07)
+
+            # Seguro de Cesantía (0.6% solo si es contrato indefinido)
+            seguro_cesantia = math.floor(total_imponible * 0.006) if contrato.tipo_contrato == 'INDEFINIDO' else 0
+
+            # 4. OTROS DESCUENTOS (Quincena)
+            anticipo_quincena = contrato.monto_quincena if contrato.tiene_quincena else 0
+
+            total_descuentos = afp_monto + salud_monto + seguro_cesantia + anticipo_quincena
+
+            # 5. SUELDO LÍQUIDO FINAL
+            sueldo_liquido = total_haberes - total_descuentos
+
+            # 6. GUARDAR EN BASE DE DATOS
+            liquidacion = Liquidacion.objects.create(
+                empleado=empleado,
+                mes=data.get('mes'),
+                anio=data.get('anio'),
+                dias_trabajados=dias_trabajados,
+                sueldo_base=sueldo_base_proporcional,
+                gratificacion=gratificacion_final,
+                bonos_imponibles=bonos_imponibles,
+                haberes_no_imponibles=haberes_no_imponibles,
+                afp_nombre=nombre_afp,
+                afp_monto=afp_monto,
+                salud_nombre=salud_nombre,
+                salud_monto=salud_monto,
+                seguro_cesantia=seguro_cesantia,
+                anticipo_quincena=anticipo_quincena,
+                total_imponible=total_imponible,
+                total_haberes=total_haberes,
+                total_descuentos=total_descuentos,
+                sueldo_liquido=sueldo_liquido
+            )
+
+            serializer = self.get_serializer(liquidacion)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
