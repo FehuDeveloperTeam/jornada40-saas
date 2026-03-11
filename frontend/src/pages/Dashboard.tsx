@@ -91,22 +91,46 @@ interface DocumentoLegal {
   creado_en?: string;
 }
 
+// --- TIPOS PARA LOS ARREGLOS DINÁMICOS ---
+interface ItemDinamico {
+  glosa: string;
+  valor: number;
+}
+
+interface HoraExtraItem {
+  glosa: string;
+  horas: number;
+  recargo: number;
+  valor: number;
+}
+
+// --- INTERFAZ LIQUIDACIÓN ACTUALIZADA ---
 interface Liquidacion {
   id?: number;
   empleado: number;
   mes: number;
   anio: number;
   dias_trabajados: number;
+  dias_licencia?: number;
+  dias_ausencia?: number;
+  dias_no_contratados?: number;
   sueldo_base: number;
   gratificacion: number;
-  bonos_imponibles: number;
-  haberes_no_imponibles: number;
+  
+  // Reemplazamos los antiguos por los nuevos arreglos:
+  detalle_haberes_imponibles?: ItemDinamico[];
+  detalle_horas_extras?: HoraExtraItem[];
+  detalle_haberes_no_imponibles?: ItemDinamico[];
+  detalle_otros_descuentos?: ItemDinamico[];
+  
   afp_nombre?: string;
   afp_monto: number;
   salud_nombre?: string;
+  isapre_cotizacion_uf?: number;
   salud_monto: number;
   seguro_cesantia: number;
   anticipo_quincena: number;
+  
   total_imponible: number;
   total_haberes: number;
   total_descuentos: number;
@@ -154,6 +178,7 @@ export default function Dashboard() {
   const [formData, setFormData] = useState<Partial<Empleado>>({});
   const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
   const [isSavingContrato, setIsSavingContrato] = useState(false);
+  const [expandedLiqId, setExpandedLiqId] = useState<number | null>(null);
 
   // Estados para Liquidaciones (Fase 4 - Avanzada)
   const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
@@ -502,8 +527,21 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // MANEJADOR PARA GENERAR LIQUIDACIÓN
+  // CALCULADORA LEGAL DE HORAS EXTRAS (CHILE)
   // ==========================================
+  const calcularValorHorasExtras = (horas: number, recargo: number) => {
+    // Tomamos el sueldo base y horas de la ficha del empleado activo
+    const sueldoBase = selectedEmpleado?.sueldo_base || 0;
+    const horasSemanales = selectedEmpleado?.horas_laborales || 44; 
+    
+    if (!sueldoBase || !horasSemanales || !horas) return 0;
+
+    // Fórmula oficial Dirección del Trabajo
+    const valorHoraOrdinaria = (sueldoBase / 30) * 28 / horasSemanales;
+    const valorHoraExtra = valorHoraOrdinaria * (1 + (recargo / 100));
+    
+    return Math.round(valorHoraExtra * horas);
+  };
   // ==========================================
   // MANEJADOR PARA GENERAR LIQUIDACIÓN
   // ==========================================
@@ -511,30 +549,35 @@ export default function Dashboard() {
     e.preventDefault();
     setIsGeneratingLiq(true);
     try {
-      // Sumar todos los valores de los arreglos dinámicos
-      const sumaImponibles = haberesImponiblesList.reduce((acc, curr) => acc + (curr.valor || 0), 0);
-      const sumaNoImponibles = haberesNoImponiblesList.reduce((acc, curr) => acc + (curr.valor || 0), 0);
-      const sumaHorasExtras = horasExtrasList.reduce((acc, curr) => acc + (curr.valor || 0), 0);
-
       const payload = { 
         empleado: selectedEmpleado?.id,
         mes: liqMes,
         anio: liqAnio,
         dias_trabajados: liqDiasTrabajados,
-        bonos_imponibles: sumaImponibles + sumaHorasExtras,
-        haberes_no_imponibles: sumaNoImponibles
+        dias_ausencia: liqAusencias,
+        detalle_haberes_imponibles: haberesImponiblesList,
+        detalle_horas_extras: horasExtrasList,
+        detalle_haberes_no_imponibles: haberesNoImponiblesList,
+        detalle_otros_descuentos: [] 
       };
 
       const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/`, payload, apiConfig);
       setLiquidaciones(prev => [res.data, ...prev]);
       setShowLiqForm(false);
+      
+      // Limpiamos los formularios para el próximo mes
+      setHaberesImponiblesList([]);
+      setHorasExtrasList([]);
+      setHaberesNoImponiblesList([]);
+      setLiqAusencias(0);
+      
       alert("¡Liquidación calculada y generada exitosamente!");
     } catch (error) {
       console.error("Error generando liquidación:", error);
       if (axios.isAxiosError(error) && error.response?.data?.error) {
-        alert(`Error: ${error.response.data.error}`);
+        alert(`Error del Servidor: ${error.response.data.error}`);
       } else {
-        alert("Ocurrió un error al calcular la liquidación.");
+        alert("Ocurrió un error al calcular la liquidación. Revisa la consola.");
       }
     } finally {
       setIsGeneratingLiq(false);
@@ -1344,10 +1387,17 @@ export default function Dashboard() {
                                   <th className="p-4 text-xs font-extrabold text-slate-900 uppercase tracking-wider text-right">Líquido a Pagar</th>
                                 </tr>
                               </thead>
-                              <tbody>
-                                {liquidaciones.map(liq => (
-                                  <tr key={liq.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                    <td className="p-4 text-sm font-bold text-slate-900">{liq.mes}/{liq.anio}</td>
+                              {liquidaciones.map(liq => (
+                                <tbody key={liq.id}>
+                                  {/* FILA PRINCIPAL */}
+                                  <tr 
+                                    onClick={() => setExpandedLiqId(expandedLiqId === liq.id ? null : liq.id!)}
+                                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                  >
+                                    <td className="p-4 text-sm font-bold text-slate-900 flex items-center gap-2">
+                                      <svg fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className={`w-4 h-4 text-slate-400 transition-transform ${expandedLiqId === liq.id ? 'rotate-90 text-blue-600' : 'group-hover:text-slate-600'}`}><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                                      {liq.mes}/{liq.anio}
+                                    </td>
                                     <td className="p-4 text-sm font-medium text-slate-600">${liq.total_imponible.toLocaleString('es-CL')}</td>
                                     <td className="p-4 text-sm font-medium text-rose-600">-${liq.total_descuentos.toLocaleString('es-CL')}</td>
                                     <td className="p-4 flex items-center justify-end gap-4">
@@ -1355,7 +1405,7 @@ export default function Dashboard() {
                                         ${liq.sueldo_liquido.toLocaleString('es-CL')}
                                       </span>
                                       <button 
-                                        onClick={() => descargarLiquidacionPDF(liq.id!, liq.mes, liq.anio)}
+                                        onClick={(e) => { e.stopPropagation(); descargarLiquidacionPDF(liq.id!, liq.mes, liq.anio); }}
                                         className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-lg transition-colors shadow-sm"
                                         title="Descargar Liquidación Oficial"
                                       >
@@ -1363,8 +1413,55 @@ export default function Dashboard() {
                                       </button>
                                     </td>
                                   </tr>
-                                ))}
-                              </tbody>
+
+                                  {/* DETALLE DESPLEGABLE (GRILLA) */}
+                                  {expandedLiqId === liq.id && (
+                                    <tr className="bg-slate-50/80 border-b border-slate-200">
+                                      <td colSpan={4} className="p-6">
+                                        <div className="grid grid-cols-2 gap-10">
+                                          {/* COLUMNA HABERES */}
+                                          <div className="space-y-2">
+                                            <h5 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-2 mb-3">Detalle de Haberes</h5>
+                                            <div className="flex justify-between text-sm"><span className="text-slate-600">Sueldo Base ({liq.dias_trabajados}d)</span><span className="font-bold text-slate-900">${liq.sueldo_base.toLocaleString('es-CL')}</span></div>
+                                            <div className="flex justify-between text-sm"><span className="text-slate-600">Gratificación Legal</span><span className="font-bold text-slate-900">${liq.gratificacion.toLocaleString('es-CL')}</span></div>
+                                            
+                                            {/* Mapear arreglos si existen */}
+                                            {liq.detalle_horas_extras?.map((extra, i) => (
+                                              <div key={`he-${i}`} className="flex justify-between text-sm">
+                                                <span className="text-slate-600">{extra.glosa} ({extra.horas}h)</span>
+                                                <span className="font-bold text-slate-900">${extra.valor.toLocaleString('es-CL')}</span>
+                                              </div>
+                                            ))}
+                                            
+                                            {liq.detalle_haberes_no_imponibles?.map((noimp, i) => (
+                                              <div key={`ni-${i}`} className="flex justify-between text-sm">
+                                                <span className="text-slate-600">{noimp.glosa}</span>
+                                                <span className="font-bold text-slate-900">${noimp.valor.toLocaleString('es-CL')}</span>
+                                              </div>
+                                            ))}
+                                            
+                                            <div className="flex justify-between text-sm pt-2 mt-2 border-t border-slate-200"><span className="font-extrabold text-slate-900">Total Haberes</span><span className="font-extrabold text-slate-900">${liq.total_haberes.toLocaleString('es-CL')}</span></div>
+                                          </div>
+
+                                          {/* COLUMNA DESCUENTOS */}
+                                          <div className="space-y-2">
+                                            <h5 className="text-xs font-extrabold text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-2 mb-3">Detalle de Descuentos</h5>
+                                            <div className="flex justify-between text-sm"><span className="text-slate-600">AFP {liq.afp_nombre}</span><span className="font-bold text-rose-600">-${liq.afp_monto.toLocaleString('es-CL')}</span></div>
+                                            <div className="flex justify-between text-sm"><span className="text-slate-600">Salud {liq.salud_nombre}</span><span className="font-bold text-rose-600">-${liq.salud_monto.toLocaleString('es-CL')}</span></div>
+                                            <div className="flex justify-between text-sm"><span className="text-slate-600">Seguro de Cesantía</span><span className="font-bold text-rose-600">-${liq.seguro_cesantia.toLocaleString('es-CL')}</span></div>
+                                            
+                                            {liq.anticipo_quincena > 0 && (
+                                              <div className="flex justify-between text-sm"><span className="text-slate-600">Anticipo Quincena</span><span className="font-bold text-rose-600">-${liq.anticipo_quincena.toLocaleString('es-CL')}</span></div>
+                                            )}
+
+                                            <div className="flex justify-between text-sm pt-2 mt-2 border-t border-slate-200"><span className="font-extrabold text-slate-900">Total Descuentos</span><span className="font-extrabold text-rose-600">-${liq.total_descuentos.toLocaleString('es-CL')}</span></div>
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              ))}
                             </table>
                           </div>
                         )}
@@ -1426,11 +1523,11 @@ export default function Dashboard() {
                           )}
                         </div>
 
-                        {/* 3. HORAS EXTRAS */}
+                        {/* 3. HORAS EXTRAS (Automatizado) */}
                         <div>
                           <div className="flex justify-between items-end mb-4">
                             <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">3. Horas Extras (Sobresueldo)</h4>
-                            <button type="button" onClick={() => setHorasExtrasList([...horasExtrasList, { glosa: 'Horas Extras 50%', horas: 0, recargo: 50, valor: 0 }])} className="text-xs font-bold text-blue-600 hover:text-blue-800">+ Añadir Horas Extras</button>
+                            <button type="button" onClick={() => setHorasExtrasList([...horasExtrasList, { glosa: 'Horas Extras al 50%', horas: 0, recargo: 50, valor: 0 }])} className="text-xs font-bold text-blue-600 hover:text-blue-800">+ Añadir Horas Extras</button>
                           </div>
                           
                           {horasExtrasList.length === 0 ? (
@@ -1439,21 +1536,55 @@ export default function Dashboard() {
                             <div className="space-y-3">
                               {horasExtrasList.map((item, index) => (
                                 <div key={index} className="flex gap-4 items-center">
-                                  <input type="text" placeholder="Glosa" value={item.glosa} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].glosa = e.target.value; setHorasExtrasList(newL); }} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none" />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Glosa" 
+                                    value={item.glosa} 
+                                    onChange={(e) => { const newL = [...horasExtrasList]; newL[index].glosa = e.target.value; setHorasExtrasList(newL); }} 
+                                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none" 
+                                  />
                                   
                                   <div className="w-24 relative">
                                     <span className="absolute text-xs text-slate-400 top-[-16px] left-1">Hrs</span>
-                                    <input type="number" placeholder="0" value={item.horas || ''} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].horas = Number(e.target.value); setHorasExtrasList(newL); }} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none text-center" />
+                                    <input 
+                                      type="number" 
+                                      placeholder="0" 
+                                      value={item.horas || ''} 
+                                      onChange={(e) => { 
+                                        const val = Number(e.target.value);
+                                        const newL = [...horasExtrasList]; 
+                                        newL[index].horas = val; 
+                                        newL[index].valor = calcularValorHorasExtras(val, newL[index].recargo);
+                                        setHorasExtrasList(newL); 
+                                      }} 
+                                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-900 outline-none text-center" 
+                                    />
                                   </div>
 
                                   <div className="w-24 relative">
                                     <span className="absolute text-xs text-slate-400 top-[-16px] left-1">% Recargo</span>
-                                    <input type="number" value={item.recargo} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].recargo = Number(e.target.value); setHorasExtrasList(newL); }} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none text-center" />
+                                    <input 
+                                      type="number" 
+                                      value={item.recargo} 
+                                      onChange={(e) => { 
+                                        const val = Number(e.target.value);
+                                        const newL = [...horasExtrasList]; 
+                                        newL[index].recargo = val; 
+                                        newL[index].valor = calcularValorHorasExtras(newL[index].horas, val);
+                                        setHorasExtrasList(newL); 
+                                      }} 
+                                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-900 outline-none text-center" 
+                                    />
                                   </div>
 
                                   <div className="w-36 relative">
-                                    <span className="absolute text-xs text-slate-400 top-[-16px] left-1">Total a Pagar</span>
-                                    <input type="number" placeholder="$ Valor Total" value={item.valor || ''} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].valor = Number(e.target.value); setHorasExtrasList(newL); }} className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50 font-bold text-blue-800 outline-none text-right" />
+                                    <span className="absolute text-xs text-slate-400 top-[-16px] left-1">Total Calculado</span>
+                                    <input 
+                                      type="number" 
+                                      readOnly
+                                      value={item.valor || 0} 
+                                      className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50/50 font-extrabold text-blue-800 outline-none text-right cursor-not-allowed" 
+                                    />
                                   </div>
 
                                   <button type="button" onClick={() => setHorasExtrasList(horasExtrasList.filter((_, i) => i !== index))} className="text-rose-500 font-bold px-3 hover:bg-rose-50 rounded-lg mt-2">✕</button>
