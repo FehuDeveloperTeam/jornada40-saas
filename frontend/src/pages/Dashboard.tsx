@@ -537,7 +537,7 @@ export default function Dashboard() {
     if (!sueldoBase || !horasSemanales || !horas) return 0;
 
     // Fórmula oficial Dirección del Trabajo
-    const valorHoraOrdinaria = (sueldoBase / 30) * 28 / horasSemanales;
+    const valorHoraOrdinaria = (sueldoBase / 30) * 7 / horasSemanales;
     const valorHoraExtra = valorHoraOrdinaria * (1 + (recargo / 100));
     
     return Math.round(valorHoraExtra * horas);
