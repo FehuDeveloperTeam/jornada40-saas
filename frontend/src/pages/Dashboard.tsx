@@ -37,6 +37,14 @@ interface Empleado {
   activo: boolean;
   empresa: number;
   creado_en?: string;
+  // --- NUEVOS CAMPOS (FASE 4) ---
+  centro_costo?: string;
+  ficha_numero?: string;
+  forma_pago?: string;
+  banco?: string;
+  tipo_cuenta?: string;
+  numero_cuenta?: string;
+  plan_isapre_uf?: number;
 }
 
 interface HorarioDia {
@@ -147,17 +155,20 @@ export default function Dashboard() {
   const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
   const [isSavingContrato, setIsSavingContrato] = useState(false);
 
-  // Estados para Liquidaciones (Fase 4)
+  // Estados para Liquidaciones (Fase 4 - Avanzada)
   const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
   const [showLiqForm, setShowLiqForm] = useState(false);
   const [isGeneratingLiq, setIsGeneratingLiq] = useState(false);
-  const [liqFormData, setLiqFormData] = useState({
-    mes: new Date().getMonth() + 1,
-    anio: new Date().getFullYear(),
-    dias_trabajados: 30,
-    bonos_imponibles: 0,
-    haberes_no_imponibles: 0
-  });
+  
+  const [liqMes, setLiqMes] = useState(new Date().getMonth() + 1);
+  const [liqAnio, setLiqAnio] = useState(new Date().getFullYear());
+  const [liqDiasTrabajados, setLiqDiasTrabajados] = useState(30);
+  const [liqAusencias, setLiqAusencias] = useState(0);
+
+  // Arreglos dinámicos con Glosa y Valor
+  const [haberesImponiblesList, setHaberesImponiblesList] = useState<{glosa: string, valor: number}[]>([]);
+  const [haberesNoImponiblesList, setHaberesNoImponiblesList] = useState<{glosa: string, valor: number}[]>([]);
+  const [horasExtrasList, setHorasExtrasList] = useState<{glosa: string, horas: number, recargo: number, valor: number}[]>([]);
   
   // Estados de Contratos
   const [funciones, setFunciones] = useState<string[]>([]);
@@ -493,11 +504,27 @@ export default function Dashboard() {
   // ==========================================
   // MANEJADOR PARA GENERAR LIQUIDACIÓN
   // ==========================================
+  // ==========================================
+  // MANEJADOR PARA GENERAR LIQUIDACIÓN
+  // ==========================================
   const generarLiquidacion = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGeneratingLiq(true);
     try {
-      const payload = { ...liqFormData, empleado: selectedEmpleado?.id };
+      // Sumar todos los valores de los arreglos dinámicos
+      const sumaImponibles = haberesImponiblesList.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+      const sumaNoImponibles = haberesNoImponiblesList.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+      const sumaHorasExtras = horasExtrasList.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+
+      const payload = { 
+        empleado: selectedEmpleado?.id,
+        mes: liqMes,
+        anio: liqAnio,
+        dias_trabajados: liqDiasTrabajados,
+        bonos_imponibles: sumaImponibles + sumaHorasExtras,
+        haberes_no_imponibles: sumaNoImponibles
+      };
+
       const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/`, payload, apiConfig);
       setLiquidaciones(prev => [res.data, ...prev]);
       setShowLiqForm(false);
@@ -511,6 +538,26 @@ export default function Dashboard() {
       }
     } finally {
       setIsGeneratingLiq(false);
+    }
+  };
+
+  // ==========================================
+  // FUNCIÓN PARA DESCARGAR LIQUIDACIÓN PDF
+  // ==========================================
+  const descargarLiquidacionPDF = async (liqId: number, mes: number, anio: number) => {
+    try {
+      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/${liqId}/generar_pdf/`, { 
+        ...apiConfig, responseType: 'blob' 
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url; 
+      link.setAttribute('download', `Liquidacion_${mes}_${anio}_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) { 
+      console.error(error); 
+      alert("Error descargando la liquidación. Asegúrate de tener el backend actualizado."); 
     }
   };
 
@@ -970,6 +1017,37 @@ export default function Dashboard() {
                                 <input type="text" name="direccion" placeholder="Calle y número" value={formData.direccion || ''} onChange={handleInputChange} className="w-2/3 px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
                               </div>
                             </div>
+                            <div className="col-span-2 pt-4 border-t border-slate-100 mt-2">
+                              <h5 className="text-xs font-bold text-slate-800 mb-3">Datos Bancarios para Pago</h5>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Forma de Pago</label>
+                                  <select name="forma_pago" value={formData.forma_pago || 'Transferencia'} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium">
+                                    <option value="Transferencia">Transferencia</option>
+                                    <option value="Depósito">Depósito</option>
+                                    <option value="Cheque">Cheque</option>
+                                    <option value="Efectivo">Efectivo</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Banco</label>
+                                  <input type="text" name="banco" value={formData.banco || ''} onChange={handleInputChange} placeholder="Ej: Banco Estado" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium" />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Cuenta</label>
+                                  <select name="tipo_cuenta" value={formData.tipo_cuenta || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Cuenta Corriente">Cuenta Corriente</option>
+                                    <option value="Cuenta Vista / RUT">Cuenta Vista / RUT</option>
+                                    <option value="Cuenta de Ahorro">Cuenta de Ahorro</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">N° de Cuenta</label>
+                                  <input type="text" name="numero_cuenta" value={formData.numero_cuenta || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium" />
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -1019,6 +1097,21 @@ export default function Dashboard() {
                                 <option value="FONASA">FONASA</option>
                                 <option value="ISAPRE">ISAPRE</option>
                               </select>
+                              {formData.sistema_salud === 'ISAPRE' && (
+                              <div className="col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Valor Plan Isapre (En UF) *</label>
+                                <input type="number" step="0.01" min="0" name="plan_isapre_uf" value={formData.plan_isapre_uf || ''} onChange={handleInputChange} placeholder="Ej: 2.15" className="w-full px-3 py-2.5 rounded-xl border border-blue-200 bg-white outline-none font-bold text-blue-900" />
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Centro de Costo</label>
+                              <input type="text" name="centro_costo" value={formData.centro_costo || ''} onChange={handleInputChange} placeholder="Ej: Obra Norte" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-medium uppercase transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ficha N°</label>
+                              <input type="text" name="ficha_numero" value={formData.ficha_numero || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-medium uppercase transition-all" />
+                            </div>
                             </div>
                             
                             <div className="col-span-2 flex items-center justify-between mt-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -1257,8 +1350,17 @@ export default function Dashboard() {
                                     <td className="p-4 text-sm font-bold text-slate-900">{liq.mes}/{liq.anio}</td>
                                     <td className="p-4 text-sm font-medium text-slate-600">${liq.total_imponible.toLocaleString('es-CL')}</td>
                                     <td className="p-4 text-sm font-medium text-rose-600">-${liq.total_descuentos.toLocaleString('es-CL')}</td>
-                                    <td className="p-4 text-right font-extrabold text-emerald-600 text-lg">
-                                      ${liq.sueldo_liquido.toLocaleString('es-CL')}
+                                    <td className="p-4 flex items-center justify-end gap-4">
+                                      <span className="font-extrabold text-emerald-600 text-lg">
+                                        ${liq.sueldo_liquido.toLocaleString('es-CL')}
+                                      </span>
+                                      <button 
+                                        onClick={() => descargarLiquidacionPDF(liq.id!, liq.mes, liq.anio)}
+                                        className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-lg transition-colors shadow-sm"
+                                        title="Descargar Liquidación Oficial"
+                                      >
+                                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                      </button>
                                     </td>
                                   </tr>
                                 ))}
@@ -1268,43 +1370,124 @@ export default function Dashboard() {
                         )}
                       </div>
                     ) : (
-                      <form id="liqForm" onSubmit={generarLiquidacion} className="bg-white p-8 rounded-[1.5rem] shadow-sm border border-slate-200 space-y-6">
-                        <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
-                          <h3 className="text-lg font-extrabold text-slate-900">Configurar Liquidación</h3>
-                          <button type="button" onClick={() => setShowLiqForm(false)} className="text-slate-400 hover:text-slate-900 font-bold">✕ Cerrar</button>
+                      <form id="liqForm" onSubmit={generarLiquidacion} className="bg-white p-8 rounded-[1.5rem] shadow-sm border border-slate-200 space-y-8">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                          <div>
+                            <h3 className="text-lg font-extrabold text-slate-900">Configurar Liquidación de Sueldo</h3>
+                            <p className="text-sm font-medium text-slate-500">AFP {selectedEmpleado?.afp || 'MODELO'} y Salud {selectedEmpleado?.sistema_salud || 'FONASA'} se calcularán automáticamente.</p>
+                          </div>
+                          <button type="button" onClick={() => setShowLiqForm(false)} className="text-slate-400 hover:text-slate-900 font-bold">✕ Cancelar</button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Mes a liquidar</label>
-                            <select required value={liqFormData.mes} onChange={(e) => setLiqFormData({...liqFormData, mes: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-slate-50 outline-none font-bold text-slate-700">
-                              {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>Mes {m}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Año</label>
-                            <input type="number" required value={liqFormData.anio} onChange={(e) => setLiqFormData({...liqFormData, anio: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-slate-50 outline-none font-bold text-slate-700" />
-                          </div>
-
-                          <div className="col-span-2 bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-                            <label className="block text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Días Trabajados en el mes</label>
-                            <p className="text-xs text-blue-600 mb-3">Si pones menos de 30, el sueldo base se calculará proporcionalmente.</p>
-                            <input type="number" min="0" max="30" required value={liqFormData.dias_trabajados} onChange={(e) => setLiqFormData({...liqFormData, dias_trabajados: Number(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-blue-200 focus:ring-blue-500 outline-none font-bold text-blue-900 bg-white" />
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Bonos Imponibles ($)</label>
-                            <input type="number" min="0" value={liqFormData.bonos_imponibles} onChange={(e) => setLiqFormData({...liqFormData, bonos_imponibles: Number(e.target.value)})} placeholder="Ej: Bonos de producción" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-medium" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Haberes NO Imponibles ($)</label>
-                            <input type="number" min="0" value={liqFormData.haberes_no_imponibles} onChange={(e) => setLiqFormData({...liqFormData, haberes_no_imponibles: Number(e.target.value)})} placeholder="Ej: Colación, Movilización" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-medium" />
+                        {/* 1. PERIODO Y ASISTENCIA */}
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                          <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4">1. Periodo y Asistencia</h4>
+                          <div className="grid grid-cols-4 gap-6">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Mes</label>
+                              <select required value={liqMes} onChange={(e) => setLiqMes(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-bold text-slate-700">
+                                {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>Mes {m}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Año</label>
+                              <input type="number" required value={liqAnio} onChange={(e) => setLiqAnio(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-bold text-slate-700" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Días Trabajados</label>
+                              <input type="number" min="0" max="30" required value={liqDiasTrabajados} onChange={(e) => setLiqDiasTrabajados(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-slate-900 bg-white outline-none font-bold text-slate-900" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-rose-500 uppercase tracking-wider mb-1">Días Ausente</label>
+                              <input type="number" min="0" max="30" required value={liqAusencias} onChange={(e) => setLiqAusencias(Number(e.target.value))} className="w-full px-4 py-2.5 rounded-xl border border-rose-200 focus:ring-rose-500 bg-rose-50 outline-none font-bold text-rose-700" />
+                            </div>
                           </div>
                         </div>
 
-                        <div className="pt-4 border-t border-slate-100 flex justify-end">
-                          <button type="submit" disabled={isGeneratingLiq} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all shadow-md">
-                            {isGeneratingLiq ? 'Calculando...' : 'Calcular Liquidación'}
+                        {/* 2. HABERES IMPONIBLES (Bonos, Comisiones) */}
+                        <div>
+                          <div className="flex justify-between items-end mb-4">
+                            <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">2. Otros Haberes Imponibles</h4>
+                            <button type="button" onClick={() => setHaberesImponiblesList([...haberesImponiblesList, { glosa: '', valor: 0 }])} className="text-xs font-bold text-blue-600 hover:text-blue-800">+ Añadir Bono</button>
+                          </div>
+                          
+                          {haberesImponiblesList.length === 0 ? (
+                            <p className="text-sm text-slate-400 italic">No hay bonos imponibles extra (El Sueldo Base y Gratificación se calculan solos).</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {haberesImponiblesList.map((item, index) => (
+                                <div key={index} className="flex gap-4">
+                                  <input type="text" placeholder="Glosa (Ej: Bono Producción)" value={item.glosa} onChange={(e) => { const newL = [...haberesImponiblesList]; newL[index].glosa = e.target.value; setHaberesImponiblesList(newL); }} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none" />
+                                  <input type="number" placeholder="Valor ($)" value={item.valor || ''} onChange={(e) => { const newL = [...haberesImponiblesList]; newL[index].valor = Number(e.target.value); setHaberesImponiblesList(newL); }} className="w-40 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none text-right" />
+                                  <button type="button" onClick={() => setHaberesImponiblesList(haberesImponiblesList.filter((_, i) => i !== index))} className="text-rose-500 font-bold px-3 hover:bg-rose-50 rounded-lg">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3. HORAS EXTRAS */}
+                        <div>
+                          <div className="flex justify-between items-end mb-4">
+                            <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">3. Horas Extras (Sobresueldo)</h4>
+                            <button type="button" onClick={() => setHorasExtrasList([...horasExtrasList, { glosa: 'Horas Extras 50%', horas: 0, recargo: 50, valor: 0 }])} className="text-xs font-bold text-blue-600 hover:text-blue-800">+ Añadir Horas Extras</button>
+                          </div>
+                          
+                          {horasExtrasList.length === 0 ? (
+                            <p className="text-sm text-slate-400 italic">No se registran horas extras este mes.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {horasExtrasList.map((item, index) => (
+                                <div key={index} className="flex gap-4 items-center">
+                                  <input type="text" placeholder="Glosa" value={item.glosa} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].glosa = e.target.value; setHorasExtrasList(newL); }} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none" />
+                                  
+                                  <div className="w-24 relative">
+                                    <span className="absolute text-xs text-slate-400 top-[-16px] left-1">Hrs</span>
+                                    <input type="number" placeholder="0" value={item.horas || ''} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].horas = Number(e.target.value); setHorasExtrasList(newL); }} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none text-center" />
+                                  </div>
+
+                                  <div className="w-24 relative">
+                                    <span className="absolute text-xs text-slate-400 top-[-16px] left-1">% Recargo</span>
+                                    <input type="number" value={item.recargo} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].recargo = Number(e.target.value); setHorasExtrasList(newL); }} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none text-center" />
+                                  </div>
+
+                                  <div className="w-36 relative">
+                                    <span className="absolute text-xs text-slate-400 top-[-16px] left-1">Total a Pagar</span>
+                                    <input type="number" placeholder="$ Valor Total" value={item.valor || ''} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].valor = Number(e.target.value); setHorasExtrasList(newL); }} className="w-full px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50 font-bold text-blue-800 outline-none text-right" />
+                                  </div>
+
+                                  <button type="button" onClick={() => setHorasExtrasList(horasExtrasList.filter((_, i) => i !== index))} className="text-rose-500 font-bold px-3 hover:bg-rose-50 rounded-lg mt-2">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 4. HABERES NO IMPONIBLES (Colación, Movilización) */}
+                        <div>
+                          <div className="flex justify-between items-end mb-4">
+                            <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">4. Haberes NO Imponibles</h4>
+                            <button type="button" onClick={() => setHaberesNoImponiblesList([...haberesNoImponiblesList, { glosa: 'Asignación Colación', valor: 0 }])} className="text-xs font-bold text-blue-600 hover:text-blue-800">+ Añadir Asignación</button>
+                          </div>
+                          
+                          {haberesNoImponiblesList.length === 0 ? (
+                            <p className="text-sm text-slate-400 italic">No hay haberes no imponibles.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {haberesNoImponiblesList.map((item, index) => (
+                                <div key={index} className="flex gap-4">
+                                  <input type="text" placeholder="Glosa (Ej: Colación, Movilización, Viático)" value={item.glosa} onChange={(e) => { const newL = [...haberesNoImponiblesList]; newL[index].glosa = e.target.value; setHaberesNoImponiblesList(newL); }} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none" />
+                                  <input type="number" placeholder="Valor ($)" value={item.valor || ''} onChange={(e) => { const newL = [...haberesNoImponiblesList]; newL[index].valor = Number(e.target.value); setHaberesNoImponiblesList(newL); }} className="w-40 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium outline-none text-right" />
+                                  <button type="button" onClick={() => setHaberesNoImponiblesList(haberesNoImponiblesList.filter((_, i) => i !== index))} className="text-rose-500 font-bold px-3 hover:bg-rose-50 rounded-lg">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="pt-6 border-t border-slate-100 flex justify-end">
+                          <button type="submit" disabled={isGeneratingLiq} className="px-10 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 disabled:bg-slate-300 transition-all shadow-xl shadow-slate-900/10 text-lg">
+                            {isGeneratingLiq ? 'Calculando Nómina...' : 'Generar Liquidación'}
                           </button>
                         </div>
                       </form>

@@ -14,6 +14,7 @@ import io
 import zipfile
 import re
 import math
+import num2words
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
@@ -556,80 +557,95 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         
         try:
             empleado = Empleado.objects.get(id=empleado_id)
-            # Buscar el contrato activo para sacar los datos financieros
             contrato = Contrato.objects.filter(empleado=empleado).first()
             
             if not contrato:
                 return Response({'error': 'El trabajador no tiene un contrato activo.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # 1. DATOS DE ENTRADA
+            # 1. ASISTENCIA
             dias_trabajados = int(data.get('dias_trabajados', 30))
-            bonos_imponibles = int(data.get('bonos_imponibles', 0))
-            haberes_no_imponibles = int(data.get('haberes_no_imponibles', 0)) # Ej: Colación, Movilización
+            dias_ausencia = int(data.get('dias_ausencia', 0))
+            dias_licencia = int(data.get('dias_licencia', 0))
+            dias_no_contratados = int(data.get('dias_no_contratados', 0))
             
+            # Los días a pagar de sueldo base son 30 menos las ausencias y licencias
+            dias_a_pagar = 30 - dias_ausencia - dias_licencia - dias_no_contratados
+            if dias_a_pagar < 0: dias_a_pagar = 0
+
+            # 2. ARREGLOS DINÁMICOS (JSON)
+            detalle_imponibles = data.get('detalle_haberes_imponibles', [])
+            detalle_no_imponibles = data.get('detalle_haberes_no_imponibles', [])
+            detalle_horas_extras = data.get('detalle_horas_extras', [])
+            detalle_otros_descuentos = data.get('detalle_otros_descuentos', [])
+
+            # Sumas matemáticas de los arreglos
+            suma_imponibles_extra = sum(int(item.get('valor', 0)) for item in detalle_imponibles)
+            suma_horas_extras = sum(int(item.get('valor', 0)) for item in detalle_horas_extras)
+            suma_no_imponibles = sum(int(item.get('valor', 0)) for item in detalle_no_imponibles)
+            suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in detalle_otros_descuentos)
+
+            # 3. CÁLCULO DE HABERES
             sueldo_base_mensual = contrato.sueldo_base
+            sueldo_base_proporcional = math.floor((sueldo_base_mensual / 30) * dias_a_pagar)
             
-            # 2. CÁLCULO DE HABERES
-            sueldo_base_proporcional = math.floor((sueldo_base_mensual / 30) * dias_trabajados)
-            
-            # Gratificación Legal (Art 50) - 25% con tope legal (Tope 2024/2026 aprox $200.000)
+            # Gratificación
             tope_gratificacion = 200000 
-            gratificacion_calculada = math.floor((sueldo_base_proporcional + bonos_imponibles) * 0.25)
+            base_gratificacion = sueldo_base_proporcional + suma_imponibles_extra + suma_horas_extras
+            gratificacion_calculada = math.floor(base_gratificacion * 0.25)
             gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if contrato.gratificacion_legal == 'MENSUAL' else 0
 
-            total_imponible = sueldo_base_proporcional + bonos_imponibles + gratificacion_final
-            total_haberes = total_imponible + haberes_no_imponibles
+            total_imponible = base_gratificacion + gratificacion_final
+            total_haberes = total_imponible + suma_no_imponibles
 
-            # 3. CÁLCULO DE DESCUENTOS LEGALES
-            # Tasas AFP (Valores referenciales estándar)
+            # 4. CÁLCULO DE DESCUENTOS LEGALES
             tasas_afp = {
-                'MODELO': 0.1058,
-                'HABITAT': 0.1127,
-                'PROVIDA': 0.1145,
-                'CAPITAL': 0.1144,
-                'CUPRUM': 0.1144,
-                'PLANVITAL': 0.1116,
-                'UNO': 0.1049
+                'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
+                'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049
             }
             nombre_afp = (empleado.afp or 'MODELO').upper()
-            tasa_afp = tasas_afp.get(nombre_afp, 0.11) # Por defecto 11% si no coincide
+            tasa_afp = tasas_afp.get(nombre_afp, 0.11)
             afp_monto = math.floor(total_imponible * tasa_afp)
 
-            # Salud (7%)
+            # Salud (Isapre UF vs Fonasa 7%)
             salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
-            salud_monto = math.floor(total_imponible * 0.07)
+            if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf > 0:
+                # Simulación valor UF (Idealmente esto vendría de una API externa del Banco Central)
+                VALOR_UF = 38000 
+                salud_monto = math.floor(float(empleado.plan_isapre_uf) * VALOR_UF)
+                isapre_uf = empleado.plan_isapre_uf
+                # La ley exige descontar al menos el 7%, si el plan UF es menor, se cobra 7%
+                minimo_legal = math.floor(total_imponible * 0.07)
+                if salud_monto < minimo_legal:
+                    salud_monto = minimo_legal
+            else:
+                salud_monto = math.floor(total_imponible * 0.07)
+                isapre_uf = 0
 
-            # Seguro de Cesantía (0.6% solo si es contrato indefinido)
+            # Seguro Cesantía
             seguro_cesantia = math.floor(total_imponible * 0.006) if contrato.tipo_contrato == 'INDEFINIDO' else 0
 
-            # 4. OTROS DESCUENTOS (Quincena)
+            # Quincena y otros
             anticipo_quincena = contrato.monto_quincena if contrato.tiene_quincena else 0
-
-            total_descuentos = afp_monto + salud_monto + seguro_cesantia + anticipo_quincena
+            total_descuentos = afp_monto + salud_monto + seguro_cesantia + anticipo_quincena + suma_otros_descuentos
 
             # 5. SUELDO LÍQUIDO FINAL
             sueldo_liquido = total_haberes - total_descuentos
 
             # 6. GUARDAR EN BASE DE DATOS
             liquidacion = Liquidacion.objects.create(
-                empleado=empleado,
-                mes=data.get('mes'),
-                anio=data.get('anio'),
-                dias_trabajados=dias_trabajados,
-                sueldo_base=sueldo_base_proporcional,
-                gratificacion=gratificacion_final,
-                bonos_imponibles=bonos_imponibles,
-                haberes_no_imponibles=haberes_no_imponibles,
-                afp_nombre=nombre_afp,
-                afp_monto=afp_monto,
-                salud_nombre=salud_nombre,
-                salud_monto=salud_monto,
-                seguro_cesantia=seguro_cesantia,
-                anticipo_quincena=anticipo_quincena,
-                total_imponible=total_imponible,
-                total_haberes=total_haberes,
-                total_descuentos=total_descuentos,
-                sueldo_liquido=sueldo_liquido
+                empleado=empleado, mes=data.get('mes'), anio=data.get('anio'),
+                dias_trabajados=dias_trabajados, dias_licencia=dias_licencia,
+                dias_ausencia=dias_ausencia, dias_no_contratados=dias_no_contratados,
+                sueldo_base=sueldo_base_proporcional, gratificacion=gratificacion_final,
+                detalle_haberes_imponibles=detalle_imponibles,
+                detalle_horas_extras=detalle_horas_extras,
+                detalle_haberes_no_imponibles=detalle_no_imponibles,
+                detalle_otros_descuentos=detalle_otros_descuentos,
+                afp_nombre=nombre_afp, afp_monto=afp_monto,
+                salud_nombre=salud_nombre, isapre_cotizacion_uf=isapre_uf, salud_monto=salud_monto,
+                seguro_cesantia=seguro_cesantia, anticipo_quincena=anticipo_quincena,
+                total_imponible=total_imponible, total_haberes=total_haberes,
+                total_descuentos=total_descuentos, sueldo_liquido=sueldo_liquido
             )
 
             serializer = self.get_serializer(liquidacion)
@@ -637,3 +653,52 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @action(detail=True, methods=['get'])
+    def generar_pdf(self, request, pk=None):
+        try:
+            liquidacion = self.get_object()
+            empleado = liquidacion.empleado
+            empresa = empleado.empresa
+            contrato = Contrato.objects.filter(empleado=empleado).first()
+
+            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            mes_nombre = meses[liquidacion.mes - 1]
+
+            # Transformar número a palabras (Ej: 542000 -> "quinientos cuarenta y dos mil")
+            liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
+
+            # Cálculos de subtotales para la vista
+            suma_no_imponibles = sum(int(item.get('valor', 0)) for item in liquidacion.detalle_haberes_no_imponibles)
+            suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in liquidacion.detalle_otros_descuentos)
+            
+            total_ley = liquidacion.afp_monto + liquidacion.salud_monto + liquidacion.seguro_cesantia + liquidacion.impuesto_unico
+            total_otros_dsctos = liquidacion.anticipo_quincena + suma_otros_descuentos
+
+            context = {
+                'liquidacion': liquidacion,
+                'empleado': empleado,
+                'empresa': empresa,
+                'contrato': contrato,
+                'mes_nombre': mes_nombre.upper(),
+                'liquido_palabras': liquido_palabras,
+                'total_no_imponible': suma_no_imponibles,
+                'total_ley': total_ley,
+                'total_otros_dsctos': total_otros_dsctos
+            }
+
+            template = get_template('liquidacion.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            nombre_archivo = f'Liquidacion_{liquidacion.mes}_{liquidacion.anio}_{empleado.rut}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+
+            pisa_status = pisa.CreatePDF(html, dest=response)
+
+            if pisa_status.err:
+                return Response({'error': 'Error al generar PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            return response
+
+        except Exception as e:
+            return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -79,6 +79,18 @@ class Empleado(models.Model):
     afp = models.CharField(max_length=50, blank=True, null=True)
     sistema_salud = models.CharField(max_length=50, choices=[('FONASA', 'Fonasa'), ('ISAPRE', 'Isapre')], blank=True, null=True)
     fecha_ingreso = models.DateField()
+    # --- DATOS CORPORATIVOS AVANZADOS ---
+    centro_costo = models.CharField(max_length=100, blank=True, null=True)
+    ficha_numero = models.CharField(max_length=50, blank=True, null=True)
+    
+    # --- DATOS BANCARIOS ---
+    forma_pago = models.CharField(max_length=50, default='Transferencia') # Depósito, Efectivo, Cheque
+    banco = models.CharField(max_length=50, blank=True, null=True)
+    tipo_cuenta = models.CharField(max_length=50, blank=True, null=True)
+    numero_cuenta = models.CharField(max_length=50, blank=True, null=True)
+    
+    # --- PLAN ISAPRE ---
+    plan_isapre_uf = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     
@@ -167,28 +179,35 @@ class DocumentoLegal(models.Model):
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.empleado.rut} ({self.fecha_emision})"
 
-    # ==========================================
+# ==========================================
 # 5. LIQUIDACIONES DE SUELDO (Remuneraciones)
 # ==========================================
 class Liquidacion(models.Model):
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='liquidaciones')
-    mes = models.IntegerField()  # 1 al 12
-    anio = models.IntegerField() # Ej: 2026
+    mes = models.IntegerField()
+    anio = models.IntegerField()
     
-    # --- HABERES (Ingresos) ---
+    # --- ASISTENCIA DETALLADA ---
     dias_trabajados = models.IntegerField(default=30)
+    dias_licencia = models.IntegerField(default=0)
+    dias_ausencia = models.IntegerField(default=0)
+    dias_no_contratados = models.IntegerField(default=0)
+    
+    # --- HABERES ---
     sueldo_base = models.IntegerField(default=0)
     gratificacion = models.IntegerField(default=0)
-    bonos_imponibles = models.IntegerField(default=0)
     
-    # Asignaciones familiares, movilización, colación (No pagan AFP/Salud)
-    haberes_no_imponibles = models.IntegerField(default=0) 
+    # Aquí guardaremos los arreglos dinámicos con [{glosa: "Bono", valor: 50000}]
+    detalle_haberes_imponibles = models.JSONField(default=list, blank=True)
+    detalle_horas_extras = models.JSONField(default=list, blank=True)
+    detalle_haberes_no_imponibles = models.JSONField(default=list, blank=True)
     
-    # --- DESCUENTOS LEGALES ---
+    # --- DESCUENTOS PREVISIONALES ---
     afp_nombre = models.CharField(max_length=50, blank=True, null=True)
     afp_monto = models.IntegerField(default=0)
     
     salud_nombre = models.CharField(max_length=50, blank=True, null=True)
+    isapre_cotizacion_uf = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     salud_monto = models.IntegerField(default=0)
     
     seguro_cesantia = models.IntegerField(default=0)
@@ -196,6 +215,7 @@ class Liquidacion(models.Model):
     
     # --- OTROS DESCUENTOS ---
     anticipo_quincena = models.IntegerField(default=0)
+    detalle_otros_descuentos = models.JSONField(default=list, blank=True)
     
     # --- TOTALES MATEMÁTICOS ---
     total_imponible = models.IntegerField(default=0)
@@ -206,8 +226,7 @@ class Liquidacion(models.Model):
     fecha_emision = models.DateField(auto_now_add=True)
 
     class Meta:
-        # Evita que se generen dos liquidaciones para el mismo empleado en el mismo mes y año
-        unique_together = ('empleado', 'mes', 'anio') 
+        unique_together = ('empleado', 'mes', 'anio')
 
     def __str__(self):
         return f"Liquidación {self.mes}/{self.anio} - {self.empleado.rut}"
