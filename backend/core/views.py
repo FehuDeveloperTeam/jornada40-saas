@@ -14,7 +14,7 @@ import io
 import zipfile
 import re
 import math
-import num2words
+from num2words import num2words
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
