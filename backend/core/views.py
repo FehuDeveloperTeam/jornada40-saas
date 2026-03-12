@@ -653,6 +653,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     @action(detail=True, methods=['get'])
     def generar_pdf(self, request, pk=None):
         try:
@@ -667,12 +668,21 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             # Transformar número a palabras (Ej: 542000 -> "quinientos cuarenta y dos mil")
             liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
 
-            # Cálculos de subtotales para la vista
-            suma_no_imponibles = sum(int(item.get('valor', 0)) for item in liquidacion.detalle_haberes_no_imponibles)
-            suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in liquidacion.detalle_otros_descuentos)
+            # ---------------------------------------------------------
+            # SOLUCIÓN: Validar que los campos JSON sean realmente listas 
+            # antes de intentar iterar sobre ellos. Protege liquidaciones antiguas.
+            # ---------------------------------------------------------
+            det_no_imp = liquidacion.detalle_haberes_no_imponibles
+            if not isinstance(det_no_imp, list): det_no_imp = []
+            suma_no_imponibles = sum(int(item.get('valor', 0)) for item in det_no_imp if isinstance(item, dict))
+
+            det_otros_dsctos = liquidacion.detalle_otros_descuentos
+            if not isinstance(det_otros_dsctos, list): det_otros_dsctos = []
+            suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in det_otros_dsctos if isinstance(item, dict))
             
-            total_ley = liquidacion.afp_monto + liquidacion.salud_monto + liquidacion.seguro_cesantia + liquidacion.impuesto_unico
-            total_otros_dsctos = liquidacion.anticipo_quincena + suma_otros_descuentos
+            # También protegemos las sumas legales por si algún campo quedó en None
+            total_ley = (liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0) + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0)
+            total_otros_dsctos = (liquidacion.anticipo_quincena or 0) + suma_otros_descuentos
 
             context = {
                 'liquidacion': liquidacion,
@@ -696,9 +706,15 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
+                print("Error interno de pisa (xhtml2pdf)")
                 return Response({'error': 'Error al generar PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             return response
 
         except Exception as e:
+            # ESTO ES VITAL: Imprimimos el error real en la terminal de Railway
+            import traceback
+            print("=== ERROR GENERANDO PDF ===")
+            print(traceback.format_exc())
+            print("===========================")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
