@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',  # <-- Necesario para dj-rest-auth
+    'django.contrib.humanize'
     
     # Third party
     'rest_framework',

@@ -1,46 +1,53 @@
+{% load humanize %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Liquidación de Sueldo</title>
+    <title>Liquidación</title>
     <style>
-        @page { size: letter; margin: 1.5cm 2cm; }
-        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 9pt; color: #000; }
-        .header-table { width: 100%; margin-bottom: 20px; font-size: 10pt; }
-        .title { text-align: center; font-size: 14pt; font-weight: bold; margin: 20px 0; text-decoration: underline; letter-spacing: 1px;}
-        .info-table { width: 100%; margin-bottom: 20px; font-size: 9pt; }
-        .info-table td { padding: 3px 0; }
-        
-        .main-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .main-table th { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 5px 0; text-align: left; }
-        .main-table td { padding: 3px 0; vertical-align: top; }
-        
-        .col-left { width: 50%; padding-right: 15px; border-right: 1px solid #ccc; }
-        .col-right { width: 50%; padding-left: 15px; }
-        
-        .amount { text-align: right; }
+        @page { size: letter; margin: 1cm 1.5cm; }
+        body { font-family: "Helvetica", sans-serif; font-size: 8pt; color: #000; }
+        .header { width: 100%; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+        .title { text-align: center; font-size: 14pt; font-weight: bold; margin: 15px 0; letter-spacing: 1px; }
+        table { width: 100%; border-collapse: collapse; }
+        td { vertical-align: top; padding: 2px 0; }
+        .info-table td { padding: 3px 5px; }
         .bold { font-weight: bold; }
-        
-        .subtotal-row td { border-top: 1px dotted #666; padding-top: 5px; font-weight: bold; }
-        .total-row td { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 8px 0; font-weight: bold; font-size: 10pt; }
-        
-        .liquido-box { margin-top: 20px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 10px 0; }
-        .liquido-box td { font-size: 11pt; }
-        
-        .firma-box { width: 100%; margin-top: 60px; text-align: center; }
-        .firma-line { border-top: 1px solid #000; width: 250px; margin: 0 auto; padding-top: 5px; }
+        .right { text-align: right; }
+        .center { text-align: center; }
+
+        /* Main Table Layout */
+        .main-table { margin-top: 10px; width: 100%; }
+        .main-table th { border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 0; font-size: 8pt; }
+        .col-half { width: 48%; }
+        .spacer-col { width: 4%; }
+
+        .item-row td { padding: 2px 5px; font-size: 8pt; }
+        .subtotal-row td { font-weight: bold; padding-top: 10px; padding-bottom: 5px; }
+
+        .total-row { border-top: 1px solid #000; border-bottom: 1px solid #000; }
+        .total-row td { font-weight: bold; padding: 8px 5px; font-size: 9pt; }
+
+        .liquido-box { margin-top: 20px; border-bottom: 2px solid #000; padding-bottom: 10px;}
+        .liquido-box td { padding: 5px; font-size: 9pt; }
+        .liquido-monto { font-size: 11pt; font-weight: bold; }
+
+        .firma-box { margin-top: 60px; width: 100%; }
+        .firma-line { border-top: 1px solid #000; width: 250px; text-align: center; float: right; padding-top: 5px; }
     </style>
 </head>
 <body>
 
-    <table class="header-table">
+    <table class="header">
         <tr>
-            <td style="width: 50%;" class="bold">{{ empresa.nombre_legal }}</td>
-            <td style="width: 50%; text-align: right;">MES: <span class="bold">{{ mes_nombre }} {{ liquidacion.anio }}</span></td>
-        </tr>
-        <tr>
-            <td>RUT: {{ empresa.rut }}</td>
-            <td style="text-align: right;">C. COSTO: {{ empleado.centro_costo|default:"Administración" }}</td>
+            <td style="width: 50%;">
+                <div class="bold">{{ empresa.nombre_legal|upper }}</div>
+                <div>RUT: {{ empresa.rut }}</div>
+            </td>
+            <td style="width: 50%; text-align: right;">
+                <div>C. COSTO: {{ empleado.centro_costo|default:"Administración" }}</div>
+                <div>MES: <span class="bold">{{ mes_nombre|upper }} {{ liquidacion.anio }}</span></div>
+            </td>
         </tr>
     </table>
 
@@ -49,31 +56,33 @@
     <table class="info-table">
         <tr>
             <td style="width: 15%;">NOMBRE</td>
-            <td style="width: 45%;" class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno }}</td>
+            <td style="width: 45%;">{{ empleado.nombres|upper }} {{ empleado.apellido_paterno|upper }} {{ empleado.apellido_materno|upper }}</td>
             <td style="width: 15%;">RUT</td>
             <td style="width: 25%;">{{ empleado.rut }}</td>
         </tr>
         <tr>
-            <td>F. INGRESO</td>
+            <td>F. CONTRATO</td>
             <td>{{ contrato.fecha_inicio|date:"d-m-Y" }}</td>
             <td>FICHA N°</td>
             <td>{{ empleado.ficha_numero|default:empleado.id }}</td>
         </tr>
-        <tr><td colspan="4"><hr style="border: 0; border-top: 1px solid #eee; margin: 5px 0;"></td></tr>
+    </table>
+
+    <table class="info-table" style="margin-top: 10px; margin-bottom: 15px;">
         <tr>
-            <td>AFP</td>
-            <td>{{ liquidacion.afp_nombre }}</td>
-            <td>ISAPRE</td>
-            <td>{{ liquidacion.salud_nombre }} {% if liquidacion.isapre_cotizacion_uf > 0 %}({{ liquidacion.isapre_cotizacion_uf }} UF){% endif %}</td>
+            <td style="width: 15%;">AFP:</td>
+            <td style="width: 35%;">{{ liquidacion.afp_nombre }}</td>
+            <td style="width: 15%;">ISAPRE:</td>
+            <td style="width: 35%;">{{ liquidacion.salud_nombre }} {% if liquidacion.isapre_cotizacion_uf > 0 %}(UF: {{ liquidacion.isapre_cotizacion_uf }}){% endif %}</td>
         </tr>
         <tr>
-            <td>DÍAS TRABAJADOS</td>
+            <td>DIAS TRABAJADOS</td>
             <td>{{ liquidacion.dias_trabajados }}</td>
-            <td>DÍAS AUSENCIA</td>
+            <td>DIAS DE AUSENCIA</td>
             <td>{{ liquidacion.dias_ausencia }}</td>
         </tr>
         <tr>
-            <td>DÍAS LICENCIA</td>
+            <td>DIAS LICENCIA</td>
             <td>{{ liquidacion.dias_licencia }}</td>
             <td>NO CONTRATADOS</td>
             <td>{{ liquidacion.dias_no_contratados }}</td>
@@ -83,71 +92,133 @@
     <table class="main-table">
         <thead>
             <tr>
-                <th colspan="2" style="text-align: center;">HABERES</th>
-                <th colspan="2" style="text-align: center;">DESCUENTOS</th>
+                <th class="center" style="width: 48%;">HABERES</th>
+                <th class="spacer-col"></th>
+                <th class="center" style="width: 48%;">DESCUENTOS</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td class="col-left" colspan="2">
+                <td class="col-half">
                     <table style="width: 100%;">
-                        <tr><td>SUELDO BASE</td><td class="amount">{{ liquidacion.sueldo_base }}</td></tr>
-                        <tr><td>GRATIFICACION L.</td><td class="amount">{{ liquidacion.gratificacion }}</td></tr>
-                        
+                        <tr class="item-row">
+                            <td style="width: 75%;">SUELDO DEL MES</td>
+                            <td style="width: 25%;" class="right">{{ liquidacion.sueldo_base|intcomma }}</td>
+                        </tr>
+                        <tr class="item-row">
+                            <td>GRATIFICACION</td>
+                            <td class="right">{{ liquidacion.gratificacion|intcomma }}</td>
+                        </tr>
+
                         {% for item in liquidacion.detalle_haberes_imponibles %}
-                            <tr><td>{{ item.glosa|upper }}</td><td class="amount">{{ item.valor }}</td></tr>
-                        {% endfor %}
-                        
-                        {% for item in liquidacion.detalle_horas_extras %}
-                            <tr><td>{{ item.glosa|upper }} ({{ item.horas }} Hrs)</td><td class="amount">{{ item.valor }}</td></tr>
+                        <tr class="item-row">
+                            <td>{{ item.glosa|upper|truncatechars:35 }}</td>
+                            <td class="right">{{ item.valor|intcomma }}</td>
+                        </tr>
                         {% endfor %}
 
-                        <tr class="subtotal-row"><td>TOTAL IMPONIBLE</td><td class="amount">{{ liquidacion.total_imponible }}</td></tr>
-                        <tr><td colspan="2">&nbsp;</td></tr>
+                        {% for item in liquidacion.detalle_horas_extras %}
+                        <tr class="item-row">
+                            <td>{{ item.glosa|upper|truncatechars:35 }}</td>
+                            <td class="right">{{ item.valor|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        <tr class="subtotal-row">
+                            <td class="center">TOTAL IMPONIBLE</td>
+                            <td class="right">{{ liquidacion.total_imponible|intcomma }}</td>
+                        </tr>
+                        <tr><td colspan="2" style="height: 10px;"></td></tr>
 
                         {% for item in liquidacion.detalle_haberes_no_imponibles %}
-                            <tr><td>{{ item.glosa|upper }}</td><td class="amount">{{ item.valor }}</td></tr>
+                        <tr class="item-row">
+                            <td>{{ item.glosa|upper|truncatechars:35 }}</td>
+                            <td class="right">{{ item.valor|intcomma }}</td>
+                        </tr>
                         {% endfor %}
-                        
-                        <tr class="subtotal-row"><td>TOTAL NO IMPONIBLE</td><td class="amount">{{ total_no_imponible }}</td></tr>
+
+                        <tr class="subtotal-row">
+                            <td class="center">TOTAL NO IMPONIBLE</td>
+                            <td class="right">{{ total_no_imponible|intcomma }}</td>
+                        </tr>
                     </table>
                 </td>
 
-                <td class="col-right" colspan="2">
+                <td class="spacer-col"></td>
+
+                <td class="col-half">
                     <table style="width: 100%;">
-                        <tr><td>AFP</td><td class="amount">{{ liquidacion.afp_monto }}</td></tr>
-                        <tr><td>SALUD</td><td class="amount">{{ liquidacion.salud_monto }}</td></tr>
-                        <tr><td>0.6% SEGURO CESANTIA</td><td class="amount">{{ liquidacion.seguro_cesantia }}</td></tr>
-                        
-                        <tr class="subtotal-row"><td>TOTAL DSCTOS LEGALES</td><td class="amount">{{ total_ley }}</td></tr>
-                        <tr><td colspan="2">&nbsp;</td></tr>
+                        <tr class="item-row">
+                            <td style="width: 75%;">AFP</td>
+                            <td style="width: 25%;" class="right">{{ liquidacion.afp_monto|intcomma }}</td>
+                        </tr>
+                        <tr class="item-row">
+                            <td>SALUD E ISAPRE</td>
+                            <td class="right">{{ liquidacion.salud_monto|intcomma }}</td>
+                        </tr>
+                        <tr class="item-row">
+                            <td>0.6% SEGURO CESANTIA</td>
+                            <td class="right">{{ liquidacion.seguro_cesantia|intcomma }}</td>
+                        </tr>
 
-                        <tr><td>ANTICIPO QUINCENA</td><td class="amount">{{ liquidacion.anticipo_quincena }}</td></tr>
+                        <tr class="subtotal-row">
+                            <td class="center">TOTAL DSCTOS PREVISIONALES</td>
+                            <td class="right">{{ total_ley|intcomma }}</td>
+                        </tr>
+                        <tr><td colspan="2" style="height: 10px;"></td></tr>
+
+                        {% if liquidacion.anticipo_quincena > 0 %}
+                        <tr class="item-row">
+                            <td>ANTICIPO QUINCENA</td>
+                            <td class="right">{{ liquidacion.anticipo_quincena|intcomma }}</td>
+                        </tr>
+                        {% endif %}
+
                         {% for item in liquidacion.detalle_otros_descuentos %}
-                            <tr><td>{{ item.glosa|upper }}</td><td class="amount">{{ item.valor }}</td></tr>
+                        <tr class="item-row">
+                            <td>{{ item.glosa|upper|truncatechars:35 }}</td>
+                            <td class="right">{{ item.valor|intcomma }}</td>
+                        </tr>
                         {% endfor %}
-                        
-                        <tr class="subtotal-row"><td>TOTAL OTROS DSCTOS</td><td class="amount">{{ total_otros_dsctos }}</td></tr>
+
+                        <tr class="subtotal-row">
+                            <td class="center">TOTAL OTROS DESCUENTOS</td>
+                            <td class="right">{{ total_otros_dsctos|intcomma }}</td>
+                        </tr>
                     </table>
-                </td>
-            </tr>
-            <tr class="total-row">
-                <td class="col-left" colspan="2">
-                    <table style="width: 100%;"><tr><td>TOTAL HABERES</td><td class="amount">{{ liquidacion.total_haberes }}</td></tr></table>
-                </td>
-                <td class="col-right" colspan="2">
-                    <table style="width: 100%;"><tr><td>TOTAL DESCUENTOS</td><td class="amount">{{ liquidacion.total_descuentos }}</td></tr></table>
                 </td>
             </tr>
         </tbody>
     </table>
 
+    <table style="width: 100%; margin-top: 15px;">
+        <tr class="total-row">
+            <td style="width: 48%;">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 75%;">TOTAL HABERES</td>
+                        <td style="width: 25%;" class="right">{{ liquidacion.total_haberes|intcomma }}</td>
+                    </tr>
+                </table>
+            </td>
+            <td class="spacer-col"></td>
+            <td style="width: 48%;">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 75%;">TOTAL DESCUENTOS</td>
+                        <td style="width: 25%;" class="right">{{ liquidacion.total_descuentos|intcomma }}</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
     <table class="liquido-box" style="width: 100%;">
         <tr>
-            <td class="bold" style="width: 25%;">LIQUIDO A PAGO</td>
-            <td class="bold amount" style="width: 20%; font-size: 13pt;">$ {{ liquidacion.sueldo_liquido }}</td>
-            <td style="width: 15%; text-align: right; padding-right: 10px;">FORMA DE PAGO</td>
-            <td class="bold" style="width: 40%;">{{ empleado.forma_pago|default:"Transferencia" }} {% if empleado.banco %}({{ empleado.banco }}){% endif %}</td>
+            <td class="bold" style="width: 20%;">LIQUIDO A PAGO</td>
+            <td class="right liquido-monto" style="width: 20%;">{{ liquidacion.sueldo_liquido|intcomma }}</td>
+            <td class="right bold" style="width: 30%;">FORMA DE PAGO:</td>
+            <td class="bold right" style="width: 30%;">{{ empleado.forma_pago|default:"Transferencia"|upper }}</td>
         </tr>
         <tr>
             <td class="bold">SON</td>
@@ -155,18 +226,16 @@
         </tr>
     </table>
 
-    <p style="margin-top: 20px; text-align: justify;">Certifico que he recibido de <span class="bold">{{ empresa.nombre_legal }}</span>, a mi entera satisfacción el saldo indicado en la presente liquidación y no tengo cargo ni cobro posterior que hacer.</p>
+    <p style="margin-top: 20px; text-align: justify; font-size: 8pt;">
+        Certifico que he recibido de <span class="bold">{{ empresa.nombre_legal|upper }}</span>, a mi entera satisfacción el saldo indicado en la presente liquidación y no tengo cargo ni cobro posterior que hacer.
+    </p>
 
-    <table class="firma-box">
-        <tr>
-            <td>
-                <div class="firma-line">
-                    RECIBI CONFORME<br>
-                    {{ empleado.rut }}
-                </div>
-            </td>
-        </tr>
-    </table>
+    <div class="firma-box">
+        <div class="firma-line">
+            RECIBI CONFORME<br>
+            {{ empleado.rut }}
+        </div>
+    </div>
 
 </body>
 </html>
