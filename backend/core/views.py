@@ -666,7 +666,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             mes_nombre = meses[liquidacion.mes - 1]
 
             # Transformar número a palabras (Ej: 542000 -> "quinientos cuarenta y dos mil")
-            liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
+            sueldo_seguro = int(liquidacion.sueldo_liquido or 0)
+            liquido_palabras = num2words(sueldo_seguro, lang='es')
 
             # ---------------------------------------------------------
             # SOLUCIÓN: Validar que los campos JSON sean realmente listas 
