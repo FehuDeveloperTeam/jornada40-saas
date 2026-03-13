@@ -248,7 +248,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             registros = df.to_dict('records')
             # 1. PRE-VALIDACIÓN Y ESTANDARIZACIÓN
             datos_a_procesar = []
-            for index, row in registros:
+            for index, row in enumerate(registros):
                 rut_raw = str(row.get('RUT', '')).strip()
                 if not rut_raw:
                     continue
