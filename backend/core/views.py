@@ -231,12 +231,17 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
         try:
-            archivo_excel = request.FILES.get('file')
-            empresa_id = request.data.get('empresa')
+            # 1. Manejo seguro si el frontend manda un Array en lugar de un Objeto
+            data = request.data[0] if isinstance(request.data, list) else request.data
+            
+            empresa_id = data.get('empresa')
+            
+            # 2. Rescatamos el archivo (si viene en FILES o dentro de data)
+            archivo_excel = request.FILES.get('file') or data.get('file')
 
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
-
+            
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             cliente = getattr(request.user, 'perfil_cliente', None)
             
