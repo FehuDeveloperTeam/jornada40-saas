@@ -16,6 +16,7 @@ import re
 import math
 from num2words import num2words
 import pandas as pd
+import traceback
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
@@ -346,9 +347,21 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 return Response({'mensaje': mensaje, 'advertencia': advertencia}, status=status.HTTP_200_OK)
 
             return Response({'mensaje': mensaje}, status=status.HTTP_200_OK)
-
         except Exception as e:
-            return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Captura la traza completa del error
+            error_trace = traceback.format_exc()
+            
+            # Imprime en la consola del servidor (Railway/Terminal)
+            print("=== ERROR EN CARGA MASIVA ===")
+            print(error_trace)
+            print("=============================")
+            
+            # Devuelve el detalle al frontend para que lo leamos de inmediato
+            return Response({
+                'error': f'Error procesando el archivo: {str(e)}',
+                'detalle': error_trace
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
         empleado_ids = request.data.get('empleados', [])
