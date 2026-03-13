@@ -219,9 +219,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
-            try:
-                archivo_excel = request.FILES.get('file')
-                empresa_id = request.data.get('empresa')
+        try:
+            archivo_excel = request.FILES.get('file')
+            empresa_id = request.data.get('empresa')
 
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -266,7 +266,15 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         'afp': afp_excel,
                         'sistema_salud': salud_excel,
                         'plan_isapre_uf': plan_uf,
-                        'centro_costo': str(row.get('Centro_Costo', 'General')).strip()
+                        'centro_costo': str(row.get('Centro_Costo', 'General')).strip(),
+                        'sexo': str(row.get('Sexo', 'M')).strip(),
+                        'nacionalidad': str(row.get('Nacionalidad', 'CHILENA')).strip(),
+                        'estado_civil': str(row.get('Estado_Civil', 'SOLTERO')).strip(),
+                        'numero_telefono': str(row.get('Numero_Telefono', '')).strip(),
+                        'comuna': str(row.get('Comuna', '')).strip(),
+                        'direccion': str(row.get('Direccion', '')).strip(),
+                        'cargo': str(row.get('Cargo', '')).strip(),
+                        'modalidad': str(row.get('Modalidad', 'PRESENCIAL')).strip(),
                     }
                 )
 
@@ -283,6 +291,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
         empleado_ids = request.data.get('empleados', [])
