@@ -70,6 +70,7 @@ class Empleado(models.Model):
     direccion = models.CharField(max_length=255, blank=True, null=True) 
     comuna = models.CharField(max_length=100, blank=True, null=True) 
     numero_telefono = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
     departamento = models.CharField(max_length=100, blank=True, null=True)
     cargo = models.CharField(max_length=100)
     sucursal = models.CharField(max_length=100, blank=True, null=True)

@@ -1031,6 +1031,8 @@ export default function Dashboard() {
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Condiciones Laborales</h4>
                           <dl className="space-y-4 text-sm">
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Departamento</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.departamento?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Centro de Costo</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.centro_costo || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Ficha N°</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.ficha_numero || '-'}</dd></div>
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Sucursal</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.sucursal?.toLowerCase() || '-'}</dd></div>
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Fecha Ingreso</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.fecha_ingreso || '-'}</dd></div>
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Modalidad</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.modalidad?.toLowerCase() || '-'}</dd></div>
@@ -1038,6 +1040,9 @@ export default function Dashboard() {
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Sueldo Base</dt><dd className="col-span-2 font-semibold text-slate-900">${selectedEmpleado.sueldo_base?.toLocaleString('es-CL') || '0'}</dd></div>
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Previsión AFP</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.afp?.toLowerCase() || '-'}</dd></div>
                             <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Salud</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.sistema_salud?.toLowerCase() || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Forma de Pago</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.forma_pago || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Banco</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.banco || '-'} - {selectedEmpleado.tipo_cuenta || '-'}</dd></div>
+                            <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">N° Cuenta</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.numero_cuenta || '-'}</dd></div>
                           </dl>
                         </div>
                       </div>

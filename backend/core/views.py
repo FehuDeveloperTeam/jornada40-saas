@@ -74,11 +74,17 @@ def validar_rut(rut):
 # TRADUCTOR INTELIGENTE DE FECHAS EXCEL
 # ==========================================
 def estandarizar_fecha(fecha_valor):
-    if not fecha_valor:
+    # 1. Manejo de nulos (incluyendo nulos de Pandas)
+    if not fecha_valor or pd.isna(fecha_valor):
         return None
     
+    # 2. Si Pandas ya lo parseó correctamente como objeto datetime/date
+    if isinstance(fecha_valor, (datetime.datetime, datetime.date)):
+        return fecha_valor.date() if isinstance(fecha_valor, datetime.datetime) else fecha_valor
+
     fecha_str = str(fecha_valor).strip()
     
+    # 3. Si viene como número de serie de Excel
     try:
         serial = float(fecha_str)
         base = datetime.datetime(1899, 12, 30)
@@ -86,14 +92,18 @@ def estandarizar_fecha(fecha_valor):
     except ValueError:
         pass
 
-    formatos = [
-        '%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', 
-        '%d-%m-%y', '%d/%m/%y', '%m/%d/%y', '%m/%d/%Y'
+    # 4. Formatos estrictos chilenos (Día, Mes, Año) + ISO estándar de BD
+    formatos_chilenos = [
+        '%d-%m-%Y', '%d/%m/%Y', '%d.%m.%Y',
+        '%d-%m-%y', '%d/%m/%y', '%d.%m.%y',
+        '%Y-%m-%d'
     ]
-    for fmt in formatos:
+    
+    for fmt in formatos_chilenos:
         try:
             dt = datetime.datetime.strptime(fecha_str, fmt).date()
-            if dt.year > datetime.date.today().year:
+            # Ajuste para años de 2 dígitos (ej: 92 -> 1992 en vez de 2092)
+            if dt.year > datetime.date.today().year + 10:
                 dt = dt.replace(year=dt.year - 100)
             return dt
         except ValueError:
@@ -226,72 +236,119 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Leer el Excel usando pandas
-            df = pd.read_excel(archivo_excel)
+            empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
+            cliente = getattr(request.user, 'perfil_cliente', None)
             
-            # Limpiar datos vacíos
-            df = df.fillna('')
+            limite_trabajadores = float('inf')
+            if cliente and cliente.plan:
+                limite_trabajadores = cliente.plan.limite_trabajadores
+
+            df = pd.read_excel(archivo_excel).fillna('')
+            
+            # 1. PRE-VALIDACIÓN Y ESTANDARIZACIÓN
+            datos_a_procesar = []
+            for index, row in df.iterrows():
+                rut_raw = str(row.get('RUT', '')).strip()
+                if not rut_raw:
+                    continue
+                
+                if not validar_rut(rut_raw):
+                    return Response({
+                        'error': f'El RUT {rut_raw} de {row.get("Nombres", "")} es inválido. Carga abortada completamente.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Guarda siempre formateado: XX.XXX.XXX-X
+                rut_formateado = formatear_rut(rut_raw)
+                datos_a_procesar.append({'rut': rut_formateado, 'row': row})
 
             empleados_creados = 0
             empleados_actualizados = 0
+            ultimo_ingresado = None
+            limite_alcanzado = False
 
-            for index, row in df.iterrows():
-                rut_limpio = str(row.get('RUT', '')).strip()
-                if not rut_limpio:
-                    continue
+            # 2. TRANSACCIÓN ATÓMICA
+            with transaction.atomic():
+                total_actual = Empleado.objects.filter(empresa=empresa).count()
 
-                # Parsear valores numéricos seguros
-                try:
-                    sueldo = float(row.get('Sueldo_Base', 0)) if row.get('Sueldo_Base') != '' else 0
-                    horas = int(row.get('Horas_Laborales', 44)) if row.get('Horas_Laborales') != '' else 44
-                    plan_uf = float(row.get('Plan_Isapre_UF', 0)) if row.get('Plan_Isapre_UF') != '' else 0
-                except ValueError:
-                    sueldo, horas, plan_uf = 0, 44, 0
+                for item in datos_a_procesar:
+                    rut = item['rut']
+                    row = item['row']
 
-                # Normalizar AFP y Salud
-                afp_excel = str(row.get('AFP', 'MODELO')).strip().upper()
-                salud_excel = str(row.get('Salud', 'FONASA')).strip().upper()
+                    # Función para asegurar Mayúsculas visuales
+                    def clean_str(val, default=''):
+                        return str(row.get(val, default)).strip().upper()
 
-                # Actualizar o Crear Trabajador
-                empleado, created = Empleado.objects.update_or_create(
-                    rut=rut_limpio,
-                    empresa_id=empresa_id,
-                    defaults={
-                        'nombres': str(row.get('Nombres', '')).strip(),
-                        'apellido_paterno': str(row.get('Apellido_Paterno', '')).strip(),
-                        'apellido_materno': str(row.get('Apellido_Materno', '')).strip(),
-                        'email': str(row.get('Email', '')).strip(),
+                    nombres = clean_str('Nombres')
+                    ap_paterno = clean_str('Apellido_Paterno')
+                    
+                    try:
+                        sueldo = int(float(row.get('Sueldo_Base', 0))) if row.get('Sueldo_Base') != '' else 0
+                        horas = int(row.get('Horas_Laborales', 44)) if row.get('Horas_Laborales') != '' else 44
+                        plan_uf = float(row.get('Plan_Isapre_UF', 0)) if row.get('Plan_Isapre_UF') != '' else 0
+                    except ValueError:
+                        sueldo, horas, plan_uf = 0, 44, 0
+
+                    fecha_ing = estandarizar_fecha(row.get('Fecha_Ingreso')) or datetime.date.today()
+
+                    nuevos_datos = {
+                        'nombres': nombres,
+                        'apellido_paterno': ap_paterno,
+                        'apellido_materno': clean_str('Apellido_Materno'),
                         'sueldo_base': sueldo,
                         'horas_laborales': horas,
-                        'afp': afp_excel,
-                        'sistema_salud': salud_excel,
+                        'afp': clean_str('AFP', 'MODELO'),
+                        'sistema_salud': clean_str('Salud', 'FONASA'),
                         'plan_isapre_uf': plan_uf,
-                        'centro_costo': str(row.get('Centro_Costo', 'General')).strip(),
-                        'sexo': str(row.get('Sexo', 'M')).strip(),
-                        'nacionalidad': str(row.get('Nacionalidad', 'CHILENA')).strip(),
-                        'estado_civil': str(row.get('Estado_Civil', 'SOLTERO')).strip(),
-                        'numero_telefono': str(row.get('Numero_Telefono', '')).strip(),
-                        'comuna': str(row.get('Comuna', '')).strip(),
-                        'direccion': str(row.get('Direccion', '')).strip(),
-                        'cargo': str(row.get('Cargo', '')).strip(),
-                        'modalidad': str(row.get('Modalidad', 'PRESENCIAL')).strip(),
+                        'centro_costo': clean_str('Centro_Costo', 'GENERAL'),
+                        'sexo': clean_str('Sexo', 'M'),
+                        'nacionalidad': clean_str('Nacionalidad', 'CHILENA'),
+                        'estado_civil': clean_str('Estado_Civil', 'SOLTERO'),
+                        'numero_telefono': clean_str('Numero_Telefono'),
+                        'email': str(row.get('Email', '')).strip().lower(),
+                        'comuna': clean_str('Comuna'),
+                        'direccion': clean_str('Direccion'),
+                        'cargo': clean_str('Cargo'),
+                        'modalidad': clean_str('Modalidad', 'PRESENCIAL'),
                     }
-                )
 
-                if created:
-                    empleados_creados += 1
-                else:
-                    empleados_actualizados += 1
+                    empleado = Empleado.objects.filter(rut=rut, empresa=empresa).first()
 
-            return Response({
-                'mensaje': 'Carga exitosa',
-                'creados': empleados_creados,
-                'actualizados': empleados_actualizados
-            }, status=status.HTTP_200_OK)
+                    if empleado:
+                        # 3. ACTUALIZAR SI HAY DIFERENCIAS
+                        hay_cambios = False
+                        for key, value in nuevos_datos.items():
+                            if getattr(empleado, key) != value:
+                                setattr(empleado, key, value)
+                                hay_cambios = True
+                        if hay_cambios:
+                            empleado.save()
+                            empleados_actualizados += 1
+                    else:
+                        # 4. CREAR (SI NO SUPERA LÍMITE)
+                        if total_actual >= limite_trabajadores:
+                            limite_alcanzado = True
+                            break
+                        
+                        Empleado.objects.create(
+                            rut=rut, 
+                            empresa=empresa, 
+                            fecha_ingreso=fecha_ing, 
+                            **nuevos_datos
+                        )
+                        empleados_creados += 1
+                        total_actual += 1
+                        ultimo_ingresado = f"{nombres} {ap_paterno}"
+
+            # 5. RETORNO CONDICIONAL AL FRONTEND
+            mensaje = f"Carga procesada. Nuevos: {empleados_creados}. Actualizados: {empleados_actualizados}."
+            if limite_alcanzado:
+                advertencia = f"Se alcanzó el límite de su plan ({limite_trabajadores} trabajadores). El último ingresado fue {ultimo_ingresado}. Actualice su plan para ingresar más."
+                return Response({'mensaje': mensaje, 'advertencia': advertencia}, status=status.HTTP_200_OK)
+
+            return Response({'mensaje': mensaje}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
         empleado_ids = request.data.get('empleados', [])
