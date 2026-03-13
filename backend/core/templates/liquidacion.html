@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>Liquidación</title>
     <style>
-        @page { size: letter; margin: 1cm 1.5cm; }
+        @page { size: letter; margin: 0.7cm 1.5cm; }
         body { font-family: "Helvetica", sans-serif; font-size: 8pt; color: #000; }
         .header { width: 100%; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
         .title { text-align: center; font-size: 14pt; font-weight: bold; margin: 15px 0; letter-spacing: 1px; }
@@ -28,7 +28,7 @@
         .total-row { border-top: 1px solid #000; border-bottom: 1px solid #000; }
         .total-row td { font-weight: bold; padding: 8px 5px; font-size: 9pt; }
 
-        .liquido-box { margin-top: 20px; border-bottom: 2px solid #000; padding-bottom: 10px;}
+        .liquido-box { margin-top: 10px; border-bottom: 2px solid #000; padding-bottom: 10px;}
         .liquido-box td { padding: 5px; font-size: 9pt; }
         .liquido-monto { font-size: 11pt; font-weight: bold; }
 
@@ -226,16 +226,21 @@
         </tr>
     </table>
 
-    <p style="margin-top: 20px; text-align: justify; font-size: 8pt;">
+    <p style="margin-top: 10px; text-align: justify; font-size: 8pt;">
         Certifico que he recibido de <span class="bold">{{ empresa.nombre_legal|upper }}</span>, a mi entera satisfacción el saldo indicado en la presente liquidación y no tengo cargo ni cobro posterior que hacer.
     </p>
 
-    <div class="firma-box">
-        <div class="firma-line">
-            RECIBI CONFORME<br>
-            {{ empleado.rut }}
-        </div>
-    </div>
+    <table style="width: 100%; margin-top: 35px;">
+        <tr>
+            <td style="width: 65%;"></td> <td style="width: 35%; text-align: center;">
+                <hr style="width: 120px; border: none; border-top: 1px solid #000; margin-bottom: 4px;">
+                <div style="font-size: 8pt; line-height: 1.2;">
+                    <span class="bold">RECIBI CONFORME</span><br>
+                    RUT: {{ empleado.rut }}
+                </div>
+            </td>
+        </tr>
+    </table>
 
 </body>
 </html>
