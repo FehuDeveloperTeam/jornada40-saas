@@ -245,10 +245,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 limite_trabajadores = cliente.plan.limite_trabajadores
 
             df = pd.read_excel(archivo_excel).fillna('')
-            
+            registros = df.to_dict('records')
             # 1. PRE-VALIDACIÓN Y ESTANDARIZACIÓN
             datos_a_procesar = []
-            for index, row in df.iterrows():
+            for index, row in registros:
                 rut_raw = str(row.get('RUT', '')).strip()
                 if not rut_raw:
                     continue
