@@ -15,6 +15,7 @@ import zipfile
 import re
 import math
 from num2words import num2words
+import pandas as pd
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
@@ -218,111 +219,70 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
-        datos_excel = request.data 
-        usuario = request.user
-        
-        try:
-            empresa = Empresa.objects.filter(owner=usuario).first()
-            
-            if usuario.is_superuser:
-                limite_plan = 999999
-            else:
-                cliente = Cliente.objects.filter(usuario=usuario).first()
-                if not cliente or not getattr(cliente, 'plan', None):
-                    return Response({'error': 'Tu cuenta no tiene un plan activo. Contacta a soporte.'}, status=status.HTTP_400_BAD_REQUEST)
-                limite_plan = cliente.plan.limite_trabajadores 
-            
-            datos_limpios = [item for item in datos_excel if item.get('rut') and item.get('nombres')]
+            try:
+                archivo_excel = request.FILES.get('file')
+                empresa_id = request.data.get('empresa')
 
-            ruts_empresa_actual = set(Empleado.objects.filter(empresa=empresa).values_list('rut', flat=True))
-            datos_validados = []
+            if not archivo_excel or not empresa_id:
+                return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Leer el Excel usando pandas
+            df = pd.read_excel(archivo_excel)
             
-            for item in datos_limpios:
-                rut_raw = str(item.get('rut', '')).strip()
-                nombre = str(item.get('nombres', '')).strip().upper() # Validamos en mayúscula
-                apellido = str(item.get('apellido_paterno', '')).strip().upper() # Validamos en mayúscula
-                
-                if not validar_rut(rut_raw):
-                    return Response({
-                        'error': f'El rut de {nombre} {apellido} está mal ingresado, favor revisar e inténtelo nuevamente.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                rut_formateado = formatear_rut(rut_raw)
-                
-                if rut_formateado in ruts_empresa_actual:
+            # Limpiar datos vacíos
+            df = df.fillna('')
+
+            empleados_creados = 0
+            empleados_actualizados = 0
+
+            for index, row in df.iterrows():
+                rut_limpio = str(row.get('RUT', '')).strip()
+                if not rut_limpio:
                     continue
-                
-                item['rut'] = rut_formateado
-                datos_validados.append(item)
-                ruts_empresa_actual.add(rut_formateado)
 
-            if len(datos_validados) == 0:
-                return Response({'advertencia': 'No se cargaron trabajadores nuevos (Todos ya existían en la base de datos).'}, status=status.HTTP_200_OK)
+                # Parsear valores numéricos seguros
+                try:
+                    sueldo = float(row.get('Sueldo_Base', 0)) if row.get('Sueldo_Base') != '' else 0
+                    horas = int(row.get('Horas_Laborales', 44)) if row.get('Horas_Laborales') != '' else 44
+                    plan_uf = float(row.get('Plan_Isapre_UF', 0)) if row.get('Plan_Isapre_UF') != '' else 0
+                except ValueError:
+                    sueldo, horas, plan_uf = 0, 44, 0
 
-            trabajadores_actuales = Empleado.objects.filter(empresa=empresa).count()
-            espacio_disponible = limite_plan - trabajadores_actuales
-            
-            if espacio_disponible <= 0:
-                return Response({'error': 'Has alcanzado el límite máximo de tu plan.'}, status=status.HTTP_400_BAD_REQUEST)
+                # Normalizar AFP y Salud
+                afp_excel = str(row.get('AFP', 'MODELO')).strip().upper()
+                salud_excel = str(row.get('Salud', 'FONASA')).strip().upper()
 
-            mensaje_advertencia = None
-            if len(datos_validados) > espacio_disponible:
-                datos_validados = datos_validados[:espacio_disponible]
-                ultimo = datos_validados[-1]
-                nombre_completo_ultimo = f"{ultimo.get('nombres', '')} {ultimo.get('apellido_paterno', '')}".strip().upper()
-                mensaje_advertencia = f"¡ATENCIÓN! llegaste al total de trabajadores, se cargará hasta {nombre_completo_ultimo}"
+                # Actualizar o Crear Trabajador
+                empleado, created = Empleado.objects.update_or_create(
+                    rut=rut_limpio,
+                    empresa_id=empresa_id,
+                    defaults={
+                        'nombres': str(row.get('Nombres', '')).strip(),
+                        'apellido_paterno': str(row.get('Apellido_Paterno', '')).strip(),
+                        'apellido_materno': str(row.get('Apellido_Materno', '')).strip(),
+                        'email': str(row.get('Email', '')).strip(),
+                        'sueldo_base': sueldo,
+                        'horas_laborales': horas,
+                        'afp': afp_excel,
+                        'sistema_salud': salud_excel,
+                        'plan_isapre_uf': plan_uf,
+                        'centro_costo': str(row.get('Centro_Costo', 'General')).strip()
+                    }
+                )
 
-            nuevos_empleados = []
-            with transaction.atomic(): 
-                for item in datos_validados:
-                    fecha_nac = estandarizar_fecha(item.get('fecha_nacimiento'))
-                    fecha_ing = estandarizar_fecha(item.get('fecha_ingreso')) or datetime.date.today()
-
-                    try: horas = int(item.get('horas_laborales') or 40)
-                    except: horas = 40
-                        
-                    try: sueldo = int(item.get('sueldo_base') or 0)
-                    except: sueldo = 0
-
-                    empleado = Empleado(
-                        empresa=empresa,
-                        rut=item.get('rut'),
-                        # ==========================================
-                        # TODO A MAYÚSCULAS ANTES DE GUARDAR
-                        # ==========================================
-                        nombres=str(item.get('nombres', '')).strip().upper(),
-                        apellido_paterno=str(item.get('apellido_paterno', '')).strip().upper(),
-                        apellido_materno=str(item.get('apellido_materno', '')).strip().upper(),
-                        sexo=str(item.get('sexo', '')).strip().upper(),
-                        nacionalidad=str(item.get('nacionalidad', '')).strip().upper(),
-                        fecha_nacimiento=fecha_nac,
-                        estado_civil=str(item.get('estado_civil', '')).strip().upper(),
-                        numero_telefono=str(item.get('numero_telefono', '')).strip().upper(),
-                        comuna=str(item.get('comuna', '')).strip().upper(),
-                        direccion=str(item.get('direccion', '')).strip().upper(),
-                        departamento=str(item.get('departamento', '')).strip().upper(),
-                        cargo=str(item.get('cargo', 'NO ESPECIFICADO')).strip().upper(),
-                        sucursal=str(item.get('sucursal', '')).strip().upper(),
-                        fecha_ingreso=fecha_ing,
-                        horas_laborales=horas,
-                        modalidad=str(item.get('modalidad', 'PRESENCIAL')).strip().upper(),
-                        sueldo_base=sueldo,
-                        afp=str(item.get('afp', '')).strip().upper(),
-                        sistema_salud=str(item.get('sistema_salud', '')).strip().upper(),
-                        activo=True
-                    )
-                    nuevos_empleados.append(empleado)
-                
-                Empleado.objects.bulk_create(nuevos_empleados)
+                if created:
+                    empleados_creados += 1
+                else:
+                    empleados_actualizados += 1
 
             return Response({
-                'mensaje': 'Carga masiva exitosa',
-                'advertencia': mensaje_advertencia 
-            }, status=status.HTTP_201_CREATED)
+                'mensaje': 'Carga exitosa',
+                'creados': empleados_creados,
+                'actualizados': empleados_actualizados
+            }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({'error': f'Error procesando archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({'error': f'Error procesando el archivo: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
         empleado_ids = request.data.get('empleados', [])

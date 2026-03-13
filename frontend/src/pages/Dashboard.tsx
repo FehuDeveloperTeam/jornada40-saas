@@ -298,28 +298,54 @@ export default function Dashboard() {
   };
 
   const descargarPlantillaExcel = () => {
-    const datosEjemplo = [{
-      nombres: "JUAN ALBERTO",
-      apellido_paterno: "PEREZ",
-      apellido_materno: "GONZALEZ",
-      rut: "12.345.678-9",
-      sexo: "M",
-      nacionalidad: "CHILENA",
-      fecha_nacimiento: "1990-01-01",
-      estado_civil: "SOLTERO",
-      numero_telefono: "+56912345678",
-      comuna: "SANTIAGO",
-      direccion: "AV. PROVIDENCIA 123",
-      departamento: "VENTAS",
-      cargo: "VENDEDOR",
-      sucursal: "CASA MATRIZ",
-      fecha_ingreso: "2023-05-01",
-      horas_laborales: 40,
-      modalidad: "PRESENCIAL",
-      sueldo_base: 500000,
-      afp: "MODELO",
-      sistema_salud: "FONASA"
-    }];
+    const datosEjemplo = [
+      {
+        RUT: "12.345.678-9",
+        Nombres: "JUAN ALBERTO",
+        Apellido_Paterno: "PEREZ",
+        Apellido_Materno: "GONZALEZ",
+        Email: "juan.perez@empresa.cl",
+        Sexo: "M",
+        Nacionalidad: "CHILENA",
+        Fecha_Nacimiento: "1990-01-01",
+        Estado_Civil: "SOLTERO",
+        Numero_Telefono: "+56912345678",
+        Comuna: "SANTIAGO",
+        Direccion: "AV. PROVIDENCIA 123",
+        Centro_Costo: "ADMINISTRACION",
+        Cargo: "VENDEDOR",
+        Fecha_Ingreso: "2023-05-01",
+        Horas_Laborales: 40,
+        Modalidad: "PRESENCIAL",
+        Sueldo_Base: 500000,
+        AFP: "MODELO",
+        Salud: "FONASA",
+        Plan_Isapre_UF: 0
+      },
+      {
+        RUT: "18.081.837-5",
+        Nombres: "CAMILA ALEJANDRA",
+        Apellido_Paterno: "MALDONADO",
+        Apellido_Materno: "GARRIDO",
+        Email: "camila@empresa.cl",
+        Sexo: "F",
+        Nacionalidad: "CHILENA",
+        Fecha_Nacimiento: "1995-05-15",
+        Estado_Civil: "CASADA",
+        Numero_Telefono: "+56987654321",
+        Comuna: "PROVIDENCIA",
+        Direccion: "LOS LEONES 456",
+        Centro_Costo: "OPERACIONES",
+        Cargo: "SUPERVISORA",
+        Fecha_Ingreso: "2024-01-10",
+        Horas_Laborales: 44,
+        Modalidad: "TELETRABAJO",
+        Sueldo_Base: 1200000,
+        AFP: "PROVIDA",
+        Salud: "ISAPRE",
+        Plan_Isapre_UF: 2.8
+      }
+    ];
 
     const ws = XLSX.utils.json_to_sheet(datosEjemplo);
     const wb = XLSX.utils.book_new();
