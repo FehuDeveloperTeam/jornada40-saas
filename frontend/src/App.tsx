@@ -21,7 +21,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
         });
         // Si responde 200 OK, la sesión es real y segura
         setIsAuthenticated(true);
-      } catch (error) {
+      } catch {
         // Si responde 401, la cookie expiró o no existe
         setIsAuthenticated(false);
       }

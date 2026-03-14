@@ -353,44 +353,60 @@ export default function Dashboard() {
     XLSX.writeFile(wb, "Plantilla_Carga_Masiva.xlsx");
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    // 1. CORREGIDO: Usamos el estado 'empresa' que declaraste arriba en el componente
+    const empresaId = empresa?.id; 
+
+    if (!file || !empresaId) {
+        alert("Selecciona una empresa antes de subir el archivo.");
+        return;
+    }
 
     setIsUploading(true);
-    const reader = new FileReader();
 
-    reader.onload = async (evt) => {
-      try {
-        const arrayBuffer = evt.target?.result as ArrayBuffer;
-        const wb = XLSX.read(arrayBuffer, { type: 'array' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        
-        const data = XLSX.utils.sheet_to_json(ws, { raw: false, defval: "" });
-        
-        const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, data, apiConfig);
-        
-        if (response.data.advertencia) alert(response.data.advertencia);
-        else alert("¡Todos los trabajadores fueron cargados exitosamente!");
-        
-        window.location.reload();
-      } catch (error) {
-        console.error("Error procesando el Excel:", error);
-        if (axios.isAxiosError(error)) {
-          const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : error.message;
-          alert(`Django rechazó el archivo:\n\n${errorMsg}`);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('empresa', empresaId.toString());
+
+    try {
+        const response = await axios.post(
+            `https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, 
+            formData, 
+            {
+                ...apiConfig,
+                // 2. CORREGIDO: Declaramos los headers sin intentar expandir algo que no existe
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                }
+            }
+        );
+
+        if (response.data.advertencia) {
+            alert(`ATENCIÓN:\n${response.data.mensaje}\n\n${response.data.advertencia}`);
         } else {
-          alert("Error al leer el archivo Excel en tu computador.");
+            alert(response.data.mensaje || "¡Carga masiva finalizada con éxito!");
         }
-      } finally {
+
+        window.location.reload(); 
+
+    // 3. CORREGIDO: Quitamos el ': any'. TypeScript y Axios lo infieren correctamente dentro del if
+    } catch (error) { 
+        console.error("Error en la carga masiva:", error);
+        if (axios.isAxiosError(error)) {
+            const errorData = error.response?.data;
+            const mensaje = errorData?.error || "Error desconocido en el servidor";
+            const detalle = errorData?.detalle ? `\n\nDetalle Técnico:\n${errorData.detalle}` : "";
+            
+            alert(`Error al procesar el archivo:\n\n${mensaje}${detalle}`);
+        } else {
+            alert("Error de conexión al intentar subir el archivo.");
+        }
+    } finally {
         setIsUploading(false);
         e.target.value = ''; 
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    }
   };
-
   // ==========================================
   // CARGAR DATOS AL ABRIR EL PANEL
   // ==========================================
