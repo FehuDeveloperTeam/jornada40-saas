@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
+from .models import Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion, Plan, Suscripcion
 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -29,3 +29,9 @@ class LiquidacionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Liquidacion
         fields = '__all__'
+
+class PlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Plan
+        fields = '__all__'
+        

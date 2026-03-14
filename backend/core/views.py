@@ -8,7 +8,10 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
+from .models import Plan, Suscripcion
+from .serializers import PlanSerializer
 from xhtml2pdf import pisa
+import mercadopago
 import datetime
 import io
 import zipfile
@@ -238,6 +241,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             
             # 2. Rescatamos el archivo (si viene en FILES o dentro de data)
             archivo_excel = request.FILES.get('file') or data.get('file')
+            # Validar extensión
+            if not archivo_excel.name.endswith(('.xlsx', '.xls')):
+                return Response({'error': 'Formato no permitido'}, status=400)
+
+            # Validar tamaño (ej: máximo 5MB)
+            if archivo_excel.size > 5 * 1024 * 1024:
+                return Response({'error': 'Archivo demasiado pesado'}, status=400)
 
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -763,3 +773,120 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             print(traceback.format_exc())
             print("===========================")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Endpoint para listar los planes activos en la BD
+class PlanViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Plan.objects.filter(activo=True)
+    serializer_class = PlanSerializer
+    permission_classes = [AllowAny] # Cualquiera puede ver los planes
+
+# Endpoint específico para el dashboard del cliente
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def mi_suscripcion(request):
+    cliente = getattr(request.user, 'perfil_cliente', None)
+    if not cliente:
+        return Response({'error': 'Perfil de cliente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+    # 1. Buscar o crear suscripción (por si tienes usuarios antiguos en la BD)
+    try:
+        suscripcion = cliente.suscripcion_activa
+    except Suscripcion.DoesNotExist:
+        plan_asignado = cliente.plan if cliente.plan else Plan.objects.first()
+        suscripcion = Suscripcion.objects.create(
+            cliente=cliente,
+            plan=plan_asignado,
+            estado='ACTIVE' if plan_asignado else 'TRIAL'
+        )
+
+    # 2. Calcular uso real (trabajadores en TODAS las empresas del usuario)
+    trabajadores_actuales = Empleado.objects.filter(empresa__owner=request.user).count()
+
+    # 3. Armar la respuesta exacta que espera nuestro Suscripcion.tsx
+    data = {
+        'estado': suscripcion.estado,
+        'plan': {
+            'id': suscripcion.plan.id,
+            'nombre': suscripcion.plan.nombre,
+            'precio': suscripcion.plan.precio,
+            'limite_trabajadores': suscripcion.plan.limite_trabajadores,
+            'descripcion': suscripcion.plan.descripcion,
+        },
+        'trabajadores_actuales': trabajadores_actuales,
+        'fecha_proximo_cobro': suscripcion.fecha_proximo_cobro.strftime('%Y-%m-%d') if suscripcion.fecha_proximo_cobro else None,
+        'metodo_pago_glosa': suscripcion.metodo_pago_glosa,
+    }
+
+    return Response(data, status=status.HTTP_200_OK)
+
+# ==========================================
+# PASARELA DE PAGOS (MERCADO PAGO)
+# ==========================================
+
+# 1. Inicializa el SDK con tu token de PRUEBA
+mp_sdk = mercadopago.SDK("TESTUSER6412012356748114795")
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def crear_preferencia_pago(request):
+    plan_id = request.data.get('plan_id')
+    try:
+        plan = Plan.objects.get(id=plan_id)
+        cliente = getattr(request.user, 'perfil_cliente', None)
+        
+        # Armar la preferencia
+        preference_data = {
+            "items": [
+                {
+                    "title": f"Plan {plan.nombre} - Jornada40",
+                    "quantity": 1,
+                    "currency_id": "CLP",
+                    "unit_price": float(plan.precio)
+                }
+            ],
+            "payer": {
+                "email": request.user.email,
+                "name": cliente.nombres if cliente else "",
+                "surname": cliente.apellido_paterno if cliente else ""
+            },
+            # Enviamos el ID del cliente y del plan para saber qué activar cuando paguen
+            "external_reference": f"{cliente.id}_{plan.id}",
+            "back_urls": {
+                "success": "https://jornada40-saas.vercel.app/dashboard?status=success",
+                "failure": "https://jornada40-saas.vercel.app/dashboard?status=failure",
+                "pending": "https://jornada40-saas.vercel.app/dashboard?status=pending"
+            },
+            "auto_return": "approved"
+        }
+
+        preference_response = mp_sdk.preference().create(preference_data)
+        init_point = preference_response["response"]["init_point"]
+
+        return Response({'init_point': init_point}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def webhook_mercadopago(request):
+    topic = request.query_params.get('topic') or request.data.get('type')
+    
+    if topic == 'payment':
+        payment_id = request.query_params.get('data.id') or request.data.get('data', {}).get('id')
+        payment_info = mp_sdk.payment().get(payment_id)["response"]
+        
+        if payment_info.get('status') == 'approved':
+            external_reference = payment_info.get('external_reference')
+            if external_reference:
+                cliente_id, plan_id = external_reference.split('_')
+                
+                suscripcion = Suscripcion.objects.get(cliente_id=cliente_id)
+                plan_nuevo = Plan.objects.get(id=plan_id)
+                
+                suscripcion.plan = plan_nuevo
+                suscripcion.estado = 'ACTIVE'
+                suscripcion.gateway_subscription_id = str(payment_id)
+                suscripcion.save()
+            
+    return Response(status=status.HTTP_200_OK)

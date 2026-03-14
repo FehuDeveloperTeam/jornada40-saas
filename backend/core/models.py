@@ -231,3 +231,32 @@ class Liquidacion(models.Model):
 
     def __str__(self):
         return f"Liquidación {self.mes}/{self.anio} - {self.empleado.rut}"
+
+class Suscripcion(models.Model):
+    ESTADOS_SUSCRIPCION = [
+        ('TRIAL', 'Período de Prueba'),
+        ('ACTIVE', 'Activa'),
+        ('PAST_DUE', 'Pago Pendiente / Moroso'),
+        ('CANCELED', 'Cancelada'),
+    ]
+
+    cliente = models.OneToOneField(Cliente, on_delete=models.CASCADE, related_name='suscripcion_activa')
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT) # PROTECT evita borrar planes en uso
+    
+    # Ciclo de vida
+    estado = models.CharField(max_length=20, choices=ESTADOS_SUSCRIPCION, default='TRIAL')
+    fecha_inicio = models.DateTimeField(auto_now_add=True)
+    fecha_proximo_cobro = models.DateTimeField(null=True, blank=True)
+    fecha_cancelacion = models.DateTimeField(null=True, blank=True)
+    
+    # Pasarela de Pagos (Mercado Pago / Stripe / Fintoc)
+    gateway_customer_id = models.CharField(max_length=100, blank=True, null=True, help_text="ID del cliente en la pasarela")
+    gateway_subscription_id = models.CharField(max_length=100, blank=True, null=True, help_text="ID de la suscripción/tarjeta")
+    metodo_pago_glosa = models.CharField(max_length=50, blank=True, null=True, help_text="Ej: Visa terminada en 4242 o Fintoc Banco de Chile")
+
+    def __str__(self):
+        return f"{self.cliente.rut} - {self.plan.nombre} ({self.estado})"
+    
+    @property
+    def is_active(self):
+        return self.estado in ['ACTIVE', 'TRIAL']
