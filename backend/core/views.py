@@ -167,6 +167,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
@@ -179,7 +180,11 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
-            datos_mayusculas['rut'] = formatear_rut(rut_raw)
+            rut_form = formatear_rut(rut_raw)
+            # REGLA 2: No repetir RUT de empresa para este mismo cliente
+            if Empresa.objects.filter(owner=self.request.user, rut=rut_form).exists():
+                raise ValidationError({'error': 'Ya tienes una empresa registrada con este RUT en tu panel.'})
+            datos_mayusculas['rut'] = rut_form
         serializer.save(owner=self.request.user, **datos_mayusculas)
             
     def perform_update(self, serializer):
@@ -187,9 +192,12 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
-            datos_mayusculas['rut'] = formatear_rut(rut_raw)
+            rut_form = formatear_rut(rut_raw)
+            # Excluimos la empresa actual para permitir actualización sin cambiar RUT
+            if Empresa.objects.filter(owner=self.request.user, rut=rut_form).exclude(id=serializer.instance.id).exists():
+                raise ValidationError({'error': 'Ya tienes otra empresa registrada con este RUT.'})
+            datos_mayusculas['rut'] = rut_form
         serializer.save(**datos_mayusculas)
-
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
     serializer_class = EmpleadoSerializer
@@ -199,32 +207,38 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         return Empleado.objects.filter(empresa__owner=self.request.user)
 
     def perform_create(self, serializer):
-        # 1. Transformar todos los campos de texto a UPPERCASE
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
+        
+        # Obtenemos la empresa a la que se está intentando agregar el trabajador
+        empresa_destino = serializer.validated_data.get('empresa')
         
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
             if not validar_rut(rut_raw):
                 raise ValidationError({'error': 'El RUT ingresado no es válido.'})
             rut_form = formatear_rut(rut_raw)
-            if Empleado.objects.filter(empresa__owner=self.request.user, rut=rut_form).exists():
-                raise ValidationError({'error': 'Este trabajador ya está registrado en la empresa.'})
+            
+            # REGLA 3: Solo verificamos si existe dentro de ESTA empresa específica
+            if Empleado.objects.filter(empresa=empresa_destino, rut=rut_form).exists():
+                raise ValidationError({'error': 'Este trabajador ya está registrado en esta empresa.'})
             
             datos_mayusculas['rut'] = rut_form
             
         serializer.save(**datos_mayusculas)
 
     def perform_update(self, serializer):
-        # 1. Transformar todos los campos de texto a UPPERCASE
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
+        
+        empresa_destino = serializer.validated_data.get('empresa', serializer.instance.empresa)
         
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
             if not validar_rut(rut_raw):
                 raise ValidationError({'error': 'El RUT ingresado no es válido.'})
             rut_form = formatear_rut(rut_raw)
-            if Empleado.objects.filter(empresa__owner=self.request.user, rut=rut_form).exclude(id=serializer.instance.id).exists():
-                raise ValidationError({'error': 'Ya existe otro trabajador con este RUT.'})
+            
+            if Empleado.objects.filter(empresa=empresa_destino, rut=rut_form).exclude(id=serializer.instance.id).exists():
+                raise ValidationError({'error': 'Ya existe otro trabajador con este RUT en esta empresa.'})
             
             datos_mayusculas['rut'] = rut_form
             
@@ -557,7 +571,7 @@ def registrar_cliente(request):
     rut_formateado = formatear_rut(rut_raw)
     data['rut'] = rut_formateado 
     
-    if User.objects.filter(username=data.get('email')).exists():
+    if User.objects.filter(email=data.get('email')).exists():
         return Response({'error': 'Este correo ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
     
     if Cliente.objects.filter(rut=rut_formateado).exists():

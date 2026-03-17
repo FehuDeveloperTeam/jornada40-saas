@@ -83,13 +83,33 @@ export default function Register() {
       const response = await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', {
         ...formData,
         tipo_cliente: tipoCliente,
-        // Mandamos el plan 1 (Gratis) por defecto para que la cuenta se cree sin errores
         plan_id: 1 
       });
 
-      // 2. Si es exitoso, avanzamos al paso 2
+      // Si se crea con éxito, hacemos el Auto-Login
       if (response.status === 201) {
-        setStep(2);
+        
+        // -----------------------------------------------------------
+        // 1.5 AUTO-LOGIN SILENCIOSO
+        // -----------------------------------------------------------
+        try {
+          await axios.post(
+            'https://jornada40-saas-production.up.railway.app/api/auth/login/',
+            { 
+              username: formData.rut, // El backend usa el RUT como username
+              password: formData.password 
+            }, 
+            { withCredentials: true } // Vital para guardar la cookie de sesión
+          );
+          
+          // 2. Si el login fue exitoso, avanzamos al Paso 2 (Elegir Plan)
+          setStep(2);
+
+        } catch (loginError) {
+          console.error("Error en auto-login:", loginError);
+          alert("Cuenta creada con éxito. Por favor, inicia sesión para continuar.");
+          navigate('/login');
+        }
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
