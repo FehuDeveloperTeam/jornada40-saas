@@ -819,106 +819,6 @@ def mi_suscripcion(request):
     return Response(data, status=status.HTTP_200_OK)
 
 # ==========================================
-# PASARELA DE PAGOS (MERCADO PAGO)
-# ==========================================
-
-# 1. Inicializa el SDK con tu token de PRUEBA
-mp_sdk = mercadopago.SDK("TESTUSER6412012356748114795")
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def crear_preferencia_pago(request):
-    plan_id = request.data.get('plan_id')
-    try:
-        plan = Plan.objects.get(id=plan_id)
-        cliente = getattr(request.user, 'perfil_cliente', None)
-        
-        # Armar la preferencia
-        preference_data = {
-            "items": [
-                {
-                    "title": f"Plan {plan.nombre} - Jornada40",
-                    "quantity": 1,
-                    "currency_id": "CLP",
-                    "unit_price": float(plan.precio)
-                }
-            ],
-            "payer": {
-                "email": request.user.email,
-                "name": cliente.nombres if cliente else "",
-                "surname": cliente.apellido_paterno if cliente else ""
-            },
-            # Enviamos el ID del cliente y del plan para saber qué activar cuando paguen
-            "external_reference": f"{cliente.id}_{plan.id}",
-            "back_urls": {
-                "success": "https://jornada40-saas.vercel.app/dashboard?status=success",
-                "failure": "https://jornada40-saas.vercel.app/dashboard?status=failure",
-                "pending": "https://jornada40-saas.vercel.app/dashboard?status=pending"
-            },
-            "auto_return": "approved"
-        }
-
-        preference_response = mp_sdk.preference().create(preference_data)
-        init_point = preference_response["response"]["init_point"]
-
-        return Response({'init_point': init_point}, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-# ==========================================
-# PASARELA DE PAGOS (STRIPE)
-# ==========================================
-
-# Tu clave secreta de prueba (comienza con sk_test_...)
-stripe.api_key = "sk_test_PEGA_TU_CLAVE_AQUI"
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def crear_checkout_stripe(request):
-    plan_id = request.data.get('plan_id')
-    ciclo = request.data.get('ciclo', 'mensual') # 'mensual' o 'anual'
-
-    try:
-        plan = Plan.objects.get(id=plan_id)
-        cliente = getattr(request.user, 'perfil_cliente', None)
-
-        # Lógica de precio: Si es anual, cobramos 10 meses (2 meses gratis)
-        precio_base = float(plan.precio)
-        precio_final = precio_base * 10 if ciclo == 'anual' else precio_base
-        intervalo = 'year' if ciclo == 'anual' else 'month'
-
-        # Crear la sesión de suscripción en Stripe
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': 'clp',
-                    'product_data': {
-                        'name': f"Plan {plan.nombre} - Jornada40 ({ciclo.capitalize()})",
-                        'description': plan.descripcion,
-                    },
-                    # Stripe en Chile no usa decimales, así que mandamos el entero directo
-                    'unit_amount': int(precio_final), 
-                    'recurring': {
-                        'interval': intervalo,
-                    },
-                },
-                'quantity': 1,
-            }],
-            mode='subscription',
-            customer_email=request.user.email,
-            client_reference_id=f"{cliente.id}_{plan.id}", # Para saber a quién activar cuando paguen
-            success_url="http://localhost:5173/dashboard?status=success",
-            cancel_url="http://localhost:5173/register?status=canceled",
-        )
-
-        return Response({'url': checkout_session.url}, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-# ==========================================
 # PASARELA DE PAGOS (REVENIU)
 # ==========================================
 
@@ -932,8 +832,7 @@ def crear_checkout_reveniu(request):
         plan = Plan.objects.get(id=plan_id)
         cliente = getattr(request.user, 'perfil_cliente', None)
 
-        # Mapeo de tus planes. Aquí pondremos los links que te dé Reveniu en su panel.
-        # Las llaves son "IDdelPlan_ciclo"
+        # Mapeo de tus planes (Reemplazar con tus links reales de Reveniu)
         links_reveniu = {
             '2_mensual': 'https://pay.reveniu.com/link/tu-link-pyme-mensual',
             '2_anual': 'https://pay.reveniu.com/link/tu-link-pyme-anual',
@@ -958,11 +857,9 @@ def crear_checkout_reveniu(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
-    # Reveniu nos hace un POST aquí cada vez que pasa algo con un cobro
     data = request.data
-    evento = data.get('event') # ej: 'subscription_created' o 'payment_succeeded'
+    evento = data.get('event') 
     
-    # Cuando la suscripción se crea o un pago recurrente entra con éxito
     if evento in ['subscription_created', 'payment_succeeded']:
         custom_reference = data.get('custom_reference')
         
