@@ -2,299 +2,326 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import axios from 'axios';
+import { Check, Zap, ArrowLeft } from 'lucide-react';
 
-// --- DEFINICIÓN DE PLANES (Front-end mock) ---
+// --- DEFINICIÓN DE PLANES ---
 const PLANES = [
   {
     id: 1,
     nombre: 'Semilla',
-    precio: '0',
-    descripcion: 'Ideal para dar el primer paso hacia el cumplimiento de la Ley de 40 Horas sin costo inicial.',
-    empresas: 1,
+    precioMensual: 0,
+    precioAnual: 0,
+    descripcion: 'Ideal para dar el primer paso hacia el cumplimiento de la Ley de 40 Horas.',
     trabajadores: 3,
-    color: 'bg-green-50 text-green-700 border-green-200 ring-green-500',
+    color: 'border-green-200 ring-green-500 bg-green-50',
     boton: 'Comenzar Gratis'
   },
   {
     id: 2,
     nombre: 'Pyme',
-    precio: '29.990',
-    descripcion: 'La solución definitiva para automatizar la transición de tu plantilla laboral a la normativa.',
-    empresas: 3,
+    precioMensual: 29990,
+    precioAnual: 287900, // 20% de descuento (Original: $359.880)
+    precioAnualNormal: 359880, 
+    descripcion: 'La solución definitiva para automatizar la transición de tu plantilla laboral.',
     trabajadores: 40,
-    color: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-600',
+    color: 'border-blue-200 ring-blue-600 bg-blue-50',
     boton: 'Elegir Plan Pyme',
     destacado: true
   },
   {
     id: 3,
     nombre: 'Corporativo',
-    precio: '69.990',
-    descripcion: 'Herramienta robusta para holdings o asesores con múltiples razones sociales.',
-    empresas: 10,
-    trabajadores: 150,
-    color: 'bg-gray-50 text-gray-800 border-gray-200 ring-gray-900',
-    boton: 'Elegir Corporativo'
+    precioMensual: 69990,
+    precioAnual: 671900, // 20% de descuento (Original: $839.880)
+    precioAnualNormal: 839880,
+    descripcion: 'Herramienta robusta para holdings con control total.',
+    trabajadores: 200,
+    color: 'border-slate-200 ring-slate-800 bg-slate-50',
+    boton: 'Contactar Ventas'
   }
 ];
 
 export default function Register() {
   const navigate = useNavigate();
-  const [paso, setPaso] = useState<1 | 2>(1);
-  const [planSeleccionado, setPlanSeleccionado] = useState<number | null>(null);
   
-  // Estado del formulario
-  const [tipoCliente, setTipoCliente] = useState<'PERSONA' | 'EMPRESA'>('PERSONA');
+  // --- ESTADOS DE FLUJO ---
+  const [step, setStep] = useState(1); // 1: Datos Personales, 2: Selección de Plan
+  const [billingCycle, setBillingCycle] = useState<'mensual' | 'anual'>('mensual');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // --- ESTADOS DE FORMULARIO ---
+  const [tipoCliente, setTipoCliente] = useState<'PERSONA' | 'EMPRESA'>('EMPRESA');
   const [formData, setFormData] = useState({
     rut: '',
-    rut_representante: '', // <-- NUEVO CAMPO
-    email: '',
-    password: '',
+    rut_representante: '',
     nombres: '',
     apellido_paterno: '',
     apellido_materno: '',
-    razon_social: '',
-    representante_legal: '', // <-- NUEVO CAMPO
-    telefono: '',
-    direccion: ''
+    email: '',
+    password: ''
   });
-  
-  const [isValidRut, setIsValidRut] = useState(true);
-  const [isValidRutRep, setIsValidRutRep] = useState(true); // <-- VALIDACIÓN NUEVA
 
-  const handleSeleccionarPlan = (id: number) => {
-    setPlanSeleccionado(id);
-    setPaso(2);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const isValidRut = validateRut(formData.rut);
+  const isValidRutRep = validateRut(formData.rut_representante);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
-    // Si editan el RUT de la empresa/persona
-    if (name === 'rut') {
-      const formateado = formatRut(value);
-      setFormData({ ...formData, rut: formateado });
-      setIsValidRut(validateRut(formateado));
-    } 
-    // Si editan el RUT del representante legal (Aplica el mismo formato)
-    else if (name === 'rut_representante') {
-      const formateado = formatRut(value);
-      setFormData({ ...formData, rut_representante: formateado });
-      setIsValidRutRep(validateRut(formateado));
-    } 
-    // Cualquier otro campo
-    else {
+    if (name === 'rut' || name === 'rut_representante') {
+      setFormData({ ...formData, [name]: formatRut(value) });
+    } else {
       setFormData({ ...formData, [name]: value });
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // --- PASO 1: CREAR CUENTA ---
+  const handleCrearCuenta = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep)) return;
-
-    // Bloqueamos el botón mientras carga
-    const btn = document.getElementById('btn-submit') as HTMLButtonElement;
-    if (btn) {
-      btn.disabled = true;
-      btn.innerText = 'Creando cuenta...';
-    }
-
-    const payload = {
-      ...formData,
-      tipoCliente,
-      planId: planSeleccionado
-    };
+    setIsLoading(true);
 
     try {
-      await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', payload);
-      alert('¡Cuenta creada con éxito! Ahora puedes iniciar sesión.');
-      navigate('/login');
+      // 1. Mandamos a crear la cuenta (Captura del Lead)
+      const response = await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', {
+        ...formData,
+        tipo_cliente: tipoCliente,
+        // Mandamos el plan 1 (Gratis) por defecto para que la cuenta se cree sin errores
+        plan_id: 1 
+      });
+
+      // 2. Si es exitoso, avanzamos al paso 2
+      if (response.status === 201) {
+        setStep(2);
+      }
     } catch (error) {
-      console.error("Error en registro:", error);
-      
-      let errorMsg = "Ocurrió un error al crear la cuenta.";
-      // Le preguntamos a TypeScript si el error viene de Axios (Backend)
-      if (axios.isAxiosError(error) && error.response?.data?.error) {
-        errorMsg = error.response.data.error;
-      } else if (error instanceof Error) {
-        errorMsg = error.message;
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data?.error || "Error al crear la cuenta. Inténtalo de nuevo.");
+      } else {
+        alert("Ocurrió un error inesperado. Inténtalo de nuevo.");
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- PASO 2: PAGAR PLAN ---
+  const handleSeleccionarPlan = async (planId: number) => {
+    if (planId === 1) {
+      // Si elige el plan Semilla (gratis), va directo al dashboard
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const response = await axios.post(
+        'https://jornada40-saas-production.up.railway.app/api/pagos/crear_checkout/',
+        { 
+          plan_id: planId,
+          ciclo: billingCycle 
+        },
+        { withCredentials: true } // Importante para que el backend sepa quién es el usuario logueado en el Paso 1
+      );
       
-      alert(`Error: ${errorMsg}`);
+      // Redirigimos a la ventana de pago de Reveniu
+      window.location.href = response.data.url;
       
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = 'Crear mi Cuenta';
-      }
+    } catch (error) {
+      console.error("Error al iniciar el pago:", error);
+      alert("Hubo un problema al conectar con la pasarela de pago.");
     }
   };
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       
-      {/* HEADER BÁSICO */}
-      <div className="max-w-7xl mx-auto mb-12 text-center">
-        <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-2">
-          Jornada<span className="text-blue-600">40</span>
-        </h1>
-        <p className="text-lg text-gray-500">
-          {paso === 1 ? 'Elige el plan perfecto para tu empresa' : 'Crea tu cuenta y comienza a automatizar'}
-        </p>
+      {/* BOTÓN VOLVER */}
+      <div className="absolute top-6 left-6 sm:top-8 sm:left-8">
+        <button 
+          onClick={() => step === 1 ? navigate(-1) : navigate('/login')}
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-medium bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 hover:shadow"
+        >
+          <ArrowLeft size={18} />
+          Volver
+        </button>
       </div>
 
-      {/* PASO 1: SELECCIÓN DE PLANES */}
-      {paso === 1 && (
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-          {PLANES.map((plan) => (
-            <div 
-              key={plan.id} 
-              className={`relative bg-white rounded-3xl p-8 border-2 transition-all duration-300 hover:shadow-xl ${plan.destacado ? 'border-blue-600 shadow-lg scale-105' : 'border-gray-100 hover:border-gray-300'}`}
-            >
-              {plan.destacado && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white px-4 py-1 rounded-full text-xs font-bold tracking-wider uppercase">
-                  Más Elegido
-                </div>
-              )}
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.nombre}</h3>
-              <p className="text-gray-500 text-sm h-16 mb-6">{plan.descripcion}</p>
-              <div className="mb-6">
-                <span className="text-4xl font-extrabold text-gray-900">${plan.precio}</span>
-                {plan.precio !== '0' && <span className="text-gray-500 font-medium">/mes</span>}
-              </div>
-              
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center gap-3 text-sm text-gray-700 font-medium">
-                  <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  Hasta {plan.empresas} {plan.empresas === 1 ? 'Empresa' : 'Empresas'} (RUTs)
-                </li>
-                <li className="flex items-center gap-3 text-sm text-gray-700 font-medium">
-                  <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  Hasta {plan.trabajadores} Trabajadores en total
-                </li>
-                <li className="flex items-center gap-3 text-sm text-gray-700 font-medium">
-                  <svg className="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
-                  Generación de Anexos PDF
-                </li>
-              </ul>
-              
-              <button 
-                onClick={() => handleSeleccionarPlan(plan.id)}
-                className={`w-full py-3 px-6 rounded-xl font-bold transition-colors ${plan.destacado ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
-              >
-                {plan.boton}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* HEADER LOGO */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8 text-center mt-10 sm:mt-0 flex flex-col items-center">
+        <img 
+          src="/vite.svg" 
+          alt="Logo Jornada40" 
+          className="h-16 w-auto mb-2 drop-shadow-sm" 
+        />
+        <h1 className="text-4xl font-extrabold text-blue-600">Jornada40</h1>
+      </div>
 
-      {/* PASO 2: FORMULARIO DE REGISTRO */}
-      {paso === 2 && (
-        <div className="max-w-2xl mx-auto bg-white p-8 md:p-10 rounded-3xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Detalles de la Cuenta</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Has seleccionado el <span className="font-bold text-blue-600">Plan {PLANES.find(p => p.id === planSeleccionado)?.nombre}</span>.
-              </p>
-            </div>
-            <button onClick={() => setPaso(1)} className="text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors">
-              Cambiar Plan
+      {step === 1 ? (
+        /* ================= PASO 1: CAPTURA DE DATOS ================= */
+        <div className="sm:mx-auto sm:w-full sm:max-w-2xl bg-white py-8 px-4 shadow-xl rounded-3xl sm:px-10 border border-slate-100">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold text-slate-900">Crea tu cuenta</h2>
+            <p className="text-slate-500 mt-2">Paso 1 de 2: Información de tu empresa</p>
+          </div>
+
+          <div className="flex gap-4 mb-8 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setTipoCliente('EMPRESA')}
+              className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoCliente === 'EMPRESA' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Empresa
+            </button>
+            <button
+              onClick={() => setTipoCliente('PERSONA')}
+              className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoCliente === 'PERSONA' ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Persona Natural
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* SELECTOR DE TIPO DE CLIENTE */}
-            <div className="bg-gray-50 p-1.5 rounded-xl flex gap-2 mb-6">
-              <button type="button" onClick={() => setTipoCliente('PERSONA')} className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${tipoCliente === 'PERSONA' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                Persona Natural
-              </button>
-              <button type="button" onClick={() => setTipoCliente('EMPRESA')} className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${tipoCliente === 'EMPRESA' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                Empresa (Jurídica)
-              </button>
-            </div>
-
-            {/* CAMPOS DINÁMICOS */}
-            <div className="grid grid-cols-2 gap-5">
-              
-              {tipoCliente === 'PERSONA' ? (
-                <>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombres *</label>
-                    <input type="text" name="nombres" required value={formData.nombres} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ap. Paterno *</label>
-                    <input type="text" name="apellido_paterno" required value={formData.apellido_paterno} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ap. Materno</label>
-                    <input type="text" name="apellido_materno" value={formData.apellido_materno} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social *</label>
-                    <input type="text" name="razon_social" required value={formData.razon_social} onChange={handleInputChange} placeholder="Ej: Agrícola Santa Sofía SpA" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  {/* NUEVOS CAMPOS REPRESENTANTE LEGAL */}
-                  <div className="col-span-2 md:col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Representante Legal *</label>
-                    <input type="text" name="representante_legal" required value={formData.representante_legal} onChange={handleInputChange} placeholder="Ej: Juan Pérez" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div className="col-span-2 md:col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">RUT Representante *</label>
-                    <input type="text" name="rut_representante" required value={formData.rut_representante} onChange={handleInputChange} placeholder="12.345.678-9" className={`w-full px-4 py-3 rounded-xl border ${!isValidRutRep && formData.rut_representante ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500'} outline-none`} />
-                  </div>
-                </>
-              )}
-
-              {/* CAMPOS COMUNES */}
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">RUT {tipoCliente === 'EMPRESA' ? 'Empresa' : 'Personal'} *</label>
-                <input type="text" name="rut" required value={formData.rut} onChange={handleInputChange} placeholder="12.345.678-9" className={`w-full px-4 py-3 rounded-xl border ${!isValidRut && formData.rut ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500'} outline-none`} />
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono Móvil *</label>
-                <input type="text" name="telefono" required value={formData.telefono} onChange={handleInputChange} placeholder="+56 9 1234 5678" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+          <form onSubmit={handleCrearCuenta} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tipoCliente === 'EMPRESA' ? 'RUT Empresa *' : 'RUT *'}</label>
+                <input type="text" name="rut" required value={formData.rut} onChange={handleInputChange} placeholder="12.345.678-9" className={`w-full px-4 py-3 rounded-xl border ${formData.rut && !isValidRut ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500'} focus:ring-2 outline-none`} />
               </div>
               
               {tipoCliente === 'EMPRESA' && (
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Comercial</label>
-                  <input type="text" name="direccion" value={formData.direccion} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">RUT Representante Legal *</label>
+                  <input type="text" name="rut_representante" required value={formData.rut_representante} onChange={handleInputChange} placeholder="12.345.678-9" className={`w-full px-4 py-3 rounded-xl border ${formData.rut_representante && !isValidRutRep ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-blue-500'} focus:ring-2 outline-none`} />
                 </div>
               )}
 
-              <div className="col-span-2 mt-4 pt-6 border-t border-gray-100">
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Credenciales de Acceso</h3>
+              <div className={tipoCliente === 'PERSONA' ? 'md:col-span-2' : ''}>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tipoCliente === 'EMPRESA' ? 'Razón Social *' : 'Nombres *'}</label>
+                <input type="text" name="nombres" required value={formData.nombres} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
 
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico *</label>
-                <input type="email" name="email" required value={formData.email} onChange={handleInputChange} placeholder="tu@correo.com" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{tipoCliente === 'EMPRESA' ? 'Nombre Fantasía' : 'Apellido Paterno *'}</label>
+                <input type="text" name="apellido_paterno" required={tipoCliente === 'PERSONA'} value={formData.apellido_paterno} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
-                <input type="password" name="password" required value={formData.password} onChange={handleInputChange} placeholder="Mínimo 8 caracteres" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+
+              {tipoCliente === 'PERSONA' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Apellido Materno</label>
+                  <input type="text" name="apellido_materno" value={formData.apellido_materno} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+              )}
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Correo Electrónico *</label>
+                <input type="email" name="email" required value={formData.email} onChange={handleInputChange} placeholder="tu@correo.com" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña *</label>
+                <input type="password" name="password" required value={formData.password} onChange={handleInputChange} placeholder="Mínimo 8 caracteres" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
             </div>
 
             <button 
               type="submit" 
-              id="btn-submit" 
-              disabled={!isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep)} 
-              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors mt-8 shadow-lg"
+              disabled={isLoading || !isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep)} 
+              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 transition-colors mt-8 shadow-md"
             >
-              Crear mi Cuenta
+              {isLoading ? 'Creando cuenta...' : 'Continuar al Paso 2'}
             </button>
           </form>
+          <p className="text-center mt-6 text-sm text-slate-500">¿Ya tienes cuenta? <Link to="/login" className="font-bold text-blue-600 hover:underline">Inicia sesión</Link></p>
+        </div>
 
-          <p className="text-center mt-6 text-sm text-gray-500">
-            ¿Ya tienes una cuenta? <Link to="/login" className="font-semibold text-blue-600 hover:underline">Inicia sesión aquí</Link>
-          </p>
+      ) : (
+
+        /* ================= PASO 2: SELECCIÓN DE PLAN Y PAGO ================= */
+        <div className="sm:mx-auto sm:w-full max-w-5xl">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-extrabold text-slate-900">¡Cuenta creada con éxito!</h2>
+            <p className="text-lg text-slate-600 mt-2">Paso 2 de 2: Elige el plan que mejor se adapte a tu empresa</p>
+          </div>
+
+          {/* TOGGLE MENSUAL / ANUAL */}
+          <div className="flex justify-center mb-12">
+            <div className="bg-slate-200 p-1 rounded-full flex items-center shadow-inner">
+              <button 
+                onClick={() => setBillingCycle('mensual')}
+                className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${billingCycle === 'mensual' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Pago Mensual
+              </button>
+              <button 
+                onClick={() => setBillingCycle('anual')}
+                className={`px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all ${billingCycle === 'anual' ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Pago Anual 
+                <span className={`${billingCycle === 'anual' ? 'bg-emerald-400 text-emerald-950 shadow-sm' : 'bg-emerald-100 text-emerald-700'} text-xs px-2.5 py-0.5 rounded-full transition-colors`}>
+                  Ahorra 20%
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* TARJETAS DE PLANES */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {PLANES.map((plan) => (
+              <div key={plan.id} className={`relative bg-white rounded-3xl p-8 shadow-lg border-2 ${plan.destacado ? 'border-blue-500 ring-4 ring-blue-50' : 'border-slate-100'} flex flex-col`}>
+                
+                {plan.destacado && (
+                  <div className="absolute -top-5 left-0 right-0 flex justify-center">
+                    <span className="bg-blue-500 text-white text-xs font-extrabold px-4 py-1.5 rounded-full flex items-center gap-1 uppercase tracking-wide shadow-md">
+                      <Zap size={14} /> Más Popular
+                    </span>
+                  </div>
+                )}
+
+                <h3 className="text-2xl font-bold text-slate-900">{plan.nombre}</h3>
+                <p className="text-sm text-slate-500 mt-2 min-h-[40px]">{plan.descripcion}</p>
+
+                <div className="my-6">
+                  {plan.precioMensual === 0 ? (
+                    <span className="text-5xl font-extrabold text-slate-900">Gratis</span>
+                  ) : (
+                    <div className="flex flex-col min-h-[80px] justify-end">
+                      {/* Precio Ancla: Aparece tachado solo en modalidad anual */}
+                      {billingCycle === 'anual' && plan.precioAnualNormal && (
+                        <span className="text-sm font-bold text-slate-400 line-through mb-1 ml-1 transition-opacity animate-fade-in">
+                          ${plan.precioAnualNormal.toLocaleString('es-CL')}
+                        </span>
+                      )}
+                      
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-5xl font-extrabold text-slate-900 transition-all">
+                          ${billingCycle === 'mensual' ? plan.precioMensual.toLocaleString('es-CL') : plan.precioAnual.toLocaleString('es-CL')}
+                        </span>
+                        <span className="text-slate-500 font-medium">
+                          /{billingCycle === 'mensual' ? 'mes' : 'año'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <ul className="space-y-4 mb-8 flex-1">
+                  <li className="flex items-start gap-3">
+                    <Check className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                    <span className="text-slate-700">Hasta <strong>{plan.trabajadores} trabajadores</strong></span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <Check className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                    <span className="text-slate-700">Asesoría Ley 40 horas</span>
+                  </li>
+                </ul>
+
+                <button 
+                  onClick={() => handleSeleccionarPlan(plan.id)}
+                  className={`w-full py-4 rounded-xl font-bold transition-all ${
+                    plan.destacado 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg' 
+                      : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                  }`}
+                >
+                  {plan.boton}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

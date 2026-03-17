@@ -97,11 +97,11 @@ export default function Login() {
           
           {/* LOGO Y CABECERA */}
           <div className="text-center mb-10">
-            <div className="w-16 h-16 bg-slate-900 text-white rounded-[1.25rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-900/20 ring-1 ring-slate-900/5">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-              </svg>
-            </div>
+            <img 
+              src="/vite.svg" 
+              alt="Logo Jornada40" 
+              className="h-16 w-auto mb-2 drop-shadow-sm" 
+            />
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">
               Jornada<span className="text-blue-600">40</span>
             </h1>
