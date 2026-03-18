@@ -64,12 +64,12 @@ export default function Terminos() {
 
             <section>
               <h2 className="text-xl font-bold text-slate-900 mb-3">6. Propiedad Intelectual</h2>
-              <p>Todo el código fuente, diseño, logotipos, textos y algoritmos de la plataforma son propiedad exclusiva de Jornada40. El pago de la suscripción otorga una licencia de uso temporal y no exclusiva, no el derecho de propiedad sobre el software.</p>
+              <p>Todo el código fuente, diseño, logotipos, textos y algoritmos de la plataforma son propiedad exclusiva de Fehu Developers (<strong>www.fehudevelopers.cl</strong>) y Jornada40. El pago de la suscripción otorga una licencia de uso temporal y no exclusiva, no el derecho de propiedad sobre el software.</p>
             </section>
 
             <section>
               <h2 className="text-xl font-bold text-slate-900 mb-3">7. Contacto</h2>
-              <p>Para cualquier duda, solicitud de soporte o cancelación, el Cliente puede contactarnos al correo electrónico: <strong>soporte@jornada40.cl</strong>.</p>
+              <p>Para cualquier duda, solicitud de soporte o cancelación, el Cliente puede contactarnos al correo electrónico: <strong>contacto.jornada40@gmail.com</strong>.</p>
             </section>
 
           </div>

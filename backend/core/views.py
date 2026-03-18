@@ -19,6 +19,7 @@ import math
 from num2words import num2words
 import pandas as pd
 import traceback
+import urllib.parse
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
@@ -878,8 +879,14 @@ def crear_checkout_reveniu(request):
         if not link_base:
             return Response({'error': 'Link de pago no configurado para este plan.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Le inyectamos el email y la referencia externa (ID Cliente + ID Plan) al link de Reveniu
-        url_pago = f"{link_base}?email={request.user.email}&custom_reference={cliente.id}_{plan.id}"
+        # Rescatamos el nombre y apellido del usuario de Django
+        nombre_completo = f"{request.user.first_name} {request.user.last_name}".strip()
+        
+        # Codificamos el nombre para que la URL no se rompa con los espacios (ej: Juan%20Perez)
+        nombre_url = urllib.parse.quote(nombre_completo)
+
+        # Le inyectamos el email, el nombre y la referencia externa
+        url_pago = f"{link_base}?email={request.user.email}&name={nombre_url}&custom_reference={cliente.id}_{plan.id}"
 
         return Response({'url': url_pago}, status=status.HTTP_200_OK)
 
