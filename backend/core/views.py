@@ -176,27 +176,45 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         return Empresa.objects.filter(owner=self.request.user)
 
     def perform_create(self, serializer):
-        # Convertir todo a mayúsculas
+        cliente = getattr(self.request.user, 'perfil_cliente', None)
+        
+        # 1. REGLA DE NEGOCIO: Límite de empresas según el Plan
+        if cliente and cliente.plan:
+            total_empresas = Empresa.objects.filter(owner=self.request.user).count()
+            
+            # Definir límite según el ID del plan (1: Semilla, 2: Pyme, 3: Corporativo)
+            limite_empresas = 1
+            if cliente.plan.id == 2:
+                limite_empresas = 3
+            elif cliente.plan.id == 3:
+                limite_empresas = 10
+                
+            if total_empresas >= limite_empresas:
+                raise ValidationError({'error': f'Tu plan actual permite administrar un máximo de {limite_empresas} empresas. Actualiza tu plan para registrar más.'})
+
+        # 2. Convertir a mayúsculas
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
+        
+        # 3. REGLA DE NEGOCIO: No repetir RUT en el mismo panel
         if rut_raw:
             rut_form = formatear_rut(rut_raw)
-            # REGLA 2: No repetir RUT de empresa para este mismo cliente
             if Empresa.objects.filter(owner=self.request.user, rut=rut_form).exists():
                 raise ValidationError({'error': 'Ya tienes una empresa registrada con este RUT en tu panel.'})
             datos_mayusculas['rut'] = rut_form
+            
         serializer.save(owner=self.request.user, **datos_mayusculas)
             
     def perform_update(self, serializer):
-        # Convertir todo a mayúsculas
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
+        
         if rut_raw:
             rut_form = formatear_rut(rut_raw)
-            # Excluimos la empresa actual para permitir actualización sin cambiar RUT
             if Empresa.objects.filter(owner=self.request.user, rut=rut_form).exclude(id=serializer.instance.id).exists():
                 raise ValidationError({'error': 'Ya tienes otra empresa registrada con este RUT.'})
             datos_mayusculas['rut'] = rut_form
+            
         serializer.save(**datos_mayusculas)
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
@@ -848,10 +866,10 @@ def crear_checkout_reveniu(request):
 
         # Mapeo de tus planes (Reemplazar con tus links reales de Reveniu)
         links_reveniu = {
-            '2_mensual': 'https://pay.reveniu.com/link/tu-link-pyme-mensual',
-            '2_anual': 'https://pay.reveniu.com/link/tu-link-pyme-anual',
-            '3_mensual': 'https://pay.reveniu.com/link/tu-link-corp-mensual',
-            '3_anual': 'https://pay.reveniu.com/link/tu-link-corp-anual',
+            '2_mensual': 'https://app.reveniu.com/checkout-custom-link/QSMYRGkfHJRKBMLEZv5GIjzp1bDi4SUk',
+            '2_anual': 'https://app.reveniu.com/checkout-custom-link/Z5vFclG2XxwsAmK97pdqZtDlodg8Z8AI',
+            '3_mensual': 'https://app.reveniu.com/checkout-custom-link/79QUEzlLLxyvHpMLDPRF7Hh5f8I6PMBU',
+            '3_anual': 'https://app.reveniu.com/checkout-custom-link/qT6wMve3nlJ5HzpWZyHBcF2ym9K7BTZy',
         }
 
         llave = f"{plan.id}_{ciclo}"

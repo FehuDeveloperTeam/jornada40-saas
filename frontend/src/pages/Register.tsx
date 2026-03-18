@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import axios from 'axios';
-import { Check, Zap, ArrowLeft } from 'lucide-react';
+import { Check, Zap, ArrowLeft, Building } from 'lucide-react';
 
 // --- DEFINICIÓN DE PLANES ---
 const PLANES = [
@@ -13,6 +13,7 @@ const PLANES = [
     precioAnual: 0,
     descripcion: 'Ideal para dar el primer paso hacia el cumplimiento de la Ley de 40 Horas.',
     trabajadores: 3,
+    empresas: 1,
     color: 'border-green-200 ring-green-500 bg-green-50',
     boton: 'Comenzar Gratis'
   },
@@ -20,10 +21,11 @@ const PLANES = [
     id: 2,
     nombre: 'Pyme',
     precioMensual: 29990,
-    precioAnual: 287900, // 20% de descuento (Original: $359.880)
+    precioAnual: 287904,
     precioAnualNormal: 359880, 
     descripcion: 'La solución definitiva para automatizar la transición de tu plantilla laboral.',
     trabajadores: 40,
+    empresas: 3,
     color: 'border-blue-200 ring-blue-600 bg-blue-50',
     boton: 'Elegir Plan Pyme',
     destacado: true
@@ -32,10 +34,11 @@ const PLANES = [
     id: 3,
     nombre: 'Corporativo',
     precioMensual: 69990,
-    precioAnual: 671900, // 20% de descuento (Original: $839.880)
+    precioAnual: 671904,
     precioAnualNormal: 839880,
     descripcion: 'Herramienta robusta para holdings con control total.',
     trabajadores: 200,
+    empresas: 10,
     color: 'border-slate-200 ring-slate-800 bg-slate-50',
     boton: 'Contactar Ventas'
   }
@@ -45,9 +48,10 @@ export default function Register() {
   const navigate = useNavigate();
   
   // --- ESTADOS DE FLUJO ---
-  const [step, setStep] = useState(1); // 1: Datos Personales, 2: Selección de Plan
+  const [step, setStep] = useState(1);
   const [billingCycle, setBillingCycle] = useState<'mensual' | 'anual'>('mensual');
   const [isLoading, setIsLoading] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
 
   // --- ESTADOS DE FORMULARIO ---
   const [tipoCliente, setTipoCliente] = useState<'PERSONA' | 'EMPRESA'>('EMPRESA');
@@ -79,30 +83,24 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      // 1. Mandamos a crear la cuenta (Captura del Lead)
       const response = await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', {
         ...formData,
         tipo_cliente: tipoCliente,
         plan_id: 1 
       });
 
-      // Si se crea con éxito, hacemos el Auto-Login
       if (response.status === 201) {
-        
-        // -----------------------------------------------------------
-        // 1.5 AUTO-LOGIN SILENCIOSO
-        // -----------------------------------------------------------
+        // AUTO-LOGIN SILENCIOSO
         try {
           await axios.post(
             'https://jornada40-saas-production.up.railway.app/api/auth/login/',
             { 
-              username: formData.rut, // El backend usa el RUT como username
+              username: formData.rut,
               password: formData.password 
             }, 
-            { withCredentials: true } // Vital para guardar la cookie de sesión
+            { withCredentials: true }
           );
           
-          // 2. Si el login fue exitoso, avanzamos al Paso 2 (Elegir Plan)
           setStep(2);
 
         } catch (loginError) {
@@ -125,7 +123,6 @@ export default function Register() {
   // --- PASO 2: PAGAR PLAN ---
   const handleSeleccionarPlan = async (planId: number) => {
     if (planId === 1) {
-      // Si elige el plan Semilla (gratis), va directo al dashboard
       navigate('/login');
       return;
     }
@@ -137,10 +134,9 @@ export default function Register() {
           plan_id: planId,
           ciclo: billingCycle 
         },
-        { withCredentials: true } // Importante para que el backend sepa quién es el usuario logueado en el Paso 1
+        { withCredentials: true }
       );
       
-      // Redirigimos a la ventana de pago de Reveniu
       window.location.href = response.data.url;
       
     } catch (error) {
@@ -148,8 +144,9 @@ export default function Register() {
       alert("Hubo un problema al conectar con la pasarela de pago.");
     }
   };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
       
       {/* BOTÓN VOLVER */}
       <div className="absolute top-6 left-6 sm:top-8 sm:left-8">
@@ -237,10 +234,29 @@ export default function Register() {
               </div>
             </div>
 
+            {/* CHECKBOX DE TÉRMINOS Y CONDICIONES */}
+            <div className="flex items-start mt-4">
+              <input
+                type="checkbox"
+                id="terminos"
+                required
+                checked={aceptaTerminos}
+                onChange={(e) => setAceptaTerminos(e.target.checked)}
+                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded cursor-pointer"
+              />
+              <label htmlFor="terminos" className="ml-2 block text-sm text-slate-500 cursor-pointer">
+                He leído y acepto los{' '}
+                <Link to="/terminos" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
+                  Términos y Condiciones
+                </Link>
+              </label>
+            </div>
+
+            {/* BOTÓN BLOQUEADO SI NO ACEPTA TÉRMINOS */}
             <button 
               type="submit" 
-              disabled={isLoading || !isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep)} 
-              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 transition-colors mt-8 shadow-md"
+              disabled={isLoading || !isValidRut || (tipoCliente === 'EMPRESA' && !isValidRutRep) || !aceptaTerminos} 
+              className="w-full py-4 px-6 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors mt-8 shadow-md"
             >
               {isLoading ? 'Creando cuenta...' : 'Continuar al Paso 2'}
             </button>
@@ -319,6 +335,13 @@ export default function Register() {
                 </div>
 
                 <ul className="space-y-4 mb-8 flex-1">
+                  <li className="flex items-start gap-3">
+                    <Building className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                    <span className="text-slate-700">
+                      Gestiona hasta <strong>{plan.empresas} {plan.empresas === 1 ? 'empresa' : 'empresas'}</strong>
+                    </span>
+                  </li>
+
                   <li className="flex items-start gap-3">
                     <Check className="text-blue-500 shrink-0 mt-0.5" size={18} />
                     <span className="text-slate-700">Hasta <strong>{plan.trabajadores} trabajadores</strong></span>
