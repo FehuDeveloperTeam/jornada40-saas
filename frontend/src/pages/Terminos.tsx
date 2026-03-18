@@ -10,7 +10,15 @@ export default function Terminos() {
         
         {/* BOTÓN VOLVER */}
         <button 
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            // Si tiene pestaña "madre" (se abrió con target="_blank"), la cerramos
+            if (window.opener) {
+              window.close();
+            } else {
+              // Si no, navegamos atrás o al registro
+              navigate('/register');
+            }
+          }}
           className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors font-medium bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 hover:shadow mb-8"
         >
           <ArrowLeft size={18} />
