@@ -705,6 +705,16 @@ export default function Dashboard() {
     try {
       if (panelMode === 'edit' && selectedEmpleado) {
         await axios.patch(`https://jornada40-saas-production.up.railway.app/api/empleados/${selectedEmpleado.id}/`, payload, apiConfig);
+        if (contratoData && contratoData.id) {
+          try {
+            await axios.patch(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/`, {
+              sueldo_base: payload.sueldo_base,
+              cargo: payload.cargo
+            }, apiConfig);
+          } catch (syncError) {
+            console.error("No se pudo sincronizar el contrato automáticamente", syncError);
+          }
+        }
       } else {
         await axios.post('https://jornada40-saas-production.up.railway.app/api/empleados/', payload, apiConfig);
       }
@@ -991,7 +1001,10 @@ export default function Dashboard() {
                 
                 <div className="flex items-center gap-2">
                   {panelMode === 'view' && selectedEmpleado && (
-                    <button onClick={() => setPanelMode('edit')} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm flex items-center gap-2">
+                    <button onClick={() => {setFormData({ ...selectedEmpleado });
+                      setIsValidRut (true);
+                      setPanelMode('edit');}
+                     } className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm flex items-center gap-2">
                       <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                       Editar Ficha
                     </button>
