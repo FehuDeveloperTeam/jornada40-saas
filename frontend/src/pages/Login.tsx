@@ -96,7 +96,7 @@ export default function Login() {
         <div className="w-full max-w-[420px] animate-in fade-in slide-in-from-bottom-4 duration-700">
           
           {/* LOGO Y CABECERA */}
-          <div className="text-center mb-10">
+          <div className="text-center mb-10 items-center flex flex-col gap-2">
             <img 
               src="/vite.svg" 
               alt="Logo Jornada40" 
