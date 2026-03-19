@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Register from './pages/Register';
 import Landing from './pages/Landing';
 import Terminos from './pages/Terminos';
+import Suscripcion from './pages/Suscripcion';
 
 // 🛡️ EL GUARDIÁN REAL (Consulta al Backend)
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/terminos" element={<Terminos />} />
+        
 
         {/* Rutas Privadas y Seguras */}
         <Route 
@@ -74,6 +76,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/suscripcion" 
+          element={
+            <ProtectedRoute>
+              <Suscripcion />
             </ProtectedRoute>
           } 
         />

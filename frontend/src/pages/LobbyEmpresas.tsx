@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
+import {ShieldCheck, Settings} from 'lucide-react';
 
 interface Empresa {
   id: number;
@@ -176,19 +177,29 @@ export default function LobbyEmpresas() {
 
         {/* Derecha: Badge de Seguridad y Botón Nueva Empresa */}
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2 text-slate-400 bg-white px-4 py-2 rounded-full border border-slate-100 shadow-sm">
-            <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-            </svg>
-            <span className="text-xs font-bold tracking-widest uppercase text-slate-500">Conexión Segura</span>
+          <div className="flex justify-end items-center gap-4 mb-12">
+          {/* Indicador de Conexión Segura */}
+          <div className="flex items-center gap-2 text-emerald-700 bg-emerald-100 px-4 py-2 rounded-full text-sm font-bold shadow-sm border border-emerald-200">
+            <ShieldCheck size={18} />
+            Conexión Segura
           </div>
+          
+          {/* Botón de Configuración (Tuerca) */}
+          <button 
+            onClick={() => navigate('/suscripcion')} 
+            className="p-3 text-slate-500 hover:text-slate-900 hover:bg-slate-200 bg-white rounded-full transition-all shadow-sm border border-slate-200"
+            title="Configuración de Cuenta"
+          >
+            <Settings size={22} />
+          </button>
+        </div>
           <button 
             onClick={abrirModalCrear} 
-            className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-slate-800 transition-all shadow-md shadow-slate-900/10 flex items-center gap-2 group"
+            className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-md shadow-slate-900/10 flex items-center gap-2"
           >
-            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 group-hover:scale-110 transition-transform"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
             Nueva Empresa
           </button>
+        
         </div>
       </div>
 

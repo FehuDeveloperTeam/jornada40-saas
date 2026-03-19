@@ -3,16 +3,27 @@ import type { ReactNode } from 'react';
 import client from '../api/client';
 import type { User } from '../types';
 
+// 1. Creamos una interfaz estricta para los datos del login
+export interface LoginData {
+    username?: string;
+    email?: string;
+    password?: string;
+    rut?: string;
+    [key: string]: string | undefined; // Permite otros campos si el backend los requiere
+}
+
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     loading: boolean;
-    login: (data: any) => Promise<void>;
+    login: (data: LoginData) => Promise<void>; 
     logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// 2. SOLUCIÓN AL "FAST REFRESH": Le decimos a ESLint que permita exportar este Hook aquí.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) throw new Error('useAuth debe usarse dentro de un AuthProvider');
@@ -42,7 +53,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         checkAuth();
     }, []);
 
-    const login = async (data: any) => {
+    // <-- Adiós al "any" aquí también
+    const login = async (data: LoginData) => {
         // 1. Enviar credenciales (Django responde con Set-Cookie)
         await client.post('/auth/login/', data);
         
