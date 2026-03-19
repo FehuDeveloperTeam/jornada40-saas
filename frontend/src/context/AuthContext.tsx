@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import type { ReactNode } from 'react'; // <--- CORRECCIÓN AQUÍ (type import)
+import type { ReactNode } from 'react'; 
 import client from '../api/client';
 import type { User } from '../types';
 
@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const res = await client.get('/auth/user/');
             setUser(res.data);
         } catch (error) {
+            console.error("No autenticado", error);
             setUser(null);
         } finally {
             setLoading(false);

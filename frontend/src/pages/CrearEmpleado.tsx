@@ -40,7 +40,6 @@ export default function CrearEmpleado() {
         });
     };
 
-    // CORRECCIÓN AQUÍ: Se especifica <HTMLFormElement> para evitar el error de deprecación
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         try {

@@ -37,7 +37,6 @@ interface Empleado {
   activo: boolean;
   empresa: number;
   creado_en?: string;
-  // --- NUEVOS CAMPOS (FASE 4) ---
   centro_costo?: string;
   ficha_numero?: string;
   forma_pago?: string;
@@ -91,7 +90,7 @@ interface DocumentoLegal {
   creado_en?: string;
 }
 
-// --- TIPOS PARA LOS ARREGLOS DINÁMICOS ---
+
 interface ItemDinamico {
   glosa: string;
   valor: number;
@@ -181,7 +180,7 @@ export default function Dashboard() {
   const [hayCambiosContrato, setHayCambiosContrato] = useState(false); // <--- ESTADO DE CANDADO
   const [expandedLiqId, setExpandedLiqId] = useState<number | null>(null);
 
-  // Estados para Liquidaciones (Fase 4 - Avanzada)
+  // Estados para Liquidaciones 
   const [liquidaciones, setLiquidaciones] = useState<Liquidacion[]>([]);
   const [showLiqForm, setShowLiqForm] = useState(false);
   const [isGeneratingLiq, setIsGeneratingLiq] = useState(false);
@@ -201,7 +200,7 @@ export default function Dashboard() {
   const [clausulas, setClausulas] = useState<string[]>([]);
   const [horario, setHorario] = useState<HorarioSemana>(defaultHorario);
 
-  // Estados para Documentos Legales (Fase 3)
+  // Estados para Documentos Legales 
   const [documentosLegales, setDocumentosLegales] = useState<DocumentoLegal[]>([]);
   const [documentoData, setDocumentoData] = useState<Partial<DocumentoLegal>>({});
   const [showDocumentoForm, setShowDocumentoForm] = useState(false);
@@ -324,9 +323,9 @@ export default function Dashboard() {
         Plan_Isapre_UF: 0
       },
       {
-        RUT: "18.081.837-5",
-        Nombres: "CAMILA ALEJANDRA",
-        Apellido_Paterno: "MALDONADO",
+        RUT: "11.111.111-1",
+        Nombres: "CAMILA",
+        Apellido_Paterno: "MARTINEZ",
         Apellido_Materno: "GARRIDO",
         Email: "camila@empresa.cl",
         Sexo: "F",
@@ -446,12 +445,12 @@ export default function Dashboard() {
       // Apagamos la alarma al terminar de cargar los datos del servidor
       setHayCambiosContrato(false); 
 
-      // 2. Cargar Documentos Legales (Fase 3)
+      // 2. Cargar Documentos Legales 
       const resDocs = await axios.get(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/?empleado=${empleadoId}`, apiConfig);
       setDocumentosLegales(resDocs.data);
       setShowDocumentoForm(false);
 
-      // 3. Cargar Liquidaciones (Fase 4)
+      // 3. Cargar Liquidaciones 
       const resLiq = await axios.get(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/?empleado=${empleadoId}`, apiConfig);
       setLiquidaciones(resLiq.data);
       setShowLiqForm(false);
@@ -514,7 +513,7 @@ export default function Dashboard() {
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
-    setHayCambiosContrato(true); // <--- ENCIENDE LA ALARMA
+    setHayCambiosContrato(true); 
   };
 
   // ==========================================
@@ -553,7 +552,7 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // NUEVO: MANEJADOR PARA GUARDAR DOCUMENTOS LEGALES
+  // MANEJADOR PARA GUARDAR DOCUMENTOS LEGALES
   // ==========================================
   const guardarDocumentoLegal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -962,7 +961,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* === SLIDE-OVER PANEL LATERAL (UI 2026 - WIDE DRAWER) === */}
+      {/* === SLIDE-OVER PANEL LATERAL === */}
       {isPanelOpen && (
         <div className="fixed inset-0 z-40 overflow-hidden">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={(e) => { e.stopPropagation(); setIsPanelOpen(false); }}></div>
@@ -1710,7 +1709,7 @@ export default function Dashboard() {
                 )}
 
                 {/* ========================================== */}
-                {/* PESTAÑA 4: HISTORIAL LEGAL (FASE 3)        */}
+                {/* PESTAÑA 4: HISTORIAL LEGAL         */}
                 {/* ========================================== */}
                 {activeTab === 'legal' && (
                   <div className="max-w-4xl mx-auto">

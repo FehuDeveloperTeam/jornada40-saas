@@ -155,7 +155,6 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             html = template.render(context)
 
             response = HttpResponse(content_type='application/pdf')
-            # Nombra el archivo según el tipo de documento (Ej: AMONESTACION_12345678-9.pdf)
             nombre_archivo = f'{documento.tipo}_{empleado.rut}.pdf'
             response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
 
@@ -237,7 +236,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 raise ValidationError({'error': 'El RUT ingresado no es válido.'})
             rut_form = formatear_rut(rut_raw)
             
-            # REGLA 3: Solo verificamos si existe dentro de ESTA empresa específica
+            # Solo verificamos si existe dentro de ESTA empresa específica
             if Empleado.objects.filter(empresa=empresa_destino, rut=rut_form).exists():
                 raise ValidationError({'error': 'Este trabajador ya está registrado en esta empresa.'})
             
@@ -277,7 +276,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             if not archivo_excel.name.endswith(('.xlsx', '.xls')):
                 return Response({'error': 'Formato no permitido'}, status=400)
 
-            # Validar tamaño (ej: máximo 5MB)
+            # Validar tamaño (5MB máximo)
             if archivo_excel.size > 5 * 1024 * 1024:
                 return Response({'error': 'Archivo demasiado pesado'}, status=400)
 
@@ -314,7 +313,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             ultimo_ingresado = None
             limite_alcanzado = False
 
-            # 2. TRANSACCIÓN ATÓMICA
             with transaction.atomic():
                 total_actual = Empleado.objects.filter(empresa=empresa).count()
 
@@ -558,7 +556,6 @@ class ContratoViewSet(viewsets.ModelViewSet):
                 'ciudad': ciudad_segura 
             }
 
-            # AQUÍ LE DECIMOS QUE USE LA NUEVA PLANTILLA
             template = get_template('contrato_trabajo.html')
             html = template.render(context)
 
@@ -695,7 +692,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             # Salud (Isapre UF vs Fonasa 7%)
             salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
             if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf > 0:
-                # Simulación valor UF (Idealmente esto vendría de una API externa del Banco Central)
+                # Simulación valor UF 
                 VALOR_UF = 38000 
                 salud_monto = math.floor(float(empleado.plan_isapre_uf) * VALOR_UF)
                 isapre_uf = empleado.plan_isapre_uf
@@ -755,10 +752,6 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             sueldo_seguro = int(liquidacion.sueldo_liquido or 0)
             liquido_palabras = num2words(sueldo_seguro, lang='es')
 
-            # ---------------------------------------------------------
-            # SOLUCIÓN: Validar que los campos JSON sean realmente listas 
-            # antes de intentar iterar sobre ellos. Protege liquidaciones antiguas.
-            # ---------------------------------------------------------
             det_no_imp = liquidacion.detalle_haberes_no_imponibles
             if not isinstance(det_no_imp, list): det_no_imp = []
             suma_no_imponibles = sum(int(item.get('valor', 0)) for item in det_no_imp if isinstance(item, dict))
@@ -767,7 +760,6 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             if not isinstance(det_otros_dsctos, list): det_otros_dsctos = []
             suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in det_otros_dsctos if isinstance(item, dict))
             
-            # También protegemos las sumas legales por si algún campo quedó en None
             total_ley = (liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0) + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0)
             total_otros_dsctos = (liquidacion.anticipo_quincena or 0) + suma_otros_descuentos
 
@@ -799,7 +791,6 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return response
 
         except Exception as e:
-            # ESTO ES VITAL: Imprimimos el error real en la terminal de Railway
             import traceback
             print("=== ERROR GENERANDO PDF ===")
             print(traceback.format_exc())
@@ -810,7 +801,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 class PlanViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Plan.objects.filter(activo=True)
     serializer_class = PlanSerializer
-    permission_classes = [AllowAny] # Cualquiera puede ver los planes
+    permission_classes = [AllowAny] 
 
 # Endpoint específico para el dashboard del cliente
 @api_view(['GET'])
@@ -820,7 +811,7 @@ def mi_suscripcion(request):
     if not cliente:
         return Response({'error': 'Perfil de cliente no encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
-    # 1. Buscar o crear suscripción (por si tienes usuarios antiguos en la BD)
+    # 1. Buscar o crear suscripción 
     try:
         suscripcion = cliente.suscripcion_activa
     except Suscripcion.DoesNotExist:
@@ -834,7 +825,7 @@ def mi_suscripcion(request):
     # 2. Calcular uso real (trabajadores en TODAS las empresas del usuario)
     trabajadores_actuales = Empleado.objects.filter(empresa__owner=request.user).count()
 
-    # 3. Armar la respuesta exacta que espera nuestro Suscripcion.tsx
+    # 3. Armar la respuesta exacta que espera Suscripcion.tsx
     data = {
         'estado': suscripcion.estado,
         'plan': {
@@ -865,7 +856,7 @@ def crear_checkout_reveniu(request):
         plan = Plan.objects.get(id=plan_id)
         cliente = getattr(request.user, 'perfil_cliente', None)
 
-        # Mapeo de tus planes (Reemplazar con tus links reales de Reveniu)
+        # Mapeo de planes 
         links_reveniu = {
             '2_mensual': 'https://app.reveniu.com/checkout-custom-link/QSMYRGkfHJRKBMLEZv5GIjzp1bDi4SUk',
             '2_anual': 'https://app.reveniu.com/checkout-custom-link/Z5vFclG2XxwsAmK97pdqZtDlodg8Z8AI',
@@ -879,13 +870,10 @@ def crear_checkout_reveniu(request):
         if not link_base:
             return Response({'error': 'Link de pago no configurado para este plan.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Rescatamos el nombre y apellido del usuario de Django
         nombre_completo = f"{request.user.first_name} {request.user.last_name}".strip()
         
-        # Codificamos el nombre para que la URL no se rompa con los espacios (ej: Juan%20Perez)
         nombre_url = urllib.parse.quote(nombre_completo)
 
-        # Le inyectamos el email, el nombre y la referencia externa
         url_pago = f"{link_base}?email={request.user.email}&name={nombre_url}&custom_reference={cliente.id}_{plan.id}"
 
         return Response({'url': url_pago}, status=status.HTTP_200_OK)

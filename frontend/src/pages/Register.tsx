@@ -160,13 +160,14 @@ export default function Register() {
       </div>
 
       {/* HEADER LOGO */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8 text-center mt-10 sm:mt-0 flex flex-col items-center">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8 text-center mt-10 sm:mt-0 font-sans flex flex-col items-center">
         <img 
           src="/vite.svg" 
           alt="Logo Jornada40" 
           className="h-16 w-auto mb-2 drop-shadow-sm" 
         />
-        <h1 className="text-4xl font-extrabold text-blue-600">Jornada40</h1>
+        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+          Jornada<span className="text-blue-600">40</span></h1>
       </div>
 
       {step === 1 ? (

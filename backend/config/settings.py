@@ -26,14 +26,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.sites',  # <-- Necesario para dj-rest-auth
+    'django.contrib.sites',  
     'django.contrib.humanize',
     
     # Third party
     'rest_framework',
     'rest_framework.authtoken',
     'dj_rest_auth',
-    'corsheaders', # Vital para conectar con Vercel
+    'corsheaders', 
     
     # Local
     'core',
@@ -43,7 +43,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # <--- DEBE ESTAR AQUÍ (Arriba de Common)
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -87,7 +87,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'es-cl' # Lo cambié a español de Chile para que las fechas calcen mejor con tu SaaS
+LANGUAGE_CODE = 'es-cl' # Cambio a español de Chile para que las fechas calcen mejor con el sistema
 TIME_ZONE = 'America/Santiago'
 USE_I18N = True
 USE_TZ = True
@@ -114,31 +114,30 @@ REST_FRAMEWORK = {
 
 SITE_ID = 1
 
-# NUEVA SINTAXIS PARA dj-rest-auth 7.x
+
 REST_AUTH = {
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': 'jornada40-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
-    'JWT_AUTH_SECURE': IS_PRODUCTION,      # True en Railway, False en Local
+    'JWT_AUTH_SECURE': IS_PRODUCTION,      
     'JWT_AUTH_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
 }
 
-# =========================================================
-#   CONFIGURACIÓN DE RED Y SEGURIDAD (LA SOLUCIÓN DEL 401)
-# =========================================================
+# ==================================
+#  CONFIGURACIÓN DE RED Y SEGURIDAD
+# ==================================
 
 if IS_PRODUCTION:
-    # === PRODUCCIÓN (RAILWAY) ===
     
     # 1. ALLOWED HOSTS
     ALLOWED_HOSTS = ["*"]
 
-    # 2. CORS: Lista VIP estricta (¡Adiós ALLOW_ALL_ORIGINS!)
+    # 2. CORS: 
     CORS_ALLOWED_ORIGINS = [
-        "https://jornada40-saas.vercel.app",             # Tu Frontend en Vercel
-    ]
+        "https://jornada40-saas.vercel.app", 
+    ]           
     CORS_ALLOW_CREDENTIALS = True
-
+    
     # 3. CSRF
     CSRF_TRUSTED_ORIGINS = [
         "https://jornada40-saas.vercel.app",             
@@ -161,26 +160,22 @@ else:
     
     CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
 
-    # Cookies relajadas para http://
+    # Cookies para http://
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    # ==========================================
-# CONFIGURACIÓN DE SESIONES (Alta Seguridad RRHH)
+# ==========================================
+# CONFIGURACIÓN DE SESIONES Y JWT (30 MINUTOS)
 # ==========================================
 
-# 1. Duración de la sesión: 30 minutos (en segundos)
-# 30 minutos * 60 segundos = 1800 segundos
+# 1. Duración de la sesión: 30 minutos (1800 segundos)
 SESSION_COOKIE_AGE = 1800 
 
 # 2. Renovar la sesión automáticamente si el usuario sigue activo
-# (Esto hace que los 30 min se reinicien cada vez que hace clic o guarda algo)
 SESSION_SAVE_EVERY_REQUEST = True
 
 # 3. Cerrar la sesión inmediatamente si el usuario cierra el navegador
-# (Obligatorio por ley de protección de datos en muchos países)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# (Opcional) Si en el futuro usas JWT, ajusta sus tiempos también a minutos:
 from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),

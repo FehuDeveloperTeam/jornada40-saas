@@ -7,6 +7,6 @@ urlpatterns = [
     # API Auth (Login/Logout/Password Reset)
     path('api/auth/', include('dj_rest_auth.urls')),
 
-    # Endpoints de nuestra App
+    # Endpoints de la App
     path('api/', include('core.urls')),
 ]

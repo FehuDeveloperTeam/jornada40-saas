@@ -100,7 +100,7 @@ class Empleado(models.Model):
 
 
 # ==========================================
-# 3. CONTRATO (El núcleo Legal del SaaS)
+# 3. CONTRATO
 # ==========================================
 class Contrato(models.Model):
     TIPO_CONTRATO_CHOICES = [
@@ -197,8 +197,6 @@ class Liquidacion(models.Model):
     # --- HABERES ---
     sueldo_base = models.IntegerField(default=0)
     gratificacion = models.IntegerField(default=0)
-    
-    # Aquí guardaremos los arreglos dinámicos con [{glosa: "Bono", valor: 50000}]
     detalle_haberes_imponibles = models.JSONField(default=list, blank=True)
     detalle_horas_extras = models.JSONField(default=list, blank=True)
     detalle_haberes_no_imponibles = models.JSONField(default=list, blank=True)

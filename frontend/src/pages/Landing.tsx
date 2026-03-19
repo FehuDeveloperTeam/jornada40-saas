@@ -18,7 +18,6 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* HERO SECTION (El gancho comercial) */}
       <main className="flex-grow flex items-center justify-center px-4 sm:px-6 lg:px-8 text-center">
         <div className="max-w-4xl space-y-8">
           <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight">
