@@ -178,6 +178,7 @@ export default function Dashboard() {
   const [formData, setFormData] = useState<Partial<Empleado>>({});
   const [contratoData, setContratoData] = useState<Partial<Contrato>>({});
   const [isSavingContrato, setIsSavingContrato] = useState(false);
+  const [hayCambiosContrato, setHayCambiosContrato] = useState(false); // <--- ESTADO DE CANDADO
   const [expandedLiqId, setExpandedLiqId] = useState<number | null>(null);
 
   // Estados para Liquidaciones (Fase 4 - Avanzada)
@@ -355,7 +356,6 @@ export default function Dashboard() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    // 1. CORREGIDO: Usamos el estado 'empresa' que declaraste arriba en el componente
     const empresaId = empresa?.id; 
 
     if (!file || !empresaId) {
@@ -375,7 +375,6 @@ export default function Dashboard() {
             formData, 
             {
                 ...apiConfig,
-                // 2. CORREGIDO: Declaramos los headers sin intentar expandir algo que no existe
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 }
@@ -390,7 +389,6 @@ export default function Dashboard() {
 
         window.location.reload(); 
 
-    // 3. CORREGIDO: Quitamos el ': any'. TypeScript y Axios lo infieren correctamente dentro del if
     } catch (error) { 
         console.error("Error en la carga masiva:", error);
         if (axios.isAxiosError(error)) {
@@ -444,6 +442,9 @@ export default function Dashboard() {
         setClausulas([]);
         setHorario(defaultHorario);
       }
+      
+      // Apagamos la alarma al terminar de cargar los datos del servidor
+      setHayCambiosContrato(false); 
 
       // 2. Cargar Documentos Legales (Fase 3)
       const resDocs = await axios.get(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/?empleado=${empleadoId}`, apiConfig);
@@ -513,6 +514,7 @@ export default function Dashboard() {
       ...prev,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
     }));
+    setHayCambiosContrato(true); // <--- ENCIENDE LA ALARMA
   };
 
   // ==========================================
@@ -540,6 +542,8 @@ export default function Dashboard() {
         setContratoData(res.data);
         alert("¡Contrato creado exitosamente!");
       }
+      // Apagamos la alarma una vez guardado
+      setHayCambiosContrato(false);
     } catch (error) {
       console.error("Error guardando contrato:", error);
       alert("Hubo un error al guardar las condiciones del contrato.");
@@ -1225,7 +1229,7 @@ export default function Dashboard() {
                 {/* PESTAÑA 2: CONTRATOS                       */}
                 {/* ========================================== */}
                 {activeTab === 'contratos' && (
-                  <form id="contratoForm" onSubmit={guardarContrato} className="max-w-4xl mx-auto space-y-8 pb-10">
+                  <form id="contratoForm" onSubmit={guardarContrato} onChange={() => setHayCambiosContrato(true)} className="max-w-4xl mx-auto space-y-8 pb-10">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                       <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">1. Condiciones Generales</h3>
                       <div className="grid grid-cols-2 gap-6">
@@ -1255,11 +1259,11 @@ export default function Dashboard() {
                           <p className="text-xs text-slate-500 mb-2">Por defecto se incluirá un texto legal genérico. Si agregas ítems aquí, se listarán en el contrato.</p>
                           {funciones.map((func, index) => (
                             <div key={index} className="flex gap-2 mb-2">
-                              <input type="text" value={func} onChange={(e) => { const newF = [...funciones]; newF[index] = e.target.value; setFunciones(newF); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white" placeholder="Ej: Atención a público y ventas..." />
-                              <button type="button" onClick={() => setFunciones(funciones.filter((_, i) => i !== index))} className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold">✕</button>
+                              <input type="text" value={func} onChange={(e) => { const newF = [...funciones]; newF[index] = e.target.value; setFunciones(newF); setHayCambiosContrato(true); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white" placeholder="Ej: Atención a público y ventas..." />
+                              <button type="button" onClick={() => { setFunciones(funciones.filter((_, i) => i !== index)); setHayCambiosContrato(true); }} className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold">✕</button>
                             </div>
                           ))}
-                          <button type="button" onClick={() => setFunciones([...funciones, ""])} className="text-sm text-blue-600 font-semibold mt-1">+ Agregar Función Específica</button>
+                          <button type="button" onClick={() => { setFunciones([...funciones, ""]); setHayCambiosContrato(true); }} className="text-sm text-blue-600 font-semibold mt-1">+ Agregar Función Específica</button>
                         </div>
                       </div>
                     </div>
@@ -1350,13 +1354,13 @@ export default function Dashboard() {
                                 <div className="col-span-1 text-xs font-bold text-slate-400 text-center">{dia.substring(0,2).toUpperCase()}</div>
                                 <div className="col-span-3">
                                   <label className="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" checked={datos.activo} onChange={(e) => setHorario({...horario, [dia]: {...datos, activo: e.target.checked}})} className="sr-only peer" />
+                                    <input type="checkbox" checked={datos.activo} onChange={(e) => { setHorario({...horario, [dia]: {...datos, activo: e.target.checked}}); setHayCambiosContrato(true); }} className="sr-only peer" />
                                     <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                                   </label>
                                 </div>
-                                <div className="col-span-2"><input type="time" disabled={!datos.activo} value={datos.entrada} onChange={(e) => setHorario({...horario, [dia]: {...datos, entrada: e.target.value}})} className="w-full text-sm p-1 border rounded" /></div>
-                                <div className="col-span-2"><input type="time" disabled={!datos.activo} value={datos.salida} onChange={(e) => setHorario({...horario, [dia]: {...datos, salida: e.target.value}})} className="w-full text-sm p-1 border rounded" /></div>
-                                <div className="col-span-2"><input type="number" step="15" disabled={!datos.activo} value={datos.colacion} onChange={(e) => setHorario({...horario, [dia]: {...datos, colacion: Number(e.target.value)}})} className="w-full text-sm p-1 border rounded text-center" /></div>
+                                <div className="col-span-2"><input type="time" disabled={!datos.activo} value={datos.entrada} onChange={(e) => { setHorario({...horario, [dia]: {...datos, entrada: e.target.value}}); setHayCambiosContrato(true); }} className="w-full text-sm p-1 border rounded" /></div>
+                                <div className="col-span-2"><input type="time" disabled={!datos.activo} value={datos.salida} onChange={(e) => { setHorario({...horario, [dia]: {...datos, salida: e.target.value}}); setHayCambiosContrato(true); }} className="w-full text-sm p-1 border rounded" /></div>
+                                <div className="col-span-2"><input type="number" step="15" disabled={!datos.activo} value={datos.colacion} onChange={(e) => { setHorario({...horario, [dia]: {...datos, colacion: Number(e.target.value)}}); setHayCambiosContrato(true); }} className="w-full text-sm p-1 border rounded text-center" /></div>
                                 <div className="col-span-2 text-center font-mono font-bold text-slate-700">{horasDia.toFixed(1)}h</div>
                               </div>
                             );
@@ -1381,20 +1385,39 @@ export default function Dashboard() {
                       <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">4. Cláusulas Adicionales</h3>
                       {clausulas.map((clausula, index) => (
                         <div key={index} className="flex gap-2 mb-3">
-                          <textarea rows={2} value={clausula} onChange={(e) => { const newC = [...clausulas]; newC[index] = e.target.value; setClausulas(newC); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 resize-none" placeholder="Ej: Se acuerda un bono de productividad de..." />
-                          <button type="button" onClick={() => setClausulas(clausulas.filter((_, i) => i !== index))} className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold">✕</button>
+                          <textarea rows={2} value={clausula} onChange={(e) => { const newC = [...clausulas]; newC[index] = e.target.value; setClausulas(newC); setHayCambiosContrato(true); }} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 resize-none" placeholder="Ej: Se acuerda un bono de productividad de..." />
+                          <button type="button" onClick={() => { setClausulas(clausulas.filter((_, i) => i !== index)); setHayCambiosContrato(true); }} className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold">✕</button>
                         </div>
                       ))}
-                      <button type="button" onClick={() => setClausulas([...clausulas, ""])} className="text-sm text-blue-600 font-semibold">+ Añadir Nueva Cláusula</button>
+                      <button type="button" onClick={() => { setClausulas([...clausulas, ""]); setHayCambiosContrato(true); }} className="text-sm text-blue-600 font-semibold">+ Añadir Nueva Cláusula</button>
                     </div>
 
                     {contratoData.id && (
                       <div className="flex gap-4">
-                        <button type="button" onClick={descargarContratoPDF} className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-xl font-semibold shadow-sm hover:bg-slate-900 transition-colors flex items-center justify-center gap-2">
-                          Descargar Contrato Base
+                        <button 
+                          type="button" 
+                          onClick={descargarContratoPDF} 
+                          disabled={hayCambiosContrato}
+                          className={`flex-1 px-4 py-3 rounded-xl font-semibold shadow-sm transition-all flex items-center justify-center gap-2 ${
+                            hayCambiosContrato 
+                              ? 'bg-slate-200 text-slate-500 cursor-not-allowed' 
+                              : 'bg-slate-800 text-white hover:bg-slate-900'
+                          }`}
+                        >
+                          {hayCambiosContrato ? '⚠️ Guarda los cambios primero' : '📄 Descargar Contrato Base'}
                         </button>
-                        <button type="button" onClick={descargarAnexoPDF} className="flex-1 px-4 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-semibold shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2">
-                          Descargar Anexo Ley 40h
+                        
+                        <button 
+                          type="button" 
+                          onClick={descargarAnexoPDF} 
+                          disabled={hayCambiosContrato}
+                          className={`flex-1 px-4 py-3 rounded-xl font-semibold shadow-sm transition-all flex items-center justify-center gap-2 ${
+                            hayCambiosContrato 
+                              ? 'bg-slate-200 text-slate-500 cursor-not-allowed border-transparent' 
+                              : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {hayCambiosContrato ? '⚠️ Guarda los cambios primero' : '📄 Descargar Anexo Ley 40h'}
                         </button>
                       </div>
                     )}

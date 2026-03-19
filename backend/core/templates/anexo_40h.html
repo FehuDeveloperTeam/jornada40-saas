@@ -31,17 +31,6 @@
         
         /* === MAGIA DE LAS FIRMAS === */
         .contenedor-firmas {
-            margin-top: 150px; /* Esto empuja las firmas hacia el fondo de la hoja */
-        }
-        .tabla-firmas {
-            width: 100%;
-            text-align: center;
-        }
-        .td-firma {
-            width: 45%;
-            vertical-align: top;
-        }
-        .contenedor-firmas {
             margin-top: 150px; 
         }
         .tabla-firmas {
@@ -53,16 +42,12 @@
             vertical-align: top;
         }
         .bloque-firma {
-            border-top: 1px solid black; /* La línea va pegada justo arriba del texto */
+            border-top: 1px solid black; 
             width: 80%;
             margin: 0 auto;
-            padding-top: 4px; /* Un mini espacio para que la línea no toque la letra E */
+            padding-top: 4px; 
             font-size: 10pt;
-            line-height: 1.2; /* Junta el texto del Empleador con el de la Empresa */
-        }
-        .datos-firma {
-            font-size: 10pt;
-            line-height: 1.4;
+            line-height: 1.2; 
         }
     </style>
 </head>
@@ -71,11 +56,11 @@
     
     <p>En la ciudad de {{ ciudad }}, a {{ fecha_actual }}, entre la empresa <strong>{{ empresa.nombre_legal }}</strong>, RUT {{ empresa.rut }}, representada legalmente por quien suscribe, en adelante el "Empleador"; y don/doña <strong>{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}</strong>, RUT {{ empleado.rut }}, en adelante el "Trabajador", se ha convenido el siguiente anexo de contrato de trabajo:</p>
 
-    <p><strong>PRIMERO:</strong> En cumplimiento de la Ley N° 21.561 que modifica el Código del Trabajo con el objeto de reducir la jornada laboral, las partes acuerdan que a contar de esta fecha, la jornada ordinaria de trabajo será de <strong>40 horas semanales</strong>.</p>
+    <p><strong>PRIMERO:</strong> En cumplimiento de la Ley N° 21.561 que modifica el Código del Trabajo con el objeto de reducir progresivamente la jornada laboral, las partes acuerdan que a contar de esta fecha, la jornada ordinaria de trabajo será de <strong>{{ contrato.horas_semanales }} horas semanales</strong>.</p>
 
-    <p><strong>SEGUNDO:</strong> La distribución de la jornada se realizará de la siguiente manera: Lunes a Viernes (Ajustar según sea necesario).</p>
+    <p><strong>SEGUNDO:</strong> La distribución de la jornada se realizará en <strong>{{ contrato.distribucion_dias }}</strong> días a la semana, rigiéndose por el horario de entrada, salida y tiempos de colación debidamente pactados e informados por el Empleador.</p>
 
-    <p><strong>TERCERO:</strong> El presente anexo no modifica en forma alguna la remuneración actual del Trabajador, manteniéndose su sueldo base de <strong>${{ contrato.sueldo_base }}</strong> y demás asignaciones intactas.</p>
+    <p><strong>TERCERO:</strong> El presente anexo no modifica en forma alguna la remuneración actual del Trabajador, manteniéndose su sueldo base y demás asignaciones intactas.</p>
 
     <p>Para constancia firman las partes en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte.</p>
 
@@ -89,7 +74,8 @@
                         RUT: {{ empresa.rut }}
                     </div>
                 </td>
-                <td style="width: 10%;"></td> <td class="td-firma">
+                <td style="width: 10%;"></td> 
+                <td class="td-firma">
                     <div class="bloque-firma">
                         <strong>EL TRABAJADOR</strong><br>
                         {{ empleado.nombres }} {{ empleado.apellido_paterno }}<br>

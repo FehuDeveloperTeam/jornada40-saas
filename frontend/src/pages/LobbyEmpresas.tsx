@@ -7,6 +7,8 @@ interface Empresa {
   id: number;
   nombre_legal: string;
   rut: string;
+  representante_legal?: string;
+  rut_representante?: string;
   alias?: string;
   giro?: string;
   direccion?: string;
@@ -25,10 +27,11 @@ export default function LobbyEmpresas() {
   
   // FormData inicial
   const defaultForm = {
-    nombre_legal: '', rut: '', alias: '', giro: '', direccion: '', comuna: '', ciudad: '', sucursal: ''
+    nombre_legal: '', rut: '', representante_legal: '', rut_representante: '', alias: '', giro: '', direccion: '', comuna: '', ciudad: '', sucursal: ''
   };
   const [formData, setFormData] = useState<Partial<Empresa>>(defaultForm);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
+  const [isValidRutRep, setIsValidRutRep] = useState<boolean>(true);
   
   const navigate = useNavigate();
   const apiConfig = { withCredentials: true };
@@ -74,6 +77,8 @@ export default function LobbyEmpresas() {
     setFormData({ 
       nombre_legal: empresa.nombre_legal, 
       rut: empresa.rut, 
+      representante_legal: empresa.representante_legal || '',
+      rut_representante: empresa.rut_representante || '',
       alias: empresa.alias || '',
       giro: empresa.giro || '',
       direccion: empresa.direccion || '',
@@ -91,9 +96,14 @@ export default function LobbyEmpresas() {
       const formateado = formatRut(value);
       setFormData({ ...formData, rut: formateado });
       setIsValidRut(validateRut(formateado));
+    } else if (name === 'rut_representante') {
+      const formateado = formatRut(value);
+      setFormData({ ...formData, rut_representante: formateado });
+      setIsValidRutRep(validateRut(formateado));
     } else {
       setFormData({ ...formData, [name]: value });
     }
+
   };
 
   const guardarEmpresa = async (e: React.FormEvent) => {
@@ -282,6 +292,30 @@ export default function LobbyEmpresas() {
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">RUT Empresa *</label>
                   <input type="text" name="rut" required value={formData.rut} onChange={handleChange} className={`w-full px-4 py-3.5 rounded-xl bg-slate-50 border outline-none font-medium transition-all ${formData.rut!.length > 5 && !isValidRut ? 'border-red-300 focus:ring-red-400 text-red-900' : 'border-slate-200 focus:ring-slate-900 focus:bg-white text-slate-900'}`} />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Representante Legal *</label>
+                  <input 
+                    type="text" 
+                    name="representante_legal" 
+                    required 
+                    value={formData.representante_legal || ''} 
+                    onChange={handleChange} 
+                    className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none font-medium text-slate-900 transition-all uppercase" 
+                    placeholder="Nombre Completo"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">RUT Representante *</label>
+                  <input 
+                    type="text" 
+                    name="rut_representante" 
+                    required 
+                    value={formData.rut_representante || ''} 
+                    onChange={handleChange} 
+                    className={`w-full px-4 py-3.5 rounded-xl bg-slate-50 border ${!isValidRutRep && formData.rut_representante ? 'border-red-400 focus:ring-red-400 bg-red-50' : 'border-slate-200 focus:ring-slate-900'} focus:bg-white focus:ring-2 focus:border-transparent outline-none font-medium text-slate-900 transition-all`} 
+                    placeholder="12.345.678-9" 
+                  />
+                </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Nombre Fantasía</label>
@@ -318,7 +352,7 @@ export default function LobbyEmpresas() {
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 text-slate-600 font-bold bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors">
                   Cancelar
                 </button>
-                <button type="submit" disabled={!isValidRut || !formData.nombre_legal} className="flex-1 py-4 text-white font-bold bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 rounded-xl transition-all shadow-md shadow-slate-900/10">
+                <button type="submit" disabled={!isValidRut || !isValidRutRep || !formData.nombre_legal || !formData.representante_legal} className="flex-1 py-4 text-white font-bold bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 rounded-xl transition-all shadow-md shadow-slate-900/10">
                   {empresaEditando ? 'Guardar Cambios' : 'Registrar Empresa'}
                 </button>
               </div>
