@@ -193,7 +193,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='tu_correo@gmail.com')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='tu_contraseña_de_aplicacion')
-
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='contacto.jornada40@gmail.com')
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
 PASSWORD_RESET_CONFIRM_URL = 'https://jornada40-saas.vercel.app/reset-password/{uid}/{token}'
