@@ -144,10 +144,6 @@ export default function Login() {
 
               {/* INPUT CONTRASEÑA */}
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Contraseña</label>
-                  <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">¿Olvidaste tu clave?</a>
-                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">

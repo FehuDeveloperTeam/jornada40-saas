@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Mail, CheckCircle2, AlertCircle } from 'lucide-react';
+import client from '../api/client'; // Ajusta la ruta según dónde esté tu archivo client.ts
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -18,7 +19,7 @@ export default function ForgotPassword() {
 
     try {
       // dj-rest-auth usa este endpoint por defecto para pedir el reseteo
-      await axios.post('https://jornada40-saas-production.up.railway.app/auth/password/reset/', {
+      await client.post('/auth/password/reset/', {
         email: email
       });
       setStatus('success');
