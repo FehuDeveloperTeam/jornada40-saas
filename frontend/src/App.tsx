@@ -9,8 +9,8 @@ import Register from './pages/Register';
 import Landing from './pages/Landing';
 import Terminos from './pages/Terminos';
 import Suscripcion from './pages/Suscripcion';
+import ForgotPassword from './pages/ForgotPassword';
 
-// 🛡️ EL GUARDIÁN REAL (Consulta al Backend)
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
@@ -59,6 +59,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/terminos" element={<Terminos />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         
 
         {/* Rutas Privadas y Seguras */}

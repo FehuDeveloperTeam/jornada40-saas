@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 
@@ -171,6 +171,16 @@ export default function Login() {
                   {errorMsg}
                 </div>
               )}
+
+              {/* ENLACE DE RECUPERACIÓN DE CONTRASEÑA */}
+              <div className="flex justify-end mt-2 mb-6">
+                <Link 
+                  to="/forgot-password" 
+                  className="text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
 
               {/* BOTÓN SUBMIT */}
               <button
