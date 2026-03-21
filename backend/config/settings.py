@@ -187,13 +187,13 @@ SIMPLE_JWT = {
 # ==========================================
 # CONFIGURACIÓN DE ENVÍO DE CORREOS (SMTP)
 # ==========================================
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com' 
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='tu_correo@gmail.com')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='tu_contraseña_de_aplicacion')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='contacto.jornada40@gmail.com')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='tu-correo@gmail.com')
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
