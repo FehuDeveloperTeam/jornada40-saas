@@ -8,9 +8,11 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
-from .models import Plan, Suscripcion
+from .models import Plan, Suscripcion, Cliente
 from .serializers import PlanSerializer
+from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
+from django.conf import settings
 import datetime
 import io
 import zipfile
@@ -902,3 +904,59 @@ def webhook_reveniu(request):
             suscripcion.save()
             
     return Response(status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def recuperar_password_por_rut(request):
+    rut = request.data.get('rut')
+    
+    if not rut:
+        return Response({'error': 'Debes ingresar un RUT'}, status=400)
+
+    try:
+        # 1. VALIDAMOS CONTRA TABLA CLIENTES
+        cliente = Cliente.objects.get(rut=rut)
+    except Cliente.DoesNotExist:
+        # Mensaje ambiguo por seguridad anti-hackers
+        return Response({'error': 'Si el RUT es válido, enviaremos un correo.'}, status=404)
+
+    # 2. VERIFICAMOS SI EL CLIENTE TIENE CORREO
+    if not cliente.correo:
+        return Response({'error': 'Este cliente no tiene un correo configurado en el sistema.'}, status=400)
+
+    try:
+        # 3. BUSCAMOS AL USUARIO DE DJANGO ASOCIADO A ESE RUT
+        user = User.objects.get(username=rut)
+    except User.DoesNotExist:
+        return Response({'error': 'Error interno: Cliente existe pero no tiene credenciales de acceso.'}, status=400)
+
+    if user.email != cliente.correo:
+        user.email = cliente.correo
+        user.save()
+
+    # 4. ENMASCARAR EL CORREO (con***@gmail.com)
+    partes = cliente.correo.split('@')
+    nombre_correo = partes[0]
+    dominio = partes[1]
+    
+    if len(nombre_correo) > 3:
+        correo_oculto = nombre_correo[:3] + '*' * (len(nombre_correo) - 3) + '@' + dominio
+    else:
+        correo_oculto = nombre_correo[0] + '*' * (len(nombre_correo) - 1) + '@' + dominio
+
+    # 5. ENVIAR EL CORREO
+    form = PasswordResetForm({'email': user.email})
+    if form.is_valid():
+        form.save(
+            request=request,
+            use_https=True,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            email_template_name='registration/password_reset_email.html',
+            html_email_template_name='registration/password_reset_email.html',
+        )
+
+    # 6. RESPONDER A REACT
+    return Response({
+        'mensaje': 'Correo enviado exitosamente', 
+        'correo_oculto': correo_oculto
+    }, status=200)

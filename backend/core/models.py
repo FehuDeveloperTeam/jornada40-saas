@@ -30,6 +30,7 @@ class Cliente(models.Model):
     direccion = models.CharField(max_length=255, blank=True, null=True)
     telefono = models.CharField(max_length=20, blank=True, null=True)
     creado_en = models.DateTimeField(auto_now_add=True)
+    correo=models.EmailField(max_length=255, null=True, blank=True, verbose_name='Correo Electrónico')
 
     def __str__(self):
         if self.tipo_cliente == 'EMPRESA' and self.razon_social:
