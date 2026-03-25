@@ -10,6 +10,7 @@ import Landing from './pages/Landing';
 import Terminos from './pages/Terminos';
 import Suscripcion from './pages/Suscripcion';
 import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/terminos" element={<Terminos />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
         
 
         {/* Rutas Privadas y Seguras */}
