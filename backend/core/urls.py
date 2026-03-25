@@ -15,7 +15,6 @@ router.register(r'planes', PlanViewSet, basename='plan')
 urlpatterns = [
     path('', include(router.urls)),
     path('auth/register/', registrar_cliente, name='api_register'),
-    path('auth/', include('dj_rest_auth.urls')),  # Incluye rutas de login/logout/password reset
     path('clientes/mi_suscripcion/', mi_suscripcion, name='mi_suscripcion'),
     path('pagos/crear_checkout/', crear_checkout_reveniu, name='crear_checkout_reveniu'),
     path('pagos/webhook/reveniu/', webhook_reveniu, name='webhook_reveniu'),
