@@ -202,14 +202,12 @@ LOGGING = {
 # ==========================================
 # CONFIGURACIÓN DE ENVÍO DE CORREOS (SMTP)
 # ==========================================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS') == 'True'
-EMAIL_USE_SSL = False
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
+EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+ANYMAIL = {
+    "RESEND_API_KEY": config('RESEND_API_KEY', default='re_eeCE1qpe_BdMdV2pnUidZMHrN9crr6ch5'),
+}
+
+DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
