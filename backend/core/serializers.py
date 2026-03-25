@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion, Plan, Suscripcion
+from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -34,4 +35,13 @@ class PlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Plan
         fields = '__all__'
+
+class CustomPasswordResetSerializer(PasswordResetSerializer):
+    def get_email_options(self):
+        return {
+            
+            'html_email_template_name': 'registration/password_reset_email.html',
+            
+            'email_template_name': 'registration/password_reset_email.txt',
+        }
         

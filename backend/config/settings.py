@@ -122,6 +122,7 @@ REST_AUTH = {
     'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
     'JWT_AUTH_SECURE': IS_PRODUCTION,      
     'JWT_AUTH_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
+    'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
 }
 
 # ==================================
