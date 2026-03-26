@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 from django.contrib.auth.models import User
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
 from .models import Plan, Suscripcion, Cliente
@@ -578,51 +578,39 @@ class ContratoViewSet(viewsets.ModelViewSet):
 # REGISTRO DE NUEVOS CLIENTES
 # ==========================================
 @api_view(['POST'])
-@permission_classes([AllowAny]) 
+@permission_classes([AllowAny])
 def registrar_cliente(request):
-    data = request.data.copy() if hasattr(request.data, 'copy') else request.data
+    rut = request.data.get('rut')
+    password = request.data.get('password')
+    # Atrapamos el correo (por si tu React lo manda como 'email' o como 'correo')
+    email = request.data.get('email') or request.data.get('correo')
     
-    rut_raw = data.get('rut', '')
-    if not validar_rut(rut_raw):
-        return Response({'error': 'El RUT ingresado no es válido. Verifique el formato.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-    rut_formateado = formatear_rut(rut_raw)
-    data['rut'] = rut_formateado 
-    
-    if User.objects.filter(email=data.get('email')).exists():
-        return Response({'error': 'Este correo ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    if Cliente.objects.filter(rut=rut_formateado).exists():
-        return Response({'error': 'Este RUT ya está registrado.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+    # Validaciones básicas
+    if not rut or not password or not email:
+        return Response({'error': 'Faltan datos obligatorios (RUT, contraseña o correo)'}, status=400)
+
     try:
         with transaction.atomic():
-            usuario = User.objects.create_user(
-                username=rut_formateado, 
-                email=data.get('email'),
-                password=data.get('password')
+            # 1. Creamos el acceso en la tabla core_users (User de Django)
+            user = User.objects.create_user(
+                username=rut, 
+                password=password,
+                email=email
             )
             
-            plan_id = data.get('planId')
-            plan_seleccionado = Plan.objects.filter(id=plan_id).first()
-            
-            Cliente.objects.create(
-                usuario=usuario,
-                plan=plan_seleccionado,
-                tipo_cliente=str(data.get('tipoCliente', 'PERSONA')).upper(),
-                rut=rut_formateado,
-                nombres=str(data.get('nombres', '')).upper(),
-                apellido_paterno=str(data.get('apellido_paterno', '')).upper(),
-                apellido_materno=str(data.get('apellido_materno', '')).upper(),
-                razon_social=str(data.get('razon_social', '')).upper(),
-                direccion=str(data.get('direccion', '')).upper(),
-                telefono=str(data.get('telefono', '')).upper()
+            # 2. Creamos el perfil en core_cliente 
+            cliente = Cliente.objects.create(
+                user=user,
+                rut=rut,
+                correo=email,
+                plan=Plan.objects.filter(id=1).first()  # Asignamos el plan "Semilla" por defecto
             )
-            
-        return Response({'mensaje': '¡Cuenta creada con éxito!'}, status=status.HTTP_201_CREATED)
-    
+        return Response({'mensaje': 'Cliente creado con éxito'}, status=201)
+        
+    except IntegrityError:
+        return Response({'error': 'Este RUT ya está registrado en el sistema.'}, status=400)
     except Exception as e:
-        return Response({'error': f'Error interno: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': str(e)}, status=500)
     
 class LiquidacionViewSet(viewsets.ModelViewSet):
     queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
