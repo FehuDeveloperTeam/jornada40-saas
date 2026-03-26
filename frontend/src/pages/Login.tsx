@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate, Link, AlertCircle } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
+import { AlertCircle } from 'lucide-react'; // Para el ícono de error
 
 export default function Login() {
   const [rut, setRut] = useState<string>('');
