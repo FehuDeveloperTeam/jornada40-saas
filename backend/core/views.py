@@ -315,7 +315,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             empleados_actualizados = 0
             ultimo_ingresado = None
             limite_alcanzado = False
-            max_ficha_actual = Empleado.objects.filter(empresa=empresa).aggregate(Max('numero_ficha'))['numero_ficha__max']
+            max_ficha_actual = Empleado.objects.filter(empresa=empresa).aggregate(Max('ficha_numero'))['ficha_numero__max']
             siguiente_ficha = (max_ficha_actual or 0) + 1
 
             with transaction.atomic():
@@ -384,7 +384,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                             rut=rut, 
                             empresa=empresa, 
                             fecha_ingreso=fecha_ing,
-                            numero_ficha=siguiente_ficha,
+                            ficha_numero=siguiente_ficha,
                             **nuevos_datos
                         )
                         siguiente_ficha += 1

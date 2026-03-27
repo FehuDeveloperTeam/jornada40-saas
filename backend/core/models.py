@@ -101,15 +101,15 @@ class Empleado(models.Model):
         return f"{self.nombres} {self.apellido_paterno}"
     def save(self, *args, **kwargs):
         # Solo calculamos la ficha si el empleado es nuevo (no tiene ficha aún)
-        if not self.numero_ficha:
+        if not self.ficha_numero:
             # Buscamos cuál es el número de ficha más alto DENTRO de esta empresa específica
-            max_ficha = Empleado.objects.filter(empresa=self.empresa).aggregate(Max('numero_ficha'))['numero_ficha__max']
+            max_ficha = Empleado.objects.filter(empresa=self.empresa).aggregate(Max('ficha_numero'))['ficha_numero__max']
             
             # Si ya hay empleados, le sumamos 1 al número mayor. Si es el primero, le ponemos 1.
             if max_ficha is not None:
-                self.numero_ficha = max_ficha + 1
+                self.ficha_numero = max_ficha + 1
             else:
-                self.numero_ficha = 1
+                self.ficha_numero = 1
                 
         # Finalmente, ejecutamos el guardado normal de Django
         super(Empleado, self).save(*args, **kwargs)
