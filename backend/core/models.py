@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.db.models import Max
 
 class Plan(models.Model):
     nombre = models.CharField(max_length=50) 
@@ -83,7 +84,7 @@ class Empleado(models.Model):
     fecha_ingreso = models.DateField()
     # --- DATOS CORPORATIVOS AVANZADOS ---
     centro_costo = models.CharField(max_length=100, blank=True, null=True)
-    ficha_numero = models.CharField(max_length=50, blank=True, null=True)
+    ficha_numero = models.PositiveIntegerField(blank=True, null=True, verbose_name='Número de Ficha')
     
     # --- DATOS BANCARIOS ---
     forma_pago = models.CharField(max_length=50, default='Transferencia') # Depósito, Efectivo, Cheque
@@ -98,6 +99,21 @@ class Empleado(models.Model):
     
     def __str__(self):
         return f"{self.nombres} {self.apellido_paterno}"
+    def save(self, *args, **kwargs):
+        # Solo calculamos la ficha si el empleado es nuevo (no tiene ficha aún)
+        if not self.numero_ficha:
+            # Buscamos cuál es el número de ficha más alto DENTRO de esta empresa específica
+            max_ficha = Empleado.objects.filter(empresa=self.empresa).aggregate(Max('numero_ficha'))['numero_ficha__max']
+            
+            # Si ya hay empleados, le sumamos 1 al número mayor. Si es el primero, le ponemos 1.
+            if max_ficha is not None:
+                self.numero_ficha = max_ficha + 1
+            else:
+                self.numero_ficha = 1
+                
+        # Finalmente, ejecutamos el guardado normal de Django
+        super(Empleado, self).save(*args, **kwargs)
+
 
 
 # ==========================================

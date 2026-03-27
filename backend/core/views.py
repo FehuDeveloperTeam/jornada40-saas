@@ -22,6 +22,7 @@ from num2words import num2words
 import pandas as pd
 import traceback
 import urllib.parse
+from django.db.models import Max
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
@@ -314,6 +315,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             empleados_actualizados = 0
             ultimo_ingresado = None
             limite_alcanzado = False
+            max_ficha_actual = Empleado.objects.filter(empresa=empresa).aggregate(Max('numero_ficha'))['numero_ficha__max']
+            siguiente_ficha = (max_ficha_actual or 0) + 1
 
             with transaction.atomic():
                 total_actual = Empleado.objects.filter(empresa=empresa).count()
@@ -380,9 +383,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         Empleado.objects.create(
                             rut=rut, 
                             empresa=empresa, 
-                            fecha_ingreso=fecha_ing, 
+                            fecha_ingreso=fecha_ing,
+                            numero_ficha=siguiente_ficha,
                             **nuevos_datos
                         )
+                        siguiente_ficha += 1
                         empleados_creados += 1
                         total_actual += 1
                         ultimo_ingresado = f"{nombres} {ap_paterno}"
