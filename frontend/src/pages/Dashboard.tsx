@@ -470,7 +470,8 @@ export default function Dashboard() {
 
   const abrirEditar = (emp: Empleado) => {
     setSelectedEmpleado(emp);
-    setFormData({ ...emp });
+    const telefonoLimpio = emp.numero_telefono ? emp.numero_telefono.replace('+56', '') : '';
+    setFormData({ ...emp, numero_telefono: telefonoLimpio });
     setIsValidRut(true);
     setPanelMode('edit');
     setActiveTab('perfil');
@@ -499,7 +500,11 @@ export default function Dashboard() {
       const formateado = formatRut(value);
       setFormData(prev => ({ ...prev, rut: formateado }));
       setIsValidRut(validateRut(formateado));
-    } else {
+    } else if (name === 'numero_telefono') {
+      const soloNumeros = value.replace(/[^0-9]/g, '').slice(0, 9);
+      setFormData(prev => ({ ...prev, numero_telefono: soloNumeros }));
+    } 
+    else{
       setFormData(prev => ({
         ...prev,
         [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
@@ -692,8 +697,14 @@ export default function Dashboard() {
   const guardarEmpleado = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
-
+    if (formData.numero_telefono && formData.numero_telefono.length > 0 && formData.numero_telefono.length < 9) {
+      alert("El número de teléfono debe tener exactamente 9 dígitos (Ej: 912345678).");
+      return; // Detenemos el guardado
+    }
     const payload: Record<string, unknown> = { ...formData } as Record<string, unknown>;
+    if (payload.numero_telefono) {
+      payload.numero_telefono = `+56${payload.numero_telefono}`;
+    }
     const camposOpcionales = ['apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 'direccion', 'comuna', 'numero_telefono', 'departamento', 'sucursal', 'afp', 'sistema_salud', 'nacionalidad'];
     camposOpcionales.forEach(campo => { if (payload[campo] === '') delete payload[campo]; });
 
@@ -1114,7 +1125,20 @@ export default function Dashboard() {
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-slate-600 mb-1">Teléfono</label>
-                              <input type="text" name="numero_telefono" value={formData.numero_telefono || ''} onChange={handleInputChange} placeholder="+569" className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" />
+                              <div className="relative">
+                                {/* El +56 fijo visualmente dentro del input */}
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                  <span className="text-slate-500 font-medium">+56</span>
+                                </div>
+                                <input 
+                                  type="text" 
+                                  name="numero_telefono" 
+                                  value={formData.numero_telefono || ''} 
+                                  onChange={handleInputChange} 
+                                  placeholder="912345678" 
+                                  className="w-full pl-11 pr-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all" 
+                                  />
+                              </div>
                             </div>
                             <div className="col-span-2">
                               <label className="block text-xs font-semibold text-slate-600 mb-1">Comuna y Dirección</label>
