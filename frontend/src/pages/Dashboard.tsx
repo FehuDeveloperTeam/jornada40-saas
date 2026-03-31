@@ -496,15 +496,17 @@ export default function Dashboard() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
+    
     if (name === 'rut') {
       const formateado = formatRut(value);
       setFormData(prev => ({ ...prev, rut: formateado }));
       setIsValidRut(validateRut(formateado));
-    } else if (name === 'numero_telefono') {
+    } 
+    else if (name === 'numero_telefono') {
       const soloNumeros = value.replace(/[^0-9]/g, '').slice(0, 9);
       setFormData(prev => ({ ...prev, numero_telefono: soloNumeros }));
     }
-    // ---> NUEVO: Interceptamos la forma de pago
+    // ---> Lógica de Forma de Pago corregida
     else if (name === 'forma_pago') {
       const nuevaForma = value.toUpperCase();
       // Si elige Efectivo o Cheque, borramos los datos bancarios al instante
@@ -519,7 +521,9 @@ export default function Dashboard() {
       } else {
         setFormData(prev => ({ ...prev, forma_pago: nuevaForma }));
       }
-    }{
+    } 
+    // ---> EL ERROR ESTABA AQUÍ: faltaba la palabra "else"
+    else {
       setFormData(prev => ({
         ...prev,
         [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
@@ -1162,38 +1166,45 @@ export default function Dashboard() {
                                 <input type="text" name="direccion" placeholder="Calle y número" value={formData.direccion || ''} onChange={handleInputChange} className="w-2/3 px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none uppercase transition-all" />
                               </div>
                             </div>
-                            <div className="col-span-2 pt-4 border-t border-slate-100 mt-2">
+                          </div>
+                          <div className="col-span-2 pt-4 border-t border-slate-100 mt-2">
                               <h5 className="text-xs font-bold text-slate-800 mb-3">Datos Bancarios para Pago</h5>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Forma de Pago</label>
-                                  <select name="forma_pago" value={formData.forma_pago || 'Transferencia'} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium">
-                                    <option value="Transferencia">Transferencia</option>
-                                    <option value="Depósito">Depósito</option>
-                                    <option value="Cheque">Cheque</option>
-                                    <option value="Efectivo">Efectivo</option>
+                                  {/* Nos aseguramos de que los values estén en mayúsculas para que coincidan con la lógica */}
+                                  <select name="forma_pago" value={formData.forma_pago || 'TRANSFERENCIA'} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium uppercase">
+                                    <option value="TRANSFERENCIA">Transferencia</option>
+                                    <option value="DEPOSITO">Depósito</option>
+                                    <option value="CHEQUE">Cheque</option>
+                                    <option value="EFECTIVO">Efectivo</option>
                                   </select>
                                 </div>
-                                <div>
-                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Banco</label>
-                                  <input type="text" name="banco" value={formData.banco || ''} onChange={handleInputChange} placeholder="Ej: Banco Estado" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium" />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Cuenta</label>
-                                  <select name="tipo_cuenta" value={formData.tipo_cuenta || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium">
-                                    <option value="">Seleccione...</option>
-                                    <option value="Cuenta Corriente">Cuenta Corriente</option>
-                                    <option value="Cuenta Vista / RUT">Cuenta Vista / RUT</option>
-                                    <option value="Cuenta de Ahorro">Cuenta de Ahorro</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">N° de Cuenta</label>
-                                  <input type="text" name="numero_cuenta" value={formData.numero_cuenta || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium" />
-                                </div>
+                                
+                                {/* Ocultamos los campos del banco si es Efectivo o Cheque */}
+                                {formData.forma_pago !== 'EFECTIVO' && formData.forma_pago !== 'CHEQUE' && (
+                                  <>
+                                    <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Banco</label>
+                                      <input type="text" name="banco" value={formData.banco || ''} onChange={handleInputChange} placeholder="Ej: Banco Estado" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium" />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Cuenta</label>
+                                      <select name="tipo_cuenta" value={formData.tipo_cuenta || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium">
+                                        <option value="">Seleccione...</option>
+                                        <option value="Cuenta Corriente">Cuenta Corriente</option>
+                                        <option value="Cuenta Vista / RUT">Cuenta Vista / RUT</option>
+                                        <option value="Cuenta de Ahorro">Cuenta de Ahorro</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">N° de Cuenta</label>
+                                      <input type="text" name="numero_cuenta" value={formData.numero_cuenta || ''} onChange={handleInputChange} className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white outline-none font-medium" />
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
-                          </div>
                         </div>
 
                         <div className="space-y-5">
