@@ -503,8 +503,23 @@ export default function Dashboard() {
     } else if (name === 'numero_telefono') {
       const soloNumeros = value.replace(/[^0-9]/g, '').slice(0, 9);
       setFormData(prev => ({ ...prev, numero_telefono: soloNumeros }));
-    } 
-    else{
+    }
+    // ---> NUEVO: Interceptamos la forma de pago
+    else if (name === 'forma_pago') {
+      const nuevaForma = value.toUpperCase();
+      // Si elige Efectivo o Cheque, borramos los datos bancarios al instante
+      if (nuevaForma === 'EFECTIVO' || nuevaForma === 'CHEQUE') {
+        setFormData(prev => ({
+          ...prev,
+          forma_pago: nuevaForma,
+          banco: '',
+          tipo_cuenta: '',
+          numero_cuenta: ''
+        }));
+      } else {
+        setFormData(prev => ({ ...prev, forma_pago: nuevaForma }));
+      }
+    }{
       setFormData(prev => ({
         ...prev,
         [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
