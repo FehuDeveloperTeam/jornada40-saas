@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
-import {ShieldCheck, Settings} from 'lucide-react';
+import {ShieldCheck, Settings, Trash2, RefreshCcw} from 'lucide-react';
 
 interface Empresa {
   id: number;
@@ -16,11 +16,15 @@ interface Empresa {
   comuna?: string;
   ciudad?: string;
   sucursal?: string;
+  activo?: boolean;
 }
+
+  const apiConfig = { withCredentials: true };
 
 export default function LobbyEmpresas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [mostrarInactivas, setMostrarInactivas] = useState<boolean>(false);
   
   // Estados para el Modal
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -35,12 +39,17 @@ export default function LobbyEmpresas() {
   const [isValidRutRep, setIsValidRutRep] = useState<boolean>(true);
   
   const navigate = useNavigate();
-  const apiConfig = { withCredentials: true };
 
-  const fetchEmpresas = async () => {
+
+  const fetchEmpresas = useCallback (async (incluirInactivas: boolean) => {
     try {
-      const response = await axios.get('https://jornada40-saas-production.up.railway.app/api/empresas/', apiConfig);
+      // Si el switch está activo, pedimos incluir la papelera
+      const url = incluirInactivas 
+        ? 'https://jornada40-saas-production.up.railway.app/api/empresas/?incluir_inactivas=true'
+        : 'https://jornada40-saas-production.up.railway.app/api/empresas/';
+      const response = await axios.get(url, apiConfig);
       setEmpresas(response.data);
+      
     } catch (error) {
       // Reemplazamos el 'any' preguntándole a TS si el error es de Axios
       if (axios.isAxiosError(error) && error.response && (error.response.status === 401 || error.response.status === 403)) {
@@ -49,11 +58,14 @@ export default function LobbyEmpresas() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
-    fetchEmpresas();
-  }, [navigate]);
+    const iniciarCarga = async () => {
+      await fetchEmpresas(mostrarInactivas);
+    };
+    iniciarCarga();
+  }, [mostrarInactivas, fetchEmpresas]);
 
   const seleccionarEmpresa = (empresaId: number) => {
     localStorage.setItem('empresaActivaId', empresaId.toString());
@@ -126,7 +138,7 @@ export default function LobbyEmpresas() {
       }
       setIsModalOpen(false);
       setLoading(true);
-      fetchEmpresas(); 
+      fetchEmpresas(mostrarInactivas); 
     } catch (error) {
       console.error("Error al guardar empresa:", error);
       
@@ -140,13 +152,36 @@ export default function LobbyEmpresas() {
     }
   };
 
+  const desactivarEmpresa = async (id: number) => {
+    if (!window.confirm('¿Estás seguro de que deseas desactivar esta empresa? Podrás restaurarla desde la papelera.')) return;
+    try {
+      await axios.delete(`https://jornada40-saas-production.up.railway.app/api/empresas/${id}/`, apiConfig);
+      // Volvemos a cargar la lista de empresas usando la función optimizada
+      await fetchEmpresas(mostrarInactivas); 
+    } catch (error) {
+      console.error('Error al desactivar empresa:', error);
+      alert('Hubo un error al desactivar la empresa.');
+    }
+  };
+
+  const reactivarEmpresa = async (id: number) => {
+    if (!window.confirm('¿Estás seguro de que deseas reactivar esta empresa?')) return;
+    try {
+      await axios.post(`https://jornada40-saas-production.up.railway.app/api/empresas/${id}/reactivar/`, {}, apiConfig);
+      fetchEmpresas(mostrarInactivas);
+    } catch (error) {
+      console.error('Error al reactivar empresa:', error);
+      alert('Hubo un error al reactivar la empresa.');
+    }
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
       <div className="w-10 h-10 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div>
     </div>
   );
 
-  return (
+return (
     <div className="min-h-screen bg-[#FAFAFA] text-slate-900 font-sans relative overflow-hidden selection:bg-blue-100 selection:text-blue-900">
       
       {/* ========================================== */}
@@ -175,11 +210,11 @@ export default function LobbyEmpresas() {
           Cerrar Sesión
         </button>
 
-        {/* Derecha: Badge de Seguridad y Botón Nueva Empresa */}
-        <div className="flex items-center gap-4">
-          <div className="flex justify-end items-center gap-4 mb-12">
-          {/* Indicador de Conexión Segura */}
-          <div className="flex items-center gap-2 text-emerald-700 bg-emerald-100 px-4 py-2 rounded-full text-sm font-bold shadow-sm border border-emerald-200">
+        {/* Derecha: Badge de Seguridad, Papelera y Botones */}
+        <div className="flex flex-wrap justify-end items-center gap-3 sm:gap-4">
+          
+          {/* Indicador de Conexión Segura (Oculto en móviles muy pequeños) */}
+          <div className="hidden sm:flex items-center gap-2 text-emerald-700 bg-emerald-100 px-4 py-3 rounded-xl text-sm font-bold shadow-sm border border-emerald-200">
             <ShieldCheck size={18} />
             Conexión Segura
           </div>
@@ -187,19 +222,29 @@ export default function LobbyEmpresas() {
           {/* Botón de Configuración (Tuerca) */}
           <button 
             onClick={() => navigate('/suscripcion')} 
-            className="p-3 text-slate-500 hover:text-slate-900 hover:bg-slate-200 bg-white rounded-full transition-all shadow-sm border border-slate-200"
+            className="p-3 text-slate-500 hover:text-slate-900 hover:bg-slate-200 bg-white rounded-xl transition-all shadow-sm border border-slate-200"
             title="Configuración de Cuenta"
           >
             <Settings size={22} />
           </button>
-        </div>
+
+          {/* Botón Ver Papelera */}
+          <button 
+            onClick={() => setMostrarInactivas(!mostrarInactivas)} 
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all shadow-sm border ${mostrarInactivas ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+            title="Ver empresas desactivadas"
+          >
+            <Trash2 size={18} />
+            <span className="hidden sm:inline">{mostrarInactivas ? 'Ocultar Papelera' : 'Ver Papelera'}</span>
+          </button>
+
+          {/* Botón Nueva Empresa */}
           <button 
             onClick={abrirModalCrear} 
             className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-md shadow-slate-900/10 flex items-center gap-2"
           >
-            Nueva Empresa
+            + Nueva Empresa
           </button>
-        
         </div>
       </div>
 
@@ -221,27 +266,52 @@ export default function LobbyEmpresas() {
         {/* GRID DE EMPRESAS */}
         {empresas.length === 0 ? (
           <div className="bg-white/60 backdrop-blur-xl border border-white p-12 rounded-[2rem] text-center shadow-sm">
-            <p className="text-slate-500 font-medium text-lg">Aún no tienes empresas registradas.</p>
-            <button onClick={abrirModalCrear} className="mt-4 text-blue-600 font-semibold hover:text-blue-800 transition-colors">
-              + Crea tu primera empresa aquí
-            </button>
+            <p className="text-slate-500 font-medium text-lg">No tienes empresas {mostrarInactivas ? 'inactivas' : 'registradas aún'}.</p>
+            {!mostrarInactivas && (
+              <button onClick={abrirModalCrear} className="mt-4 text-blue-600 font-semibold hover:text-blue-800 transition-colors">
+                + Crea tu primera empresa aquí
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {empresas.map((empresa) => (
               <div 
                 key={empresa.id} 
-                onClick={() => seleccionarEmpresa(empresa.id)} 
-                className="bg-white/80 backdrop-blur-2xl p-8 rounded-[2rem] border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 cursor-pointer transition-all duration-300 group relative"
+                onClick={() => empresa.activo !== false && seleccionarEmpresa(empresa.id)} 
+                className={`bg-white/80 backdrop-blur-2xl p-8 rounded-[2rem] border shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 group relative
+                  ${empresa.activo === false 
+                    ? 'border-red-200 grayscale opacity-80 cursor-default' 
+                    : 'border-white hover:shadow-[0_8px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 cursor-pointer'}`}
               >
-                {/* Botón Editar Empresa */}
-                <button 
-                  onClick={(e) => abrirModalEditar(e, empresa)} 
-                  className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all opacity-0 group-hover:opacity-100" 
-                  title="Editar datos"
-                >
-                  <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                </button>
+                {/* Botones Flotantes (Solo si está activa) */}
+                {empresa.activo !== false && (
+                  <div className="absolute top-6 right-6 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={(e) => abrirModalEditar(e, empresa)} 
+                      className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" 
+                      title="Editar datos"
+                    >
+                      <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); desactivarEmpresa(empresa.id); }} 
+                      className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" 
+                      title="Desactivar Empresa"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Badge Inactiva */}
+                {empresa.activo === false && (
+                  <div className="absolute top-6 right-6">
+                     <span className="bg-red-100/80 text-red-700 text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-widest border border-red-200">
+                       Inactiva
+                     </span>
+                  </div>
+                )}
 
                 {/* Avatar Empresa */}
                 <div className="w-14 h-14 bg-slate-100 text-slate-900 rounded-[1.2rem] flex items-center justify-center text-2xl font-bold mb-6 border border-slate-200/50 shadow-sm group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
@@ -258,10 +328,21 @@ export default function LobbyEmpresas() {
                   </span>
                 </div>
                 
-                {/* Flecha inferior */}
-                <div className="mt-8 pt-5 border-t border-slate-100 flex justify-between items-center text-sm font-bold text-slate-400 group-hover:text-slate-900 transition-colors">
-                  <span>Abrir Dashboard</span>
-                  <span className="transform group-hover:translate-x-1 transition-transform">→</span>
+                {/* Footer de la Tarjeta */}
+                <div className="mt-8 pt-5 border-t border-slate-100/80 flex justify-between items-center text-sm font-bold transition-colors">
+                  {empresa.activo === false ? (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); reactivarEmpresa(empresa.id); }}
+                      className="w-full flex justify-center items-center gap-2 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl transition-colors"
+                    >
+                      <RefreshCcw className="w-4 h-4" /> Restaurar Empresa
+                    </button>
+                  ) : (
+                    <>
+                      <span className="text-slate-400 group-hover:text-slate-900">Abrir Dashboard</span>
+                      <span className="text-slate-400 group-hover:text-slate-900 transform group-hover:translate-x-1 transition-transform">→</span>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

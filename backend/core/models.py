@@ -52,11 +52,10 @@ class Empresa(models.Model):
     sucursal = models.CharField(max_length=100, blank=True, null=True)
     representante_legal = models.CharField(max_length=200, blank=True, null=True)
     rut_representante = models.CharField(max_length=20, blank=True, null=True)
-    class Meta:
-        unique_together = ['rut', 'owner']
-        
+    activo = models.BooleanField(default=True)
+            
     def __str__(self):
-        return self.nombre_legal
+        return f"{self.nombre_legal} ({self.rut})"
 
 
 class Empleado(models.Model):

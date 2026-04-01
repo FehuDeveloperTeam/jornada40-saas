@@ -176,7 +176,20 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Empresa.objects.filter(owner=self.request.user)
+        if self.request.query_params.get('incluir_inactivas') == 'true':
+            return Empresa.objects.filter(owner=self.request.user)
+        return Empresa.objects.filter(owner=self.request.user, activo=True)
+    
+    @action(detail=True, methods=['post'])
+    def reactivar(self, request, pk=None):
+        try:
+            # Buscamos directo en la base de datos (saltando el filtro de activas)
+            empresa = Empresa.objects.get(pk=pk, owner=request.user)
+            empresa.activo = True
+            empresa.save()
+            return Response({"mensaje": "Empresa reactivada correctamente"}, status=status.HTTP_200_OK)
+        except Empresa.DoesNotExist:
+            return Response({"error": "Empresa no encontrada"}, status=status.HTTP_404_NOT_FOUND)
 
     def perform_create(self, serializer):
         cliente = getattr(self.request.user, 'perfil_cliente', None)
@@ -186,14 +199,10 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             total_empresas = Empresa.objects.filter(owner=self.request.user).count()
             
             # Definir límite según el ID del plan (1: Semilla, 2: Pyme, 3: Corporativo)
-            limite_empresas = 1
-            if cliente.plan.id == 2:
-                limite_empresas = 3
-            elif cliente.plan.id == 3:
-                limite_empresas = 10
-                
+            limite_empresas = cliente.plan.max_empresas
+                        
             if total_empresas >= limite_empresas:
-                raise ValidationError({'error': f'Tu plan actual permite administrar un máximo de {limite_empresas} empresas. Actualiza tu plan para registrar más.'})
+                raise ValidationError({'error': f'Tu {cliente.plan.nombre} permite administrar un máximo de {limite_empresas} empresas. Actualiza tu plan para registrar más.'})
 
         # 2. Convertir a mayúsculas
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
@@ -202,11 +211,18 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         # 3. REGLA DE NEGOCIO: No repetir RUT en el mismo panel
         if rut_raw:
             rut_form = formatear_rut(rut_raw)
-            if Empresa.objects.filter(owner=self.request.user, rut=rut_form).exists():
-                raise ValidationError({'error': 'Ya tienes una empresa registrada con este RUT en tu panel.'})
+            if Empresa.objects.filter(rut=rut_form).exists():
+                raise ValidationError({'error': 'Ya existe una empresa registrada con este RUT en el sistema. Contacta a soporte si crees que esto es un error.'})
             datos_mayusculas['rut'] = rut_form
             
         serializer.save(owner=self.request.user, **datos_mayusculas)
+
+    # SOFT-DELETE: En vez de eliminar la empresa, la marcamos como inactiva
+    def destroy(self, request, *args, **kwargs):
+        empresa = self.get_object()
+        empresa.activo = False
+        empresa.save()
+        return Response({"mensaje": "Empresa desactivada correctamente"}, status=status.HTTP_200_OK)
             
     def perform_update(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
