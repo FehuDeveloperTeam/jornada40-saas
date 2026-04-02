@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <title>{{ documento.get_tipo_display }}</title>
     <style>
-        @page { size: letter; margin: 2.5cm 2cm; }
+        @page { 
+            size: letter; margin: 2.5cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm; height: 1cm; text-align: center;
+            }
+         }
         body { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
         h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 30px; text-decoration: underline; text-transform: uppercase; }
         .bold { font-weight: bold; }
@@ -15,6 +21,14 @@
     </style>
 </head>
 <body>
+
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 5px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Gratuito. Cámbiate a PYME para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
 
     <div class="fecha">
         <span class="bold">{{ ciudad|title }}</span>, a <span class="bold">{{ fecha_actual }}</span>

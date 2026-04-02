@@ -145,13 +145,16 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
             comuna_empl = getattr(empleado, 'comuna', '') or ''
             ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
+            cliente = getattr(request.user, 'perfil_cliente', None)
+            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
 
             context = {
                 'documento': documento,
                 'empleado': empleado,
                 'empresa': empresa,
                 'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura
+                'ciudad': ciudad_segura,
+                'es_plan_semilla': es_plan_semilla
             }
 
             template = get_template('documento_legal.html')
@@ -432,6 +435,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
+
+        cliente = getattr(request.user, 'perfil_cliente', None)
+        if cliente and cliente.plan and cliente.plan.nombre.lower() == 'semilla':
+            return Response(
+                {'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Mejora a PYME para desbloquear esta función.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         empleado_ids = request.data.get('empleados', [])
         
         if not empleado_ids:
@@ -521,6 +532,8 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
+            cliente = getattr(request.user, 'perfil_cliente', None)
+            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
 
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
             hoy = datetime.date.today()
@@ -535,7 +548,9 @@ class ContratoViewSet(viewsets.ModelViewSet):
                 'empleado': empleado,
                 'empresa': empresa,
                 'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura 
+                'ciudad': ciudad_segura,
+                'es_plan_semilla': es_plan_semilla
+
             }
 
             template = get_template('anexo_40h.html')
@@ -561,6 +576,8 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
+            cliente = getattr(request.user, 'perfil_cliente', None)
+            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
 
             # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -576,7 +593,8 @@ class ContratoViewSet(viewsets.ModelViewSet):
                 'empleado': empleado,
                 'empresa': empresa,
                 'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura 
+                'ciudad': ciudad_segura,
+                'es_plan_semilla': es_plan_semilla
             }
 
             template = get_template('contrato_trabajo.html')
@@ -752,6 +770,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
+            cliente = getattr(request.user, 'perfil_cliente', None)
+            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
             empleado = liquidacion.empleado
             empresa = empleado.empresa
             contrato = Contrato.objects.filter(empleado=empleado).first()
@@ -783,7 +803,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 'liquido_palabras': liquido_palabras,
                 'total_no_imponible': suma_no_imponibles,
                 'total_ley': total_ley,
-                'total_otros_dsctos': total_otros_dsctos
+                'total_otros_dsctos': total_otros_dsctos,
+                'es_plan_semilla': es_plan_semilla
             }
 
             template = get_template('liquidacion.html')

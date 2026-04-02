@@ -10,6 +10,10 @@
             margin-bottom: 2cm;
             margin-left: 3cm;
             margin-right: 3cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm; height: 1cm; text-align: center;
+            }
         }
         body { 
             font-family: Helvetica, Arial, sans-serif; 
@@ -52,6 +56,15 @@
     </style>
 </head>
 <body>
+
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 5px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Gratuito. Cámbiate a PYME para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
+    
     <h1>ANEXO DE CONTRATO DE TRABAJO - ADECUACIÓN LEY 40 HORAS</h1>
     
     <p>En la ciudad de {{ ciudad }}, a {{ fecha_actual }}, entre la empresa <strong>{{ empresa.nombre_legal }}</strong>, RUT {{ empresa.rut }}, representada legalmente por quien suscribe, en adelante el "Empleador"; y don/doña <strong>{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}</strong>, RUT {{ empleado.rut }}, en adelante el "Trabajador", se ha convenido el siguiente anexo de contrato de trabajo:</p>

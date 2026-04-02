@@ -5,7 +5,13 @@
     <meta charset="UTF-8">
     <title>Liquidación</title>
     <style>
-        @page { size: letter; margin: 0.7cm 1.5cm; }
+        @page { 
+            size: letter; margin: 0.7cm 1.5cm; 
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm; height: 1cm; text-align: center;
+            }
+        }
         body { font-family: "Helvetica", sans-serif; font-size: 8pt; color: #000; }
         .header { width: 100%; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
         .title { text-align: center; font-size: 14pt; font-weight: bold; margin: 15px 0; letter-spacing: 1px; }
@@ -37,6 +43,13 @@
     </style>
 </head>
 <body>
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 5px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Gratuito. Cámbiate a PYME para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
 
     <table class="header">
         <tr>
