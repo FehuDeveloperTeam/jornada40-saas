@@ -1003,3 +1003,33 @@ def recuperar_password_por_rut(request):
         'mensaje': 'Correo enviado exitosamente', 
         'correo_oculto': correo_oculto
     }, status=200)
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def perfil_usuario(request):
+    cliente = getattr(request.user, 'perfil_cliente', None)
+    if not cliente:
+        return Response({'error': 'Perfil no encontrado'}, status=404)
+
+    if request.method == 'GET':
+        return Response({
+            'nombres': request.user.first_name, # Usamos el campo nativo de Django
+            'email': request.user.email,
+            'rut': cliente.rut
+        })
+
+    if request.method == 'PUT':
+        # El RUT no se toca aquí (se ignora si viene en el request)
+        nuevo_nombre = request.data.get('nombres')
+        nuevo_email = request.data.get('email')
+
+        if nuevo_nombre:
+            request.user.first_name = nuevo_nombre
+        if nuevo_email:
+            request.user.email = nuevo_email
+            cliente.correo = nuevo_email # Sincronizamos con el campo correo de tu modelo Cliente
+
+        request.user.save()
+        cliente.save()
+        
+        return Response({'mensaje': 'Perfil actualizado correctamente'})

@@ -35,23 +35,41 @@ export default function Suscripcion() {
   const apiConfig = { withCredentials: true };
 
   // Efecto para cargar los datos al abrir la pantalla
-  useEffect(() => {
+useEffect(() => {
     const fetchDatos = async () => {
       try {
-        const [planesRes, subRes] = await Promise.all([
+        // Agregamos el perfil a la promesa múltiple
+        const [planesRes, subRes, perfilRes] = await Promise.all([
           axios.get('https://jornada40-saas-production.up.railway.app/api/planes/', apiConfig),
-          axios.get('https://jornada40-saas-production.up.railway.app/api/suscripciones/mi_suscripcion/', apiConfig)
+          // CORRECCIÓN: Cambiamos 'suscripciones' por 'clientes' en la URL
+          axios.get('https://jornada40-saas-production.up.railway.app/api/clientes/mi_suscripcion/', apiConfig),
+          // NUEVA LLAMADA: Trae el nombre, email y RUT del cliente
+          axios.get('https://jornada40-saas-production.up.railway.app/api/clientes/perfil/', apiConfig)
         ]);
+        
         setPlanes(planesRes.data);
         setMiSuscripcion(subRes.data);
+        setUserData(perfilRes.data); // Llenamos los inputs con los datos reales
+
       } catch (error) {
-        console.error("Error al cargar datos de suscripción:", error);
+        console.error("Error al cargar datos de suscripción o perfil:", error);
       } finally {
         setLoading(false);
       }
     };
     fetchDatos();
   }, []);
+
+  // ---> NUEVA FUNCIÓN PARA GUARDAR LOS CAMBIOS <---
+  const handleActualizarPerfil = async () => {
+    try {
+      await axios.put('https://jornada40-saas-production.up.railway.app/api/clientes/perfil/', userData, apiConfig);
+      alert("¡Perfil actualizado con éxito!");
+    } catch (error) {
+      console.error("Error al actualizar perfil", error);
+      alert("Hubo un error al guardar los cambios.");
+    }
+  };
 
   // Función para procesar pagos (Upgrades)
   const handlePagar = async (planId: number) => {
@@ -159,7 +177,12 @@ export default function Suscripcion() {
                   </div>
                 </div>
                 <div className="pt-4">
-                  <button className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-colors">Guardar Cambios</button>
+                  <button 
+                    onClick={handleActualizarPerfil} 
+                      className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition-colors"
+                    >
+                      Guardar Cambios
+                  </button>
                 </div>
               </div>
             )}
