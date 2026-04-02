@@ -636,14 +636,27 @@ def registrar_cliente(request):
                 password=password,
                 email=email
             )
+
+            plan_semilla, creado = Plan.objects.get_or_create(
+            nombre__iexact='Semilla',  # <--- MAGIA: Busca por nombre, no por ID
+            defaults={
+                'nombre': 'Semilla', 
+                'max_empresas': 1, 
+                'limite_trabajadores': 3,
+                'precio': 0, # Opcional, si tienes este campo
+                'activo': True
+                }
+            )
             
             # 2. Creamos el perfil en core_cliente 
             cliente = Cliente.objects.create(
-                user=user,
+                usuario=user,
                 rut=rut,
                 correo=email,
-                plan=Plan.objects.filter(id=1).first()  # Asignamos el plan "Semilla" por defecto
+                plan=plan_semilla  # Asignamos el plan "Semilla" por defecto (usando el objeto obtenido o creado arriba
             )
+            
+           
         return Response({'mensaje': 'Cliente creado con éxito'}, status=201)
         
     except IntegrityError:
