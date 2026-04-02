@@ -623,6 +623,8 @@ def registrar_cliente(request):
     password = request.data.get('password')
     # Atrapamos el correo (por si tu React lo manda como 'email' o como 'correo')
     email = request.data.get('email') or request.data.get('correo')
+    first_name=request.data.get('nombres', ''),
+    last_name=request.data.get('apellidos', '')
     
     # Validaciones básicas
     if not rut or not password or not email:
@@ -1007,29 +1009,51 @@ def recuperar_password_por_rut(request):
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def perfil_usuario(request):
+    # Intentamos obtener el perfil del cliente asociado al usuario
     cliente = getattr(request.user, 'perfil_cliente', None)
+    
     if not cliente:
-        return Response({'error': 'Perfil no encontrado'}, status=404)
+        return Response({'error': 'Perfil de cliente no encontrado'}, status=404)
 
     if request.method == 'GET':
+        # 1. Recuperamos los apellidos desde el campo last_name de Django
+        # Usamos strip() para limpiar espacios y split() para separar
+        apellidos_lista = request.user.last_name.strip().split(' ')
+        
+        # 2. Asignamos con seguridad (por si el campo está vacío)
+        paterno = apellidos_lista[0] if len(apellidos_lista) > 0 else ""
+        # Unimos el resto como materno por si hay apellidos compuestos
+        materno = " ".join(apellidos_lista[1:]) if len(apellidos_lista) > 1 else ""
+
         return Response({
-            'nombres': request.user.first_name, # Usamos el campo nativo de Django
+            'nombres': request.user.first_name,
+            'apellido_paterno': paterno,
+            'apellido_materno': materno,
             'email': request.user.email,
             'rut': cliente.rut
         })
 
     if request.method == 'PUT':
-        # El RUT no se toca aquí (se ignora si viene en el request)
-        nuevo_nombre = request.data.get('nombres')
-        nuevo_email = request.data.get('email')
+        # 1. Extraemos los datos enviados desde React (Suscripcion.tsx)
+        nombres = request.data.get('nombres')
+        paterno = request.data.get('apellido_paterno', '').strip()
+        materno = request.data.get('apellido_materno', '').strip()
+        email = request.data.get('email')
 
-        if nuevo_nombre:
-            request.user.first_name = nuevo_nombre
-        if nuevo_email:
-            request.user.email = nuevo_email
-            cliente.correo = nuevo_email # Sincronizamos con el campo correo de tu modelo Cliente
-
-        request.user.save()
-        cliente.save()
+        # 2. Actualizamos el objeto User de Django
+        if nombres is not None:
+            request.user.first_name = nombres
         
-        return Response({'mensaje': 'Perfil actualizado correctamente'})
+        # Guardamos la combinación de apellidos en last_name
+        request.user.last_name = f"{paterno} {materno}".strip()
+
+        if email:
+            request.user.email = email
+            # 3. Sincronizamos con el modelo Cliente (importante para Reveniu)
+            cliente.correo = email
+            cliente.save()
+
+        # 4. Guardamos los cambios en el usuario
+        request.user.save()
+        
+        return Response({'mensaje': 'Perfil actualizado con éxito'})
