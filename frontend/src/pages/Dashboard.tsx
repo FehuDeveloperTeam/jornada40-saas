@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Download, LogOut, ChevronDown, Edit, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { Download, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 // --- TIPOS E INTERFACES ---
 interface Empresa {
