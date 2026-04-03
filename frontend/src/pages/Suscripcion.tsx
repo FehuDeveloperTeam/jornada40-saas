@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { CreditCard, User, Shield, ArrowLeft } from 'lucide-react';
+import { Check, CreditCard, User, Shield, ArrowLeft } from 'lucide-react';
 
 // --- INTERFACES ---
 interface Plan {
@@ -238,7 +238,7 @@ export default function Suscripcion() {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
                       <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Plan Actual</p>
-                      <h3 className="text-2xl font-black text-slate-900">{miSuscripcion?.plan.nombre.toUpperCase()}</h3>
+                      <h3 className="text-2xl font-black text-slate-900">{miSuscripcion?.plan?.nombre?.toUpperCase() || 'Cargando...'}</h3>
                     </div>
                     <span className="px-4 py-1.5 bg-emerald-100 text-emerald-700 font-bold rounded-full text-sm">
                       Estado: Activo
@@ -247,7 +247,7 @@ export default function Suscripcion() {
 
                   <div className="mb-2 flex justify-between text-sm font-bold">
                     <span className="text-slate-600">Uso de Trabajadores</span>
-                    <span className="text-slate-900">{miSuscripcion?.trabajadores_actuales} / {miSuscripcion?.plan.limite_trabajadores}</span>
+                    <span className="text-slate-900">{miSuscripcion?.trabajadores_actuales || 0} / {miSuscripcion?.plan?.limite_trabajadores || 0}</span>
                   </div>
                   <div className="w-full bg-slate-200 rounded-full h-3">
                     <div 
@@ -257,44 +257,60 @@ export default function Suscripcion() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-extrabold text-slate-900 pt-4">Mejorar Plan</h2>
-
-                {/* Plan PYME */}
-                <div className="bg-white rounded-2xl p-6 border-2 border-blue-100 hover:border-blue-500 transition-colors relative">
-                  <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">POPULAR</div>
-                  <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div>
-                      <h3 className="text-xl font-extrabold text-slate-900 mb-1">Plan PYME</h3>
-                      <p className="text-slate-500 text-sm">Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
-                      <p className="text-2xl font-black text-slate-900 mt-2">$19.990 <span className="text-xs text-slate-400 font-medium">/ mes</span></p>
+                {/* LOGICA INTELIGENTE DE PLANES */}
+                {/* Si tiene el plan Corporativo (el máximo), mostramos un mensaje de éxito */}
+                {miSuscripcion?.plan?.nombre?.toUpperCase().includes('CORPO') ? (
+                  <div className="bg-slate-900 rounded-2xl p-8 text-center border border-slate-800">
+                    <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="w-8 h-8 text-emerald-400" />
                     </div>
-                    <button 
-                      onClick={() => handleMejorarPlan(2, 'mensual')}
-                      disabled={procesandoPago || miSuscripcion?.plan.nombre.toUpperCase() === 'PYME'}
-                      className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:bg-slate-300"
-                    >
-                      {procesandoPago ? 'Procesando...' : (miSuscripcion?.plan.nombre.toUpperCase() === 'PYME' ? 'Plan Actual' : 'Mejorar a PYME')}
-                    </button>
+                    <h3 className="text-2xl font-extrabold text-white mb-2">¡Tienes el plan máximo!</h3>
+                    <p className="text-slate-400">Disfrutas de trabajadores ilimitados y todas las herramientas premium de Jornada40.</p>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <h2 className="text-xl font-extrabold text-slate-900 pt-4">Mejorar Plan</h2>
 
-                {/* Plan Corporativo */}
-                <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-                  <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div>
-                      <h3 className="text-xl font-extrabold text-white mb-1">Plan Corporativo</h3>
-                      <p className="text-slate-400 text-sm">Trabajadores Ilimitados. Cargas masivas y soporte 24/7.</p>
-                      <p className="text-2xl font-black text-white mt-2">$49.990 <span className="text-xs text-slate-500 font-medium">/ mes</span></p>
+                    {/* Mostrar Plan PYME SOLO si su plan actual NO incluye la palabra PYME */}
+                    {!miSuscripcion?.plan?.nombre?.toUpperCase().includes('PYME') && (
+                      <div className="bg-white rounded-2xl p-6 border-2 border-blue-100 hover:border-blue-500 transition-colors relative">
+                        <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">POPULAR</div>
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                          <div>
+                            <h3 className="text-xl font-extrabold text-slate-900 mb-1">Plan PYME</h3>
+                            <p className="text-slate-500 text-sm">Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
+                            <p className="text-2xl font-black text-slate-900 mt-2">$19.990 <span className="text-xs text-slate-400 font-medium">/ mes</span></p>
+                          </div>
+                          <button 
+                            onClick={() => handleMejorarPlan(2, 'mensual')}
+                            disabled={procesandoPago}
+                            className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:bg-slate-300"
+                          >
+                            {procesandoPago ? 'Procesando...' : 'Mejorar a PYME'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Plan Corporativo (Siempre se muestra a menos que ya sea Corporativo, lo cual filtramos arriba) */}
+                    <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div>
+                          <h3 className="text-xl font-extrabold text-white mb-1">Plan Corporativo</h3>
+                          <p className="text-slate-400 text-sm">Trabajadores Ilimitados. Cargas masivas y soporte 24/7.</p>
+                          <p className="text-2xl font-black text-white mt-2">$49.990 <span className="text-xs text-slate-500 font-medium">/ mes</span></p>
+                        </div>
+                        <button 
+                          onClick={() => handleMejorarPlan(3, 'mensual')}
+                          disabled={procesandoPago}
+                          className="w-full md:w-auto px-6 py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition-all disabled:bg-slate-700 disabled:text-slate-500"
+                        >
+                          {procesandoPago ? 'Procesando...' : 'Obtener Ilimitado'}
+                        </button>
+                      </div>
                     </div>
-                    <button 
-                      onClick={() => handleMejorarPlan(3, 'mensual')}
-                      disabled={procesandoPago || miSuscripcion?.plan.nombre.toUpperCase() === 'CORPORATIVO'}
-                      className="w-full md:w-auto px-6 py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition-all disabled:bg-slate-700 disabled:text-slate-500"
-                    >
-                      {procesandoPago ? 'Procesando...' : (miSuscripcion?.plan.nombre.toUpperCase() === 'CORPORATIVO' ? 'Plan Actual' : 'Obtener Ilimitado')}
-                    </button>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             )}
 
