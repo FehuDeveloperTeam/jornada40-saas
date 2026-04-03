@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
+import { Search, Plus, Download, LogOut, ChevronDown, Edit, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 // --- TIPOS E INTERFACES ---
 interface Empresa {
@@ -165,6 +166,10 @@ export default function Dashboard() {
   const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
+
+  // Estados para Carga Masiva Visual
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ agregados: number; errores: string[]; limite_alcanzado: boolean } | null>(null);
 
   // Estados del panel lateral y Pestañas
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
@@ -354,55 +359,41 @@ export default function Dashboard() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const empresaId = empresa?.id; 
-
-    if (!file || !empresaId) {
-        alert("Selecciona una empresa antes de subir el archivo.");
-        return;
-    }
-
+    if (!e.target.files || e.target.files.length === 0 || !empresa) return;
+    
     setIsUploading(true);
+    setUploadResult(null); // Limpiamos resultados anteriores
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('empresa', empresaId.toString());
+    const file = e.target.files[0];
+    const reader = new FileReader();
 
-    try {
+    reader.onload = async (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
         const response = await axios.post(
-            `https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`, 
-            formData, 
-            {
-                ...apiConfig,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                }
-            }
+          `https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`,
+          { empresa_id: empresa.id, empleados: jsonData },
+          apiConfig
         );
 
-        if (response.data.advertencia) {
-            alert(`ATENCIÓN:\n${response.data.mensaje}\n\n${response.data.advertencia}`);
-        } else {
-            alert(response.data.mensaje || "¡Carga masiva finalizada con éxito!");
-        }
+        // Guardamos el resultado para el Modal Premium
+        setUploadResult(response.data.resultados);
+        fetchData(); // <-- Recarga la tabla de empleados
 
-        window.location.reload(); 
-
-    } catch (error) { 
-        console.error("Error en la carga masiva:", error);
-        if (axios.isAxiosError(error)) {
-            const errorData = error.response?.data;
-            const mensaje = errorData?.error || "Error desconocido en el servidor";
-            const detalle = errorData?.detalle ? `\n\nDetalle Técnico:\n${errorData.detalle}` : "";
-            
-            alert(`Error al procesar el archivo:\n\n${mensaje}${detalle}`);
-        } else {
-            alert("Error de conexión al intentar subir el archivo.");
-        }
-    } finally {
+      } catch (error) {
+        console.error("Error cargando Excel:", error);
+        setUploadResult({ agregados: 0, errores: ["Error de conexión o formato de archivo inválido."], limite_alcanzado: false });
+      } finally {
         setIsUploading(false);
         e.target.value = ''; 
-    }
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
   // ==========================================
   // CARGAR DATOS AL ABRIR EL PANEL
@@ -850,16 +841,14 @@ export default function Dashboard() {
             </div>
             
             <div className="flex flex-wrap gap-3 items-center">
-                <button type="button" onClick={descargarPlantillaExcel} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-medium flex items-center gap-2">
-                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                  Plantilla
+                
+                <button 
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                  <span className="hidden sm:inline">Carga Masiva</span>
                 </button>
-
-                <label className="cursor-pointer px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 text-sm font-medium m-0">
-                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
-                  {isUploading ? "Cargando..." : "Subir Excel"}
-                  <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
-                </label>
 
                 <button type="button" onClick={() => setIsModalMasivoOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-2">
                   <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
@@ -2042,6 +2031,135 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      {/* MODAL DESCARGA MASIVA (El de los ZIP que ya tenías) */}
+      {isModalMasivoOpen && (
+        <div className="fixed inset-0 bg-slate-900/50...">
+           {/* ... tu código del zip ... */}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* PEGA ESTO AQUÍ: MODAL DE CARGA MASIVA PREMIUM (EXCEL)    */}
+      {/* ======================================================== */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center p-4 z-[100] animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900">Carga Masiva de Trabajadores</h3>
+                <p className="text-slate-500 text-sm mt-1">Sube tu Excel o descarga la plantilla base.</p>
+              </div>
+              <button onClick={() => { setIsUploadModalOpen(false); setUploadResult(null); }} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-8 overflow-y-auto">
+              
+              {/* ESTADO 1: Esperando Archivo (Aún no hay resultados) */}
+              {!uploadResult && (
+                <div className="space-y-6">
+                  {/* Zona de Subida */}
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center justify-center text-center bg-slate-50/50 relative hover:bg-slate-50 hover:border-blue-400 transition-colors">
+                    {isUploading ? (
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                    ) : (
+                      <UploadCloud className="w-16 h-16 text-blue-500 mb-4" />
+                    )}
+                    <h4 className="text-lg font-bold text-slate-900 mb-2">
+                      {isUploading ? 'Procesando archivo...' : 'Sube tu archivo Excel'}
+                    </h4>
+                    <p className="text-slate-500 text-sm mb-6 max-w-md">
+                      Asegúrate de que las columnas coincidan exactamente con la plantilla oficial.
+                    </p>
+                    
+                    <input 
+                      type="file" 
+                      accept=".xlsx, .xls" 
+                      onChange={handleFileUpload}
+                      disabled={isUploading}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" 
+                    />
+                    
+                    <button disabled={isUploading} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md pointer-events-none">
+                      Seleccionar Archivo
+                    </button>
+                  </div>
+
+                  {/* Descarga de Plantilla */}
+                  <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 flex items-center justify-between">
+                    <div>
+                      <h5 className="font-bold text-emerald-900 mb-1">¿No tienes el formato correcto?</h5>
+                      <p className="text-emerald-700 text-sm">Usa nuestra plantilla oficial para evitar errores.</p>
+                    </div>
+                    <button 
+                      onClick={descargarPlantillaExcel}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      <Download className="w-4 h-4" /> Plantilla
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ESTADO 2: Resultados de la Carga */}
+              {uploadResult && (
+                <div className="space-y-6 animate-in slide-in-from-bottom-4">
+                  
+                  {/* Resumen de Éxito */}
+                  <div className="bg-slate-900 rounded-2xl p-6 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold text-lg">Carga Finalizada</h4>
+                      <p className="text-emerald-400 font-medium">{uploadResult.agregados} trabajadores agregados con éxito.</p>
+                    </div>
+                  </div>
+
+                  {/* Advertencia de Límite de Plan */}
+                  {uploadResult.limite_alcanzado && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex gap-3">
+                      <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
+                      <div>
+                        <h5 className="font-bold text-amber-900">Límite de Plan Alcanzado</h5>
+                        <p className="text-amber-700 text-sm mt-1">
+                          Se detuvo la carga porque llegaste al límite de trabajadores de tu plan actual. Para ingresar al resto, debes mejorar tu suscripción.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista de Errores Específicos */}
+                  {uploadResult.errores.length > 0 && (
+                    <div>
+                      <h5 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+                        <X className="w-5 h-5 text-red-500" /> Errores detectados ({uploadResult.errores.length})
+                      </h5>
+                      <div className="bg-red-50 border border-red-100 rounded-xl max-h-48 overflow-y-auto p-4 space-y-2">
+                        {uploadResult.errores.map((error, index) => (
+                          <div key={index} className="text-sm text-red-800 bg-white p-3 rounded-lg shadow-sm border border-red-50">
+                            {error}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={() => { setIsUploadModalOpen(false); setUploadResult(null); }}
+                    className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
+                  >
+                    Aceptar y Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
