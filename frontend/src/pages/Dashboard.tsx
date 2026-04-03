@@ -369,7 +369,7 @@ export default function Dashboard() {
     
     // Adjuntamos el archivo físico y el ID de la empresa tal como los espera Django
     formData.append('file', file); 
-    formData.append('empresa_id', empresa.id.toString());
+    formData.append('empresa', empresa.id.toString());
 
     try {
       const response = await axios.post(
