@@ -365,35 +365,51 @@ export default function Dashboard() {
     setUploadResult(null); // Limpiamos resultados anteriores
 
     const file = e.target.files[0];
-    const reader = new FileReader();
+    const formData = new FormData();
+    
+    // Adjuntamos el archivo físico y el ID de la empresa tal como los espera Django
+    formData.append('archivo', file); 
+    formData.append('empresa_id', empresa.id.toString());
 
-    reader.onload = async (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    try {
+      const response = await axios.post(
+        `https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`,
+        formData,
+        {
+          ...apiConfig,
+          headers: {
+            'Content-Type': 'multipart/form-data', // Fundamental para enviar archivos
+          },
+        }
+      );
 
-        const response = await axios.post(
-          `https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`,
-          { empresa_id: empresa.id, empleados: jsonData },
-          apiConfig
-        );
+      // Guardamos el resultado para mostrarlo en el Modal Premium
+      // (Usamos fallback por si tu backend lo envía en 'resultados' o en la raíz)
+      setUploadResult(response.data.resultados || response.data);
+      fetchData(); // <-- Recarga la tabla de empleados
 
-        // Guardamos el resultado para el Modal Premium
-        setUploadResult(response.data.resultados);
-        fetchData(); // <-- Recarga la tabla de empleados
-
-      } catch (error) {
-        console.error("Error cargando Excel:", error);
-        setUploadResult({ agregados: 0, errores: ["Error de conexión o formato de archivo inválido."], limite_alcanzado: false });
-      } finally {
-        setIsUploading(false);
-        e.target.value = ''; 
+    } catch (error) {
+      console.error("Error cargando Excel:", error);
+      
+      // Mensaje por defecto
+      let mensajeBackend = "Error de conexión o formato de archivo inválido.";
+      
+      // Comprobamos si es un error específico de Axios de forma segura
+      if (axios.isAxiosError(error)) {
+        mensajeBackend = error.response?.data?.error || mensajeBackend;
+      } else if (error instanceof Error) {
+        // Por si es un error estándar de Javascript
+        mensajeBackend = error.message;
       }
-    };
-    reader.readAsArrayBuffer(file);
+      setUploadResult({ 
+        agregados: 0, 
+        errores: [mensajeBackend], 
+        limite_alcanzado: false 
+      });
+    } finally {
+      setIsUploading(false);
+      e.target.value = ''; 
+    }
   };
   // ==========================================
   // CARGAR DATOS AL ABRIR EL PANEL
