@@ -1009,51 +1009,41 @@ def recuperar_password_por_rut(request):
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def perfil_usuario(request):
-    # Intentamos obtener el perfil del cliente asociado al usuario
+    # Obtenemos el perfil del cliente (Tabla Cliente)
     cliente = getattr(request.user, 'perfil_cliente', None)
     
     if not cliente:
-        return Response({'error': 'Perfil de cliente no encontrado'}, status=404)
+        return Response({'error': 'Perfil no encontrado en la tabla Cliente'}, status=404)
 
     if request.method == 'GET':
-        # 1. Recuperamos los apellidos desde el campo last_name de Django
-        # Usamos strip() para limpiar espacios y split() para separar
-        apellidos_lista = request.user.last_name.strip().split(' ')
-        
-        # 2. Asignamos con seguridad (por si el campo está vacío)
-        paterno = apellidos_lista[0] if len(apellidos_lista) > 0 else ""
-        # Unimos el resto como materno por si hay apellidos compuestos
-        materno = " ".join(apellidos_lista[1:]) if len(apellidos_lista) > 1 else ""
-
+        # EXTRAEMOS DIRECTAMENTE DE LA TABLA CLIENTE
         return Response({
-            'nombres': request.user.first_name,
-            'apellido_paterno': paterno,
-            'apellido_materno': materno,
+            'nombres': cliente.nombres or "",
+            'apellido_paterno': cliente.apellido_paterno or "",
+            'apellido_materno': cliente.apellido_materno or "",
             'email': request.user.email,
-            'rut': cliente.rut
+            'rut': cliente.rut,
+            # Agregamos el nombre del plan para verificar el error del null
+            'plan_nombre': cliente.plan.nombre if cliente.plan else "Sin Plan (null)"
         })
 
     if request.method == 'PUT':
-        # 1. Extraemos los datos enviados desde React (Suscripcion.tsx)
         nombres = request.data.get('nombres')
-        paterno = request.data.get('apellido_paterno', '').strip()
-        materno = request.data.get('apellido_materno', '').strip()
+        paterno = request.data.get('apellido_paterno')
+        materno = request.data.get('apellido_materno')
         email = request.data.get('email')
 
-        # 2. Actualizamos el objeto User de Django
-        if nombres is not None:
-            request.user.first_name = nombres
-        
-        # Guardamos la combinación de apellidos en last_name
-        request.user.last_name = f"{paterno} {materno}".strip()
+        # 1. ACTUALIZAR TABLA CLIENTE (Campos específicos)
+        if nombres is not None: cliente.nombres = nombres
+        if paterno is not None: cliente.apellido_paterno = paterno
+        if materno is not None: cliente.apellido_materno = materno
+        if email: cliente.correo = email
+        cliente.save()
 
-        if email:
-            request.user.email = email
-            # 3. Sincronizamos con el modelo Cliente (importante para Reveniu)
-            cliente.correo = email
-            cliente.save()
-
-        # 4. Guardamos los cambios en el usuario
+        # 2. MANTENER REDUNDANCIA EN TABLA USER (Django Auth)
+        if nombres is not None: request.user.first_name = nombres
+        request.user.last_name = f"{paterno or ''} {materno or ''}".strip()
+        if email: request.user.email = email
         request.user.save()
-        
-        return Response({'mensaje': 'Perfil actualizado con éxito'})
+
+        return Response({'mensaje': 'Perfil actualizado con éxito en ambas tablas'})
