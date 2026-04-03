@@ -368,7 +368,7 @@ export default function Dashboard() {
     const formData = new FormData();
     
     // Adjuntamos el archivo físico y el ID de la empresa tal como los espera Django
-    formData.append('archivo', file); 
+    formData.append('file', file); 
     formData.append('empresa_id', empresa.id.toString());
 
     try {
