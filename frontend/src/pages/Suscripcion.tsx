@@ -279,7 +279,7 @@ export default function Suscripcion() {
                           <div>
                             <h3 className="text-xl font-extrabold text-slate-900 mb-1">Plan PYME</h3>
                             <p className="text-slate-500 text-sm">Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
-                            <p className="text-2xl font-black text-slate-900 mt-2">$19.990 <span className="text-xs text-slate-400 font-medium">/ mes</span></p>
+                            <p className="text-2xl font-black text-slate-900 mt-2">$29.990 <span className="text-xs text-slate-400 font-medium">/ mes</span></p>
                           </div>
                           <button 
                             onClick={() => handleMejorarPlan(2, 'mensual')}
@@ -297,15 +297,15 @@ export default function Suscripcion() {
                       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                         <div>
                           <h3 className="text-xl font-extrabold text-white mb-1">Plan Corporativo</h3>
-                          <p className="text-slate-400 text-sm">Trabajadores Ilimitados. Cargas masivas y soporte 24/7.</p>
-                          <p className="text-2xl font-black text-white mt-2">$49.990 <span className="text-xs text-slate-500 font-medium">/ mes</span></p>
+                          <p className="text-slate-400 text-sm">Hasta 200 trabajadores. Cargas masivas y soporte 24/7.</p>
+                          <p className="text-2xl font-black text-white mt-2">$69.990 <span className="text-xs text-slate-500 font-medium">/ mes</span></p>
                         </div>
                         <button 
                           onClick={() => handleMejorarPlan(3, 'mensual')}
                           disabled={procesandoPago}
                           className="w-full md:w-auto px-6 py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition-all disabled:bg-slate-700 disabled:text-slate-500"
                         >
-                          {procesandoPago ? 'Procesando...' : 'Obtener Ilimitado'}
+                          {procesandoPago ? 'Procesando...' : 'Obtener Corporativo'}
                         </button>
                       </div>
                     </div>

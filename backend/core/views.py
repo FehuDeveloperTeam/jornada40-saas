@@ -289,11 +289,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         try:
             # 1. Manejo seguro si el frontend manda un Array en lugar de un Objeto
             data = request.data[0] if isinstance(request.data, list) else request.data
-            
             empresa_id = data.get('empresa')
             
             # 2. Rescatamos el archivo (si viene en FILES o dentro de data)
             archivo_excel = request.FILES.get('file') or data.get('file')
+            
+            if not archivo_excel or not empresa_id:
+                return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+                
             # Validar extensión
             if not archivo_excel.name.endswith(('.xlsx', '.xls')):
                 return Response({'error': 'Formato no permitido'}, status=400)
@@ -302,9 +305,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             if archivo_excel.size > 5 * 1024 * 1024:
                 return Response({'error': 'Archivo demasiado pesado'}, status=400)
 
-            if not archivo_excel or not empresa_id:
-                return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
-            
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             cliente = getattr(request.user, 'perfil_cliente', None)
             
@@ -314,6 +314,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
             df = pd.read_excel(archivo_excel).fillna('')
             registros = df.to_dict('records')
+            
             # 1. PRE-VALIDACIÓN Y ESTANDARIZACIÓN
             datos_a_procesar = []
             for index, row in enumerate(registros):
@@ -326,7 +327,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         'error': f'El RUT {rut_raw} de {row.get("Nombres", "")} es inválido. Carga abortada completamente.'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Guarda siempre formateado: XX.XXX.XXX-X
                 rut_formateado = formatear_rut(rut_raw)
                 datos_a_procesar.append({'rut': rut_formateado, 'row': row})
 
@@ -337,16 +337,22 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             max_ficha_actual = Empleado.objects.filter(empresa=empresa).aggregate(Max('ficha_numero'))['ficha_numero__max']
             siguiente_ficha = (max_ficha_actual or 0) + 1
 
+            # MAPEO ANTI-DUPLICADOS: Traemos todos los empleados actuales usando su RUT limpio (sin puntos ni guiones)
+            empleados_bd = Empleado.objects.filter(empresa=empresa)
+            mapa_empleados = { limpiar_rut(emp.rut): emp for emp in empleados_bd }
+
             with transaction.atomic():
-                total_actual = Empleado.objects.filter(empresa=empresa).count()
+                total_actual = empleados_bd.count()
 
                 for item in datos_a_procesar:
-                    rut = item['rut']
+                    rut_formateado = item['rut']
+                    rut_limpio_excel = limpiar_rut(rut_formateado)
                     row = item['row']
 
                     # Función para asegurar Mayúsculas visuales
                     def clean_str(val, default=''):
-                        return str(row.get(val, default)).strip().upper()
+                        v = row.get(val, default)
+                        return str(v).strip().upper() if v else default
 
                     nombres = clean_str('Nombres')
                     ap_paterno = clean_str('Apellido_Paterno')
@@ -359,7 +365,19 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         sueldo, horas, plan_uf = 0, 44, 0
 
                     fecha_ing = estandarizar_fecha(row.get('Fecha_Ingreso')) or datetime.date.today()
+                    fecha_nac = estandarizar_fecha(row.get('Fecha_Nacimiento'))
 
+                    # Lógica Bancaria
+                    forma_pago = clean_str('Forma_Pago', 'TRANSFERENCIA')
+                    es_bancarizado = forma_pago in ['TRANSFERENCIA', 'DEPOSITO']
+                    
+                    num_cuenta_raw = row.get('Numero_Cuenta', '')
+                    if isinstance(num_cuenta_raw, float):
+                        num_cuenta = str(int(num_cuenta_raw))
+                    else:
+                        num_cuenta = str(num_cuenta_raw).strip()
+
+                    # AQUÍ ESTÁN TODOS LOS CAMPOS
                     nuevos_datos = {
                         'nombres': nombres,
                         'apellido_paterno': ap_paterno,
@@ -373,15 +391,25 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         'sexo': clean_str('Sexo', 'M'),
                         'nacionalidad': clean_str('Nacionalidad', 'CHILENA'),
                         'estado_civil': clean_str('Estado_Civil', 'SOLTERO'),
-                        'numero_telefono': clean_str('Numero_Telefono'),
+                        'numero_telefono': str(row.get('Numero_Telefono', '')).strip(),
                         'email': str(row.get('Email', '')).strip().lower(),
                         'comuna': clean_str('Comuna'),
                         'direccion': clean_str('Direccion'),
                         'cargo': clean_str('Cargo'),
                         'modalidad': clean_str('Modalidad', 'PRESENCIAL'),
+                        # NUEVOS CAMPOS AÑADIDOS
+                        'fecha_ingreso': fecha_ing,
+                        'fecha_nacimiento': fecha_nac,
+                        'departamento': clean_str('Departamento'),
+                        'sucursal': clean_str('Sucursal'),
+                        'forma_pago': forma_pago,
+                        'banco': clean_str('Banco') if es_bancarizado else None,
+                        'tipo_cuenta': clean_str('Tipo_Cuenta') if es_bancarizado else None,
+                        'numero_cuenta': num_cuenta if es_bancarizado else None,
                     }
 
-                    empleado = Empleado.objects.filter(rut=rut, empresa=empresa).first()
+                    # Buscamos en nuestro mapa usando el RUT limpio (anti-errores de formato)
+                    empleado = mapa_empleados.get(rut_limpio_excel)
 
                     if empleado:
                         # 3. ACTUALIZAR SI HAY DIFERENCIAS
@@ -399,13 +427,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                             limite_alcanzado = True
                             break
                         
-                        Empleado.objects.create(
-                            rut=rut, 
+                        nuevo_emp = Empleado.objects.create(
+                            rut=rut_formateado, 
                             empresa=empresa, 
-                            fecha_ingreso=fecha_ing,
                             ficha_numero=siguiente_ficha,
                             **nuevos_datos
                         )
+                        # Lo agregamos al mapa temporal por si el mismo RUT viene dos veces en el Excel
+                        mapa_empleados[rut_limpio_excel] = nuevo_emp 
                         siguiente_ficha += 1
                         empleados_creados += 1
                         total_actual += 1
@@ -418,21 +447,17 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 return Response({'mensaje': mensaje, 'advertencia': advertencia}, status=status.HTTP_200_OK)
 
             return Response({'mensaje': mensaje}, status=status.HTTP_200_OK)
-        except Exception as e:
-            # Captura la traza completa del error
-            error_trace = traceback.format_exc()
             
-            # Imprime en la consola del servidor (Railway/Terminal)
+        except Exception as e:
+            error_trace = traceback.format_exc()
             print("=== ERROR EN CARGA MASIVA ===")
             print(error_trace)
             print("=============================")
-            
-            # Devuelve el detalle al frontend para que lo leamos de inmediato
             return Response({
                 'error': f'Error procesando el archivo: {str(e)}',
                 'detalle': error_trace
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+                
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
 
