@@ -325,7 +325,13 @@ export default function Dashboard() {
         Sueldo_Base: 500000,
         AFP: "MODELO",
         Salud: "FONASA",
-        Plan_Isapre_UF: 0
+        Plan_Isapre_UF: 0,
+        Departamento: "VENTAS",
+        Sucursal: "MATRIZ",
+        Forma_Pago: "TRANSFERENCIA",
+        Banco: "BANCO ESTADO",
+        Tipo_Cuenta: "CORRIENTE",
+        Numero_Cuenta: "1234567890"
       },
       {
         RUT: "11.111.111-1",
@@ -348,7 +354,13 @@ export default function Dashboard() {
         Sueldo_Base: 1200000,
         AFP: "PROVIDA",
         Salud: "ISAPRE",
-        Plan_Isapre_UF: 2.8
+        Plan_Isapre_UF: 2.8,
+        Departamento: "OPERACIONES",
+        Sucursal: "MATRIZ",
+        Forma_Pago: "TRANSFERENCIA",
+        Banco: "BANCO ESTADO",
+        Tipo_Cuenta: "CORRIENTE",
+        Numero_Cuenta: "0987654321"
       }
     ];
 
@@ -359,7 +371,7 @@ export default function Dashboard() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0 || !empresa) return;
+    if (!e.target.files || e.target.files?.length === 0 || !empresa) return;
     
     setIsUploading(true);
     setUploadResult(null); // Limpiamos resultados anteriores
@@ -840,7 +852,7 @@ export default function Dashboard() {
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">Directorio de Empleados</h2>
-              <p className="text-sm text-gray-500 mt-1">Mostrando {filteredEmpleados.length} de {empleados.length}</p>
+              <p className="text-sm text-gray-500 mt-1">Mostrando {filteredEmpleados?.length || 0} de {empleados?.length || 0}</p>
             </div>
 
             <div className="relative w-full md:w-64">
@@ -878,7 +890,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {empleados.length === 0 ? (
+          {empleados?.length === 0 ? (
             <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl">
               <p className="text-gray-500 font-medium mb-4">Aún no tienes empleados en esta empresa.</p>
             </div>
@@ -955,7 +967,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredEmpleados.length === 0 ? (
+                  {filteredEmpleados?.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="text-center py-12 text-gray-500 font-medium">No se encontraron trabajadores con los filtros aplicados.</td>
                     </tr>
@@ -2148,13 +2160,13 @@ export default function Dashboard() {
                   )}
 
                   {/* Lista de Errores Específicos */}
-                  {uploadResult.errores.length > 0 && (
+                  {(uploadResult?.errores?.length  || 0) > 0 && (
                     <div>
                       <h5 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                        <X className="w-5 h-5 text-red-500" /> Errores detectados ({uploadResult.errores.length})
+                        <X className="w-5 h-5 text-red-500" /> Errores detectados ({uploadResult?.errores?.length})
                       </h5>
                       <div className="bg-red-50 border border-red-100 rounded-xl max-h-48 overflow-y-auto p-4 space-y-2">
-                        {uploadResult.errores.map((error, index) => (
+                        {uploadResult?.errores?.map((error, index) => (
                           <div key={index} className="text-sm text-red-800 bg-white p-3 rounded-lg shadow-sm border border-red-50">
                             {error}
                           </div>
