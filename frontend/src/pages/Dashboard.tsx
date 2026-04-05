@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
-import { Download, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { Download, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X, Users, Laptop, DollarSign} from 'lucide-react';
 
 // --- TIPOS E INTERFACES ---
 interface Empresa {
@@ -151,6 +151,7 @@ const defaultHorario: HorarioSemana = {
   domingo: { activo: false, entrada: '09:00', salida: '14:00', colacion: 0 },
 };
 
+
 export default function Dashboard() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -287,6 +288,26 @@ export default function Dashboard() {
         return a.activo ? -1 : 1; 
       });
   }, [empleados, searchTerm, selectedStatuses, selectedCargos, selectedDeptos]);
+
+  const stats = useMemo(() => {
+    if (!empleados || empleados.length === 0) return null;
+    
+    const total = empleados.length;
+    
+    // Contamos por género (Si viene vacío o distinto, asumimos no especificado)
+    const mujeres = empleados.filter(e => e.sexo === 'F').length;
+    const hombres = empleados.filter(e => e.sexo === 'M').length;
+    
+    // Contamos por modalidad
+    const teletrabajo = empleados.filter(e => e.modalidad === 'TELETRABAJO').length;
+    const presencial = total - teletrabajo;
+    
+    // Calculamos el sueldo promedio
+    const sueldos = empleados.map(e => e.sueldo_base || 0);
+    const promedio = total > 0 ? sueldos.reduce((a, b) => a + b, 0) / total : 0;
+
+    return { total, mujeres, hombres, teletrabajo, presencial, promedio };
+  }, [empleados]);
 
   const toggleArrayItem = <T,>(array: T[], setArray: React.Dispatch<React.SetStateAction<T[]>>, item: T) => {
     if (array.includes(item)) setArray(array.filter(i => i !== item));
@@ -840,6 +861,71 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* ========================================== */}
+        {/* WIDGETS DE ESTADÍSTICAS (PREMIUM UI)       */}
+        {/* ========================================== */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 animate-in slide-in-from-bottom-4 fade-in duration-500">
+            
+            {/* Widget 1: Total Trabajadores */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                <Users className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Total Trabajadores</p>
+                <h4 className="text-2xl font-extrabold text-slate-900">{stats.total}</h4>
+              </div>
+            </div>
+
+            {/* Widget 2: Distribución de Género */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-fuchsia-50 text-fuchsia-500 rounded-xl flex items-center justify-center shrink-0">
+                <Users className="w-7 h-7" />
+              </div>
+              <div className="w-full">
+                <p className="text-sm font-bold text-slate-500 mb-1">Distribución</p>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-extrabold text-slate-900">{stats.mujeres} <span className="text-xs text-slate-400 font-normal">Muj.</span></span>
+                  <span className="text-sm font-extrabold text-slate-900">{stats.hombres} <span className="text-xs text-slate-400 font-normal">Hom.</span></span>
+                </div>
+                {/* Barra de progreso de género */}
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                  <div style={{ width: `${(stats.mujeres / stats.total) * 100}%` }} className="bg-fuchsia-400 h-full transition-all duration-1000"></div>
+                  <div style={{ width: `${(stats.hombres / stats.total) * 100}%` }} className="bg-blue-400 h-full transition-all duration-1000"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Widget 3: Modalidad de Trabajo */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center shrink-0">
+                <Laptop className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Teletrabajo</p>
+                <h4 className="text-2xl font-extrabold text-slate-900">
+                  {stats.teletrabajo} <span className="text-sm font-medium text-slate-400">/ {stats.presencial} Ofi.</span>
+                </h4>
+              </div>
+            </div>
+
+            {/* Widget 4: Sueldo Promedio */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+              <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center shrink-0">
+                <DollarSign className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Sueldo Promedio</p>
+                <h4 className="text-2xl font-extrabold text-slate-900">
+                  ${stats.promedio.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                </h4>
+              </div>
+            </div>
+
+          </div>
+        )}
 
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{empresa?.nombre_legal}</h1>
