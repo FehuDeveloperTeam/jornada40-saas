@@ -342,6 +342,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     except:
                         sueldo, horas = 0, 44
 
+                    raw_cuenta = row_norm.get('numero_cuenta', '')
+                    try:
+                        # Si es numérico (ej. 12345.0), lo pasamos a float, luego a entero (quita el .0) y luego a texto
+                        num_cuenta = str(int(float(raw_cuenta)))
+                    except (ValueError, TypeError):
+                        # Si tiene letras o guiones (ej. "Chequera-123") o está vacío, lo dejamos como texto normal
+                        num_cuenta = str(raw_cuenta).strip()
+
                     # AQUÍ SE ASIGNAN TODOS LOS CAMPOS QUE ESTABAN EN NULL
                     nuevos_datos = {
                         'nombres': nombres,
@@ -360,7 +368,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         'forma_pago': str(row_norm.get('forma_pago', 'TRANSFERENCIA')).strip().upper(),
                         'banco': str(row_norm.get('banco', '')).strip().upper(),
                         'tipo_cuenta': str(row_norm.get('tipo_cuenta', '')).strip().upper(),
-                        'numero_cuenta': str(row_norm.get('numero_cuenta', '')).strip(),
+                        'numero_cuenta': num_cuenta
                     }
 
                     empleado_existente = mapa_empleados.get(rut_limpio)

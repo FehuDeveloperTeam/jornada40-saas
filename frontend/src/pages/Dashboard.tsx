@@ -26,6 +26,7 @@ interface Empleado {
   direccion?: string;
   comuna?: string;
   numero_telefono?: string;
+  email?: string;
   departamento?: string;
   cargo: string;
   sucursal?: string;
@@ -902,6 +903,7 @@ export default function Dashboard() {
                   <tr className="border-b-2 border-gray-100">
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">RUT</th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre Completo</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Email</th>
                     
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase relative">
                       <button onClick={(e) => { e.stopPropagation(); setOpenFilterDropdown(openFilterDropdown === 'depto' ? null : 'depto'); }} className="flex items-center gap-1 hover:text-gray-600 outline-none">
@@ -977,6 +979,7 @@ export default function Dashboard() {
                       <tr key={emp.id} className={`border-b border-gray-50 transition-colors group ${!emp.activo ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}>
                         <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
                         <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{emp.email || '---'}</td>
                         <td className="p-4 text-gray-600 capitalize">{emp.departamento?.toLowerCase() || 'No especificado'}</td>
                         <td className="p-4 text-gray-600 capitalize">{emp.cargo.toLowerCase()}</td>
                         <td className="p-4">
