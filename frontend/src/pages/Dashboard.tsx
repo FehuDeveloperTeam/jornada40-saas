@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
-import { Download, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X, Users, Laptop, DollarSign} from 'lucide-react';
+import { Download, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X, Users, Laptop, Clock, Globe, CircleDollarSign, Building2, Landmark} from 'lucide-react';
 
 // --- TIPOS E INTERFACES ---
 interface Empresa {
@@ -302,11 +302,61 @@ export default function Dashboard() {
     const teletrabajo = empleados.filter(e => e.modalidad === 'TELETRABAJO').length;
     const presencial = total - teletrabajo;
     
-    // Calculamos el sueldo promedio
-    const sueldos = empleados.map(e => e.sueldo_base || 0);
-    const promedio = total > 0 ? sueldos.reduce((a, b) => a + b, 0) / total : 0;
+    // 1. Alerta de Jornada (40h)
+    const jornada40 = empleados.filter(e => (e.horas_laborales || 0) <= 40).length;
+    const jornadaMayor = total - jornada40;
 
-    return { total, mujeres, hombres, teletrabajo, presencial, promedio };
+    // 2. Extranjería (Límite legal 15%)
+    const chilenos = empleados.filter(e => e.nacionalidad?.toUpperCase() === 'CHILENA').length;
+    const extranjeros = total - chilenos;
+    const pctExtranjeros = total > 0 ? (extranjeros / total) * 100 : 0;
+
+    // 3. Masa Salarial Total
+    const masaSalarial = empleados.reduce((sum, e) => sum + (e.sueldo_base || 0), 0);
+
+    // 4. Top Centro de Costo Más Caro
+    const costosPorCentro: Record<string, number> = {};
+    empleados.forEach(e => {
+      const centro = e.centro_costo?.toUpperCase() || 'SIN ASIGNAR';
+      costosPorCentro[centro] = (costosPorCentro[centro] || 0) + (e.sueldo_base || 0);
+    });
+    
+    let topCentro = { nombre: 'N/A', monto: 0 };
+    for (const [nombre, monto] of Object.entries(costosPorCentro)) {
+      if (monto > topCentro.monto) {
+        topCentro = { nombre, monto };
+      }
+    }
+
+    // 7. Distribución Generacional (Edades)
+    let menores30 = 0, entre30y50 = 0, mayores50 = 0;
+    const hoy = new Date();
+    
+    empleados.forEach(e => {
+      if (e.fecha_nacimiento) {
+        const nac = new Date(e.fecha_nacimiento);
+        let edad = hoy.getFullYear() - nac.getFullYear();
+        const m = hoy.getMonth() - nac.getMonth();
+        if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) {
+          edad--;
+        }
+        if (edad < 30) menores30++;
+        else if (edad <= 50) entre30y50++;
+        else mayores50++;
+      }
+    });
+
+    // 8. Cuello de Botella Pagos (Bancarización)
+    const bancarizados = empleados.filter(e => ['TRANSFERENCIA', 'DEPOSITO'].includes(e.forma_pago?.toUpperCase() || '')).length;
+    const noBancarizados = total - bancarizados;
+
+    return { 
+      total, hombres, mujeres, presencial, teletrabajo, jornada40, jornadaMayor, 
+      extranjeros, pctExtranjeros, 
+      masaSalarial, topCentro, 
+      menores30, entre30y50, mayores50, 
+      bancarizados, noBancarizados 
+    };
   }, [empleados]);
 
   const toggleArrayItem = <T,>(array: T[], setArray: React.Dispatch<React.SetStateAction<T[]>>, item: T) => {
@@ -910,19 +960,108 @@ export default function Dashboard() {
                 </h4>
               </div>
             </div>
-
-            {/* Widget 4: Sueldo Promedio */}
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-              <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-xl flex items-center justify-center shrink-0">
-                <DollarSign className="w-7 h-7" />
+            {/* W1: Alerta Jornada 40h */}
+            <div className={`bg-white rounded-2xl p-6 border ${stats.jornadaMayor > 0 ? 'border-amber-200' : 'border-slate-200'} shadow-sm flex items-center gap-4`}>
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${stats.jornadaMayor > 0 ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                <Clock className="w-7 h-7" />
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-500">Sueldo Promedio</p>
-                <h4 className="text-2xl font-extrabold text-slate-900">
-                  ${stats.promedio.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
-                </h4>
+                <p className="text-sm font-bold text-slate-500">Transición 40 Horas</p>
+                <div className="flex items-end gap-2">
+                  <h4 className="text-2xl font-extrabold text-slate-900">{stats.jornada40} <span className="text-sm font-medium text-slate-400">listos</span></h4>
+                </div>
+                {stats.jornadaMayor > 0 && (
+                  <p className="text-xs font-bold text-amber-600 mt-1">Faltan {stats.jornadaMayor} anexos por actualizar</p>
+                )}
               </div>
             </div>
+
+            {/* W2: Alerta Extranjería */}
+            <div className={`bg-white rounded-2xl p-6 border ${stats.pctExtranjeros > 15 ? 'border-red-200' : 'border-slate-200'} shadow-sm flex items-center gap-4`}>
+              <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${stats.pctExtranjeros > 15 ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
+                <Globe className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Cuota Extranjería</p>
+                <h4 className="text-2xl font-extrabold text-slate-900">{stats.extranjeros} <span className="text-sm font-medium text-slate-400">extranjeros</span></h4>
+                <p className={`text-xs font-bold mt-1 ${stats.pctExtranjeros > 15 ? 'text-red-600' : 'text-slate-400'}`}>
+                  {stats.pctExtranjeros.toFixed(1)}% de la planilla (Límite 15%)
+                </p>
+              </div>
+            </div>
+
+            {/* W3: Masa Salarial Total */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                <CircleDollarSign className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Masa Salarial Total</p>
+                <h4 className="text-2xl font-extrabold text-slate-900">
+                  ${stats.masaSalarial.toLocaleString('es-CL')}
+                </h4>
+                <p className="text-xs text-slate-400 font-medium mt-1">Sueldos base mensuales</p>
+              </div>
+            </div>
+
+            {/* W4: Top Centro de Costo */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center shrink-0">
+                <Building2 className="w-7 h-7" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-sm font-bold text-slate-500 truncate">Mayor Centro de Costo</p>
+                <h4 className="text-lg font-extrabold text-slate-900 truncate" title={stats.topCentro.nombre}>
+                  {stats.topCentro.nombre}
+                </h4>
+                <p className="text-xs text-indigo-600 font-bold mt-1">
+                  ${stats.topCentro.monto.toLocaleString('es-CL')}
+                </p>
+              </div>
+            </div>
+
+            {/* W7: Distribución Generacional */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-14 h-14 bg-fuchsia-50 text-fuchsia-500 rounded-xl flex items-center justify-center shrink-0">
+                <Users className="w-7 h-7" />
+              </div>
+              <div className="w-full">
+                <p className="text-sm font-bold text-slate-500 mb-2">Generaciones</p>
+                <div className="flex justify-between items-end gap-2 text-center w-full">
+                  <div>
+                    <div className="text-lg font-extrabold text-slate-900">{stats.menores30}</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">{'< 30'}</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-extrabold text-slate-900">{stats.entre30y50}</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">30-50</div>
+                  </div>
+                  <div>
+                    <div className="text-lg font-extrabold text-slate-900">{stats.mayores50}</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">{'> 50'}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* W8: Cuello de Botella Pagos */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-14 h-14 bg-cyan-50 text-cyan-500 rounded-xl flex items-center justify-center shrink-0">
+                <Landmark className="w-7 h-7" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500">Bancarización (Pagos)</p>
+                <h4 className="text-2xl font-extrabold text-slate-900">
+                  {stats.bancarizados} <span className="text-sm font-medium text-slate-400">digital</span>
+                </h4>
+                {stats.noBancarizados > 0 && (
+                  <p className="text-xs font-bold text-amber-500 mt-1">
+                    {stats.noBancarizados} pagos manuales/efectivo
+                  </p>
+                )}
+              </div>
+            </div>
+          
 
           </div>
         )}
