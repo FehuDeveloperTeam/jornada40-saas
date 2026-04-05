@@ -287,176 +287,115 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
         try:
-            # 1. Manejo seguro si el frontend manda un Array en lugar de un Objeto
             data = request.data[0] if isinstance(request.data, list) else request.data
             empresa_id = data.get('empresa')
-            
-            # 2. Rescatamos el archivo (si viene en FILES o dentro de data)
             archivo_excel = request.FILES.get('file') or data.get('file')
             
             if not archivo_excel or not empresa_id:
-                return Response({'error': 'Falta el archivo o la empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Falta el archivo o la empresa.'}, status=400)
                 
-            # Validar extensión
-            if not archivo_excel.name.endswith(('.xlsx', '.xls')):
-                return Response({'error': 'Formato no permitido'}, status=400)
-
-            # Validar tamaño (5MB máximo)
-            if archivo_excel.size > 5 * 1024 * 1024:
-                return Response({'error': 'Archivo demasiado pesado'}, status=400)
-
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             cliente = getattr(request.user, 'perfil_cliente', None)
-            
-            limite_trabajadores = float('inf')
-            if cliente and cliente.plan:
-                limite_trabajadores = cliente.plan.limite_trabajadores
+            limite_trabajadores = cliente.plan.limite_trabajadores if (cliente and cliente.plan) else 1000
 
+            # Leemos el Excel
             df = pd.read_excel(archivo_excel).fillna('')
             registros = df.to_dict('records')
             
-            # 1. PRE-VALIDACIÓN Y ESTANDARIZACIÓN
-            datos_a_procesar = []
-            for index, row in enumerate(registros):
-                rut_raw = str(row.get('RUT', '')).strip()
-                if not rut_raw:
-                    continue
-                
-                if not validar_rut(rut_raw):
-                    return Response({
-                        'error': f'El RUT {rut_raw} de {row.get("Nombres", "")} es inválido. Carga abortada completamente.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                rut_formateado = formatear_rut(rut_raw)
-                datos_a_procesar.append({'rut': rut_formateado, 'row': row})
-
             empleados_creados = 0
             empleados_actualizados = 0
-            ultimo_ingresado = None
             limite_alcanzado = False
-            max_ficha_actual = Empleado.objects.filter(empresa=empresa).aggregate(Max('ficha_numero'))['ficha_numero__max']
-            siguiente_ficha = (max_ficha_actual or 0) + 1
-
-            # MAPEO ANTI-DUPLICADOS: Traemos todos los empleados actuales usando su RUT limpio (sin puntos ni guiones)
+            
+            # Preparamos el mapa de empleados actuales para evitar duplicados
             empleados_bd = Empleado.objects.filter(empresa=empresa)
             mapa_empleados = { limpiar_rut(emp.rut): emp for emp in empleados_bd }
+            
+            siguiente_ficha = (empleados_bd.aggregate(Max('ficha_numero'))['ficha_numero__max'] or 0) + 1
 
             with transaction.atomic():
                 total_actual = empleados_bd.count()
 
-                for item in datos_a_procesar:
-                    rut_formateado = item['rut']
-                    rut_limpio_excel = limpiar_rut(rut_formateado)
-                    row = item['row']
-
-                    # Función para asegurar Mayúsculas visuales
-                    def clean_str(val, default=''):
-                        v = row.get(val, default)
-                        return str(v).strip().upper() if v else default
-
-                    nombres = clean_str('Nombres')
-                    ap_paterno = clean_str('Apellido_Paterno')
+                for row in registros:
+                    # --- NORMALIZADOR DE COLUMNAS ---
+                    # Creamos un nuevo diccionario con todas las llaves en minúsculas y sin espacios
+                    # Así row.get('email') funcionará aunque el Excel diga "Email", " EMAIL" o "email"
+                    row_norm = { str(k).strip().lower().replace(' ', '_'): v for k, v in row.items() }
                     
+                    rut_raw = str(row_norm.get('rut', '')).strip()
+                    if not rut_raw: continue
+                    
+                    if not validar_rut(rut_raw):
+                        continue # Saltamos RUTs inválidos
+
+                    rut_limpio = limpiar_rut(rut_raw)
+                    rut_formateado = formatear_rut(rut_raw)
+
+                    # Extraer datos usando las llaves normalizadas
+                    nombres = str(row_norm.get('nombres', '')).strip().upper()
+                    ap_paterno = str(row_norm.get('apellido_paterno', '')).strip().upper()
+                    email_dato = str(row_norm.get('email', '')).strip().lower() # <--- AQUÍ SE CORRIGE EL EMAIL
+
+                    # Lógica de tipos de datos
                     try:
-                        sueldo = int(float(row.get('Sueldo_Base', 0))) if row.get('Sueldo_Base') != '' else 0
-                        horas = int(row.get('Horas_Laborales', 44)) if row.get('Horas_Laborales') != '' else 44
-                        plan_uf = float(row.get('Plan_Isapre_UF', 0)) if row.get('Plan_Isapre_UF') != '' else 0
-                    except ValueError:
-                        sueldo, horas, plan_uf = 0, 44, 0
+                        sueldo = int(float(row_norm.get('sueldo_base', 0)))
+                        horas = int(row_norm.get('horas_laborales', 44))
+                    except:
+                        sueldo, horas = 0, 44
 
-                    fecha_ing = estandarizar_fecha(row.get('Fecha_Ingreso')) or datetime.date.today()
-                    fecha_nac = estandarizar_fecha(row.get('Fecha_Nacimiento'))
-
-                    # Lógica Bancaria
-                    forma_pago = clean_str('Forma_Pago', 'TRANSFERENCIA')
-                    es_bancarizado = forma_pago in ['TRANSFERENCIA', 'DEPOSITO']
-                    
-                    num_cuenta_raw = row.get('Numero_Cuenta', '')
-                    if isinstance(num_cuenta_raw, float):
-                        num_cuenta = str(int(num_cuenta_raw))
-                    else:
-                        num_cuenta = str(num_cuenta_raw).strip()
-
-                    # AQUÍ ESTÁN TODOS LOS CAMPOS
+                    # AQUÍ SE ASIGNAN TODOS LOS CAMPOS QUE ESTABAN EN NULL
                     nuevos_datos = {
                         'nombres': nombres,
                         'apellido_paterno': ap_paterno,
-                        'apellido_materno': clean_str('Apellido_Materno'),
+                        'apellido_materno': str(row_norm.get('apellido_materno', '')).strip().upper(),
+                        'email': email_dato,
+                        'sexo': str(row_norm.get('sexo', 'M')).strip().upper()[:1],
+                        'nacionalidad': str(row_norm.get('nacionalidad', 'CHILENA')).strip().upper(),
+                        'fecha_nacimiento': estandarizar_fecha(row_norm.get('fecha_nacimiento')),
+                        'fecha_ingreso': estandarizar_fecha(row_norm.get('fecha_ingreso')) or datetime.date.today(),
+                        'departamento': str(row_norm.get('departamento', '')).strip().upper(),
+                        'sucursal': str(row_norm.get('sucursal', '')).strip().upper(),
+                        'cargo': str(row_norm.get('cargo', '')).strip().upper(),
                         'sueldo_base': sueldo,
                         'horas_laborales': horas,
-                        'afp': clean_str('AFP', 'MODELO'),
-                        'sistema_salud': clean_str('Salud', 'FONASA'),
-                        'plan_isapre_uf': plan_uf,
-                        'centro_costo': clean_str('Centro_Costo', 'GENERAL'),
-                        'sexo': clean_str('Sexo', 'M'),
-                        'nacionalidad': clean_str('Nacionalidad', 'CHILENA'),
-                        'estado_civil': clean_str('Estado_Civil', 'SOLTERO'),
-                        'numero_telefono': str(row.get('Numero_Telefono', '')).strip(),
-                        'email': str(row.get('Email', '')).strip().lower(),
-                        'comuna': clean_str('Comuna'),
-                        'direccion': clean_str('Direccion'),
-                        'cargo': clean_str('Cargo'),
-                        'modalidad': clean_str('Modalidad', 'PRESENCIAL'),
-                        # NUEVOS CAMPOS AÑADIDOS
-                        'fecha_ingreso': fecha_ing,
-                        'fecha_nacimiento': fecha_nac,
-                        'departamento': clean_str('Departamento'),
-                        'sucursal': clean_str('Sucursal'),
-                        'forma_pago': forma_pago,
-                        'banco': clean_str('Banco') if es_bancarizado else None,
-                        'tipo_cuenta': clean_str('Tipo_Cuenta') if es_bancarizado else None,
-                        'numero_cuenta': num_cuenta if es_bancarizado else None,
+                        'forma_pago': str(row_norm.get('forma_pago', 'TRANSFERENCIA')).strip().upper(),
+                        'banco': str(row_norm.get('banco', '')).strip().upper(),
+                        'tipo_cuenta': str(row_norm.get('tipo_cuenta', '')).strip().upper(),
+                        'numero_cuenta': str(row_norm.get('numero_cuenta', '')).strip(),
                     }
 
-                    # Buscamos en nuestro mapa usando el RUT limpio (anti-errores de formato)
-                    empleado = mapa_empleados.get(rut_limpio_excel)
+                    empleado_existente = mapa_empleados.get(rut_limpio)
 
-                    if empleado:
-                        # 3. ACTUALIZAR SI HAY DIFERENCIAS
-                        hay_cambios = False
+                    if empleado_existente:
+                        # ACTUALIZAR
                         for key, value in nuevos_datos.items():
-                            if getattr(empleado, key) != value:
-                                setattr(empleado, key, value)
-                                hay_cambios = True
-                        if hay_cambios:
-                            empleado.save()
-                            empleados_actualizados += 1
+                            setattr(empleado_existente, key, value)
+                        empleado_existente.save()
+                        empleados_actualizados += 1
                     else:
-                        # 4. CREAR (SI NO SUPERA LÍMITE)
+                        # CREAR (Validando límite de plan)
                         if total_actual >= limite_trabajadores:
                             limite_alcanzado = True
-                            break
+                            continue
                         
-                        nuevo_emp = Empleado.objects.create(
-                            rut=rut_formateado, 
-                            empresa=empresa, 
+                        Empleado.objects.create(
+                            rut=rut_formateado,
+                            empresa=empresa,
                             ficha_numero=siguiente_ficha,
                             **nuevos_datos
                         )
-                        # Lo agregamos al mapa temporal por si el mismo RUT viene dos veces en el Excel
-                        mapa_empleados[rut_limpio_excel] = nuevo_emp 
                         siguiente_ficha += 1
                         empleados_creados += 1
                         total_actual += 1
-                        ultimo_ingresado = f"{nombres} {ap_paterno}"
 
-            # 5. RETORNO CONDICIONAL AL FRONTEND
-            mensaje = f"Carga procesada. Nuevos: {empleados_creados}. Actualizados: {empleados_actualizados}."
-            if limite_alcanzado:
-                advertencia = f"Se alcanzó el límite de su plan ({limite_trabajadores} trabajadores). El último ingresado fue {ultimo_ingresado}. Actualice su plan para ingresar más."
-                return Response({'mensaje': mensaje, 'advertencia': advertencia}, status=status.HTTP_200_OK)
-
-            return Response({'mensaje': mensaje}, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            error_trace = traceback.format_exc()
-            print("=== ERROR EN CARGA MASIVA ===")
-            print(error_trace)
-            print("=============================")
             return Response({
-                'error': f'Error procesando el archivo: {str(e)}',
-                'detalle': error_trace
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'agregados': empleados_creados,
+                'actualizados': empleados_actualizados,
+                'limite_alcanzado': limite_alcanzado,
+                'errores': []
+            }, status=200)
+
+        except Exception as e:
+            return Response({'error': f'Error procesando: {str(e)}'}, status=500)
                 
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):

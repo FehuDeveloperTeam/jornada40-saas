@@ -169,7 +169,7 @@ export default function Dashboard() {
 
   // Estados para Carga Masiva Visual
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{ agregados: number; errores: string[]; limite_alcanzado: boolean } | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ agregados: number; actualizados: number; errores: string[]; limite_alcanzado: boolean } | null>(null);
 
   // Estados del panel lateral y Pestañas
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
@@ -415,6 +415,7 @@ export default function Dashboard() {
       }
       setUploadResult({ 
         agregados: 0, 
+        actualizados: 0,
         errores: [mensajeBackend], 
         limite_alcanzado: false 
       });
@@ -2140,9 +2141,16 @@ export default function Dashboard() {
                     <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center">
                       <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h4 className="text-white font-bold text-lg">Carga Finalizada</h4>
-                      <p className="text-emerald-400 font-medium">{uploadResult.agregados} trabajadores agregados con éxito.</p>
+                      <div className="flex gap-4 mt-1">
+                        <p className="text-emerald-400 text-sm">
+                          <span className="font-bold">{uploadResult.agregados}</span> Nuevos
+                        </p>
+                        <p className="text-blue-400 text-sm">
+                          <span className="font-bold">{uploadResult.actualizados}</span> Actualizados
+                        </p>
+                      </div>
                     </div>
                   </div>
 
