@@ -196,9 +196,63 @@ export default function Dashboard() {
   const ejecutarDescargaMasiva = async (tipo: string) => {
     setIsDownloading(true);
     setIsDownloadMenuOpen(false);
-    console.log(`Descargando ${tipo} para IDs:`, selectedEmpleadosIds);
+    // Función conectada al backend para descargar el ZIP
+  const ejecutarDescargaMasiva = async (tipo: string) => {
+    // Validamos que haya empresa y seleccionados
+    if (!empresa || selectedEmpleadosIds.length === 0) return;
     
-    // Aquí irá la llamada a axios.post con responseType: 'blob'
+    setIsDownloading(true);
+    setIsDownloadMenuOpen(false);
+    
+    try {
+      // NOTA: Reemplaza '/api/empleados/descarga_masiva/' con tu ruta real de Axios si usas una variable base
+      const response = await axios.post(
+        'https://jornada40-saas-production.up.railway.app/api/empleados/descarga_masiva/',
+        {
+          empleados: selectedEmpleadosIds,
+          tipo: tipo,
+          empresa_id: empresa.id
+        },
+        {
+          // Si usas un token de autorización en tu app, ponlo aquí como en tus otras peticiones:
+          headers: {
+             Authorization: `Token ${localStorage.getItem('token')}` // O 'Bearer', según uses
+          },
+          // ¡ESTO ES CRÍTICO! Le dice a Axios que recibirá un archivo, no texto JSON
+          responseType: 'blob', 
+        }
+      );
+
+      // --- MAGIA PARA FORZAR LA DESCARGA EN EL NAVEGADOR ---
+      // 1. Convertimos los datos binarios en un archivo temporal en la memoria del navegador
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      
+      // 2. Creamos un enlace <a> invisible
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // 3. Intentamos leer el nombre exacto del archivo que mandó Django
+      let fileName = `Documentos_${tipo}.zip`;
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition && contentDisposition.includes('filename=')) {
+         const match = contentDisposition.match(/filename="?([^"]+)"?/);
+         if (match && match[1]) fileName = match[1];
+      }
+      
+      // 4. Hacemos clic automático en el enlace invisible y limpiamos la basura
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error("Error descargando documentos:", error);
+      alert("Hubo un error al generar los documentos. Revisa tu consola para más detalles.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
     setTimeout(() => setIsDownloading(false), 2000); // Simulación
   };
 
