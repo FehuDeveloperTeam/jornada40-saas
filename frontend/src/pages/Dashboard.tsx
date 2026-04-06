@@ -211,10 +211,8 @@ export default function Dashboard() {
           empresa_id: empresa.id
         },
         {
-          headers: {
-             Authorization: `Token ${localStorage.getItem('token')}` // O 'Bearer', según uses
-          },
-          responseType: 'blob', 
+          ...apiConfig,         // <--- LA SOLUCIÓN: Usa tus cookies de sesión automáticamente
+          responseType: 'blob'  // Mantiene la orden de que recibirá un archivo, no texto
         }
       );
 
