@@ -169,7 +169,6 @@ export default function Dashboard() {
   const [openFilterDropdown, setOpenFilterDropdown] = useState<'cargo' | 'depto' | 'estado' | null>(null);
 
   const [isModalMasivoOpen, setIsModalMasivoOpen] = useState(false);
-  const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
 
