@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
-import { BarChart2,Undo2, Download, FileSpreadsheet, UploadCloud, AlertCircle, CheckCircle2, X, Users, Laptop, Clock, Globe, CircleDollarSign, Building2, Landmark} from 'lucide-react';
+import { Layers, BarChart2, Undo2, Download, FileSpreadsheet, UploadCloud, 
+  AlertCircle, CheckCircle2, X, Users, Laptop, Clock, Globe, 
+  CircleDollarSign, Building2, Landmark, FileText, FileSignature, 
+  AlertTriangle, Briefcase, FolderArchive, ChevronDown} from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell} from 'recharts';
 
 // --- TIPOS E INTERFACES ---
@@ -169,6 +172,36 @@ export default function Dashboard() {
   const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
+
+  const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Seleccionar/Deseleccionar todos
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked && filteredEmpleados) {
+      setSelectedEmpleadosIds(filteredEmpleados.map(emp => emp.id));
+    } else {
+      setSelectedEmpleadosIds([]);
+    }
+  };
+
+  // Seleccionar uno por uno
+  const handleSelectEmpleado = (id: number) => {
+    setSelectedEmpleadosIds(prev => 
+      prev.includes(id) ? prev.filter(empId => empId !== id) : [...prev, id]
+    );
+  };
+
+  // Función placeholder para la descarga (la conectaremos al back después)
+  const ejecutarDescargaMasiva = async (tipo: string) => {
+    setIsDownloading(true);
+    setIsDownloadMenuOpen(false);
+    console.log(`Descargando ${tipo} para IDs:`, selectedEmpleadosIds);
+    
+    // Aquí irá la llamada a axios.post con responseType: 'blob'
+    setTimeout(() => setIsDownloading(false), 2000); // Simulación
+  };
 
   // Estados para Carga Masiva Visual
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -1272,6 +1305,66 @@ export default function Dashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                 </svg>
             </div>
+
+            {/* ========================================== */}
+        {/* PANEL DE ACCIONES MASIVAS                  */}
+        {/* ========================================== */}
+        {selectedEmpleadosIds.length > 0 && (
+          <div className="bg-slate-900 rounded-2xl p-4 mb-6 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4 fade-in duration-300">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5" />
+                {selectedEmpleadosIds.length} seleccionados
+              </div>
+              <span className="text-slate-300 text-sm font-medium">¿Qué deseas generar?</span>
+            </div>
+
+            <div className="relative">
+              <button 
+                onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+                disabled={isDownloading}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+              >
+                {isDownloading ? (
+                  <span className="animate-pulse">Generando documentos...</span>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    Descarga Masiva
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
+                  </>
+                )}
+              </button>
+
+              {isDownloadMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95">
+                  <div className="p-2 space-y-1">
+                    <button onClick={() => ejecutarDescargaMasiva('contratos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                      <Briefcase className="w-5 h-5 text-indigo-500" /> Contratos de Trabajo
+                    </button>
+                    <button onClick={() => ejecutarDescargaMasiva('anexos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                      <FileSignature className="w-5 h-5 text-emerald-500" /> Anexos 40 Horas
+                    </button>
+                    <div className="h-px bg-slate-100 my-2"></div>
+                    <button onClick={() => ejecutarDescargaMasiva('liq_actual')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                      <FileText className="w-5 h-5 text-blue-500" /> Liquidación (Mes Actual)
+                    </button>
+                    <button onClick={() => ejecutarDescargaMasiva('liq_12')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                      <Layers className="w-5 h-5 text-blue-600" /> Últimas 12 Liquidaciones
+                    </button>
+                    <div className="h-px bg-slate-100 my-2"></div>
+                    <button onClick={() => ejecutarDescargaMasiva('amonestacion')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                      <AlertTriangle className="w-5 h-5 text-amber-500" /> Carta de Amonestación
+                    </button>
+                    <button onClick={() => ejecutarDescargaMasiva('zip_completo')} className="w-full flex items-center gap-3 px-3 py-2.5 bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-900 rounded-lg text-left text-sm font-bold transition-colors">
+                      <FolderArchive className="w-5 h-5" /> Expediente Completo (ZIP)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
             
             <div className="flex flex-wrap gap-3 items-center">
                 
@@ -1304,6 +1397,14 @@ export default function Dashboard() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b-2 border-gray-100">
+                    <th className="px-6 py-4 text-left w-10">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        onChange={handleSelectAll}
+                        checked={selectedEmpleadosIds.length === filteredEmpleados.length && filteredEmpleados.length > 0}
+                      />
+                    </th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">RUT</th>
                     <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre Completo</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Email</th>
@@ -1380,6 +1481,7 @@ export default function Dashboard() {
                   ) : (
                     filteredEmpleados.map((emp) => (
                       <tr key={emp.id} className={`border-b border-gray-50 transition-colors group ${!emp.activo ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}>
+                        <td className="px-6 py-4"><input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"checked={selectedEmpleadosIds.includes(emp.id)}onChange={() => handleSelectEmpleado(emp.id)}onClick={(e) => e.stopPropagation()} /></td>
                         <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
                         <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{emp.email || '---'}</td>
