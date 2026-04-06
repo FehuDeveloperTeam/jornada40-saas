@@ -23,6 +23,7 @@ import pandas as pd
 import traceback
 import urllib.parse
 from django.db.models import Max
+from django.core.files.base import ContentFile
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
@@ -405,6 +406,191 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Error procesando: {str(e)}'}, status=500)
                 
+    # ====================================================
+    # MOTOR DOCUMENTAL PERSISTENTE (El "Hack" Inteligente)
+    # ====================================================
+    def _obtener_o_generar_documento(self, empleado, tipo_documento):
+        """Revisa si el PDF ya existe en la BD. Si no (o si Railway lo borró), lo genera y lo guarda."""
+        
+        pdf_bytes = None
+        
+        # --- LÓGICA PARA CONTRATOS ---
+        if tipo_documento == 'contrato':
+            contrato, created = Contrato.objects.get_or_create(
+                empleado=empleado,
+                defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
+            )
+            # El Hack: Si dice que existe, intentamos leerlo
+            if contrato.archivo_contrato:
+                try:
+                    return contrato.archivo_contrato.read()
+                except Exception:
+                    pass # Si Railway lo borró, seguimos de largo y lo recreamos
+            
+            # HTML Básico (Aquí luego conectarás tu 'render_to_string' real)
+            html_string = f"<html><body><h1>Contrato de Trabajo - {empleado.nombres} {empleado.apellido_paterno}</h1></body></html>"
+            resultado = io.BytesIO()
+            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+            pdf_bytes = resultado.getvalue()
+            
+            nombre_archivo = f"Contrato_{empleado.rut}.pdf"
+            contrato.archivo_contrato.save(nombre_archivo, ContentFile(pdf_bytes))
+            return pdf_bytes
+
+        # --- LÓGICA PARA ANEXOS 40 HORAS ---
+        elif tipo_documento == 'anexo_40h':
+            contrato, created = Contrato.objects.get_or_create(
+                empleado=empleado,
+                defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
+            )
+            if contrato.archivo_anexo_40h:
+                try:
+                    return contrato.archivo_anexo_40h.read()
+                except Exception: pass
+            
+            html_string = f"<html><body><h1>Anexo 40 Horas - {empleado.nombres} {empleado.apellido_paterno}</h1></body></html>"
+            resultado = io.BytesIO()
+            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+            pdf_bytes = resultado.getvalue()
+            
+            nombre_archivo = f"Anexo_40h_{empleado.rut}.pdf"
+            contrato.archivo_anexo_40h.save(nombre_archivo, ContentFile(pdf_bytes))
+            return pdf_bytes
+
+        # --- LÓGICA PARA LIQUIDACIONES (MES ACTUAL) ---
+        elif tipo_documento == 'liquidacion_actual':
+            hoy = datetime.date.today()
+            liquidacion, created = Liquidacion.objects.get_or_create(
+                empleado=empleado, mes=hoy.month, anio=hoy.year,
+                defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
+            )
+            if liquidacion.archivo_pdf:
+                try:
+                    return liquidacion.archivo_pdf.read()
+                except Exception: pass
+            
+            html_string = f"<html><body><h1>Liquidación {hoy.month}/{hoy.year} - {empleado.nombres}</h1></body></html>"
+            resultado = io.BytesIO()
+            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+            pdf_bytes = resultado.getvalue()
+            
+            nombre_archivo = f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf"
+            liquidacion.archivo_pdf.save(nombre_archivo, ContentFile(pdf_bytes))
+            return pdf_bytes
+
+        # --- LÓGICA PARA 12 LIQUIDACIONES HISTÓRICAS ---
+        elif tipo_documento.startswith('liquidacion_historica_'):
+            _, _, mes_str, anio_str = tipo_documento.split('_')
+            mes_hist, anio_hist = int(mes_str), int(anio_str)
+            
+            liquidacion, created = Liquidacion.objects.get_or_create(
+                empleado=empleado, mes=mes_hist, anio=anio_hist,
+                defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
+            )
+            if liquidacion.archivo_pdf:
+                try:
+                    return liquidacion.archivo_pdf.read()
+                except Exception: pass
+            
+            html_string = f"<html><body><h1>Liquidación {mes_hist}/{anio_hist} - {empleado.nombres}</h1></body></html>"
+            resultado = io.BytesIO()
+            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+            pdf_bytes = resultado.getvalue()
+            
+            nombre_archivo = f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf"
+            liquidacion.archivo_pdf.save(nombre_archivo, ContentFile(pdf_bytes))
+            return pdf_bytes
+
+        # --- LÓGICA PARA CARTAS DE AMONESTACIÓN ---
+        elif tipo_documento == 'amonestacion':
+            doc_legal, created = DocumentoLegal.objects.get_or_create(
+                empleado=empleado, tipo='AMONESTACION',
+                defaults={'fecha_emision': datetime.date.today(), 'hechos': 'Amonestación general generada masivamente'}
+            )
+            if doc_legal.archivo_pdf:
+                try:
+                    return doc_legal.archivo_pdf.read()
+                except Exception: pass
+
+            html_string = f"<html><body><h1>Carta de Amonestación - {empleado.nombres}</h1></body></html>"
+            resultado = io.BytesIO()
+            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+            pdf_bytes = resultado.getvalue()
+
+            nombre_archivo = f"Amonestacion_{empleado.rut}.pdf"
+            doc_legal.archivo_pdf.save(nombre_archivo, ContentFile(pdf_bytes))
+            return pdf_bytes
+
+        return b"Error: Tipo de documento no soportado"
+
+    # ====================================================
+    # ENDPOINT: DESCARGA MASIVA Y EXPEDIENTES (ZIP)
+    # ====================================================
+    @action(detail=False, methods=['post'])
+    def descarga_masiva(self, request):
+        try:
+            empleados_ids = request.data.get('empleados', [])
+            tipo = request.data.get('tipo', 'zip_completo')
+            empresa_id = request.data.get('empresa_id')
+
+            if not empleados_ids or not empresa_id:
+                return Response({'error': 'Faltan IDs de trabajadores o empresa'}, status=400)
+
+            empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
+            empleados = Empleado.objects.filter(id__in=empleados_ids, empresa=empresa)
+
+            if not empleados.exists():
+                return Response({'error': 'No se encontraron trabajadores válidos para procesar'}, status=404)
+
+            zip_buffer = io.BytesIO()
+            hoy = datetime.date.today()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for emp in empleados:
+                    rut_limpio = emp.rut.replace("-", "").replace(".", "")
+                    nombre_carpeta = f"{rut_limpio}_{emp.nombres}_{emp.apellido_paterno}".replace(" ", "_")
+
+                    if tipo in ['contratos', 'zip_completo']:
+                        pdf = self._obtener_o_generar_documento(emp, 'contrato')
+                        zip_file.writestr(f"{nombre_carpeta}/Contrato.pdf", pdf)
+
+                    if tipo in ['anexos', 'zip_completo']:
+                        pdf = self._obtener_o_generar_documento(emp, 'anexo_40h')
+                        zip_file.writestr(f"{nombre_carpeta}/Anexo_40h.pdf", pdf)
+
+                    if tipo in ['liq_actual', 'zip_completo']:
+                        pdf = self._obtener_o_generar_documento(emp, 'liquidacion_actual')
+                        zip_file.writestr(f"{nombre_carpeta}/Liquidaciones/Liq_Actual.pdf", pdf)
+                        
+                    if tipo in ['liq_12', 'zip_completo']:
+                        mes_actual = hoy.month
+                        anio_actual = hoy.year
+                        for i in range(12):
+                            mes_hist = mes_actual - i
+                            anio_hist = anio_actual
+                            if mes_hist <= 0:
+                                mes_hist += 12
+                                anio_hist -= 1
+                            pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{mes_hist}_{anio_hist}')
+                            zip_file.writestr(f"{nombre_carpeta}/Liquidaciones_Historicas/Liq_{mes_hist}_{anio_hist}.pdf", pdf)
+
+                    if tipo in ['amonestacion', 'zip_completo']:
+                        pdf = self._obtener_o_generar_documento(emp, 'amonestacion')
+                        zip_file.writestr(f"{nombre_carpeta}/Amonestacion.pdf", pdf)
+
+            zip_buffer.seek(0)
+            response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+            response['Content-Disposition'] = f'attachment; filename="Documentos_{tipo}.zip"'
+            response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+            
+            return response
+
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return Response({'error': str(e)}, status=500)
+        
+        
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
 

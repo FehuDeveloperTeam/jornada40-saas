@@ -163,6 +163,10 @@ class Contrato(models.Model):
     funciones_especificas = models.JSONField(default=list, blank=True, null=True)
     clausulas_especiales = models.JSONField(default=list, blank=True, null=True)
 
+    # Archivos Físicos Persistentes
+    archivo_contrato = models.FileField(upload_to='contratos/', null=True, blank=True)
+    archivo_anexo_40h = models.FileField(upload_to='anexos/', null=True, blank=True)
+
     creado_en = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -190,6 +194,8 @@ class DocumentoLegal(models.Model):
     
     # Para cartas de despido: indicar si se pagan o no los días de aviso previo
     aviso_previo_pagado = models.BooleanField(default=False)
+
+    archivo_pdf = models.FileField(upload_to='documentos_legales/', null=True, blank=True)
     
     creado_en = models.DateTimeField(auto_now_add=True)
 
@@ -238,6 +244,8 @@ class Liquidacion(models.Model):
     total_descuentos = models.IntegerField(default=0)
     sueldo_liquido = models.IntegerField(default=0)
     
+    archivo_pdf = models.FileField(upload_to='liquidaciones/', null=True, blank=True)
+
     fecha_emision = models.DateField(auto_now_add=True)
 
     class Meta:

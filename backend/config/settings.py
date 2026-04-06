@@ -214,3 +214,6 @@ DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
 PASSWORD_RESET_CONFIRM_URL = 'https://jornada40-saas.vercel.app/reset-password/{uid}/{token}'
+# Configuración para guardar archivos físicos (PDFs)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
