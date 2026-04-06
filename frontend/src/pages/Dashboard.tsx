@@ -192,11 +192,9 @@ export default function Dashboard() {
     );
   };
 
-  // Función placeholder para la descarga (la conectaremos al back después)
-  const ejecutarDescargaMasiva = async (tipo: string) => {
-    setIsDownloading(true);
-    setIsDownloadMenuOpen(false);
-    // Función conectada al backend para descargar el ZIP
+  // ==========================================
+  // FUNCIÓN CONECTADA AL BACKEND PARA EL ZIP
+  // ==========================================
   const ejecutarDescargaMasiva = async (tipo: string) => {
     // Validamos que haya empresa y seleccionados
     if (!empresa || selectedEmpleadosIds.length === 0) return;
@@ -205,7 +203,6 @@ export default function Dashboard() {
     setIsDownloadMenuOpen(false);
     
     try {
-      // NOTA: Reemplaza '/api/empleados/descarga_masiva/' con tu ruta real de Axios si usas una variable base
       const response = await axios.post(
         'https://jornada40-saas-production.up.railway.app/api/empleados/descarga_masiva/',
         {
@@ -214,24 +211,18 @@ export default function Dashboard() {
           empresa_id: empresa.id
         },
         {
-          // Si usas un token de autorización en tu app, ponlo aquí como en tus otras peticiones:
           headers: {
              Authorization: `Token ${localStorage.getItem('token')}` // O 'Bearer', según uses
           },
-          // ¡ESTO ES CRÍTICO! Le dice a Axios que recibirá un archivo, no texto JSON
           responseType: 'blob', 
         }
       );
 
       // --- MAGIA PARA FORZAR LA DESCARGA EN EL NAVEGADOR ---
-      // 1. Convertimos los datos binarios en un archivo temporal en la memoria del navegador
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      
-      // 2. Creamos un enlace <a> invisible
       const link = document.createElement('a');
       link.href = url;
       
-      // 3. Intentamos leer el nombre exacto del archivo que mandó Django
       let fileName = `Documentos_${tipo}.zip`;
       const contentDisposition = response.headers['content-disposition'];
       if (contentDisposition && contentDisposition.includes('filename=')) {
@@ -239,7 +230,6 @@ export default function Dashboard() {
          if (match && match[1]) fileName = match[1];
       }
       
-      // 4. Hacemos clic automático en el enlace invisible y limpiamos la basura
       link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
@@ -252,8 +242,6 @@ export default function Dashboard() {
     } finally {
       setIsDownloading(false);
     }
-  };
-    setTimeout(() => setIsDownloading(false), 2000); // Simulación
   };
 
   // Estados para Carga Masiva Visual
