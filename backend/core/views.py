@@ -406,13 +406,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Error procesando: {str(e)}'}, status=500)
                 
-    # ====================================================
-    # MOTOR DOCUMENTAL PERSISTENTE (El "Hack" Inteligente)
+   # ====================================================
+    # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
     def _obtener_o_generar_documento(self, empleado, tipo_documento):
-        """Revisa si el PDF ya existe en la BD. Si no (o si Railway lo borró), lo genera y lo guarda."""
+        """Revisa si el PDF ya existe en la BD. Si no, lo genera usando los templates HTML reales."""
         
-        pdf_bytes = None
+        empresa = empleado.empresa
         
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
@@ -420,21 +420,19 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 empleado=empleado,
                 defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
             )
-            # El Hack: Si dice que existe, intentamos leerlo
             if contrato.archivo_contrato:
-                try:
-                    return contrato.archivo_contrato.read()
-                except Exception:
-                    pass # Si Railway lo borró, seguimos de largo y lo recreamos
+                try: return contrato.archivo_contrato.read()
+                except Exception: pass
             
-            # HTML Básico (Aquí luego conectarás tu 'render_to_string' real)
-            html_string = f"<html><body><h1>Contrato de Trabajo - {empleado.nombres} {empleado.apellido_paterno}</h1></body></html>"
+            # Usamos TU plantilla real
+            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
+            html_string = render_to_string('contrato_trabajo.html', context)
+            
             resultado = io.BytesIO()
             pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
             pdf_bytes = resultado.getvalue()
             
-            nombre_archivo = f"Contrato_{empleado.rut}.pdf"
-            contrato.archivo_contrato.save(nombre_archivo, ContentFile(pdf_bytes))
+            contrato.archivo_contrato.save(f"Contrato_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA ANEXOS 40 HORAS ---
@@ -444,17 +442,17 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
             )
             if contrato.archivo_anexo_40h:
-                try:
-                    return contrato.archivo_anexo_40h.read()
+                try: return contrato.archivo_anexo_40h.read()
                 except Exception: pass
             
-            html_string = f"<html><body><h1>Anexo 40 Horas - {empleado.nombres} {empleado.apellido_paterno}</h1></body></html>"
+            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
+            html_string = render_to_string('anexo_40h.html', context)
+            
             resultado = io.BytesIO()
             pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
             pdf_bytes = resultado.getvalue()
             
-            nombre_archivo = f"Anexo_40h_{empleado.rut}.pdf"
-            contrato.archivo_anexo_40h.save(nombre_archivo, ContentFile(pdf_bytes))
+            contrato.archivo_anexo_40h.save(f"Anexo_40h_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA LIQUIDACIONES (MES ACTUAL) ---
@@ -465,17 +463,26 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
             )
             if liquidacion.archivo_pdf:
-                try:
-                    return liquidacion.archivo_pdf.read()
+                try: return liquidacion.archivo_pdf.read()
                 except Exception: pass
             
-            html_string = f"<html><body><h1>Liquidación {hoy.month}/{hoy.year} - {empleado.nombres}</h1></body></html>"
+            # Convertimos el monto a palabras para tu plantilla
+            try:
+                liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
+            except:
+                liquido_palabras = str(liquidacion.sueldo_liquido)
+
+            context = {
+                'empleado': empleado, 'empresa': empresa, 
+                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras
+            }
+            html_string = render_to_string('liquidacion.html', context)
+            
             resultado = io.BytesIO()
             pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
             pdf_bytes = resultado.getvalue()
             
-            nombre_archivo = f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf"
-            liquidacion.archivo_pdf.save(nombre_archivo, ContentFile(pdf_bytes))
+            liquidacion.archivo_pdf.save(f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA 12 LIQUIDACIONES HISTÓRICAS ---
@@ -488,17 +495,25 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
             )
             if liquidacion.archivo_pdf:
-                try:
-                    return liquidacion.archivo_pdf.read()
+                try: return liquidacion.archivo_pdf.read()
                 except Exception: pass
             
-            html_string = f"<html><body><h1>Liquidación {mes_hist}/{anio_hist} - {empleado.nombres}</h1></body></html>"
+            try:
+                liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
+            except:
+                liquido_palabras = str(liquidacion.sueldo_liquido)
+
+            context = {
+                'empleado': empleado, 'empresa': empresa, 
+                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras
+            }
+            html_string = render_to_string('liquidacion.html', context)
+            
             resultado = io.BytesIO()
             pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
             pdf_bytes = resultado.getvalue()
             
-            nombre_archivo = f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf"
-            liquidacion.archivo_pdf.save(nombre_archivo, ContentFile(pdf_bytes))
+            liquidacion.archivo_pdf.save(f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA CARTAS DE AMONESTACIÓN ---
@@ -508,21 +523,21 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 defaults={'fecha_emision': datetime.date.today(), 'hechos': 'Amonestación general generada masivamente'}
             )
             if doc_legal.archivo_pdf:
-                try:
-                    return doc_legal.archivo_pdf.read()
+                try: return doc_legal.archivo_pdf.read()
                 except Exception: pass
 
-            html_string = f"<html><body><h1>Carta de Amonestación - {empleado.nombres}</h1></body></html>"
+            context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal}
+            html_string = render_to_string('documento_legal.html', context)
+            
             resultado = io.BytesIO()
             pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
             pdf_bytes = resultado.getvalue()
 
-            nombre_archivo = f"Amonestacion_{empleado.rut}.pdf"
-            doc_legal.archivo_pdf.save(nombre_archivo, ContentFile(pdf_bytes))
+            doc_legal.archivo_pdf.save(f"Amonestacion_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         return b"Error: Tipo de documento no soportado"
-
+    
     # ====================================================
     # ENDPOINT: DESCARGA MASIVA Y EXPEDIENTES (ZIP)
     # ====================================================
@@ -590,7 +605,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             print(traceback.format_exc())
             return Response({'error': str(e)}, status=500)
         
-        
+
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
 
