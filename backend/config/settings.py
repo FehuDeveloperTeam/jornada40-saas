@@ -120,8 +120,11 @@ REST_AUTH = {
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': 'jornada40-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
-    'JWT_AUTH_SECURE': IS_PRODUCTION,      
-    'JWT_AUTH_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
+    'JWT_AUTH_SECURE': IS_PRODUCTION,
+    # Lax es correcto: el proxy de Vercel hace que frontend y API sean same-origin (jornada40.cl)
+    # None era necesario con cross-origin (vercel.app → railway.app), ya no aplica.
+    # Chrome en iOS usa WebKit (= Safari), que bloquea cookies SameSite=None vía ITP.
+    'JWT_AUTH_SAMESITE': 'Lax',
     'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
 }
 
@@ -132,26 +135,28 @@ REST_AUTH = {
 if IS_PRODUCTION:
     
     # 1. ALLOWED HOSTS
-    ALLOWED_HOSTS = ["jornada40-saas-production.up.railway.app"]
+    ALLOWED_HOSTS = ["jornada40-saas-production.up.railway.app", "jornada40.cl", "www.jornada40.cl"]
 
-    # 2. CORS: 
+    # 2. CORS:
     CORS_ALLOWED_ORIGINS = [
-        "https://jornada40-saas.vercel.app", 
-    ]           
+        "https://jornada40.cl",
+        "https://www.jornada40.cl",
+    ]
     CORS_ALLOW_CREDENTIALS = True
-    
+
     # 3. CSRF
     CSRF_TRUSTED_ORIGINS = [
-        "https://jornada40-saas.vercel.app",             
-        "https://jornada40-saas-production.up.railway.app", 
+        "https://jornada40.cl",
+        "https://www.jornada40.cl",
+        "https://jornada40-saas-production.up.railway.app",
     ]
 
-    # 4. Cookies Seguras para dominios cruzados
+    # 4. Cookies seguras (mismo dominio jornada40.cl via proxy Vercel)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    
-    SESSION_COOKIE_SAMESITE = 'None'
-    CSRF_COOKIE_SAMESITE = 'None'
+
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SAMESITE = 'Lax'
 
 else:
     # === DESARROLLO (LOCALHOST) ===
@@ -213,7 +218,7 @@ DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
-PASSWORD_RESET_CONFIRM_URL = 'https://jornada40-saas.vercel.app/reset-password/{uid}/{token}'
+PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
 # Configuración para guardar archivos físicos (PDFs)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

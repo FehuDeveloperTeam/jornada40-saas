@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import type { ReactNode } from 'react';
+import client from './api/client';
 import Login from './pages/Login'; 
 import LobbyEmpresas from './pages/LobbyEmpresas'; 
 import Dashboard from './pages/Dashboard'; 
@@ -19,9 +19,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
     const verifySession = async () => {
       try {
         // Le preguntamos a Django si nuestra cookie actual es válida
-        await axios.get('https://jornada40-saas-production.up.railway.app/api/auth/user/', {
-          withCredentials: true
-        });
+        await client.get('/auth/user/');
         // Si responde 200 OK, la sesión es real y segura
         setIsAuthenticated(true);
       } catch {
