@@ -136,8 +136,8 @@ RESEND_API_KEY=re_xxxxxxxxxxxx                 # Resend.com API key
 # Development
 VITE_API_URL=http://127.0.0.1:8000/api
 
-# Production (Vercel sets this)
-# VITE_API_URL=https://jornada40-saas-production.up.railway.app/api
+# Producción: no es necesario setear VITE_API_URL; el fallback '/api' funciona con el proxy de Vercel.
+# VITE_API_URL=  # dejar vacío o no definir en producción
 ```
 
 ---
@@ -173,8 +173,8 @@ gunicorn config.wsgi:application      # Production server (Railway uses Procfile
 - **Access token lifetime**: 30 minutes. **Refresh token lifetime**: 2 hours.
 - **Refresh rotation**: Enabled (`ROTATE_REFRESH_TOKENS = True`).
 - **Frontend auth check**: `ProtectedRoute` in `App.tsx` calls `GET /api/auth/user/` with `withCredentials: true`. A 200 response means authenticated; 401 redirects to `/login`.
-- **CORS**: `CORS_ALLOW_CREDENTIALS = True`. Allowed origins: `https://jornada40-saas.vercel.app` (prod) and `http://localhost:5173` (dev).
-- **Password reset flow**: Backend sends email via Resend; link points to `https://jornada40-saas.vercel.app/reset-password/{uid}/{token}`.
+- **CORS**: `CORS_ALLOW_CREDENTIALS = True`. Allowed origins: `https://jornada40.cl` (prod) and `http://localhost:5173` (dev).
+- **Password reset flow**: Backend sends email via Resend; link points to `https://jornada40.cl/reset-password/{uid}/{token}`.
 - **RUT-based recovery**: Custom endpoint `POST /api/auth/recuperar-por-rut/` for users who forgot their email.
 
 ### Key Auth Endpoints
@@ -317,13 +317,14 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - **Docker**: `Dockerfile` present for Railway builds.
 - **Production detection**: Presence of `RAILWAY_ENVIRONMENT_NAME` env var flips `IS_PRODUCTION = True`.
 - **Static files**: Served via WhiteNoise middleware.
-- **Domain**: `https://jornada40-saas-production.up.railway.app`
+- **Internal domain**: `https://jornada40-saas-production.up.railway.app` (Railway, no expuesto al público)
 
 ### Frontend (Vercel)
 
-- **`vercel.json`**: Configures SPA rewrites (all paths → `index.html`).
-- **Domain**: `https://jornada40-saas.vercel.app`
+- **`vercel.json`**: Configura SPA rewrites y proxy `/api/*` → Railway backend.
+- **Domain**: `https://jornada40.cl`
 - **Build command**: `npm run build` (runs TypeScript check then Vite bundle).
+- **Proxy**: Vercel reescribe `jornada40.cl/api/*` al backend Railway; el frontend solo usa URLs relativas (`/api/...`).
 
 ---
 
@@ -388,7 +389,7 @@ No GitHub Actions or other CI pipelines are configured. Deployments are triggere
 
 1. **CORS errors in development**: The frontend dev server (`localhost:5173`) must be listed in `CORS_ALLOWED_ORIGINS`. Do not change the port without updating `settings.py`.
 2. **JWT cookies not sent**: Always include `withCredentials: true` in Axios requests. The Axios client in `src/api/client.ts` does this by default — use that client.
-3. **Production hardcoded URL in App.tsx**: `ProtectedRoute` in `App.tsx` currently calls the production Railway URL directly (`https://jornada40-saas-production.up.railway.app/api/auth/user/`) rather than using `VITE_API_URL`. Be aware of this if testing locally against a production backend.
+3. **URLs de API**: Todas las llamadas deben usar el `client` de `src/api/client.ts` con rutas relativas (ej. `/auth/user/`). En producción el proxy de Vercel las dirige al backend Railway. Nunca hardcodear URLs absolutas en el frontend.
 4. **RUT validation**: The Chilean RUT has a check digit algorithm. Always use `rutUtils.ts` / backend validators — never skip validation.
 5. **Plan limits**: Enforce plan limits (max companies, max workers) in backend views before creating new `Empresa` or `Empleado` records.
 6. **Migrations**: After every model change, run `python manage.py makemigrations && python manage.py migrate`. Never edit migration files manually.

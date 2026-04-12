@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import axios from 'axios';
+import client from '../api/client';
 import { Check, Zap, ArrowLeft, Building } from 'lucide-react';
 
 // --- DEFINICIÓN DE PLANES ---
@@ -83,23 +84,19 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('https://jornada40-saas-production.up.railway.app/api/auth/register/', {
+      const response = await client.post('/auth/register/', {
         ...formData,
         tipo_cliente: tipoCliente,
-        plan_id: 1 
+        plan_id: 1
       });
 
       if (response.status === 201) {
         // AUTO-LOGIN SILENCIOSO
         try {
-          await axios.post(
-            'https://jornada40-saas-production.up.railway.app/api/auth/login/',
-            { 
-              username: formData.rut,
-              password: formData.password 
-            }, 
-            { withCredentials: true }
-          );
+          await client.post('/auth/login/', {
+            username: formData.rut,
+            password: formData.password
+          });
           
           setStep(2);
 
@@ -128,14 +125,10 @@ export default function Register() {
     }
     
     try {
-      const response = await axios.post(
-        'https://jornada40-saas-production.up.railway.app/api/pagos/crear_checkout/',
-        { 
-          plan_id: planId,
-          ciclo: billingCycle 
-        },
-        { withCredentials: true }
-      );
+      const response = await client.post('/pagos/crear_checkout/', {
+        plan_id: planId,
+        ciclo: billingCycle
+      });
       
       window.location.href = response.data.url;
       

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
 import { Layers, BarChart2, Undo2, Download, FileSpreadsheet, UploadCloud, 
@@ -203,17 +204,14 @@ export default function Dashboard() {
     setIsDownloadMenuOpen(false);
     
     try {
-      const response = await axios.post(
-        'https://jornada40-saas-production.up.railway.app/api/empleados/descarga_masiva/',
+      const response = await client.post(
+        '/empleados/descarga_masiva/',
         {
           empleados: selectedEmpleadosIds,
           tipo: tipo,
           empresa_id: empresa.id
         },
-        {
-          ...apiConfig,         // <--- LA SOLUCIÓN: Usa tus cookies de sesión automáticamente
-          responseType: 'blob'  // Mantiene la orden de que recibirá un archivo, no texto
-        }
+        { responseType: 'blob' }
       );
 
       // --- MAGIA PARA FORZAR LA DESCARGA EN EL NAVEGADOR ---
@@ -310,8 +308,8 @@ export default function Dashboard() {
     }
     try {
       const [empresaRes, empleadosRes] = await Promise.all([
-        axios.get(`https://jornada40-saas-production.up.railway.app/api/empresas/${empresaActivaId}/`, apiConfig),
-        axios.get('https://jornada40-saas-production.up.railway.app/api/empleados/', apiConfig)
+        client.get(`/empresas/${empresaActivaId}/`),
+        client.get('/empleados/')
       ]);
       setEmpresa(empresaRes.data);
       const empleadosFiltrados = empleadosRes.data.filter(
@@ -568,15 +566,10 @@ export default function Dashboard() {
     formData.append('empresa', empresa.id.toString());
 
     try {
-      const response = await axios.post(
-        `https://jornada40-saas-production.up.railway.app/api/empleados/carga_masiva/`,
+      const response = await client.post(
+        '/empleados/carga_masiva/',
         formData,
-        {
-          ...apiConfig,
-          headers: {
-            'Content-Type': 'multipart/form-data', // Fundamental para enviar archivos
-          },
-        }
+        { headers: { 'Content-Type': 'multipart/form-data' } }
       );
 
       // Guardamos el resultado para mostrarlo en el Modal Premium
@@ -614,7 +607,7 @@ export default function Dashboard() {
   const fetchContratoYDocumentos = async (empleadoId: number) => {
     try {
       // 1. Cargar Contrato
-      const resContrato = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleadoId}`, apiConfig);
+      const resContrato = await client.get(`/contratos/?empleado=${empleadoId}`);
       if (resContrato.data && resContrato.data.length > 0) {
         const contrato = resContrato.data[0];
         setContratoData(contrato);
@@ -650,12 +643,12 @@ export default function Dashboard() {
       setHayCambiosContrato(false); 
 
       // 2. Cargar Documentos Legales 
-      const resDocs = await axios.get(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/?empleado=${empleadoId}`, apiConfig);
+      const resDocs = await client.get(`/documentos_legales/?empleado=${empleadoId}`);
       setDocumentosLegales(resDocs.data);
       setShowDocumentoForm(false);
 
       // 3. Cargar Liquidaciones 
-      const resLiq = await axios.get(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/?empleado=${empleadoId}`, apiConfig);
+      const resLiq = await client.get(`/liquidaciones/?empleado=${empleadoId}`);
       setLiquidaciones(resLiq.data);
       setShowLiqForm(false);
 
@@ -762,10 +755,10 @@ export default function Dashboard() {
 
     try {
       if (contratoData.id) {
-        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/`, payload, apiConfig);
+        await client.patch(`/contratos/${contratoData.id}/`, payload);
         alert("¡Contrato actualizado exitosamente!");
       } else {
-        const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, payload, apiConfig);
+        const res = await client.post('/contratos/', payload);
         setContratoData(res.data);
         alert("¡Contrato creado exitosamente!");
       }
@@ -787,7 +780,7 @@ export default function Dashboard() {
     setIsSavingDocumento(true);
 
     try {
-      const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/`, documentoData, apiConfig);
+      const res = await client.post('/documentos_legales/', documentoData);
       setDocumentosLegales(prev => [res.data, ...prev]);
       setShowDocumentoForm(false);
       alert("¡Documento legal generado exitosamente!");
@@ -834,7 +827,7 @@ export default function Dashboard() {
         detalle_otros_descuentos: [] 
       };
 
-      const res = await axios.post(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/`, payload, apiConfig);
+      const res = await client.post('/liquidaciones/', payload);
       setLiquidaciones(prev => [res.data, ...prev]);
       setShowLiqForm(false);
       
@@ -862,9 +855,7 @@ export default function Dashboard() {
   // ==========================================
   const descargarLiquidacionPDF = async (liqId: number, mes: number, anio: number) => {
     try {
-      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/liquidaciones/${liqId}/generar_pdf/`, { 
-        ...apiConfig, responseType: 'blob' 
-      });
+      const response = await client.get(`/liquidaciones/${liqId}/generar_pdf/`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url; 
@@ -879,7 +870,7 @@ export default function Dashboard() {
 
   const descargarDocumentoPDF = async (docId: number, tipo: string) => {
     try {
-      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/documentos_legales/${docId}/generar_pdf/`, { ...apiConfig, responseType: 'blob' });
+      const response = await client.get(`/documentos_legales/${docId}/generar_pdf/`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url; 
@@ -897,7 +888,7 @@ export default function Dashboard() {
   // ==========================================
   const descargarContratoPDF = async () => {
     try {
-      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_contrato_pdf/`, { ...apiConfig, responseType: 'blob' });
+      const response = await client.get(`/contratos/${contratoData.id}/generar_contrato_pdf/`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url; link.setAttribute('download', `Contrato_${selectedEmpleado?.rut}.pdf`);
@@ -908,7 +899,7 @@ export default function Dashboard() {
 
   const descargarAnexoPDF = async () => {
     try {
-      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/generar_anexo/`, { ...apiConfig, responseType: 'blob' });
+      const response = await client.get(`/contratos/${contratoData.id}/generar_anexo/`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url; link.setAttribute('download', `Anexo_40h_${selectedEmpleado?.rut}.pdf`);
@@ -937,19 +928,19 @@ export default function Dashboard() {
 
     try {
       if (panelMode === 'edit' && selectedEmpleado) {
-        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/empleados/${selectedEmpleado.id}/`, payload, apiConfig);
+        await client.patch(`/empleados/${selectedEmpleado.id}/`, payload);
         if (contratoData && contratoData.id) {
           try {
-            await axios.patch(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoData.id}/`, {
+            await client.patch(`/contratos/${contratoData.id}/`, {
               sueldo_base: payload.sueldo_base,
               cargo: payload.cargo
-            }, apiConfig);
+            });
           } catch (syncError) {
             console.error("No se pudo sincronizar el contrato automáticamente", syncError);
           }
         }
       } else {
-        await axios.post('https://jornada40-saas-production.up.railway.app/api/empleados/', payload, apiConfig);
+        await client.post('/empleados/', payload);
       }
       setIsPanelOpen(false);
       setLoading(true);
@@ -968,7 +959,7 @@ export default function Dashboard() {
   const generarYDescargarPDF = async (empleado: Empleado) => {
     setDownloadingId(empleado.id);
     try {
-      const contratosRes = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/?empleado=${empleado.id}`, apiConfig);
+      const contratosRes = await client.get(`/contratos/?empleado=${empleado.id}`);
       let contratoId;
 
       if (!contratosRes.data || contratosRes.data.length === 0) {
@@ -979,15 +970,13 @@ export default function Dashboard() {
           sueldo_base: empleado.sueldo_base || 0,
           cargo: empleado.cargo || 'NO ESPECIFICADO'
         };
-        const nuevoContratoRes = await axios.post(`https://jornada40-saas-production.up.railway.app/api/contratos/`, payloadContrato, apiConfig);
+        const nuevoContratoRes = await client.post('/contratos/', payloadContrato);
         contratoId = nuevoContratoRes.data.id;
       } else {
         contratoId = contratosRes.data[0].id;
       }
 
-      const response = await axios.get(`https://jornada40-saas-production.up.railway.app/api/contratos/${contratoId}/generar_anexo/`, {
-        ...apiConfig, responseType: 'blob' 
-      });
+      const response = await client.get(`/contratos/${contratoId}/generar_anexo/`, { responseType: 'blob' });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -2583,7 +2572,7 @@ export default function Dashboard() {
                 onClick={async () => {
                    setIsGeneratingZip(true);
                    try {
-                     const response = await axios.post(`https://jornada40-saas-production.up.railway.app/api/empleados/descargar_anexos_zip/`, { empleados: selectedEmpleadosIds }, { ...apiConfig, responseType: 'blob' });
+                     const response = await client.post('/empleados/descargar_anexos_zip/', { empleados: selectedEmpleadosIds }, { responseType: 'blob' });
                      const url = window.URL.createObjectURL(new Blob([response.data]));
                      const link = document.createElement('a');
                      link.href = url;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import { AlertCircle } from 'lucide-react'; // Para el ícono de error
 
@@ -39,11 +40,7 @@ export default function Login() {
     setErrorMsg('');
 
     try {
-      await axios.post(
-        'https://jornada40-saas-production.up.railway.app/api/auth/login/',
-        { username: rut, password: password }, 
-        { withCredentials: true }
-      );
+      await client.post('/auth/login/', { username: rut, password: password });
       navigate('/empresas');
     } catch (error) {
       console.error("Error en login:", error);

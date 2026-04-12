@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import {ShieldCheck, Settings, Trash2, RefreshCcw} from 'lucide-react';
 
@@ -44,10 +45,10 @@ export default function LobbyEmpresas() {
   const fetchEmpresas = useCallback (async (incluirInactivas: boolean) => {
     try {
       // Si el switch está activo, pedimos incluir la papelera
-      const url = incluirInactivas 
-        ? 'https://jornada40-saas-production.up.railway.app/api/empresas/?incluir_inactivas=true'
-        : 'https://jornada40-saas-production.up.railway.app/api/empresas/';
-      const response = await axios.get(url, apiConfig);
+      const url = incluirInactivas
+        ? '/empresas/?incluir_inactivas=true'
+        : '/empresas/';
+      const response = await client.get(url);
       setEmpresas(response.data);
       
     } catch (error) {
@@ -132,9 +133,9 @@ export default function LobbyEmpresas() {
 
     try {
       if (empresaEditando) {
-        await axios.patch(`https://jornada40-saas-production.up.railway.app/api/empresas/${empresaEditando}/`, payload, apiConfig);
+        await client.patch(`/empresas/${empresaEditando}/`, payload);
       } else {
-        await axios.post('https://jornada40-saas-production.up.railway.app/api/empresas/', payload, apiConfig);
+        await client.post('/empresas/', payload);
       }
       setIsModalOpen(false);
       setLoading(true);
@@ -155,7 +156,7 @@ export default function LobbyEmpresas() {
   const desactivarEmpresa = async (id: number) => {
     if (!window.confirm('¿Estás seguro de que deseas desactivar esta empresa? Podrás restaurarla desde la papelera.')) return;
     try {
-      await axios.delete(`https://jornada40-saas-production.up.railway.app/api/empresas/${id}/`, apiConfig);
+      await client.delete(`/empresas/${id}/`);
       // Volvemos a cargar la lista de empresas usando la función optimizada
       await fetchEmpresas(mostrarInactivas); 
     } catch (error) {
@@ -167,7 +168,7 @@ export default function LobbyEmpresas() {
   const reactivarEmpresa = async (id: number) => {
     if (!window.confirm('¿Estás seguro de que deseas reactivar esta empresa?')) return;
     try {
-      await axios.post(`https://jornada40-saas-production.up.railway.app/api/empresas/${id}/reactivar/`, {}, apiConfig);
+      await client.post(`/empresas/${id}/reactivar/`, {});
       fetchEmpresas(mostrarInactivas);
     } catch (error) {
       console.error('Error al reactivar empresa:', error);

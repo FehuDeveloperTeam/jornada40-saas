@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import client from '../api/client';
 import { Check, CreditCard, User, Shield, ArrowLeft } from 'lucide-react';
 
 // --- INTERFACES ---
@@ -46,8 +46,8 @@ export default function Suscripcion() {
     const fetchDatos = async () => {
       try {
         const [subRes, perfilRes] = await Promise.all([
-          axios.get('https://jornada40-saas-production.up.railway.app/api/clientes/mi_suscripcion/', apiConfig),
-          axios.get('https://jornada40-saas-production.up.railway.app/api/clientes/perfil/', apiConfig)
+          client.get('/clientes/mi_suscripcion/'),
+          client.get('/clientes/perfil/')
         ]);
         
         setMiSuscripcion(subRes.data);
@@ -73,7 +73,7 @@ export default function Suscripcion() {
   // Función para guardar los datos del cliente
   const handleActualizarPerfil = async () => {
     try {
-      await axios.put('https://jornada40-saas-production.up.railway.app/api/clientes/perfil/', userData, apiConfig);
+      await client.put('/clientes/perfil/', userData);
       alert("¡Perfil actualizado con éxito!");
     } catch (error) {
       console.error("Error al actualizar perfil", error);
@@ -85,10 +85,10 @@ export default function Suscripcion() {
   const handleMejorarPlan = async (planId: number, ciclo: string) => {
     setProcesandoPago(true);
     try {
-      const response = await axios.post('https://jornada40-saas-production.up.railway.app/api/pagos/crear-checkout/', {
+      const response = await client.post('/pagos/crear-checkout/', {
         plan_id: planId,
         ciclo: ciclo
-      }, apiConfig);
+      });
       
       if (response.data.url) {
         window.location.href = response.data.url;
