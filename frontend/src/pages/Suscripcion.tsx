@@ -20,7 +20,6 @@ interface MiSuscripcion {
   trabajadores_actuales: number;
 }
 
- const apiConfig = { withCredentials: true };
 
 export default function Suscripcion() {
   const navigate = useNavigate();

@@ -144,7 +144,6 @@ interface Liquidacion {
   fecha_emision?: string;
 }
 
-const apiConfig = { withCredentials: true };
 
 const defaultHorario: HorarioSemana = {
   lunes: { activo: true, entrada: '09:00', salida: '18:00', colacion: 60 },

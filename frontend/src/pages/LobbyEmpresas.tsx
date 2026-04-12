@@ -20,7 +20,6 @@ interface Empresa {
   activo?: boolean;
 }
 
-  const apiConfig = { withCredentials: true };
 
 export default function LobbyEmpresas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
