@@ -124,9 +124,11 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentoLegalSerializer
     permission_classes = [IsAuthenticated]
 
-    # Filtro para buscar solo los documentos de un empleado específico
     def get_queryset(self):
-        queryset = super().get_queryset()
+        # Solo documentos de empleados que pertenecen al usuario autenticado
+        queryset = DocumentoLegal.objects.filter(
+            empleado__empresa__owner=self.request.user
+        ).order_by('-fecha_emision', '-creado_en')
         empleado_id = self.request.query_params.get('empleado', None)
         if empleado_id is not None:
             queryset = queryset.filter(empleado_id=empleado_id)
@@ -339,9 +341,17 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     # Lógica de tipos de datos
                     try:
                         sueldo = int(float(row_norm.get('sueldo_base', 0)))
-                        horas = int(row_norm.get('horas_laborales', 44))
-                    except:
-                        sueldo, horas = 0, 44
+                        if sueldo < 0:
+                            errores.append(f"Fila {fila_num}: sueldo_base no puede ser negativo.")
+                            continue
+                        horas_raw = row_norm.get('horas_laborales', 44)
+                        horas = int(horas_raw)
+                        if horas <= 0 or horas > 168:
+                            errores.append(f"Fila {fila_num}: horas_laborales debe estar entre 1 y 168.")
+                            continue
+                    except (ValueError, TypeError):
+                        errores.append(f"Fila {fila_num}: sueldo_base u horas_laborales contienen valores no numéricos.")
+                        continue
 
                     raw_cuenta = row_norm.get('numero_cuenta', '')
                     try:
@@ -813,13 +823,13 @@ def registrar_cliente(request):
             )
 
             plan_semilla, creado = Plan.objects.get_or_create(
-            nombre__iexact='Semilla',  # <--- MAGIA: Busca por nombre, no por ID
-            defaults={
-                'nombre': 'Semilla', 
-                'max_empresas': 1, 
-                'limite_trabajadores': 3,
-                'precio': 0, # Opcional, si tienes este campo
-                'activo': True
+                nombre='Semilla',
+                defaults={
+                    'nombre': 'Semilla',
+                    'max_empresas': 1,
+                    'limite_trabajadores': 3,
+                    'precio': 0,
+                    'activo': True
                 }
             )
             
@@ -845,7 +855,10 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        # Solo liquidaciones de empleados que pertenecen al usuario autenticado
+        queryset = Liquidacion.objects.filter(
+            empleado__empresa__owner=self.request.user
+        ).order_by('-anio', '-mes')
         empleado_id = self.request.query_params.get('empleado', None)
         if empleado_id is not None:
             queryset = queryset.filter(empleado_id=empleado_id)
@@ -854,9 +867,10 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         data = request.data
         empleado_id = data.get('empleado')
-        
+
         try:
-            empleado = Empleado.objects.get(id=empleado_id)
+            # Validar que el empleado pertenezca al usuario autenticado
+            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
             contrato = Contrato.objects.filter(empleado=empleado).first()
             
             if not contrato:
@@ -951,9 +965,16 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(liquidacion)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Trabajador no encontrado o no autorizado.'}, status=status.HTTP_404_NOT_FOUND)
+        except IntegrityError:
+            return Response(
+                {'error': f'Ya existe una liquidación para este trabajador en el período indicado.'},
+                status=status.HTTP_409_CONFLICT
+            )
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     @action(detail=True, methods=['get'])
     def generar_pdf(self, request, pk=None):
         try:
@@ -1104,23 +1125,42 @@ def crear_checkout_reveniu(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
+    # TODO: implementar verificación HMAC con el secret de Reveniu cuando esté disponible.
+    # Ejemplo: comparar header 'X-Reveniu-Signature' con HMAC-SHA256(secret, request.body)
+    # Por ahora se usa un token estático configurable como capa básica de protección.
+    webhook_secret = config('REVENIU_WEBHOOK_SECRET', default=None)
+    if webhook_secret:
+        token_recibido = request.headers.get('X-Webhook-Token', '')
+        if token_recibido != webhook_secret:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
     data = request.data
-    evento = data.get('event') 
-    
+    evento = data.get('event')
+
     if evento in ['subscription_created', 'payment_succeeded']:
-        custom_reference = data.get('custom_reference')
-        
-        if custom_reference and '_' in custom_reference:
-            cliente_id, plan_id = custom_reference.split('_')
-            
+        custom_reference = data.get('custom_reference', '')
+
+        if not custom_reference or '_' not in custom_reference:
+            return Response({'error': 'custom_reference inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            cliente_id, plan_id = custom_reference.split('_', 1)
+            cliente_id = int(cliente_id)
+            plan_id = int(plan_id)
+        except (ValueError, AttributeError):
+            return Response({'error': 'Formato de custom_reference inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
             suscripcion = Suscripcion.objects.get(cliente_id=cliente_id)
             plan_nuevo = Plan.objects.get(id=plan_id)
-            
-            suscripcion.plan = plan_nuevo
-            suscripcion.estado = 'ACTIVE'
-            suscripcion.gateway_subscription_id = str(data.get('subscription_id', ''))
-            suscripcion.save()
-            
+        except (Suscripcion.DoesNotExist, Plan.DoesNotExist):
+            return Response({'error': 'Suscripción o plan no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+
+        suscripcion.plan = plan_nuevo
+        suscripcion.estado = 'ACTIVE'
+        suscripcion.gateway_subscription_id = str(data.get('subscription_id', ''))
+        suscripcion.save()
+
     return Response(status=status.HTTP_200_OK)
 
 @api_view(['POST'])
@@ -1154,13 +1194,16 @@ def recuperar_password_por_rut(request):
 
     # 4. ENMASCARAR EL CORREO (con***@gmail.com)
     partes = cliente.correo.split('@')
-    nombre_correo = partes[0]
-    dominio = partes[1]
-    
+    if len(partes) != 2:
+        return Response({'error': 'El correo registrado tiene un formato inválido.'}, status=400)
+    nombre_correo, dominio = partes
+
     if len(nombre_correo) > 3:
         correo_oculto = nombre_correo[:3] + '*' * (len(nombre_correo) - 3) + '@' + dominio
-    else:
+    elif len(nombre_correo) > 1:
         correo_oculto = nombre_correo[0] + '*' * (len(nombre_correo) - 1) + '@' + dominio
+    else:
+        correo_oculto = '*@' + dominio
 
     # 5. ENVIAR EL CORREO
     form = PasswordResetForm({'email': user.email})

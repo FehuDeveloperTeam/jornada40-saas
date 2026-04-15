@@ -75,7 +75,7 @@
         </tr>
         <tr>
             <td>F. CONTRATO</td>
-            <td>{{ contrato.fecha_inicio|date:"d-m-Y" }}</td>
+            <td>{{ contrato.fecha_inicio|date:"d-m-Y"|default:"Sin contrato" }}</td>
             <td>FICHA N°</td>
             <td>{{ empleado.ficha_numero|default:empleado.id }}</td>
         </tr>

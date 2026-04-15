@@ -1425,8 +1425,9 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b-2 border-gray-100">
                     <th className="px-6 py-4 text-left w-10">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
+                        aria-label="Seleccionar todos los trabajadores"
                         className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         onChange={handleSelectAll}
                         checked={selectedEmpleadosIds.length === filteredEmpleados.length && filteredEmpleados.length > 0}
@@ -1508,7 +1509,7 @@ export default function Dashboard() {
                   ) : (
                     filteredEmpleados.map((emp) => (
                       <tr key={emp.id} className={`border-b border-gray-50 transition-colors group ${!emp.activo ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}>
-                        <td className="px-6 py-4"><input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"checked={selectedEmpleadosIds.includes(emp.id)}onChange={() => handleSelectEmpleado(emp.id)}onClick={(e) => e.stopPropagation()} /></td>
+                        <td className="px-6 py-4"><input type="checkbox" aria-label={`Seleccionar a ${emp.nombres} ${emp.apellido_paterno}`} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked={selectedEmpleadosIds.includes(emp.id)} onChange={() => handleSelectEmpleado(emp.id)} onClick={(e) => e.stopPropagation()} /></td>
                         <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
                         <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{emp.email || '---'}</td>

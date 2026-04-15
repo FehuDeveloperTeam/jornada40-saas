@@ -1,21 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, User, CheckCircle2, AlertCircle } from 'lucide-react'; // Cambiamos Mail por User
-import client from '../api/client'; // Ajusta la ruta según dónde esté tu archivo client.ts
-
-// Función para formatear el RUT automáticamente
-const formatRut = (rut: string) => {
-  const cleanRut = rut.replace(/[^0-9kK]/g, '');
-  if (cleanRut.length === 0) return '';
-  if (cleanRut.length <= 1) return cleanRut;
-
-  const body = cleanRut.slice(0, -1);
-  const dv = cleanRut.slice(-1).toUpperCase();
-  const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-
-  return `${formattedBody}-${dv}`;
-};
+import { ArrowLeft, User, CheckCircle2, AlertCircle } from 'lucide-react';
+import client from '../api/client';
+import { formatRut } from '../utils/rutUtils';
 
 export default function ForgotPassword() {
   const [rut, setRut] = useState('');
