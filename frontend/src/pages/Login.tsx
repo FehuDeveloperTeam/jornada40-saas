@@ -213,7 +213,11 @@ export default function Login() {
             </form>
           </div>
 
-          <p className="text-center mt-8 text-xs font-semibold text-slate-400 uppercase tracking-widest">
+          <p className="text-center mt-6 text-sm text-slate-400">
+            Contratos · Liquidaciones · Documentos laborales
+          </p>
+
+          <p className="text-center mt-2 text-xs font-semibold text-slate-400 uppercase tracking-widest">
             Uso Exclusivo Autorizado
           </p>
 

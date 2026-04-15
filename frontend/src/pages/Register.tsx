@@ -12,9 +12,15 @@ const PLANES = [
     nombre: 'Semilla',
     precioMensual: 0,
     precioAnual: 0,
-    descripcion: 'Ideal para dar el primer paso hacia el cumplimiento de la Ley de 40 Horas.',
+    descripcion: 'Para dar el primer paso hacia la gestión laboral digital.',
     trabajadores: 3,
     empresas: 1,
+    features: [
+      'Contratos de trabajo (PDF)',
+      'Liquidaciones de sueldo',
+      'Documentos legales',
+      'Asesoría Ley 40 horas',
+    ],
     color: 'border-green-200 ring-green-500 bg-green-50',
     boton: 'Comenzar Gratis'
   },
@@ -23,10 +29,16 @@ const PLANES = [
     nombre: 'Pyme',
     precioMensual: 29990,
     precioAnual: 287904,
-    precioAnualNormal: 359880, 
-    descripcion: 'La solución definitiva para automatizar la transición de tu plantilla laboral.',
+    precioAnualNormal: 359880,
+    descripcion: 'La solución completa para gestionar tu plantilla laboral.',
     trabajadores: 40,
     empresas: 3,
+    features: [
+      'Todo lo del plan Semilla',
+      'Importación masiva de trabajadores',
+      'Múltiples empresas en un panel',
+      'Soporte por correo',
+    ],
     color: 'border-blue-200 ring-blue-600 bg-blue-50',
     boton: 'Elegir Plan Pyme',
     destacado: true
@@ -37,9 +49,15 @@ const PLANES = [
     precioMensual: 69990,
     precioAnual: 671904,
     precioAnualNormal: 839880,
-    descripcion: 'Herramienta robusta para holdings con control total.',
+    descripcion: 'Control total para grandes organizaciones y holdings.',
     trabajadores: 200,
     empresas: 10,
+    features: [
+      'Todo lo del plan Pyme',
+      'Panel multi-empresa unificado',
+      'Soporte prioritario',
+      'Acceso anticipado a nuevas funciones',
+    ],
     color: 'border-slate-200 ring-slate-800 bg-slate-50',
     boton: 'Contactar Ventas'
   }
@@ -328,22 +346,23 @@ export default function Register() {
                   )}
                 </div>
 
-                <ul className="space-y-4 mb-8 flex-1">
+                <ul className="space-y-3 mb-8 flex-1">
                   <li className="flex items-start gap-3">
                     <Building className="text-blue-500 shrink-0 mt-0.5" size={18} />
                     <span className="text-slate-700">
                       Gestiona hasta <strong>{plan.empresas} {plan.empresas === 1 ? 'empresa' : 'empresas'}</strong>
                     </span>
                   </li>
-
                   <li className="flex items-start gap-3">
                     <Check className="text-blue-500 shrink-0 mt-0.5" size={18} />
                     <span className="text-slate-700">Hasta <strong>{plan.trabajadores} trabajadores</strong></span>
                   </li>
-                  <li className="flex items-start gap-3">
-                    <Check className="text-blue-500 shrink-0 mt-0.5" size={18} />
-                    <span className="text-slate-700">Asesoría Ley 40 horas</span>
-                  </li>
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-3">
+                      <Check className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                      <span className="text-slate-700">{feature}</span>
+                    </li>
+                  ))}
                 </ul>
 
                 <button 
