@@ -135,7 +135,7 @@ REST_AUTH = {
 if IS_PRODUCTION:
     
     # 1. ALLOWED HOSTS
-    ALLOWED_HOSTS = ["jornada40-saas-production.up.railway.app", "jornada40.cl", "www.jornada40.cl"]
+    ALLOWED_HOSTS = ["jornada40-saas-production.up.railway.app", "jornada40.cl", "www.jornada40.cl", "api.jornada40.cl"]
 
     # 2. CORS:
     CORS_ALLOWED_ORIGINS = [
