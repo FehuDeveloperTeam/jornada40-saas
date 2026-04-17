@@ -10,7 +10,6 @@ export function useEmpleadoPanel(empresaActivaId: string | null) {
   const [selectedEmpleado, setSelectedEmpleado] = useState<DashboardEmpleado | null>(null);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal'>('perfil');
-
   const [formData, setFormData] = useState<Partial<DashboardEmpleado>>({});
 
   const abrirCrear = () => {
@@ -25,6 +24,25 @@ export function useEmpleadoPanel(empresaActivaId: string | null) {
     });
     setIsValidRut(false);
     setActiveTab('perfil');
+    setIsPanelOpen(true);
+  };
+
+  const abrirVer = (emp: DashboardEmpleado, fetchContratoYDocumentos: (id: number) => void) => {
+    setSelectedEmpleado(emp);
+    setPanelMode('view');
+    setActiveTab('perfil');
+    fetchContratoYDocumentos(emp.id);
+    setIsPanelOpen(true);
+  };
+
+  const abrirEditar = (emp: DashboardEmpleado, fetchContratoYDocumentos: (id: number) => void) => {
+    setSelectedEmpleado(emp);
+    const telefonoLimpio = emp.numero_telefono ? emp.numero_telefono.replace('+56', '') : '';
+    setFormData({ ...emp, numero_telefono: telefonoLimpio });
+    setIsValidRut(true);
+    setPanelMode('edit');
+    setActiveTab('perfil');
+    fetchContratoYDocumentos(emp.id);
     setIsPanelOpen(true);
   };
 
@@ -43,13 +61,7 @@ export function useEmpleadoPanel(empresaActivaId: string | null) {
     else if (name === 'forma_pago') {
       const nuevaForma = value.toUpperCase();
       if (nuevaForma === 'EFECTIVO' || nuevaForma === 'CHEQUE') {
-        setFormData(prev => ({
-          ...prev,
-          forma_pago: nuevaForma,
-          banco: '',
-          tipo_cuenta: '',
-          numero_cuenta: ''
-        }));
+        setFormData(prev => ({ ...prev, forma_pago: nuevaForma, banco: '', tipo_cuenta: '', numero_cuenta: '' }));
       } else {
         setFormData(prev => ({ ...prev, forma_pago: nuevaForma }));
       }
@@ -64,10 +76,7 @@ export function useEmpleadoPanel(empresaActivaId: string | null) {
 
   const guardarEmpleado = async (
     e: React.FormEvent,
-    opts: {
-      contratoId?: number;
-      onSuccess: () => void;
-    }
+    opts: { contratoId?: number; onSuccess: () => void }
   ) => {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
@@ -129,6 +138,8 @@ export function useEmpleadoPanel(empresaActivaId: string | null) {
     formData,
     setFormData,
     abrirCrear,
+    abrirVer,
+    abrirEditar,
     handleInputChange,
     guardarEmpleado,
   };

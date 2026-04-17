@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import client from '../api/client';
+import * as XLSX from 'xlsx';
 import type { DashboardEmpresa, DashboardEmpleado } from '../types/dashboard';
 
 export function useEmpleados() {
@@ -15,9 +17,16 @@ export function useEmpleados() {
   const [selectedStatuses, setSelectedStatuses] = useState<boolean[]>([true, false]);
   const [openFilterDropdown, setOpenFilterDropdown] = useState<'cargo' | 'depto' | 'estado' | null>(null);
 
+  const [isModalMasivoOpen, setIsModalMasivoOpen] = useState(false);
+  const [isGeneratingZip, setIsGeneratingZip] = useState(false);
+
   const [selectedEmpleadosIds, setSelectedEmpleadosIds] = useState<number[]>([]);
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ agregados: number; actualizados: number; errores: string[]; limite_alcanzado: boolean } | null>(null);
 
   const navigate = useNavigate();
   const empresaActivaId = localStorage.getItem('empresaActivaId');
@@ -81,7 +90,12 @@ export function useEmpleados() {
       });
   }, [empleados, searchTerm, selectedStatuses, selectedCargos, selectedDeptos]);
 
-  // Estadísticas (BI)
+  const [flippedWidgets, setFlippedWidgets] = useState<Record<string, boolean>>({});
+
+  const toggleWidget = (id: string) => {
+    setFlippedWidgets(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const stats = useMemo(() => {
     if (!empleados || empleados.length === 0) return null;
 
@@ -171,7 +185,6 @@ export function useEmpleados() {
     };
   }, [empleados]);
 
-  // Selección masiva
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked && filteredEmpleados) {
       setSelectedEmpleadosIds(filteredEmpleados.map(emp => emp.id));
@@ -195,11 +208,7 @@ export function useEmpleados() {
     try {
       const response = await client.post(
         '/empleados/descarga_masiva/',
-        {
-          empleados: selectedEmpleadosIds,
-          tipo: tipo,
-          empresa_id: empresa.id
-        },
+        { empleados: selectedEmpleadosIds, tipo: tipo, empresa_id: empresa.id },
         { responseType: 'blob' }
       );
 
@@ -272,8 +281,47 @@ export function useEmpleados() {
     }
   };
 
+  const descargarPlantillaExcel = () => {
+    const datosEjemplo = [
+      { RUT: "12.345.678-9", Nombres: "JUAN ALBERTO", Apellido_Paterno: "PEREZ", Apellido_Materno: "GONZALEZ", Email: "juan.perez@empresa.cl", Sexo: "M", Nacionalidad: "CHILENA", Fecha_Nacimiento: "1990-01-01", Estado_Civil: "SOLTERO", Numero_Telefono: "+56912345678", Comuna: "SANTIAGO", Direccion: "AV. PROVIDENCIA 123", Centro_Costo: "ADMINISTRACION", Cargo: "VENDEDOR", Fecha_Ingreso: "2023-05-01", Horas_Laborales: 40, Modalidad: "PRESENCIAL", Sueldo_Base: 500000, AFP: "MODELO", Salud: "FONASA", Plan_Isapre_UF: 0, Departamento: "VENTAS", Sucursal: "MATRIZ", Forma_Pago: "TRANSFERENCIA", Banco: "BANCO ESTADO", Tipo_Cuenta: "CORRIENTE", Numero_Cuenta: "1234567890" },
+      { RUT: "11.111.111-1", Nombres: "CAMILA", Apellido_Paterno: "MARTINEZ", Apellido_Materno: "GARRIDO", Email: "camila@empresa.cl", Sexo: "F", Nacionalidad: "CHILENA", Fecha_Nacimiento: "1995-05-15", Estado_Civil: "CASADA", Numero_Telefono: "+56987654321", Comuna: "PROVIDENCIA", Direccion: "LOS LEONES 456", Centro_Costo: "OPERACIONES", Cargo: "SUPERVISORA", Fecha_Ingreso: "2024-01-10", Horas_Laborales: 44, Modalidad: "TELETRABAJO", Sueldo_Base: 1200000, AFP: "PROVIDA", Salud: "ISAPRE", Plan_Isapre_UF: 2.8, Departamento: "OPERACIONES", Sucursal: "MATRIZ", Forma_Pago: "TRANSFERENCIA", Banco: "BANCO ESTADO", Tipo_Cuenta: "CORRIENTE", Numero_Cuenta: "0987654321" }
+    ];
+    const ws = XLSX.utils.json_to_sheet(datosEjemplo);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Trabajadores");
+    XLSX.writeFile(wb, "Plantilla_Carga_Masiva.xlsx");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files?.length === 0 || !empresa) return;
+    setIsUploading(true);
+    setUploadResult(null);
+    const file = e.target.files[0];
+    const formDataPayload = new FormData();
+    formDataPayload.append('file', file);
+    formDataPayload.append('empresa', empresa.id.toString());
+    try {
+      const response = await client.post('/empleados/carga_masiva/', formDataPayload, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setUploadResult(response.data.resultados || response.data);
+      fetchData();
+    } catch (error) {
+      console.error("Error cargando Excel:", error);
+      let mensajeBackend = "Error de conexión o formato de archivo inválido.";
+      if (axios.isAxiosError(error)) {
+        mensajeBackend = error.response?.data?.error || mensajeBackend;
+      } else if (error instanceof Error) {
+        mensajeBackend = error.message;
+      }
+      setUploadResult({ agregados: 0, actualizados: 0, errores: [mensajeBackend], limite_alcanzado: false });
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
   return {
     empresa,
+    empresaActivaId,
     empleados,
     setEmpleados,
     loading,
@@ -294,15 +342,28 @@ export function useEmpleados() {
     isDownloadMenuOpen,
     setIsDownloadMenuOpen,
     isDownloading,
+    isModalMasivoOpen,
+    setIsModalMasivoOpen,
+    isGeneratingZip,
+    setIsGeneratingZip,
+    isUploadModalOpen,
+    setIsUploadModalOpen,
+    isUploading,
+    uploadResult,
+    setUploadResult,
     allCargos,
     allDeptos,
     filteredEmpleados,
     stats,
+    flippedWidgets,
+    toggleWidget,
     handleSelectAll,
     handleSelectEmpleado,
     ejecutarDescargaMasiva,
     volverAlLobby,
     generarYDescargarPDF,
     fetchData,
+    descargarPlantillaExcel,
+    handleFileUpload,
   };
 }
