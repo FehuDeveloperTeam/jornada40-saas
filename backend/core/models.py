@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Max
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Plan(models.Model):
     nombre = models.CharField(max_length=50) 
@@ -75,9 +76,12 @@ class Empleado(models.Model):
     departamento = models.CharField(max_length=100, blank=True, null=True)
     cargo = models.CharField(max_length=100)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
-    horas_laborales = models.IntegerField(default=40) 
+    horas_laborales = models.IntegerField(
+        default=40,
+        validators=[MinValueValidator(1), MaxValueValidator(168)]
+    )
     modalidad = models.CharField(max_length=20, choices=[('PRESENCIAL', 'Presencial'), ('REMOTO', 'Remoto'), ('HIBRIDO', 'Híbrido')], default='PRESENCIAL')
-    sueldo_base = models.IntegerField(default=0)
+    sueldo_base = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     afp = models.CharField(max_length=50, blank=True, null=True)
     sistema_salud = models.CharField(max_length=50, choices=[('FONASA', 'Fonasa'), ('ISAPRE', 'Isapre')], blank=True, null=True)
     fecha_ingreso = models.DateField()
@@ -141,8 +145,8 @@ class Contrato(models.Model):
     cargo = models.CharField(max_length=100, default="No especificado")
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField(null=True, blank=True)
-    sueldo_base = models.IntegerField()
-    
+    sueldo_base = models.IntegerField(validators=[MinValueValidator(0)])
+
     # 2. Datos de la Ley 40 Horas y Jornadas
     tipo_jornada = models.CharField(max_length=20, choices=TIPO_JORNADA_CHOICES, default='ORDINARIA')
     horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=44.0)
@@ -211,10 +215,10 @@ class Liquidacion(models.Model):
     anio = models.IntegerField()
     
     # --- ASISTENCIA DETALLADA ---
-    dias_trabajados = models.IntegerField(default=30)
-    dias_licencia = models.IntegerField(default=0)
-    dias_ausencia = models.IntegerField(default=0)
-    dias_no_contratados = models.IntegerField(default=0)
+    dias_trabajados = models.IntegerField(default=30, validators=[MinValueValidator(0), MaxValueValidator(31)])
+    dias_licencia = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(31)])
+    dias_ausencia = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(31)])
+    dias_no_contratados = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(31)])
     
     # --- HABERES ---
     sueldo_base = models.IntegerField(default=0)

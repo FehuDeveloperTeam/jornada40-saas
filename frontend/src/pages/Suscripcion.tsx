@@ -27,6 +27,7 @@ export default function Suscripcion() {
 
   // Estados reales
   const [loading, setLoading] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(false);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const [miSuscripcion, setMiSuscripcion] = useState<MiSuscripcion | null>(null);
   
@@ -62,6 +63,7 @@ export default function Suscripcion() {
 
       } catch (error) {
         console.error("Error al cargar datos de suscripción o perfil:", error);
+        setErrorCarga(true);
       } finally {
         setLoading(false);
       }
@@ -104,6 +106,23 @@ export default function Suscripcion() {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+      </div>
+    );
+  }
+
+  if (errorCarga) {
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <p className="text-slate-700 font-semibold text-lg">No se pudo cargar la información de tu cuenta.</p>
+          <p className="text-slate-500 text-sm">Verifica tu conexión e intenta nuevamente.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-700 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
       </div>
     );
   }

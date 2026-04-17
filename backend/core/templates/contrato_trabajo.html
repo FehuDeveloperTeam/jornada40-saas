@@ -69,11 +69,15 @@
         {% else %}
             La jornada ordinaria de trabajo será de <span class="bold">{{ contrato.horas_semanales }} horas semanales</span>, distribuidas en <span class="bold">{{ contrato.distribucion_dias }} días</span> a la semana, con el siguiente detalle de turnos y colaciones acordadas (el tiempo de colación no es imputable a la jornada laboral):
             <ul>
-            {% for dia, horario in contrato.distribucion_horario.items %}
-                {% if horario.activo %}
-                <li><span class="bold">{{ dia|title }}:</span> De {{ horario.entrada }} a {{ horario.salida }} hrs. (Colación: {{ horario.colacion }} minutos).</li>
-                {% endif %}
-            {% endfor %}
+            {% if contrato.distribucion_horario %}
+                {% for dia, horario in contrato.distribucion_horario.items %}
+                    {% if horario.activo %}
+                    <li><span class="bold">{{ dia|title }}:</span> De {{ horario.entrada }} a {{ horario.salida }} hrs. (Colación: {{ horario.colacion }} minutos).</li>
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <li>Sin horario detallado configurado.</li>
+            {% endif %}
             </ul>
         {% endif %}
     </p>
