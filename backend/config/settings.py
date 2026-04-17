@@ -209,7 +209,7 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG',
+        'level': 'WARNING' if IS_PRODUCTION else 'DEBUG',
     },
 }
 
@@ -218,10 +218,10 @@ LOGGING = {
 # ==========================================
 EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
 ANYMAIL = {
-    "RESEND_API_KEY": config('RESEND_API_KEY', default='re_eeCE1qpe_BdMdV2pnUidZMHrN9crr6ch5'),
+    "RESEND_API_KEY": config('RESEND_API_KEY', default=''),
 }
 
-DEFAULT_FROM_EMAIL = 'onboarding@resend.dev'
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jornada40.cl>')
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo

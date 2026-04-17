@@ -17,14 +17,6 @@ export default function Login() {
   const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
 
-    // 🚪 BACKDOOR PARA EL SUPERUSUARIO
-    if (/[a-zA-Z]/.test(rawValue) && !rawValue.toUpperCase().includes('K')) {
-      setRut(rawValue);
-      setIsValidRut(rawValue.toLowerCase() === 'admin');
-      setErrorMsg('');
-      return;
-    }
-
     // 👤 FLUJO NORMAL PARA CLIENTES
     const formateado = formatRut(rawValue);
     setRut(formateado);
