@@ -121,10 +121,9 @@ REST_AUTH = {
     'JWT_AUTH_COOKIE': 'jornada40-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
     'JWT_AUTH_SECURE': IS_PRODUCTION,
-    # Lax es correcto: el proxy de Vercel hace que frontend y API sean same-origin (jornada40.cl)
-    # None era necesario con cross-origin (vercel.app → railway.app), ya no aplica.
-    # Chrome en iOS usa WebKit (= Safari), que bloquea cookies SameSite=None vía ITP.
-    'JWT_AUTH_SAMESITE': 'Lax',
+    # Cross-origin: frontend en jornada40.cl (Vercel) llama directo a backend en railway.app.
+    # SameSite=None + Secure es obligatorio para que el browser mande la cookie cross-site.
+    'JWT_AUTH_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
     'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
 }
 
@@ -157,12 +156,15 @@ if IS_PRODUCTION:
         "https://jornada40-saas-production.up.railway.app",
     ]
 
-    # 4. Cookies seguras (mismo dominio jornada40.cl via proxy Vercel)
+    # 4. Cookies cross-origin: frontend Vercel → backend Railway
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    CSRF_COOKIE_SAMESITE = 'Lax'
+    # SameSite=None permite envío cross-site (requiere Secure=True).
+    # Necesario porque jornada40.cl (Vercel) y jornada40-saas-production.up.railway.app
+    # son orígenes distintos.
+    SESSION_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SAMESITE = 'None'
 
 else:
     # === DESARROLLO (LOCALHOST) ===
