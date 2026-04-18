@@ -444,10 +444,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
-            contrato, _ = Contrato.objects.get_or_create(
-                empleado=empleado,
-                defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
-            )
+            try:
+                contrato = Contrato.objects.get(empleado=empleado)
+            except Contrato.DoesNotExist:
+                raise Exception(f"El trabajador {empleado.nombres} no tiene contrato registrado.")
             if contrato.archivo_contrato:
                 try:
                     return contrato.archivo_contrato.read()
@@ -462,10 +462,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         # --- LÓGICA PARA ANEXOS 40 HORAS ---
         elif tipo_documento == 'anexo_40h':
-            contrato, _ = Contrato.objects.get_or_create(
-                empleado=empleado,
-                defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
-            )
+            try:
+                contrato = Contrato.objects.get(empleado=empleado)
+            except Contrato.DoesNotExist:
+                raise Exception(f"El trabajador {empleado.nombres} no tiene contrato registrado.")
             if contrato.archivo_anexo_40h:
                 try:
                     return contrato.archivo_anexo_40h.read()
@@ -481,10 +481,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         # --- LÓGICA PARA LIQUIDACIONES (MES ACTUAL) ---
         elif tipo_documento == 'liquidacion_actual':
             hoy = datetime.date.today()
-            liquidacion, _ = Liquidacion.objects.get_or_create(
-                empleado=empleado, mes=hoy.month, anio=hoy.year,
-                defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
-            )
+            try:
+                liquidacion = Liquidacion.objects.get(empleado=empleado, mes=hoy.month, anio=hoy.year)
+            except Liquidacion.DoesNotExist:
+                raise Exception(f"No existe liquidación del mes actual para {empleado.nombres}.")
             if liquidacion.archivo_pdf:
                 try:
                     return liquidacion.archivo_pdf.read()
@@ -512,10 +512,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             _, _, mes_str, anio_str = tipo_documento.split('_')
             mes_hist, anio_hist = int(mes_str), int(anio_str)
 
-            liquidacion, _ = Liquidacion.objects.get_or_create(
-                empleado=empleado, mes=mes_hist, anio=anio_hist,
-                defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
-            )
+            try:
+                liquidacion = Liquidacion.objects.get(empleado=empleado, mes=mes_hist, anio=anio_hist)
+            except Liquidacion.DoesNotExist:
+                raise Exception(f"No existe liquidación {mes_hist}/{anio_hist} para {empleado.nombres}.")
             if liquidacion.archivo_pdf:
                 try:
                     return liquidacion.archivo_pdf.read()
@@ -540,10 +540,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         # --- LÓGICA PARA CARTAS DE AMONESTACIÓN ---
         elif tipo_documento == 'amonestacion':
-            doc_legal, _ = DocumentoLegal.objects.get_or_create(
-                empleado=empleado, tipo='AMONESTACION',
-                defaults={'fecha_emision': datetime.date.today(), 'hechos': 'Amonestación general generada masivamente'}
-            )
+            doc_legal = DocumentoLegal.objects.filter(
+                empleado=empleado, tipo='AMONESTACION'
+            ).order_by('-fecha_emision').first()
+            if doc_legal is None:
+                raise Exception(f"El trabajador {empleado.nombres} no tiene amonestaciones registradas.")
             if doc_legal.archivo_pdf:
                 try:
                     return doc_legal.archivo_pdf.read()
@@ -586,17 +587,26 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     nombre_carpeta = f"{rut_limpio}_{emp.nombres}_{emp.apellido_paterno}".replace(" ", "_")
 
                     if tipo in ['contratos', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'contrato')
-                        zip_file.writestr(f"{nombre_carpeta}/Contrato.pdf", pdf)
+                        try:
+                            pdf = self._obtener_o_generar_documento(emp, 'contrato')
+                            zip_file.writestr(f"{nombre_carpeta}/Contrato.pdf", pdf)
+                        except Exception:
+                            pass
 
                     if tipo in ['anexos', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'anexo_40h')
-                        zip_file.writestr(f"{nombre_carpeta}/Anexo_40h.pdf", pdf)
+                        try:
+                            pdf = self._obtener_o_generar_documento(emp, 'anexo_40h')
+                            zip_file.writestr(f"{nombre_carpeta}/Anexo_40h.pdf", pdf)
+                        except Exception:
+                            pass
 
                     if tipo in ['liq_actual', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'liquidacion_actual')
-                        zip_file.writestr(f"{nombre_carpeta}/Liquidaciones/Liq_Actual.pdf", pdf)
-                        
+                        try:
+                            pdf = self._obtener_o_generar_documento(emp, 'liquidacion_actual')
+                            zip_file.writestr(f"{nombre_carpeta}/Liquidaciones/Liq_Actual.pdf", pdf)
+                        except Exception:
+                            pass
+
                     if tipo in ['liq_12', 'zip_completo']:
                         mes_actual = hoy.month
                         anio_actual = hoy.year
@@ -606,12 +616,18 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                             if mes_hist <= 0:
                                 mes_hist += 12
                                 anio_hist -= 1
-                            pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{mes_hist}_{anio_hist}')
-                            zip_file.writestr(f"{nombre_carpeta}/Liquidaciones_Historicas/Liq_{mes_hist}_{anio_hist}.pdf", pdf)
+                            try:
+                                pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{mes_hist}_{anio_hist}')
+                                zip_file.writestr(f"{nombre_carpeta}/Liquidaciones_Historicas/Liq_{mes_hist}_{anio_hist}.pdf", pdf)
+                            except Exception:
+                                pass
 
                     if tipo in ['amonestacion', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'amonestacion')
-                        zip_file.writestr(f"{nombre_carpeta}/Amonestacion.pdf", pdf)
+                        try:
+                            pdf = self._obtener_o_generar_documento(emp, 'amonestacion')
+                            zip_file.writestr(f"{nombre_carpeta}/Amonestacion.pdf", pdf)
+                        except Exception:
+                            pass
 
             zip_buffer.seek(0)
             response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
