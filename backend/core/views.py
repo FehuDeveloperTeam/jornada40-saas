@@ -419,134 +419,144 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
    # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
+    def _html_a_pdf(self, html_string, nombre_doc):
+        """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción clara si falla."""
+        resultado = io.BytesIO()
+        status = pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+        if status.err:
+            raise Exception(
+                f"xhtml2pdf reportó {status.err} error(s) generando '{nombre_doc}'. "
+                f"Revisar el template y el contexto pasado."
+            )
+        pdf_bytes = resultado.getvalue()
+        if not pdf_bytes:
+            raise Exception(
+                f"PDF '{nombre_doc}' resultó vacío tras la conversión. "
+                f"xhtml2pdf no reportó error pero el resultado es b\"\". "
+                f"Posible problema de encoding o template vacío."
+            )
+        return pdf_bytes
+
     def _obtener_o_generar_documento(self, empleado, tipo_documento):
         """Revisa si el PDF ya existe en la BD. Si no, lo genera usando los templates HTML reales."""
-        
+
         empresa = empleado.empresa
-        
+
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
-            contrato, created = Contrato.objects.get_or_create(
+            contrato, _ = Contrato.objects.get_or_create(
                 empleado=empleado,
                 defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
             )
             if contrato.archivo_contrato:
-                try: return contrato.archivo_contrato.read()
-                except Exception: pass
-            
-            # Usamos TU plantilla real
+                try:
+                    return contrato.archivo_contrato.read()
+                except Exception:
+                    pass
+
             context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
             html_string = render_to_string('contrato_trabajo.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
+            pdf_bytes = self._html_a_pdf(html_string, f'Contrato_{empleado.rut}')
             contrato.archivo_contrato.save(f"Contrato_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA ANEXOS 40 HORAS ---
         elif tipo_documento == 'anexo_40h':
-            contrato, created = Contrato.objects.get_or_create(
+            contrato, _ = Contrato.objects.get_or_create(
                 empleado=empleado,
                 defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
             )
             if contrato.archivo_anexo_40h:
-                try: return contrato.archivo_anexo_40h.read()
-                except Exception: pass
-            
+                try:
+                    return contrato.archivo_anexo_40h.read()
+                except Exception:
+                    pass
+
             context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
             html_string = render_to_string('anexo_40h.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
+            pdf_bytes = self._html_a_pdf(html_string, f'Anexo_40h_{empleado.rut}')
             contrato.archivo_anexo_40h.save(f"Anexo_40h_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA LIQUIDACIONES (MES ACTUAL) ---
         elif tipo_documento == 'liquidacion_actual':
             hoy = datetime.date.today()
-            liquidacion, created = Liquidacion.objects.get_or_create(
+            liquidacion, _ = Liquidacion.objects.get_or_create(
                 empleado=empleado, mes=hoy.month, anio=hoy.year,
                 defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
             )
             if liquidacion.archivo_pdf:
-                try: return liquidacion.archivo_pdf.read()
-                except Exception: pass
-            
-            # Convertimos el monto a palabras para tu plantilla
+                try:
+                    return liquidacion.archivo_pdf.read()
+                except Exception:
+                    pass
+
             try:
                 liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
-            except:
+            except Exception:
                 liquido_palabras = str(liquidacion.sueldo_liquido)
 
             context = {
-                'empleado': empleado, 'empresa': empresa, 
-                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras
+                'empleado': empleado, 'empresa': empresa,
+                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
             }
             html_string = render_to_string('liquidacion.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
-            liquidacion.archivo_pdf.save(f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf", ContentFile(pdf_bytes))
+            pdf_bytes = self._html_a_pdf(html_string, f'Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}')
+            liquidacion.archivo_pdf.save(
+                f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf", ContentFile(pdf_bytes)
+            )
             return pdf_bytes
 
-        # --- LÓGICA PARA 12 LIQUIDACIONES HISTÓRICAS ---
+        # --- LÓGICA PARA LIQUIDACIONES HISTÓRICAS ---
         elif tipo_documento.startswith('liquidacion_historica_'):
             _, _, mes_str, anio_str = tipo_documento.split('_')
             mes_hist, anio_hist = int(mes_str), int(anio_str)
-            
-            liquidacion, created = Liquidacion.objects.get_or_create(
+
+            liquidacion, _ = Liquidacion.objects.get_or_create(
                 empleado=empleado, mes=mes_hist, anio=anio_hist,
                 defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
             )
             if liquidacion.archivo_pdf:
-                try: return liquidacion.archivo_pdf.read()
-                except Exception: pass
-            
+                try:
+                    return liquidacion.archivo_pdf.read()
+                except Exception:
+                    pass
+
             try:
                 liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
-            except:
+            except Exception:
                 liquido_palabras = str(liquidacion.sueldo_liquido)
 
             context = {
-                'empleado': empleado, 'empresa': empresa, 
-                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras
+                'empleado': empleado, 'empresa': empresa,
+                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
             }
             html_string = render_to_string('liquidacion.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
-            liquidacion.archivo_pdf.save(f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf", ContentFile(pdf_bytes))
+            pdf_bytes = self._html_a_pdf(html_string, f'Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}')
+            liquidacion.archivo_pdf.save(
+                f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf", ContentFile(pdf_bytes)
+            )
             return pdf_bytes
 
         # --- LÓGICA PARA CARTAS DE AMONESTACIÓN ---
         elif tipo_documento == 'amonestacion':
-            doc_legal, created = DocumentoLegal.objects.get_or_create(
+            doc_legal, _ = DocumentoLegal.objects.get_or_create(
                 empleado=empleado, tipo='AMONESTACION',
                 defaults={'fecha_emision': datetime.date.today(), 'hechos': 'Amonestación general generada masivamente'}
             )
             if doc_legal.archivo_pdf:
-                try: return doc_legal.archivo_pdf.read()
-                except Exception: pass
+                try:
+                    return doc_legal.archivo_pdf.read()
+                except Exception:
+                    pass
 
             context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal}
             html_string = render_to_string('documento_legal.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-
+            pdf_bytes = self._html_a_pdf(html_string, f'Amonestacion_{empleado.rut}')
             doc_legal.archivo_pdf.save(f"Amonestacion_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
-        return b"Error: Tipo de documento no soportado"
+        raise Exception(f"Tipo de documento no soportado: '{tipo_documento}'")
     
     # ====================================================
     # ENDPOINT: DESCARGA MASIVA Y EXPEDIENTES (ZIP)
