@@ -416,6 +416,26 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             return Response({'error': f'Error procesando: {str(e)}'}, status=500)
                 
    # ====================================================
+    # DISPONIBILIDAD DE DOCUMENTOS POR TRABAJADOR
+    # ====================================================
+    @action(detail=True, methods=['get'])
+    def documentos_disponibles(self, request, pk=None):
+        empleado = self.get_object()
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+
+        data = {
+            'tiene_contrato': contrato is not None,
+            'tiene_anexo_40h': bool(contrato and contrato.archivo_anexo_40h),
+            'cantidad_liquidaciones': Liquidacion.objects.filter(empleado=empleado).count(),
+            'cantidad_amonestaciones': DocumentoLegal.objects.filter(empleado=empleado, tipo='AMONESTACION').count(),
+            'tiene_despido': DocumentoLegal.objects.filter(empleado=empleado, tipo='DESPIDO').exists(),
+            'tiene_mutuo_acuerdo': DocumentoLegal.objects.filter(empleado=empleado, tipo='MUTUO_ACUERDO').exists(),
+            'cantidad_constancias': DocumentoLegal.objects.filter(empleado=empleado, tipo='CONSTANCIA').count(),
+            'cantidad_anexos_contrato': AnexoContrato.objects.filter(contrato=contrato).count() if contrato else 0,
+        }
+        return Response(data)
+
+   # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
     @staticmethod

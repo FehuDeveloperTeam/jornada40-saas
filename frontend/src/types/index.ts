@@ -128,6 +128,17 @@ export interface Empleado {
     contrato_activo?: Contrato | null;
 }
 
+export interface DocumentosDisponibles {
+    tiene_contrato: boolean;
+    tiene_anexo_40h: boolean;
+    cantidad_liquidaciones: number;
+    cantidad_amonestaciones: number;
+    tiene_despido: boolean;
+    tiene_mutuo_acuerdo: boolean;
+    cantidad_constancias: number;
+    cantidad_anexos_contrato: number;
+}
+
 export interface AnexoContrato {
     id: number;
     contrato: number;
