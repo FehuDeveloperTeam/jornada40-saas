@@ -38,6 +38,7 @@ export default function TabContratos({
 }: Props) {
   const [clausulasAnexo, setClausulasAnexo] = useState<string[]>([]);
   return (
+    <>
     <form id="contratoForm" onSubmit={guardarContrato} onChange={() => setHayCambiosContrato(true)} className="max-w-4xl mx-auto space-y-8 pb-10">
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <h3 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">1. Condiciones Generales</h3>
@@ -371,5 +372,6 @@ export default function TabContratos({
         </div>
       </div>
     )}
+    </>
   );
 }
