@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
+import type {
+  Empresa, Empleado, HorarioDia, HorarioSemana,
+  Contrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
+} from '../types';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
 import { Layers, BarChart2, Undo2, Download, FileSpreadsheet, UploadCloud, 
@@ -9,140 +13,6 @@ import { Layers, BarChart2, Undo2, Download, FileSpreadsheet, UploadCloud,
   CircleDollarSign, Building2, Landmark, FileText, FileSignature, 
   AlertTriangle, Briefcase, FolderArchive, ChevronDown} from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell} from 'recharts';
-
-// --- TIPOS E INTERFACES ---
-interface Empresa {
-  id: number;
-  nombre_legal: string;
-  rut: string;
-  giro?: string;
-}
-
-interface Empleado {
-  id: number;
-  rut: string;
-  nombres: string;
-  apellido_paterno: string;
-  apellido_materno?: string;
-  sexo?: string;
-  fecha_nacimiento?: string;
-  nacionalidad?: string;
-  estado_civil?: string;
-  direccion?: string;
-  comuna?: string;
-  numero_telefono?: string;
-  email?: string;
-  departamento?: string;
-  cargo: string;
-  sucursal?: string;
-  horas_laborales?: number;
-  modalidad?: string;
-  sueldo_base?: number;
-  afp?: string;
-  sistema_salud?: string;
-  fecha_ingreso?: string;
-  activo: boolean;
-  empresa: number;
-  creado_en?: string;
-  centro_costo?: string;
-  ficha_numero?: string;
-  forma_pago?: string;
-  banco?: string;
-  tipo_cuenta?: string;
-  numero_cuenta?: string;
-  plan_isapre_uf?: number;
-}
-
-interface HorarioDia {
-  activo: boolean;
-  entrada: string;
-  salida: string;
-  colacion: number;
-}
-
-type HorarioSemana = Record<string, HorarioDia>;
-
-interface Contrato {
-  id?: number;
-  empleado: number;
-  tipo_contrato: string;
-  cargo: string;
-  fecha_inicio: string;
-  fecha_fin?: string;
-  sueldo_base: number;
-  tipo_jornada: string;
-  horas_semanales: number;
-  distribucion_dias: number;
-  tiene_colacion_imputable: boolean;
-  jornada_personalizada?: string;
-  clausulas_especiales?: string[];
-  dia_pago: number;
-  gratificacion_legal: string;
-  tiene_quincena: boolean;
-  dia_quincena?: number | null;
-  monto_quincena?: number | null;
-  funciones_especificas?: string[];
-  distribucion_horario?: HorarioSemana;
-}
-
-// NUEVA INTERFAZ: DOCUMENTO LEGAL
-interface DocumentoLegal {
-  id?: number;
-  empleado: number;
-  tipo: string;
-  fecha_emision: string;
-  causal_legal?: string;
-  hechos: string;
-  aviso_previo_pagado: boolean;
-  creado_en?: string;
-}
-
-
-interface ItemDinamico {
-  glosa: string;
-  valor: number;
-}
-
-interface HoraExtraItem {
-  glosa: string;
-  horas: number;
-  recargo: number;
-  valor: number;
-}
-
-// --- INTERFAZ LIQUIDACIÓN ACTUALIZADA ---
-interface Liquidacion {
-  id?: number;
-  empleado: number;
-  mes: number;
-  anio: number;
-  dias_trabajados: number;
-  dias_licencia?: number;
-  dias_ausencia?: number;
-  dias_no_contratados?: number;
-  sueldo_base: number;
-  gratificacion: number;
-  
-  // Reemplazamos los antiguos por los nuevos arreglos:
-  detalle_haberes_imponibles?: ItemDinamico[];
-  detalle_horas_extras?: HoraExtraItem[];
-  detalle_haberes_no_imponibles?: ItemDinamico[];
-  detalle_otros_descuentos?: ItemDinamico[];
-  
-  afp_nombre?: string;
-  afp_monto: number;
-  salud_nombre?: string;
-  isapre_cotizacion_uf?: number;
-  salud_monto: number;
-  seguro_cesantia: number;
-  anticipo_quincena: number;
-  
-  total_imponible: number;
-  total_haberes: number;
-  total_descuentos: number;
-  sueldo_liquido: number;
-  fecha_emision?: string;
-}
 
 
 const defaultHorario: HorarioSemana = {
@@ -268,9 +138,9 @@ export default function Dashboard() {
   const [liqAusencias, setLiqAusencias] = useState(0);
 
   // Arreglos dinámicos con Glosa y Valor
-  const [haberesImponiblesList, setHaberesImponiblesList] = useState<{glosa: string, valor: number}[]>([]);
-  const [haberesNoImponiblesList, setHaberesNoImponiblesList] = useState<{glosa: string, valor: number}[]>([]);
-  const [horasExtrasList, setHorasExtrasList] = useState<{glosa: string, horas: number, recargo: number, valor: number}[]>([]);
+  const [haberesImponiblesList, setHaberesImponiblesList] = useState<DetalleItem[]>([]);
+  const [haberesNoImponiblesList, setHaberesNoImponiblesList] = useState<DetalleItem[]>([]);
+  const [horasExtrasList, setHorasExtrasList] = useState<HoraExtraItem[]>([]);
   
   // Estados de Contratos
   const [funciones, setFunciones] = useState<string[]>([]);
@@ -625,10 +495,9 @@ export default function Dashboard() {
           tipo_jornada: 'ORDINARIA',
           cargo: emp?.cargo || 'NO ESPECIFICADO',
           sueldo_base: emp?.sueldo_base || 0,
-          horas_semanales: 44,
+          horas_semanales: '44',
           distribucion_dias: 5,
           fecha_inicio: emp?.fecha_ingreso || new Date().toISOString().split('T')[0],
-          tiene_colacion_imputable: false,
           dia_pago: 5,
           gratificacion_legal: 'MENSUAL',
           tiene_quincena: false
@@ -1983,14 +1852,14 @@ export default function Dashboard() {
                             );
                           })}
 
-                          <div className={`mt-4 p-4 rounded-xl flex justify-between items-center border ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                          <div className={`mt-4 p-4 rounded-xl flex justify-between items-center border ${totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44) ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                             <span className="font-bold text-slate-700">Horas asignadas en la semana:</span>
                             <div className="text-right">
-                              <span className={`text-2xl font-black ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'text-red-600' : 'text-emerald-600'}`}>
+                              <span className={`text-2xl font-black ${totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44) ? 'text-red-600' : 'text-emerald-600'}`}>
                                 {totalHorasCalculadas.toFixed(1)} / {contratoData.horas_semanales || 44}
                               </span>
-                              <p className={`text-xs font-bold uppercase mt-1 ${totalHorasCalculadas > (contratoData.horas_semanales || 44) ? 'text-red-500' : 'text-emerald-600'}`}>
-                                {totalHorasCalculadas > (contratoData.horas_semanales || 44) ? '¡Has sobrepasado el límite!' : `Quedan ${((contratoData.horas_semanales || 44) - totalHorasCalculadas).toFixed(1)} horas libres`}
+                              <p className={`text-xs font-bold uppercase mt-1 ${totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44) ? 'text-red-500' : 'text-emerald-600'}`}>
+                                {totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44) ? '¡Has sobrepasado el límite!' : `Quedan ${((Number(contratoData.horas_semanales) || 44) - totalHorasCalculadas).toFixed(1)} horas libres`}
                               </p>
                             </div>
                           </div>
@@ -2495,7 +2364,7 @@ export default function Dashboard() {
                       <button 
                         type="submit" 
                         form="contratoForm" 
-                        disabled={isSavingContrato || (contratoData.tipo_jornada === 'ORDINARIA' && totalHorasCalculadas > (contratoData.horas_semanales || 44))} 
+                        disabled={isSavingContrato || (contratoData.tipo_jornada === 'ORDINARIA' && totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44))}
                         className="px-8 py-2.5 text-white font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2"
                       >
                         {isSavingContrato ? 'Guardando...' : 'Guardar Contrato Legal'}
