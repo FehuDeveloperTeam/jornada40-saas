@@ -709,12 +709,12 @@ export function useDashboard() {
     allCargos, allDeptos, filteredEmpleados, stats,
     // Acciones masivas
     isModalMasivoOpen, setIsModalMasivoOpen,
-    isUploading, isGeneratingZip,
-    selectedEmpleadosIds,
+    isUploading, isGeneratingZip, setIsGeneratingZip,
+    selectedEmpleadosIds, setSelectedEmpleadosIds,
     isDownloadMenuOpen, setIsDownloadMenuOpen,
     isDownloading,
     isUploadModalOpen, setIsUploadModalOpen,
-    uploadResult,
+    uploadResult, setUploadResult,
     // Panel lateral
     isPanelOpen, setIsPanelOpen,
     panelMode,
@@ -768,3 +768,5 @@ export function useDashboard() {
     empresaActivaId,
   };
 }
+
+export type UseDashboardReturn = ReturnType<typeof useDashboard>;
