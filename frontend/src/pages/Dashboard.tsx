@@ -215,6 +215,7 @@ export default function Dashboard() {
           isGeneratingZip={isGeneratingZip}
           setIsGeneratingZip={setIsGeneratingZip}
           setIsModalMasivoOpen={setIsModalMasivoOpen}
+          empresaActivaId={empresaActivaId}
         />
       )}
 
