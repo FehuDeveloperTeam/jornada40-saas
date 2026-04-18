@@ -25,8 +25,8 @@ import urllib.parse
 from django.db.models import Max
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
 
 # ==========================================
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
@@ -875,6 +875,65 @@ def registrar_cliente(request):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
     
+class AnexoContratoViewSet(viewsets.ModelViewSet):
+    serializer_class = AnexoContratoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = AnexoContrato.objects.filter(
+            contrato__empleado__empresa__owner=self.request.user
+        ).order_by('-fecha_emision')
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            queryset = queryset.filter(contrato__empleado_id=empleado_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        contrato_id = request.data.get('contrato')
+        try:
+            contrato = Contrato.objects.get(id=contrato_id, empleado__empresa__owner=request.user)
+        except Contrato.DoesNotExist:
+            return Response({'error': 'Contrato no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        return super().create(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get'])
+    def generar_pdf(self, request, pk=None):
+        try:
+            anexo = self.get_object()
+            contrato = anexo.contrato
+            empleado = contrato.empleado
+            empresa = empleado.empresa
+            cliente = getattr(request.user, 'perfil_cliente', None)
+            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+
+            meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+            hoy = anexo.fecha_emision
+            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+            ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+
+            context = {
+                'anexo': anexo,
+                'contrato': contrato,
+                'empleado': empleado,
+                'empresa': empresa,
+                'fecha_actual': fecha_espanol,
+                'ciudad': ciudad,
+                'es_plan_semilla': es_plan_semilla,
+            }
+            template = get_template('anexo_contrato.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            nombre = f"Anexo_{empleado.rut}_{hoy}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return Response({'error': 'Error generando PDF'}, status=500)
+            return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
 class LiquidacionViewSet(viewsets.ModelViewSet):
     queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
     serializer_class = LiquidacionSerializer

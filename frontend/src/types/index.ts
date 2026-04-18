@@ -128,6 +128,17 @@ export interface Empleado {
     contrato_activo?: Contrato | null;
 }
 
+export interface AnexoContrato {
+    id: number;
+    contrato: number;
+    titulo: string;
+    descripcion: string;
+    clausulas_modificadas: string[];
+    fecha_emision: string;
+    archivo_pdf: string | null;
+    creado_en: string;
+}
+
 export interface DocumentoLegal {
     id: number;
     empleado: number;

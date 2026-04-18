@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Empresa, Empleado, Contrato, Plan, Cliente
+from .models import Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente
 
 # ==========================================
 # GESTIÓN DE SUSCRIPCIONES Y CLIENTES
@@ -37,3 +37,9 @@ class EmpleadoAdmin(admin.ModelAdmin):
 class ContratoAdmin(admin.ModelAdmin):
     list_display = ('empleado', 'tipo_jornada', 'horas_semanales', 'fecha_inicio')
     list_filter = ('tipo_jornada', 'horas_semanales')
+
+@admin.register(AnexoContrato)
+class AnexoContratoAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'contrato', 'fecha_emision', 'creado_en')
+    list_filter = ('fecha_emision',)
+    search_fields = ('titulo', 'contrato__empleado__rut', 'contrato__empleado__apellido_paterno')

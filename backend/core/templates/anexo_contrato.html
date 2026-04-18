@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Anexo de Contrato — {{ anexo.titulo }}</title>
+    <style>
+        @page {
+            size: letter; margin: 2.5cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm; height: 1cm; text-align: center;
+            }
+        }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
+        h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 6px; text-decoration: underline; text-transform: uppercase; }
+        h2 { font-size: 12pt; font-weight: bold; margin-top: 24px; margin-bottom: 6px; }
+        .bold { font-weight: bold; }
+        .fecha { text-align: right; margin-bottom: 40px; }
+        .clausula { margin-bottom: 14px; }
+        .clausula-titulo { font-weight: bold; }
+        .firma-box { width: 100%; margin-top: 80px; }
+        .firma-col { width: 45%; display: inline-block; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 5px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Gratuito. Cámbiate a PYME para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="fecha">
+        <span class="bold">{{ ciudad|title }}</span>, a <span class="bold">{{ fecha_actual }}</span>
+    </div>
+
+    <h1>Anexo de Contrato de Trabajo</h1>
+    <p style="text-align:center; font-size: 12pt;">{{ anexo.titulo }}</p>
+
+    <p><span class="bold">Entre:</span> <span class="bold">{{ empresa.nombre_legal }}</span>, RUT {{ empresa.rut }}, representada legalmente por {{ empresa.representante_legal|default:"________________________" }}, RUT {{ empresa.rut_representante|default:"________________________" }}, en adelante el <span class="bold">Empleador</span>;</p>
+
+    <p><span class="bold">Y:</span> {{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}, RUT {{ empleado.rut }}, en adelante el <span class="bold">Trabajador</span>;</p>
+
+    <p>Se acuerda el siguiente Anexo al Contrato de Trabajo celebrado con fecha <span class="bold">{{ contrato.fecha_inicio }}</span>:</p>
+
+    {% if anexo.descripcion %}
+    <h2>Antecedentes</h2>
+    <p>{{ anexo.descripcion|linebreaks }}</p>
+    {% endif %}
+
+    {% if anexo.clausulas_modificadas %}
+    <h2>Cláusulas Modificadas</h2>
+    {% for clausula in anexo.clausulas_modificadas %}
+    <div class="clausula">
+        <span class="clausula-titulo">Cláusula {{ forloop.counter }}:</span> {{ clausula }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <p>En todo lo no modificado por el presente Anexo, se mantienen vigentes las estipulaciones del contrato original.</p>
+
+    <p>En señal de conformidad, las partes firman el presente Anexo en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte.</p>
+
+    <table class="firma-box">
+        <tr>
+            <td class="firma-col">
+                <br><br>
+                <span class="bold">{{ empresa.nombre_legal }}</span><br>
+                RUT: {{ empresa.rut }}<br>
+                p.p. {{ empresa.representante_legal|default:"________________________" }}<br>
+                Empleador
+            </td>
+            <td style="width: 10%;"></td>
+            <td class="firma-col">
+                <br><br>
+                <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }}</span><br>
+                RUT: {{ empleado.rut }}<br>
+                <br>
+                Trabajador
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
