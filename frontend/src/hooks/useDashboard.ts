@@ -6,7 +6,7 @@ import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
-  Contrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
+  Contrato, AnexoContrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
 } from '../types';
 
 export const defaultHorario: HorarioSemana = {
@@ -84,6 +84,12 @@ export function useDashboard() {
   const [documentoData, setDocumentoData] = useState<Partial<DocumentoLegal>>({});
   const [showDocumentoForm, setShowDocumentoForm] = useState(false);
   const [isSavingDocumento, setIsSavingDocumento] = useState(false);
+
+  // --- Anexos de contrato ---
+  const [anexosContrato, setAnexosContrato] = useState<AnexoContrato[]>([]);
+  const [showAnexoContratoForm, setShowAnexoContratoForm] = useState(false);
+  const [isSavingAnexoContrato, setIsSavingAnexoContrato] = useState(false);
+  const [anexoContratoData, setAnexoContratoData] = useState<Partial<AnexoContrato>>({});
 
   // --- Widgets BI ---
   const [flippedWidgets, setFlippedWidgets] = useState<Record<string, boolean>>({});
@@ -393,6 +399,10 @@ export function useDashboard() {
       const resLiq = await client.get(`/liquidaciones/?empleado=${empleadoId}`);
       setLiquidaciones(resLiq.data);
       setShowLiqForm(false);
+
+      const resAnexos = await client.get(`/anexos_contrato/?empleado=${empleadoId}`);
+      setAnexosContrato(resAnexos.data);
+      setShowAnexoContratoForm(false);
     } catch (error) {
       console.error('Error al cargar datos del panel:', error);
     }
@@ -695,6 +705,40 @@ export function useDashboard() {
     }
   };
 
+  // ─── Anexos de contrato ────────────────────────────────────────────────────
+
+  const guardarAnexoContrato = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contratoData.id) { alert('Guarda el contrato primero.'); return; }
+    setIsSavingAnexoContrato(true);
+    try {
+      const payload = { ...anexoContratoData, contrato: contratoData.id };
+      const res = await client.post('/anexos_contrato/', payload);
+      setAnexosContrato(prev => [res.data, ...prev]);
+      setShowAnexoContratoForm(false);
+      setAnexoContratoData({});
+      alert('¡Anexo de contrato guardado exitosamente!');
+    } catch {
+      alert('Hubo un error al guardar el anexo.');
+    } finally {
+      setIsSavingAnexoContrato(false);
+    }
+  };
+
+  const descargarAnexoContratoPDF = async (anexoId: number, titulo: string) => {
+    try {
+      const response = await client.get(`/anexos_contrato/${anexoId}/generar_pdf/`, { responseType: 'blob' });
+      const url  = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', `Anexo_${titulo.replace(/\s+/g, '_')}_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Error descargando el anexo de contrato.');
+    }
+  };
+
   // ─── Return ────────────────────────────────────────────────────────────────
 
   return {
@@ -747,6 +791,11 @@ export function useDashboard() {
     documentoData, setDocumentoData,
     showDocumentoForm, setShowDocumentoForm,
     isSavingDocumento,
+    // Anexos de contrato
+    anexosContrato,
+    showAnexoContratoForm, setShowAnexoContratoForm,
+    isSavingAnexoContrato,
+    anexoContratoData, setAnexoContratoData,
     // Widgets BI
     flippedWidgets,
     // Handlers
@@ -756,7 +805,8 @@ export function useDashboard() {
     handleFileUpload,
     abrirVer, abrirEditar, abrirCrear,
     handleInputChange, handleContratoChange,
-    guardarEmpleado, guardarContrato, guardarDocumentoLegal,
+    guardarEmpleado, guardarContrato, guardarDocumentoLegal, guardarAnexoContrato,
+    descargarAnexoContratoPDF,
     calcularValorHorasExtras,
     generarLiquidacion,
     descargarLiquidacionPDF, descargarDocumentoPDF,

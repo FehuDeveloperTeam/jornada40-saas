@@ -37,6 +37,14 @@ type Props = {
   hayCambiosContrato: UseDashboardReturn['hayCambiosContrato'];
   descargarContratoPDF: UseDashboardReturn['descargarContratoPDF'];
   descargarAnexoPDF: UseDashboardReturn['descargarAnexoPDF'];
+  anexosContrato: UseDashboardReturn['anexosContrato'];
+  showAnexoContratoForm: UseDashboardReturn['showAnexoContratoForm'];
+  setShowAnexoContratoForm: UseDashboardReturn['setShowAnexoContratoForm'];
+  isSavingAnexoContrato: UseDashboardReturn['isSavingAnexoContrato'];
+  anexoContratoData: UseDashboardReturn['anexoContratoData'];
+  setAnexoContratoData: UseDashboardReturn['setAnexoContratoData'];
+  guardarAnexoContrato: UseDashboardReturn['guardarAnexoContrato'];
+  descargarAnexoContratoPDF: UseDashboardReturn['descargarAnexoContratoPDF'];
   // Tab: Liquidaciones
   liquidaciones: UseDashboardReturn['liquidaciones'];
   showLiqForm: UseDashboardReturn['showLiqForm'];
@@ -78,6 +86,9 @@ export default function EmpleadoPanel({
   handleContratoChange, guardarContrato, setHayCambiosContrato,
   funciones, setFunciones, clausulas, setClausulas, horario, setHorario,
   hayCambiosContrato, descargarContratoPDF, descargarAnexoPDF,
+  anexosContrato, showAnexoContratoForm, setShowAnexoContratoForm,
+  isSavingAnexoContrato, anexoContratoData, setAnexoContratoData,
+  guardarAnexoContrato, descargarAnexoContratoPDF,
   liquidaciones, showLiqForm, setShowLiqForm, expandedLiqId, setExpandedLiqId,
   liqMes, setLiqMes, liqAnio, setLiqAnio,
   liqDiasTrabajados, setLiqDiasTrabajados, liqAusencias, setLiqAusencias,
@@ -196,6 +207,14 @@ export default function EmpleadoPanel({
                 hayCambiosContrato={hayCambiosContrato}
                 descargarContratoPDF={descargarContratoPDF}
                 descargarAnexoPDF={descargarAnexoPDF}
+                anexosContrato={anexosContrato}
+                showAnexoContratoForm={showAnexoContratoForm}
+                setShowAnexoContratoForm={setShowAnexoContratoForm}
+                isSavingAnexoContrato={isSavingAnexoContrato}
+                anexoContratoData={anexoContratoData}
+                setAnexoContratoData={setAnexoContratoData}
+                guardarAnexoContrato={guardarAnexoContrato}
+                descargarAnexoContratoPDF={descargarAnexoContratoPDF}
               />
             )}
             {activeTab === 'liquidaciones' && (

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
 
 type Props = {
@@ -15,6 +16,15 @@ type Props = {
   hayCambiosContrato: UseDashboardReturn['hayCambiosContrato'];
   descargarContratoPDF: UseDashboardReturn['descargarContratoPDF'];
   descargarAnexoPDF: UseDashboardReturn['descargarAnexoPDF'];
+  // Anexos de contrato
+  anexosContrato: UseDashboardReturn['anexosContrato'];
+  showAnexoContratoForm: UseDashboardReturn['showAnexoContratoForm'];
+  setShowAnexoContratoForm: UseDashboardReturn['setShowAnexoContratoForm'];
+  isSavingAnexoContrato: UseDashboardReturn['isSavingAnexoContrato'];
+  anexoContratoData: UseDashboardReturn['anexoContratoData'];
+  setAnexoContratoData: UseDashboardReturn['setAnexoContratoData'];
+  guardarAnexoContrato: UseDashboardReturn['guardarAnexoContrato'];
+  descargarAnexoContratoPDF: UseDashboardReturn['descargarAnexoContratoPDF'];
 };
 
 export default function TabContratos({
@@ -22,7 +32,11 @@ export default function TabContratos({
   funciones, setFunciones, clausulas, setClausulas,
   horario, setHorario, totalHorasCalculadas,
   hayCambiosContrato, descargarContratoPDF, descargarAnexoPDF,
+  anexosContrato, showAnexoContratoForm, setShowAnexoContratoForm,
+  isSavingAnexoContrato, anexoContratoData, setAnexoContratoData,
+  guardarAnexoContrato, descargarAnexoContratoPDF,
 }: Props) {
+  const [clausulasAnexo, setClausulasAnexo] = useState<string[]>([]);
   return (
     <form id="contratoForm" onSubmit={guardarContrato} onChange={() => setHayCambiosContrato(true)} className="max-w-4xl mx-auto space-y-8 pb-10">
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -207,5 +221,155 @@ export default function TabContratos({
         </div>
       )}
     </form>
+
+    {/* ── SECCIÓN ANEXOS DE CONTRATO (fuera del form principal) ── */}
+    {contratoData.id && (
+      <div className="max-w-4xl mx-auto mt-8 pb-10">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center border-b pb-4 mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">5. Anexos de Contrato</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Modificaciones contractuales formalizadas por escrito.</p>
+            </div>
+            {!showAnexoContratoForm && (
+              <button
+                onClick={() => {
+                  setAnexoContratoData({ fecha_emision: new Date().toISOString().split('T')[0], titulo: '', descripcion: '', clausulas_modificadas: [] });
+                  setClausulasAnexo([]);
+                  setShowAnexoContratoForm(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                + Nuevo Anexo
+              </button>
+            )}
+          </div>
+
+          {showAnexoContratoForm ? (
+            <form
+              id="anexoContratoForm"
+              onSubmit={(e) => {
+                guardarAnexoContrato(e);
+                setClausulasAnexo([]);
+              }}
+              className="space-y-5"
+            >
+              <div className="grid grid-cols-2 gap-5">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Título del Anexo</label>
+                  <input
+                    type="text"
+                    required
+                    value={anexoContratoData.titulo || ''}
+                    onChange={e => setAnexoContratoData({ ...anexoContratoData, titulo: e.target.value })}
+                    placeholder="Ej: Modificación de cargo y remuneración"
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha de Emisión</label>
+                  <input
+                    type="date"
+                    required
+                    value={anexoContratoData.fecha_emision || ''}
+                    onChange={e => setAnexoContratoData({ ...anexoContratoData, fecha_emision: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Antecedentes (opcional)</label>
+                  <textarea
+                    rows={2}
+                    value={anexoContratoData.descripcion || ''}
+                    onChange={e => setAnexoContratoData({ ...anexoContratoData, descripcion: e.target.value })}
+                    placeholder="Contexto o motivo del anexo..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Cláusulas Modificadas</label>
+                {clausulasAnexo.map((cl, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <textarea
+                      rows={2}
+                      value={cl}
+                      onChange={e => {
+                        const nueva = [...clausulasAnexo];
+                        nueva[i] = e.target.value;
+                        setClausulasAnexo(nueva);
+                        setAnexoContratoData({ ...anexoContratoData, clausulas_modificadas: nueva });
+                      }}
+                      className="flex-1 px-3 py-2 rounded-lg border border-slate-300 resize-none"
+                      placeholder="Ej: El cargo del trabajador pasa a ser Jefe de Área..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nueva = clausulasAnexo.filter((_, j) => j !== i);
+                        setClausulasAnexo(nueva);
+                        setAnexoContratoData({ ...anexoContratoData, clausulas_modificadas: nueva });
+                      }}
+                      className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-bold"
+                    >✕</button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nueva = [...clausulasAnexo, ''];
+                    setClausulasAnexo(nueva);
+                    setAnexoContratoData({ ...anexoContratoData, clausulas_modificadas: nueva });
+                  }}
+                  className="text-sm text-blue-600 font-semibold mt-1"
+                >
+                  + Añadir Cláusula
+                </button>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowAnexoContratoForm(false); setClausulasAnexo([]); }}
+                  className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAnexoContrato}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSavingAnexoContrato ? 'Guardando...' : 'Guardar y Generar PDF'}
+                </button>
+              </div>
+            </form>
+          ) : anexosContrato.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No hay anexos de contrato registrados.</p>
+          ) : (
+            <div className="space-y-2">
+              {anexosContrato.map(anexo => (
+                <div key={anexo.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div>
+                    <p className="font-semibold text-sm text-slate-800">{anexo.titulo}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{anexo.fecha_emision}</p>
+                  </div>
+                  <button
+                    onClick={() => descargarAnexoContratoPDF(anexo.id, anexo.titulo)}
+                    className="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center gap-1"
+                  >
+                    <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    PDF
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   );
 }

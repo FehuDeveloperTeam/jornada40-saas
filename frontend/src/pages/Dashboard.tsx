@@ -56,6 +56,11 @@ export default function Dashboard() {
     documentoData, setDocumentoData,
     showDocumentoForm, setShowDocumentoForm,
     isSavingDocumento,
+    // Anexos de contrato
+    anexosContrato,
+    showAnexoContratoForm, setShowAnexoContratoForm,
+    isSavingAnexoContrato,
+    anexoContratoData, setAnexoContratoData,
     // Widgets BI
     flippedWidgets,
     // Handlers
@@ -65,7 +70,8 @@ export default function Dashboard() {
     handleFileUpload,
     abrirVer, abrirEditar, abrirCrear,
     handleInputChange, handleContratoChange,
-    guardarEmpleado, guardarContrato, guardarDocumentoLegal,
+    guardarEmpleado, guardarContrato, guardarDocumentoLegal, guardarAnexoContrato,
+    descargarAnexoContratoPDF,
     calcularValorHorasExtras,
     generarLiquidacion,
     descargarLiquidacionPDF, descargarDocumentoPDF,
@@ -174,6 +180,14 @@ export default function Dashboard() {
           hayCambiosContrato={hayCambiosContrato}
           descargarContratoPDF={descargarContratoPDF}
           descargarAnexoPDF={descargarAnexoPDF}
+          anexosContrato={anexosContrato}
+          showAnexoContratoForm={showAnexoContratoForm}
+          setShowAnexoContratoForm={setShowAnexoContratoForm}
+          isSavingAnexoContrato={isSavingAnexoContrato}
+          anexoContratoData={anexoContratoData}
+          setAnexoContratoData={setAnexoContratoData}
+          guardarAnexoContrato={guardarAnexoContrato}
+          descargarAnexoContratoPDF={descargarAnexoContratoPDF}
           liquidaciones={liquidaciones}
           showLiqForm={showLiqForm}
           setShowLiqForm={setShowLiqForm}
