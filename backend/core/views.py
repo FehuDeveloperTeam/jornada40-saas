@@ -148,8 +148,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
             comuna_empl = getattr(empleado, 'comuna', '') or ''
             ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             context = {
                 'documento': documento,
@@ -419,6 +418,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
    # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
+    @staticmethod
+    def _es_plan_semilla(user):
+        """True si el usuario no tiene plan o su plan es Semilla (gratuito)."""
+        cliente = getattr(user, 'perfil_cliente', None)
+        if not cliente or not cliente.plan:
+            return True
+        return cliente.plan.nombre.lower() == 'semilla'
+
     def _html_a_pdf(self, html_string, nombre_doc):
         """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción clara si falla."""
         resultado = io.BytesIO()
@@ -437,10 +444,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             )
         return pdf_bytes
 
-    def _obtener_o_generar_documento(self, empleado, tipo_documento):
+    def _obtener_o_generar_documento(self, empleado, tipo_documento, user=None):
         """Revisa si el PDF ya existe en la BD. Si no, lo genera usando los templates HTML reales."""
 
         empresa = empleado.empresa
+        es_plan_semilla = self._es_plan_semilla(user) if user else False
 
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
@@ -454,7 +462,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
+            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato, 'es_plan_semilla': es_plan_semilla}
             html_string = render_to_string('contrato_trabajo.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Contrato_{empleado.rut}')
             contrato.archivo_contrato.save(f"Contrato_{empleado.rut}.pdf", ContentFile(pdf_bytes))
@@ -472,7 +480,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
+            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato, 'es_plan_semilla': es_plan_semilla}
             html_string = render_to_string('anexo_40h.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Anexo_40h_{empleado.rut}')
             contrato.archivo_anexo_40h.save(f"Anexo_40h_{empleado.rut}.pdf", ContentFile(pdf_bytes))
@@ -499,6 +507,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             context = {
                 'empleado': empleado, 'empresa': empresa,
                 'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
+                'es_plan_semilla': es_plan_semilla,
             }
             html_string = render_to_string('liquidacion.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}')
@@ -530,6 +539,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             context = {
                 'empleado': empleado, 'empresa': empresa,
                 'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
+                'es_plan_semilla': es_plan_semilla,
             }
             html_string = render_to_string('liquidacion.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}')
@@ -551,7 +561,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal}
+            context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal, 'es_plan_semilla': es_plan_semilla}
             html_string = render_to_string('documento_legal.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Amonestacion_{empleado.rut}')
             doc_legal.archivo_pdf.save(f"Amonestacion_{empleado.rut}.pdf", ContentFile(pdf_bytes))
@@ -588,21 +598,21 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
                     if tipo in ['contratos', 'zip_completo']:
                         try:
-                            pdf = self._obtener_o_generar_documento(emp, 'contrato')
+                            pdf = self._obtener_o_generar_documento(emp, 'contrato', request.user)
                             zip_file.writestr(f"{nombre_carpeta}/Contrato.pdf", pdf)
                         except Exception:
                             pass
 
                     if tipo in ['anexos', 'zip_completo']:
                         try:
-                            pdf = self._obtener_o_generar_documento(emp, 'anexo_40h')
+                            pdf = self._obtener_o_generar_documento(emp, 'anexo_40h', request.user)
                             zip_file.writestr(f"{nombre_carpeta}/Anexo_40h.pdf", pdf)
                         except Exception:
                             pass
 
                     if tipo in ['liq_actual', 'zip_completo']:
                         try:
-                            pdf = self._obtener_o_generar_documento(emp, 'liquidacion_actual')
+                            pdf = self._obtener_o_generar_documento(emp, 'liquidacion_actual', request.user)
                             zip_file.writestr(f"{nombre_carpeta}/Liquidaciones/Liq_Actual.pdf", pdf)
                         except Exception:
                             pass
@@ -617,14 +627,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                                 mes_hist += 12
                                 anio_hist -= 1
                             try:
-                                pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{mes_hist}_{anio_hist}')
+                                pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{mes_hist}_{anio_hist}', request.user)
                                 zip_file.writestr(f"{nombre_carpeta}/Liquidaciones_Historicas/Liq_{mes_hist}_{anio_hist}.pdf", pdf)
                             except Exception:
                                 pass
 
                     if tipo in ['amonestacion', 'zip_completo']:
                         try:
-                            pdf = self._obtener_o_generar_documento(emp, 'amonestacion')
+                            pdf = self._obtener_o_generar_documento(emp, 'amonestacion', request.user)
                             zip_file.writestr(f"{nombre_carpeta}/Amonestacion.pdf", pdf)
                         except Exception:
                             pass
@@ -741,8 +751,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
             hoy = datetime.date.today()
@@ -785,8 +794,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -903,8 +911,7 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             contrato = anexo.contrato
             empleado = contrato.empleado
             empresa = empleado.empresa
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
             hoy = anexo.fecha_emision
@@ -1064,8 +1071,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
             empleado = liquidacion.empleado
             empresa = empleado.empresa
             contrato = Contrato.objects.filter(empleado=empleado).first()
@@ -1245,6 +1251,11 @@ def webhook_reveniu(request):
         suscripcion.estado = 'ACTIVE'
         suscripcion.gateway_subscription_id = str(data.get('subscription_id', ''))
         suscripcion.save()
+
+        # Sincronizar también cliente.plan para que los PDFs y límites
+        # reflejen el plan activo sin depender de la Suscripcion.
+        suscripcion.cliente.plan = plan_nuevo
+        suscripcion.cliente.save(update_fields=['plan'])
 
     return Response(status=status.HTTP_200_OK)
 
