@@ -717,15 +717,15 @@ export function useDashboard() {
     uploadResult, setUploadResult,
     // Panel lateral
     isPanelOpen, setIsPanelOpen,
-    panelMode,
+    panelMode, setPanelMode,
     selectedEmpleado,
-    isValidRut,
+    isValidRut, setIsValidRut,
     activeTab, setActiveTab,
     // Formulario empleado
-    formData,
+    formData, setFormData,
     // Formulario contrato
     contratoData, setContratoData,
-    isSavingContrato, hayCambiosContrato,
+    isSavingContrato, hayCambiosContrato, setHayCambiosContrato,
     funciones, setFunciones,
     clausulas, setClausulas,
     horario, setHorario,
