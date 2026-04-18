@@ -87,7 +87,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 md:p-10 bg-gray-50 min-h-screen font-sans flex" onClick={() => setOpenFilterDropdown(null)}>
-      <div className={`max-w-7xl mx-auto w-full transition-all duration-300 ${isPanelOpen ? 'md:mr-[450px]' : ''}`}>
+      <div className={`max-w-7xl mx-auto w-full min-w-0 transition-all duration-300 ${isPanelOpen ? 'md:mr-[450px]' : ''}`}>
         
         <div className="flex justify-between items-center mb-8">
           <button onClick={volverAlLobby} className="text-gray-500 hover:text-gray-900 flex items-center gap-2 font-medium transition-colors">

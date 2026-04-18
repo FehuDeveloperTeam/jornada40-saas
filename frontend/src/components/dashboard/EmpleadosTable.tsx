@@ -45,9 +45,9 @@ export default function EmpleadosTable({
   setIsModalMasivoOpen, setIsUploadModalOpen,
 }: Props) {
   return (
-    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 min-h-[500px]">
+    <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 min-h-[500px] overflow-hidden">
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 flex-wrap">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Directorio de Empleados</h2>
           <p className="text-sm text-gray-500 mt-1">Mostrando {filteredEmpleados?.length || 0} de {empleados?.length || 0}</p>
@@ -65,63 +65,6 @@ export default function EmpleadosTable({
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
         </div>
-
-        {selectedEmpleadosIds.length > 0 && (
-          <div className="bg-slate-900 rounded-2xl p-4 mb-6 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4 fade-in duration-300">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" />
-                {selectedEmpleadosIds.length} seleccionados
-              </div>
-              <span className="text-slate-300 text-sm font-medium">¿Qué deseas generar?</span>
-            </div>
-
-            <div className="relative">
-              <button
-                onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
-                disabled={isDownloading}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-              >
-                {isDownloading ? (
-                  <span className="animate-pulse">Generando documentos...</span>
-                ) : (
-                  <>
-                    <Download className="w-5 h-5" />
-                    Descarga Masiva
-                    <ChevronDown className={`w-4 h-4 transition-transform ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
-                  </>
-                )}
-              </button>
-
-              {isDownloadMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95">
-                  <div className="p-2 space-y-1">
-                    <button onClick={() => ejecutarDescargaMasiva('contratos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                      <Briefcase className="w-5 h-5 text-indigo-500" /> Contratos de Trabajo
-                    </button>
-                    <button onClick={() => ejecutarDescargaMasiva('anexos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                      <FileSignature className="w-5 h-5 text-emerald-500" /> Anexos 40 Horas
-                    </button>
-                    <div className="h-px bg-slate-100 my-2"></div>
-                    <button onClick={() => ejecutarDescargaMasiva('liq_actual')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                      <FileText className="w-5 h-5 text-blue-500" /> Liquidación (Mes Actual)
-                    </button>
-                    <button onClick={() => ejecutarDescargaMasiva('liq_12')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                      <Layers className="w-5 h-5 text-blue-600" /> Últimas 12 Liquidaciones
-                    </button>
-                    <div className="h-px bg-slate-100 my-2"></div>
-                    <button onClick={() => ejecutarDescargaMasiva('amonestacion')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                      <AlertTriangle className="w-5 h-5 text-amber-500" /> Carta de Amonestación
-                    </button>
-                    <button onClick={() => ejecutarDescargaMasiva('zip_completo')} className="w-full flex items-center gap-3 px-3 py-2.5 bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-900 rounded-lg text-left text-sm font-bold transition-colors">
-                      <FolderArchive className="w-5 h-5" /> Expediente Completo (ZIP)
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-wrap gap-3 items-center">
           <button
@@ -144,13 +87,70 @@ export default function EmpleadosTable({
         </div>
       </div>
 
+      {selectedEmpleadosIds.length > 0 && (
+        <div className="bg-slate-900 rounded-2xl p-4 mb-6 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded-lg font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5" />
+              {selectedEmpleadosIds.length} seleccionados
+            </div>
+            <span className="text-slate-300 text-sm font-medium">¿Qué deseas generar?</span>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
+              disabled={isDownloading}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              {isDownloading ? (
+                <span className="animate-pulse">Generando documentos...</span>
+              ) : (
+                <>
+                  <Download className="w-5 h-5" />
+                  Descarga Masiva
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
+                </>
+              )}
+            </button>
+
+            {isDownloadMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50">
+                <div className="p-2 space-y-1">
+                  <button onClick={() => ejecutarDescargaMasiva('contratos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                    <Briefcase className="w-5 h-5 text-indigo-500" /> Contratos de Trabajo
+                  </button>
+                  <button onClick={() => ejecutarDescargaMasiva('anexos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                    <FileSignature className="w-5 h-5 text-emerald-500" /> Anexos 40 Horas
+                  </button>
+                  <div className="h-px bg-slate-100 my-2"></div>
+                  <button onClick={() => ejecutarDescargaMasiva('liq_actual')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                    <FileText className="w-5 h-5 text-blue-500" /> Liquidación (Mes Actual)
+                  </button>
+                  <button onClick={() => ejecutarDescargaMasiva('liq_12')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                    <Layers className="w-5 h-5 text-blue-600" /> Últimas 12 Liquidaciones
+                  </button>
+                  <div className="h-px bg-slate-100 my-2"></div>
+                  <button onClick={() => ejecutarDescargaMasiva('amonestacion')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" /> Carta de Amonestación
+                  </button>
+                  <button onClick={() => ejecutarDescargaMasiva('zip_completo')} className="w-full flex items-center gap-3 px-3 py-2.5 bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-900 rounded-lg text-left text-sm font-bold transition-colors">
+                    <FolderArchive className="w-5 h-5" /> Expediente Completo (ZIP)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {empleados?.length === 0 ? (
         <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-2xl">
           <p className="text-gray-500 font-medium mb-4">Aún no tienes empleados en esta empresa.</p>
         </div>
       ) : (
-        <div className="overflow-x-visible pb-20">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto -mx-8 px-8 pb-4">
+          <table className="w-full min-w-[700px] text-left border-collapse">
             <thead>
               <tr className="border-b-2 border-gray-100">
                 <th className="px-6 py-4 text-left w-10">
