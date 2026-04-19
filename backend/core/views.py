@@ -683,6 +683,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Faltan IDs de trabajadores o empresa'}, status=400)
             if not documentos:
                 return Response({'error': 'Debes seleccionar al menos un tipo de documento'}, status=400)
+
+            MAX_EMPLEADOS_ZIP = 50
+            if len(empleados_ids) > MAX_EMPLEADOS_ZIP:
+                return Response({'error': f'Máximo {MAX_EMPLEADOS_ZIP} trabajadores por descarga. Divide la selección en grupos.'}, status=400)
+
+            MAX_LIQUIDACIONES_ZIP = 12
+            cantidad_liquidaciones = min(cantidad_liquidaciones, MAX_LIQUIDACIONES_ZIP)
+
             if _es_plan_semilla(request.user):
                 return Response({'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Actualiza a PYME para desbloquear esta función.'}, status=403)
 
@@ -773,10 +781,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             response['Access-Control-Expose-Headers'] = 'Content-Disposition'
             return response
 
-        except Exception as e:
+        except Exception:
             import traceback
             print(traceback.format_exc())
-            return Response({'error': str(e)}, status=500)
+            return Response({'error': 'Error al generar el ZIP. Inténtalo de nuevo.'}, status=500)
         
 
     @action(detail=False, methods=['post'])
@@ -790,9 +798,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             )
         
         empleado_ids = request.data.get('empleados', [])
-        
+
         if not empleado_ids:
             return Response({'error': 'No se seleccionaron trabajadores'}, status=status.HTTP_400_BAD_REQUEST)
+
+        MAX_EMPLEADOS_ZIP = 50
+        if len(empleado_ids) > MAX_EMPLEADOS_ZIP:
+            return Response({'error': f'Máximo {MAX_EMPLEADOS_ZIP} trabajadores por descarga. Divide la selección en grupos.'}, status=status.HTTP_400_BAD_REQUEST)
         
         zip_buffer = io.BytesIO()
         
