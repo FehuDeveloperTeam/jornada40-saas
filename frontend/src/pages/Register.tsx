@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import axios from 'axios';
 import client from '../api/client';
+import { useToast } from '../context/ToastContext';
 import { Check, Zap, ArrowLeft, Building } from 'lucide-react';
 
 // --- DEFINICIÓN DE PLANES ---
@@ -65,6 +66,7 @@ const PLANES = [
 
 export default function Register() {
   const navigate = useNavigate();
+  const showToast = useToast();
   
   // --- ESTADOS DE FLUJO ---
   const [step, setStep] = useState(1);
@@ -120,15 +122,15 @@ export default function Register() {
 
         } catch (loginError) {
           console.error("Error en auto-login:", loginError);
-          alert("Cuenta creada con éxito. Por favor, inicia sesión para continuar.");
+          showToast('Cuenta creada con éxito. Por favor, inicia sesión para continuar.', 'success');
           navigate('/login');
         }
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        alert(error.response?.data?.error || "Error al crear la cuenta. Inténtalo de nuevo.");
+        showToast(error.response?.data?.error || 'Error al crear la cuenta. Inténtalo de nuevo.', 'error');
       } else {
-        alert("Ocurrió un error inesperado. Inténtalo de nuevo.");
+        showToast('Ocurrió un error inesperado. Inténtalo de nuevo.', 'error');
       }
     } finally {
       setIsLoading(false);
@@ -152,7 +154,7 @@ export default function Register() {
       
     } catch (error) {
       console.error("Error al iniciar el pago:", error);
-      alert("Hubo un problema al conectar con la pasarela de pago.");
+      showToast('Hubo un problema al conectar con la pasarela de pago.', 'error');
     }
   };
 

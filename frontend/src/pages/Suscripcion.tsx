@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import { useToast } from '../context/ToastContext';
 import { Check, CreditCard, User, Shield, ArrowLeft } from 'lucide-react';
 
 // --- INTERFACES ---
@@ -23,6 +24,7 @@ interface MiSuscripcion {
 
 export default function Suscripcion() {
   const navigate = useNavigate();
+  const showToast = useToast();
   const [activeTab, setActiveTab] = useState<'cuenta' | 'suscripcion' | 'seguridad'>('cuenta');
 
   // Estados reales
@@ -75,10 +77,10 @@ export default function Suscripcion() {
   const handleActualizarPerfil = async () => {
     try {
       await client.put('/clientes/perfil/', userData);
-      alert("¡Perfil actualizado con éxito!");
+      showToast('¡Perfil actualizado con éxito!', 'success');
     } catch (error) {
       console.error("Error al actualizar perfil", error);
-      alert("Hubo un error al guardar los cambios.");
+      showToast('Hubo un error al guardar los cambios.', 'error');
     }
   };
 
@@ -96,7 +98,7 @@ export default function Suscripcion() {
       }
     } catch (error) {
       console.error("Error al generar link de pago", error);
-      alert("Hubo un error al conectar con la pasarela de pagos.");
+      showToast('Hubo un error al conectar con la pasarela de pagos.', 'error');
     } finally {
       setProcesandoPago(false);
     }

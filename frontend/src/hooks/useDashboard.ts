@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
+import { useToast } from '../context/ToastContext';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import * as XLSX from 'xlsx';
 import type {
@@ -21,6 +22,7 @@ export const defaultHorario: HorarioSemana = {
 
 export function useDashboard() {
   const navigate = useNavigate();
+  const showToast = useToast();
   const empresaActivaId = localStorage.getItem('empresaActivaId');
 
   // --- Estado principal ---
@@ -314,7 +316,7 @@ export function useDashboard() {
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Hubo un error al generar los documentos. Revisa tu consola para más detalles.');
+      showToast('Hubo un error al generar los documentos. Inténtalo de nuevo.', 'error');
     } finally {
       setIsDownloading(false);
     }
@@ -484,7 +486,7 @@ export function useDashboard() {
     e.preventDefault();
     if (!isValidRut || !formData.nombres || !formData.apellido_paterno) return;
     if (formData.numero_telefono && formData.numero_telefono.length > 0 && formData.numero_telefono.length < 9) {
-      alert('El número de teléfono debe tener exactamente 9 dígitos (Ej: 912345678).');
+      showToast('El número de teléfono debe tener exactamente 9 dígitos (Ej: 912345678).', 'warning');
       return;
     }
     const payload: Record<string, unknown> = { ...formData } as Record<string, unknown>;
@@ -516,9 +518,9 @@ export function useDashboard() {
       fetchData();
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        alert(`Django rechazó la operación:\n\n${JSON.stringify(error.response?.data, null, 2) || 'Error de conexión'}`);
+        showToast('No se pudo guardar el trabajador. Revisa los datos e inténtalo de nuevo.', 'error');
       } else {
-        alert('Ocurrió un error desconocido al guardar.');
+        showToast('Ocurrió un error desconocido al guardar.', 'error');
       }
     }
   };
@@ -539,15 +541,15 @@ export function useDashboard() {
     try {
       if (contratoData.id) {
         await client.patch(`/contratos/${contratoData.id}/`, payload);
-        alert('¡Contrato actualizado exitosamente!');
+        showToast('¡Contrato actualizado exitosamente!', 'success');
       } else {
         const res = await client.post('/contratos/', payload);
         setContratoData(res.data);
-        alert('¡Contrato creado exitosamente!');
+        showToast('¡Contrato creado exitosamente!', 'success');
       }
       setHayCambiosContrato(false);
     } catch {
-      alert('Hubo un error al guardar las condiciones del contrato.');
+      showToast('Hubo un error al guardar las condiciones del contrato.', 'error');
     } finally {
       setIsSavingContrato(false);
     }
@@ -562,9 +564,9 @@ export function useDashboard() {
       const res = await client.post('/documentos_legales/', documentoData);
       setDocumentosLegales(prev => [res.data, ...prev]);
       setShowDocumentoForm(false);
-      alert('¡Documento legal generado exitosamente!');
+      showToast('¡Documento legal generado exitosamente!', 'success');
     } catch {
-      alert('Hubo un error al guardar el documento.');
+      showToast('Hubo un error al guardar el documento.', 'error');
     } finally {
       setIsSavingDocumento(false);
     }
@@ -604,12 +606,12 @@ export function useDashboard() {
       setHorasExtrasList([]);
       setHaberesNoImponiblesList([]);
       setLiqAusencias(0);
-      alert('¡Liquidación calculada y generada exitosamente!');
+      showToast('¡Liquidación calculada y generada exitosamente!', 'success');
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.data?.error) {
-        alert(`Error del Servidor: ${error.response.data.error}`);
+        showToast(`Error del Servidor: ${error.response.data.error}`, 'error');
       } else {
-        alert('Ocurrió un error al calcular la liquidación. Revisa la consola.');
+        showToast('Ocurrió un error al calcular la liquidación. Revisa los datos e inténtalo de nuevo.', 'error');
       }
     } finally {
       setIsGeneratingLiq(false);
@@ -628,7 +630,7 @@ export function useDashboard() {
       document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error descargando la liquidación. Asegúrate de tener el backend actualizado.');
+      showToast('Error al descargar la liquidación. Inténtalo de nuevo.', 'error');
     }
   };
 
@@ -642,7 +644,7 @@ export function useDashboard() {
       document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error descargando el documento legal.');
+      showToast('Error al descargar el documento legal.', 'error');
     }
   };
 
@@ -656,7 +658,7 @@ export function useDashboard() {
       document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error descargando el contrato.');
+      showToast('Error al descargar el contrato.', 'error');
     }
   };
 
@@ -670,7 +672,7 @@ export function useDashboard() {
       document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error descargando el anexo.');
+      showToast('Error al descargar el anexo.', 'error');
     }
   };
 
@@ -699,7 +701,7 @@ export function useDashboard() {
       document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Hubo un problema al generar el documento.');
+      showToast('Hubo un problema al generar el documento.', 'error');
     } finally {
       setDownloadingId(null);
     }
@@ -709,7 +711,7 @@ export function useDashboard() {
 
   const guardarAnexoContrato = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contratoData.id) { alert('Guarda el contrato primero.'); return; }
+    if (!contratoData.id) { showToast('Guarda el contrato primero.', 'warning'); return; }
     setIsSavingAnexoContrato(true);
     try {
       const payload = { ...anexoContratoData, contrato: contratoData.id };
@@ -717,9 +719,9 @@ export function useDashboard() {
       setAnexosContrato(prev => [res.data, ...prev]);
       setShowAnexoContratoForm(false);
       setAnexoContratoData({});
-      alert('¡Anexo de contrato guardado exitosamente!');
+      showToast('¡Anexo de contrato guardado exitosamente!', 'success');
     } catch {
-      alert('Hubo un error al guardar el anexo.');
+      showToast('Hubo un error al guardar el anexo.', 'error');
     } finally {
       setIsSavingAnexoContrato(false);
     }
@@ -735,7 +737,7 @@ export function useDashboard() {
       document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Error descargando el anexo de contrato.');
+      showToast('Error al descargar el anexo de contrato.', 'error');
     }
   };
 
