@@ -8,15 +8,12 @@ from rest_framework.throttling import AnonRateThrottle
 
 
 class LoginRateThrottle(AnonRateThrottle):
-    rate = '10/minute'
     scope = 'login'
 
 class RegisterRateThrottle(AnonRateThrottle):
-    rate = '5/minute'
     scope = 'register'
 
 class PasswordResetRateThrottle(AnonRateThrottle):
-    rate = '5/hour'
     scope = 'password_reset'
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
