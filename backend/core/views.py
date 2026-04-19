@@ -116,8 +116,27 @@ def estandarizar_fecha(fecha_valor):
             return dt
         except ValueError:
             continue
-            
+
     return None
+
+
+def _es_plan_semilla(user) -> bool:
+    """True si el usuario no tiene plan activo o su plan es Semilla (gratuito)."""
+    cliente = getattr(user, 'perfil_cliente', None)
+    if not cliente:
+        return True
+    plan = cliente.plan
+    if not plan:
+        try:
+            suscripcion = cliente.suscripcion_activa
+            if suscripcion.estado in ('ACTIVE', 'TRIAL', 'PAST_DUE'):
+                plan = suscripcion.plan
+        except Exception:
+            pass
+    if not plan:
+        return True
+    return plan.nombre.lower() == 'semilla'
+
 
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
     queryset = DocumentoLegal.objects.all().order_by('-fecha_emision', '-creado_en')
@@ -148,7 +167,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
             comuna_empl = getattr(empleado, 'comuna', '') or ''
             ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             context = {
                 'documento': documento,
@@ -438,29 +457,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
    # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
-    @staticmethod
-    def _es_plan_semilla(user):
-        """True si el usuario no tiene plan activo o su plan es Semilla (gratuito)."""
-        cliente = getattr(user, 'perfil_cliente', None)
-        if not cliente:
-            return True
-
-        plan = cliente.plan
-
-        # Fallback: leer el plan desde la suscripción activa
-        # (necesario para usuarios cuyo Cliente.plan aún no fue sincronizado)
-        if not plan:
-            try:
-                suscripcion = cliente.suscripcion_activa
-                if suscripcion.estado in ('ACTIVE', 'TRIAL', 'PAST_DUE'):
-                    plan = suscripcion.plan
-            except Exception:
-                pass
-
-        if not plan:
-            return True
-
-        return plan.nombre.lower() == 'semilla'
 
     def _html_a_pdf(self, html_string, nombre_doc):
         """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción clara si falla."""
@@ -484,7 +480,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         """Revisa si el PDF ya existe en la BD. Si no, lo genera usando los templates HTML reales."""
 
         empresa = empleado.empresa
-        es_plan_semilla = self._es_plan_semilla(user) if user else False
+        es_plan_semilla = _es_plan_semilla(user) if user else False
 
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
@@ -664,7 +660,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Faltan IDs de trabajadores o empresa'}, status=400)
             if not documentos:
                 return Response({'error': 'Debes seleccionar al menos un tipo de documento'}, status=400)
-            if self._es_plan_semilla(request.user):
+            if _es_plan_semilla(request.user):
                 return Response({'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Actualiza a PYME para desbloquear esta función.'}, status=403)
 
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
@@ -859,7 +855,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
             hoy = datetime.date.today()
@@ -902,7 +898,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -1019,7 +1015,7 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             contrato = anexo.contrato
             empleado = contrato.empleado
             empresa = empleado.empresa
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
             hoy = anexo.fecha_emision
@@ -1179,7 +1175,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
             empleado = liquidacion.empleado
             empresa = empleado.empresa
             contrato = Contrato.objects.filter(empleado=empleado).first()
