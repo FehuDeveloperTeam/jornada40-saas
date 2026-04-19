@@ -1348,14 +1348,23 @@ def crear_checkout_reveniu(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
-    # TODO: implementar verificación HMAC con el secret de Reveniu cuando esté disponible.
-    # Ejemplo: comparar header 'X-Reveniu-Signature' con HMAC-SHA256(secret, request.body)
-    # Por ahora se usa un token estático configurable como capa básica de protección.
+    from svix.webhooks import Webhook as SvixWebhook, WebhookVerificationError
+
     webhook_secret = config('REVENIU_WEBHOOK_SECRET', default=None)
-    if webhook_secret:
-        token_recibido = request.headers.get('X-Webhook-Token', '')
-        if token_recibido != webhook_secret:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # El secret es obligatorio. Si no está configurado, rechazamos todo tráfico.
+    if not webhook_secret:
+        return Response({'error': 'Webhook no configurado'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    # Svix verifica firma + timestamp (previene replay attacks de más de 5 minutos).
+    # Requiere los headers svix-id, svix-timestamp y svix-signature.
+    try:
+        wh = SvixWebhook(webhook_secret)
+        wh.verify(request.body, dict(request.headers))
+    except WebhookVerificationError:
+        return Response({'error': 'Firma inválida'}, status=status.HTTP_401_UNAUTHORIZED)
+    except Exception:
+        return Response({'error': 'Error al verificar webhook'}, status=status.HTTP_400_BAD_REQUEST)
 
     data = request.data
     evento = data.get('event')
