@@ -202,7 +202,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
-                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+                return HttpResponse('Error al generar el PDF.', status=500)
             
             return response
 
@@ -340,6 +340,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             empleados_creados = 0
             empleados_actualizados = 0
             limite_alcanzado = False
+            errores = []
             
             # Preparamos el mapa de empleados actuales para evitar duplicados
             empleados_bd = Empleado.objects.filter(empresa=empresa)
@@ -350,7 +351,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 total_actual = empleados_bd.count()
 
-                for row in registros:
+                for fila_num, row in enumerate(registros, start=2):  # start=2 porque fila 1 es el header del Excel
                     # --- NORMALIZADOR DE COLUMNAS ---
                     # Creamos un nuevo diccionario con todas las llaves en minúsculas y sin espacios
                     # Así row.get('email') funcionará aunque el Excel diga "Email", " EMAIL" o "email"
@@ -442,11 +443,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 'agregados': empleados_creados,
                 'actualizados': empleados_actualizados,
                 'limite_alcanzado': limite_alcanzado,
-                'errores': []
+                'errores': errores,
             }, status=200)
 
-        except Exception as e:
-            return Response({'error': f'Error procesando: {str(e)}'}, status=500)
+        except Exception:
+            return Response({'error': 'Error procesando el archivo. Revisa el formato e inténtalo de nuevo.'}, status=500)
                 
    # ====================================================
     # DISPONIBILIDAD DE DOCUMENTOS POR TRABAJADOR
@@ -899,7 +900,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
-                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+                return HttpResponse('Error al generar el PDF.', status=500)
             
             return response
 
@@ -942,7 +943,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
-                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+                return HttpResponse('Error al generar el PDF.', status=500)
             
             return response
 

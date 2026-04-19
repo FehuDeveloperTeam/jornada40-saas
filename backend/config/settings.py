@@ -10,14 +10,17 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-test-key')
-
 # Detectar entorno Railway
 RAILWAY_ENV = config('RAILWAY_ENVIRONMENT_NAME', default=None)
 IS_PRODUCTION = RAILWAY_ENV == 'production'
 IS_STAGING = RAILWAY_ENV is not None and not IS_PRODUCTION
 IS_DEPLOYED = RAILWAY_ENV is not None  # cualquier entorno Railway
+
+# SECRET_KEY es obligatorio en producción. En desarrollo local se permite fallback.
+if IS_DEPLOYED:
+    SECRET_KEY = config('SECRET_KEY')
+else:
+    SECRET_KEY = config('SECRET_KEY', default='django-insecure-local-dev-only-never-use-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = not IS_DEPLOYED
