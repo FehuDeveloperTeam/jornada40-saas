@@ -21,7 +21,9 @@ fail()    { echo "  ✗ $1"; ((FAIL++)) || true; }
 # ── 1. Django tests de seguridad ─────────────────────────────────────────────
 header "1/4  Django security tests"
 cd backend
-if python manage.py test core --verbosity=0 2>&1; then
+if ! python3 -c "import django" &>/dev/null; then
+    warn "Django no disponible en este entorno — tests se ejecutan en Railway. Instala requirements.txt para correr localmente."
+elif python3 manage.py test core --verbosity=0 2>&1; then
     ok "Todos los tests pasaron"
 else
     fail "Hay tests fallando — revisa la salida"
