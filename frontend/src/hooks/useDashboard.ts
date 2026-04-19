@@ -234,8 +234,9 @@ export function useDashboard() {
         client.get('/empleados/'),
       ]);
       setEmpresa(empresaRes.data);
+      const empleadosList: Empleado[] = empleadosRes.data.results ?? empleadosRes.data;
       setEmpleados(
-        empleadosRes.data.filter((emp: Empleado) => emp.empresa === parseInt(empresaActivaId)),
+        empleadosList.filter((emp: Empleado) => emp.empresa === parseInt(empresaActivaId)),
       );
     } catch {
       navigate('/login');
@@ -363,8 +364,9 @@ export function useDashboard() {
   const fetchContratoYDocumentos = async (empleadoId: number) => {
     try {
       const resContrato = await client.get(`/contratos/?empleado=${empleadoId}`);
-      if (resContrato.data?.length > 0) {
-        const contrato = resContrato.data[0];
+      const contratosList = resContrato.data.results ?? resContrato.data;
+      if (contratosList?.length > 0) {
+        const contrato = contratosList[0];
         setContratoData(contrato);
         setFunciones(contrato.funciones_especificas || []);
         setClausulas(contrato.clausulas_especiales || []);
@@ -395,15 +397,15 @@ export function useDashboard() {
       setHayCambiosContrato(false);
 
       const resDocs = await client.get(`/documentos_legales/?empleado=${empleadoId}`);
-      setDocumentosLegales(resDocs.data);
+      setDocumentosLegales(resDocs.data.results ?? resDocs.data);
       setShowDocumentoForm(false);
 
       const resLiq = await client.get(`/liquidaciones/?empleado=${empleadoId}`);
-      setLiquidaciones(resLiq.data);
+      setLiquidaciones(resLiq.data.results ?? resLiq.data);
       setShowLiqForm(false);
 
       const resAnexos = await client.get(`/anexos_contrato/?empleado=${empleadoId}`);
-      setAnexosContrato(resAnexos.data);
+      setAnexosContrato(resAnexos.data.results ?? resAnexos.data);
       setShowAnexoContratoForm(false);
     } catch (error) {
       console.error('Error al cargar datos del panel:', error);

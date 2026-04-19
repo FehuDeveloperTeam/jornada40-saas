@@ -50,7 +50,7 @@ export default function LobbyEmpresas() {
         ? '/empresas/?incluir_inactivas=true'
         : '/empresas/';
       const response = await client.get(url);
-      setEmpresas(response.data);
+      setEmpresas(response.data.results ?? response.data);
       
     } catch (error) {
       // Reemplazamos el 'any' preguntándole a TS si el error es de Axios

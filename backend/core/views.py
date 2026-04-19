@@ -328,7 +328,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=400)
-                
+
+            MAX_EXCEL_MB = 5
+            if hasattr(archivo_excel, 'size') and archivo_excel.size > MAX_EXCEL_MB * 1024 * 1024:
+                return Response({'error': f'El archivo no puede superar {MAX_EXCEL_MB} MB.'}, status=400)
+
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             cliente = getattr(request.user, 'perfil_cliente', None)
             limite_trabajadores = cliente.plan.limite_trabajadores if (cliente and cliente.plan) else 1000
@@ -336,6 +340,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             # Leemos el Excel
             df = pd.read_excel(archivo_excel).fillna('')
             registros = df.to_dict('records')
+
+            MAX_FILAS = 500
+            if len(registros) > MAX_FILAS:
+                return Response({'error': f'El archivo no puede tener más de {MAX_FILAS} filas por importación.'}, status=400)
             
             empleados_creados = 0
             empleados_actualizados = 0

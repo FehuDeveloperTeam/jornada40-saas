@@ -6,6 +6,7 @@ from pathlib import Path
 import dj_database_url
 from decouple import config
 import os
+import re
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -128,6 +129,8 @@ REST_FRAMEWORK = {
         'register': '5/minute',
         'password_reset': '5/hour',
     },
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 200,
 }
 
 SITE_ID = 1
@@ -177,14 +180,15 @@ elif IS_STAGING:
         config('RAILWAY_PUBLIC_DOMAIN', default=''),
         '.railway.app',
     ]
-    # Acepta cualquier preview de Vercel como origen válido
+    # Solo acepta previews del proyecto propio en Vercel (no cualquier *.vercel.app)
+    _vercel_project = config('VERCEL_PROJECT_NAME', default='jornada40-saas')
     CORS_ALLOWED_ORIGIN_REGEXES = [
-        r'^https://.*\.vercel\.app$',
+        rf'^https://{re.escape(_vercel_project)}(-[a-z0-9]+)*\.vercel\.app$',
     ]
     CORS_ALLOWED_ORIGINS = []
     CORS_ALLOW_CREDENTIALS = True
     CSRF_TRUSTED_ORIGINS = [
-        'https://*.vercel.app',
+        f'https://{_vercel_project}*.vercel.app',
         f"https://{config('RAILWAY_PUBLIC_DOMAIN', default='')}",
     ]
     SESSION_COOKIE_SECURE = True
