@@ -13,11 +13,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-test-key')
 
-# Detectar si estamos en Railway (Producción)
-IS_PRODUCTION = config('RAILWAY_ENVIRONMENT_NAME', default=None) is not None
+# Detectar entorno Railway
+RAILWAY_ENV = config('RAILWAY_ENVIRONMENT_NAME', default=None)
+IS_PRODUCTION = RAILWAY_ENV == 'production'
+IS_STAGING = RAILWAY_ENV is not None and not IS_PRODUCTION
+IS_DEPLOYED = RAILWAY_ENV is not None  # cualquier entorno Railway
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = not IS_PRODUCTION
+DEBUG = not IS_DEPLOYED
 
 # Application definition
 INSTALLED_APPS = [
@@ -120,10 +123,9 @@ REST_AUTH = {
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': 'jornada40-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
-    'JWT_AUTH_SECURE': IS_PRODUCTION,
-    # Cross-origin: frontend en jornada40.cl (Vercel) llama directo a backend en railway.app.
-    # SameSite=None + Secure es obligatorio para que el browser mande la cookie cross-site.
-    'JWT_AUTH_SAMESITE': 'None' if IS_PRODUCTION else 'Lax',
+    'JWT_AUTH_SECURE': IS_DEPLOYED,
+    # SameSite=None + Secure es obligatorio para envío cross-site (Vercel → Railway).
+    'JWT_AUTH_SAMESITE': 'None' if IS_DEPLOYED else 'Lax',
     'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
 }
 
@@ -132,50 +134,56 @@ REST_AUTH = {
 # ==================================
 
 if IS_PRODUCTION:
-    
-    # 1. ALLOWED HOSTS
+
     ALLOWED_HOSTS = [
         "jornada40-saas-production.up.railway.app",
         "api.jornada40.cl",
         "jornada40.cl",
         "www.jornada40.cl",
     ]
-
-    # 2. CORS:
     CORS_ALLOWED_ORIGINS = [
         "https://jornada40.cl",
         "https://www.jornada40.cl",
     ]
     CORS_ALLOW_CREDENTIALS = True
-
-    # 3. CSRF
     CSRF_TRUSTED_ORIGINS = [
         "https://jornada40.cl",
         "https://www.jornada40.cl",
         "https://api.jornada40.cl",
         "https://jornada40-saas-production.up.railway.app",
     ]
-
-    # 4. Cookies cross-origin: frontend Vercel → backend Railway
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SAMESITE = 'None'
 
-    # SameSite=None permite envío cross-site (requiere Secure=True).
-    # Necesario porque jornada40.cl (Vercel) y jornada40-saas-production.up.railway.app
-    # son orígenes distintos.
+elif IS_STAGING:
+
+    ALLOWED_HOSTS = [
+        config('RAILWAY_PUBLIC_DOMAIN', default=''),
+        '.railway.app',
+    ]
+    # Acepta cualquier preview de Vercel como origen válido
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r'^https://.*\.vercel\.app$',
+    ]
+    CORS_ALLOWED_ORIGINS = []
+    CORS_ALLOW_CREDENTIALS = True
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.vercel.app',
+        f"https://{config('RAILWAY_PUBLIC_DOMAIN', default='')}",
+    ]
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = 'None'
     CSRF_COOKIE_SAMESITE = 'None'
 
 else:
     # === DESARROLLO (LOCALHOST) ===
     ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
-    
     CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
     CORS_ALLOW_CREDENTIALS = True
-    
     CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
-
-    # Cookies para http://
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
 # ==========================================
@@ -209,7 +217,7 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'WARNING' if IS_PRODUCTION else 'DEBUG',
+        'level': 'WARNING' if IS_DEPLOYED else 'DEBUG',
     },
 }
 

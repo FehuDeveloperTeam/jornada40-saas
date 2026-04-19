@@ -65,6 +65,8 @@ export interface HorarioDia {
     colacion: number;
 }
 
+export type HorarioSemana = Record<string, HorarioDia>;
+
 export interface Contrato {
     id: number;
     empleado: number;
@@ -126,6 +128,28 @@ export interface Empleado {
     contrato_activo?: Contrato | null;
 }
 
+export interface DocumentosDisponibles {
+    tiene_contrato: boolean;
+    tiene_anexo_40h: boolean;
+    cantidad_liquidaciones: number;
+    cantidad_amonestaciones: number;
+    tiene_despido: boolean;
+    tiene_mutuo_acuerdo: boolean;
+    cantidad_constancias: number;
+    cantidad_anexos_contrato: number;
+}
+
+export interface AnexoContrato {
+    id: number;
+    contrato: number;
+    titulo: string;
+    descripcion: string;
+    clausulas_modificadas: string[];
+    fecha_emision: string;
+    archivo_pdf: string | null;
+    creado_en: string;
+}
+
 export interface DocumentoLegal {
     id: number;
     empleado: number;
@@ -136,6 +160,13 @@ export interface DocumentoLegal {
     aviso_previo_pagado: boolean;
     archivo_pdf: string | null;
     creado_en: string;
+}
+
+export interface HoraExtraItem {
+    glosa: string;
+    horas: number;
+    recargo: number;
+    valor: number;
 }
 
 export interface Liquidacion {
@@ -150,7 +181,7 @@ export interface Liquidacion {
     sueldo_base: number;
     gratificacion: number;
     detalle_haberes_imponibles: DetalleItem[];
-    detalle_horas_extras: DetalleItem[];
+    detalle_horas_extras: HoraExtraItem[];
     detalle_haberes_no_imponibles: DetalleItem[];
     afp_nombre: string | null;
     afp_monto: number;

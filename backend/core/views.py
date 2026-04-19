@@ -25,8 +25,8 @@ import urllib.parse
 from django.db.models import Max
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, DocumentoLegal, Liquidacion
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
 
 # ==========================================
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
@@ -148,8 +148,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
             comuna_empl = getattr(empleado, 'comuna', '') or ''
             ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             context = {
                 'documento': documento,
@@ -417,197 +416,326 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             return Response({'error': f'Error procesando: {str(e)}'}, status=500)
                 
    # ====================================================
+    # DISPONIBILIDAD DE DOCUMENTOS POR TRABAJADOR
+    # ====================================================
+    @action(detail=True, methods=['get'])
+    def documentos_disponibles(self, request, pk=None):
+        empleado = self.get_object()
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+
+        data = {
+            'tiene_contrato': contrato is not None,
+            'tiene_anexo_40h': bool(contrato and contrato.archivo_anexo_40h),
+            'cantidad_liquidaciones': Liquidacion.objects.filter(empleado=empleado).count(),
+            'cantidad_amonestaciones': DocumentoLegal.objects.filter(empleado=empleado, tipo='AMONESTACION').count(),
+            'tiene_despido': DocumentoLegal.objects.filter(empleado=empleado, tipo='DESPIDO').exists(),
+            'tiene_mutuo_acuerdo': DocumentoLegal.objects.filter(empleado=empleado, tipo='MUTUO_ACUERDO').exists(),
+            'cantidad_constancias': DocumentoLegal.objects.filter(empleado=empleado, tipo='CONSTANCIA').count(),
+            'cantidad_anexos_contrato': AnexoContrato.objects.filter(contrato=contrato).count() if contrato else 0,
+        }
+        return Response(data)
+
+   # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
-    def _obtener_o_generar_documento(self, empleado, tipo_documento):
+    @staticmethod
+    def _es_plan_semilla(user):
+        """True si el usuario no tiene plan o su plan es Semilla (gratuito)."""
+        cliente = getattr(user, 'perfil_cliente', None)
+        if not cliente or not cliente.plan:
+            return True
+        return cliente.plan.nombre.lower() == 'semilla'
+
+    def _html_a_pdf(self, html_string, nombre_doc):
+        """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción clara si falla."""
+        resultado = io.BytesIO()
+        status = pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+        if status.err:
+            raise Exception(
+                f"xhtml2pdf reportó {status.err} error(s) generando '{nombre_doc}'. "
+                f"Revisar el template y el contexto pasado."
+            )
+        pdf_bytes = resultado.getvalue()
+        if not pdf_bytes:
+            raise Exception(
+                f"PDF '{nombre_doc}' resultó vacío tras la conversión. "
+                f"xhtml2pdf no reportó error pero el resultado es b\"\". "
+                f"Posible problema de encoding o template vacío."
+            )
+        return pdf_bytes
+
+    def _obtener_o_generar_documento(self, empleado, tipo_documento, user=None):
         """Revisa si el PDF ya existe en la BD. Si no, lo genera usando los templates HTML reales."""
-        
+
         empresa = empleado.empresa
-        
+        es_plan_semilla = self._es_plan_semilla(user) if user else False
+
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
-            contrato, created = Contrato.objects.get_or_create(
-                empleado=empleado,
-                defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
-            )
+            try:
+                contrato = Contrato.objects.get(empleado=empleado)
+            except Contrato.DoesNotExist:
+                raise Exception(f"El trabajador {empleado.nombres} no tiene contrato registrado.")
             if contrato.archivo_contrato:
-                try: return contrato.archivo_contrato.read()
-                except Exception: pass
-            
-            # Usamos TU plantilla real
-            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
+                try:
+                    return contrato.archivo_contrato.read()
+                except Exception:
+                    pass
+
+            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato, 'es_plan_semilla': es_plan_semilla}
             html_string = render_to_string('contrato_trabajo.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
+            pdf_bytes = self._html_a_pdf(html_string, f'Contrato_{empleado.rut}')
             contrato.archivo_contrato.save(f"Contrato_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA ANEXOS 40 HORAS ---
         elif tipo_documento == 'anexo_40h':
-            contrato, created = Contrato.objects.get_or_create(
-                empleado=empleado,
-                defaults={'fecha_inicio': datetime.date.today(), 'sueldo_base': empleado.sueldo_base or 0}
-            )
+            try:
+                contrato = Contrato.objects.get(empleado=empleado)
+            except Contrato.DoesNotExist:
+                raise Exception(f"El trabajador {empleado.nombres} no tiene contrato registrado.")
             if contrato.archivo_anexo_40h:
-                try: return contrato.archivo_anexo_40h.read()
-                except Exception: pass
-            
-            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato}
+                try:
+                    return contrato.archivo_anexo_40h.read()
+                except Exception:
+                    pass
+
+            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato, 'es_plan_semilla': es_plan_semilla}
             html_string = render_to_string('anexo_40h.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
+            pdf_bytes = self._html_a_pdf(html_string, f'Anexo_40h_{empleado.rut}')
             contrato.archivo_anexo_40h.save(f"Anexo_40h_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
         # --- LÓGICA PARA LIQUIDACIONES (MES ACTUAL) ---
         elif tipo_documento == 'liquidacion_actual':
             hoy = datetime.date.today()
-            liquidacion, created = Liquidacion.objects.get_or_create(
-                empleado=empleado, mes=hoy.month, anio=hoy.year,
-                defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
-            )
+            try:
+                liquidacion = Liquidacion.objects.get(empleado=empleado, mes=hoy.month, anio=hoy.year)
+            except Liquidacion.DoesNotExist:
+                raise Exception(f"No existe liquidación del mes actual para {empleado.nombres}.")
             if liquidacion.archivo_pdf:
-                try: return liquidacion.archivo_pdf.read()
-                except Exception: pass
-            
-            # Convertimos el monto a palabras para tu plantilla
+                try:
+                    return liquidacion.archivo_pdf.read()
+                except Exception:
+                    pass
+
             try:
                 liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
-            except:
+            except Exception:
                 liquido_palabras = str(liquidacion.sueldo_liquido)
 
             context = {
-                'empleado': empleado, 'empresa': empresa, 
-                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras
+                'empleado': empleado, 'empresa': empresa,
+                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
+                'es_plan_semilla': es_plan_semilla,
             }
             html_string = render_to_string('liquidacion.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
-            liquidacion.archivo_pdf.save(f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf", ContentFile(pdf_bytes))
+            pdf_bytes = self._html_a_pdf(html_string, f'Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}')
+            liquidacion.archivo_pdf.save(
+                f"Liquidacion_{hoy.month}_{hoy.year}_{empleado.rut}.pdf", ContentFile(pdf_bytes)
+            )
             return pdf_bytes
 
-        # --- LÓGICA PARA 12 LIQUIDACIONES HISTÓRICAS ---
+        # --- LÓGICA PARA LIQUIDACIONES HISTÓRICAS ---
         elif tipo_documento.startswith('liquidacion_historica_'):
             _, _, mes_str, anio_str = tipo_documento.split('_')
             mes_hist, anio_hist = int(mes_str), int(anio_str)
-            
-            liquidacion, created = Liquidacion.objects.get_or_create(
-                empleado=empleado, mes=mes_hist, anio=anio_hist,
-                defaults={'sueldo_base': empleado.sueldo_base or 0, 'sueldo_liquido': empleado.sueldo_base or 0}
-            )
+
+            try:
+                liquidacion = Liquidacion.objects.get(empleado=empleado, mes=mes_hist, anio=anio_hist)
+            except Liquidacion.DoesNotExist:
+                raise Exception(f"No existe liquidación {mes_hist}/{anio_hist} para {empleado.nombres}.")
             if liquidacion.archivo_pdf:
-                try: return liquidacion.archivo_pdf.read()
-                except Exception: pass
-            
+                try:
+                    return liquidacion.archivo_pdf.read()
+                except Exception:
+                    pass
+
             try:
                 liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
-            except:
+            except Exception:
                 liquido_palabras = str(liquidacion.sueldo_liquido)
 
             context = {
-                'empleado': empleado, 'empresa': empresa, 
-                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras
+                'empleado': empleado, 'empresa': empresa,
+                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
+                'es_plan_semilla': es_plan_semilla,
             }
             html_string = render_to_string('liquidacion.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-            
-            liquidacion.archivo_pdf.save(f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf", ContentFile(pdf_bytes))
+            pdf_bytes = self._html_a_pdf(html_string, f'Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}')
+            liquidacion.archivo_pdf.save(
+                f"Liquidacion_{mes_hist}_{anio_hist}_{empleado.rut}.pdf", ContentFile(pdf_bytes)
+            )
             return pdf_bytes
 
         # --- LÓGICA PARA CARTAS DE AMONESTACIÓN ---
         elif tipo_documento == 'amonestacion':
-            doc_legal, created = DocumentoLegal.objects.get_or_create(
-                empleado=empleado, tipo='AMONESTACION',
-                defaults={'fecha_emision': datetime.date.today(), 'hechos': 'Amonestación general generada masivamente'}
-            )
+            doc_legal = DocumentoLegal.objects.filter(
+                empleado=empleado, tipo='AMONESTACION'
+            ).order_by('-fecha_emision').first()
+            if doc_legal is None:
+                raise Exception(f"El trabajador {empleado.nombres} no tiene amonestaciones registradas.")
             if doc_legal.archivo_pdf:
-                try: return doc_legal.archivo_pdf.read()
-                except Exception: pass
+                try:
+                    return doc_legal.archivo_pdf.read()
+                except Exception:
+                    pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal}
+            context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal, 'es_plan_semilla': es_plan_semilla}
             html_string = render_to_string('documento_legal.html', context)
-            
-            resultado = io.BytesIO()
-            pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
-            pdf_bytes = resultado.getvalue()
-
+            pdf_bytes = self._html_a_pdf(html_string, f'Amonestacion_{empleado.rut}')
             doc_legal.archivo_pdf.save(f"Amonestacion_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
-        return b"Error: Tipo de documento no soportado"
+        raise Exception(f"Tipo de documento no soportado: '{tipo_documento}'")
     
+    # ====================================================
+    # HELPERS PDF PARA DOCUMENTOS LEGALES Y ANEXOS
+    # ====================================================
+    def _pdf_para_documento_legal(self, doc, es_plan_semilla):
+        empleado = doc.empleado
+        empresa = empleado.empresa
+        meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+        hoy = doc.fecha_emision
+        fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+        ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+        context = {
+            'documento': doc, 'empleado': empleado, 'empresa': empresa,
+            'fecha_actual': fecha_espanol, 'ciudad': ciudad,
+            'es_plan_semilla': es_plan_semilla,
+        }
+        html = render_to_string('documento_legal.html', context)
+        return self._html_a_pdf(html, f'{doc.tipo}_{empleado.rut}_{doc.fecha_emision}')
+
+    def _pdf_para_anexo_contrato(self, anexo, es_plan_semilla):
+        contrato = anexo.contrato
+        empleado = contrato.empleado
+        empresa = empleado.empresa
+        meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+        hoy = anexo.fecha_emision
+        fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+        ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+        context = {
+            'anexo': anexo, 'contrato': contrato, 'empleado': empleado, 'empresa': empresa,
+            'fecha_actual': fecha_espanol, 'ciudad': ciudad,
+            'es_plan_semilla': es_plan_semilla,
+        }
+        html = render_to_string('anexo_contrato.html', context)
+        return self._html_a_pdf(html, f'AnexoContrato_{empleado.rut}_{hoy}')
+
     # ====================================================
     # ENDPOINT: DESCARGA MASIVA Y EXPEDIENTES (ZIP)
     # ====================================================
     @action(detail=False, methods=['post'])
     def descarga_masiva(self, request):
+        """
+        POST body:
+          empleados: [id, ...]
+          empresa_id: int
+          documentos: lista de tipos a incluir:
+            'contrato', 'anexo_40h', 'liquidaciones',
+            'amonestaciones', 'despidos', 'mutuo_acuerdo',
+            'constancias', 'anexos_contrato'
+          cantidad_liquidaciones: int (cuántas liquidaciones recientes incluir)
+        """
         try:
             empleados_ids = request.data.get('empleados', [])
-            tipo = request.data.get('tipo', 'zip_completo')
             empresa_id = request.data.get('empresa_id')
+            documentos = request.data.get('documentos', [])
+            cantidad_liquidaciones = int(request.data.get('cantidad_liquidaciones', 1))
 
             if not empleados_ids or not empresa_id:
                 return Response({'error': 'Faltan IDs de trabajadores o empresa'}, status=400)
+            if not documentos:
+                return Response({'error': 'Debes seleccionar al menos un tipo de documento'}, status=400)
+            if self._es_plan_semilla(request.user):
+                return Response({'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Actualiza a PYME para desbloquear esta función.'}, status=403)
 
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             empleados = Empleado.objects.filter(id__in=empleados_ids, empresa=empresa)
-
             if not empleados.exists():
-                return Response({'error': 'No se encontraron trabajadores válidos para procesar'}, status=404)
+                return Response({'error': 'No se encontraron trabajadores válidos'}, status=404)
 
+            es_semilla = False  # ya verificado arriba
+            meses_corto = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]
             zip_buffer = io.BytesIO()
-            hoy = datetime.date.today()
-            
+
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                 for emp in empleados:
                     rut_limpio = emp.rut.replace("-", "").replace(".", "")
-                    nombre_carpeta = f"{rut_limpio}_{emp.nombres}_{emp.apellido_paterno}".replace(" ", "_")
+                    carpeta = f"{rut_limpio}_{emp.nombres}_{emp.apellido_paterno}".replace(" ", "_")
 
-                    if tipo in ['contratos', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'contrato')
-                        zip_file.writestr(f"{nombre_carpeta}/Contrato.pdf", pdf)
+                    if 'contrato' in documentos:
+                        try:
+                            pdf = self._obtener_o_generar_documento(emp, 'contrato', request.user)
+                            zip_file.writestr(f"{carpeta}/Contrato.pdf", pdf)
+                        except Exception:
+                            pass
 
-                    if tipo in ['anexos', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'anexo_40h')
-                        zip_file.writestr(f"{nombre_carpeta}/Anexo_40h.pdf", pdf)
+                    if 'anexo_40h' in documentos:
+                        try:
+                            pdf = self._obtener_o_generar_documento(emp, 'anexo_40h', request.user)
+                            zip_file.writestr(f"{carpeta}/Anexo_Ley_40h.pdf", pdf)
+                        except Exception:
+                            pass
 
-                    if tipo in ['liq_actual', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'liquidacion_actual')
-                        zip_file.writestr(f"{nombre_carpeta}/Liquidaciones/Liq_Actual.pdf", pdf)
-                        
-                    if tipo in ['liq_12', 'zip_completo']:
-                        mes_actual = hoy.month
-                        anio_actual = hoy.year
-                        for i in range(12):
-                            mes_hist = mes_actual - i
-                            anio_hist = anio_actual
-                            if mes_hist <= 0:
-                                mes_hist += 12
-                                anio_hist -= 1
-                            pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{mes_hist}_{anio_hist}')
-                            zip_file.writestr(f"{nombre_carpeta}/Liquidaciones_Historicas/Liq_{mes_hist}_{anio_hist}.pdf", pdf)
+                    if 'liquidaciones' in documentos and cantidad_liquidaciones > 0:
+                        liq_qs = Liquidacion.objects.filter(empleado=emp).order_by('-anio', '-mes')[:cantidad_liquidaciones]
+                        for liq in liq_qs:
+                            try:
+                                pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{liq.mes}_{liq.anio}', request.user)
+                                zip_file.writestr(f"{carpeta}/Liquidaciones/Liq_{meses_corto[liq.mes - 1]}_{liq.anio}.pdf", pdf)
+                            except Exception:
+                                pass
 
-                    if tipo in ['amonestacion', 'zip_completo']:
-                        pdf = self._obtener_o_generar_documento(emp, 'amonestacion')
-                        zip_file.writestr(f"{nombre_carpeta}/Amonestacion.pdf", pdf)
+                    if 'amonestaciones' in documentos:
+                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='AMONESTACION').order_by('fecha_emision'):
+                            try:
+                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
+                                zip_file.writestr(f"{carpeta}/Amonestaciones/Amonestacion_{doc.fecha_emision}.pdf", pdf)
+                            except Exception:
+                                pass
+
+                    if 'despidos' in documentos:
+                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='DESPIDO').order_by('fecha_emision'):
+                            try:
+                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
+                                zip_file.writestr(f"{carpeta}/Terminos_Contrato/Termino_{doc.fecha_emision}.pdf", pdf)
+                            except Exception:
+                                pass
+
+                    if 'mutuo_acuerdo' in documentos:
+                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='MUTUO_ACUERDO').order_by('fecha_emision'):
+                            try:
+                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
+                                zip_file.writestr(f"{carpeta}/Renuncias/Renuncia_{doc.fecha_emision}.pdf", pdf)
+                            except Exception:
+                                pass
+
+                    if 'constancias' in documentos:
+                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='CONSTANCIA').order_by('fecha_emision'):
+                            try:
+                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
+                                zip_file.writestr(f"{carpeta}/Constancias/Constancia_{doc.fecha_emision}.pdf", pdf)
+                            except Exception:
+                                pass
+
+                    if 'anexos_contrato' in documentos:
+                        contrato_emp = Contrato.objects.filter(empleado=emp).first()
+                        if contrato_emp:
+                            for anexo in AnexoContrato.objects.filter(contrato=contrato_emp).order_by('fecha_emision'):
+                                try:
+                                    pdf = self._pdf_para_anexo_contrato(anexo, es_semilla)
+                                    titulo_corto = anexo.titulo[:30].replace(" ", "_")
+                                    zip_file.writestr(f"{carpeta}/Anexos_Contrato/Anexo_{anexo.fecha_emision}_{titulo_corto}.pdf", pdf)
+                                except Exception:
+                                    pass
 
             zip_buffer.seek(0)
+            nombre_zip = f"Expedientes_{empresa.nombre_legal.replace(' ', '_')}_{datetime.date.today()}.zip"
             response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
-            response['Content-Disposition'] = f'attachment; filename="Documentos_{tipo}.zip"'
+            response['Content-Disposition'] = f'attachment; filename="{nombre_zip}"'
             response['Access-Control-Expose-Headers'] = 'Content-Disposition'
-            
             return response
 
         except Exception as e:
@@ -715,8 +843,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
             hoy = datetime.date.today()
@@ -759,8 +886,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
 
             # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -849,6 +975,64 @@ def registrar_cliente(request):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
     
+class AnexoContratoViewSet(viewsets.ModelViewSet):
+    serializer_class = AnexoContratoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = AnexoContrato.objects.filter(
+            contrato__empleado__empresa__owner=self.request.user
+        ).order_by('-fecha_emision')
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            queryset = queryset.filter(contrato__empleado_id=empleado_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        contrato_id = request.data.get('contrato')
+        try:
+            contrato = Contrato.objects.get(id=contrato_id, empleado__empresa__owner=request.user)
+        except Contrato.DoesNotExist:
+            return Response({'error': 'Contrato no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        return super().create(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get'])
+    def generar_pdf(self, request, pk=None):
+        try:
+            anexo = self.get_object()
+            contrato = anexo.contrato
+            empleado = contrato.empleado
+            empresa = empleado.empresa
+            es_plan_semilla = self._es_plan_semilla(request.user)
+
+            meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+            hoy = anexo.fecha_emision
+            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+            ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+
+            context = {
+                'anexo': anexo,
+                'contrato': contrato,
+                'empleado': empleado,
+                'empresa': empresa,
+                'fecha_actual': fecha_espanol,
+                'ciudad': ciudad,
+                'es_plan_semilla': es_plan_semilla,
+            }
+            template = get_template('anexo_contrato.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            nombre = f"Anexo_{empleado.rut}_{hoy}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return Response({'error': 'Error generando PDF'}, status=500)
+            return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
 class LiquidacionViewSet(viewsets.ModelViewSet):
     queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
     serializer_class = LiquidacionSerializer
@@ -979,8 +1163,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            es_plan_semilla = cliente.plan.nombre.lower() == 'semilla' if (cliente and cliente.plan) else True
+            es_plan_semilla = self._es_plan_semilla(request.user)
             empleado = liquidacion.empleado
             empresa = empleado.empresa
             contrato = Contrato.objects.filter(empleado=empleado).first()
@@ -1160,6 +1343,11 @@ def webhook_reveniu(request):
         suscripcion.estado = 'ACTIVE'
         suscripcion.gateway_subscription_id = str(data.get('subscription_id', ''))
         suscripcion.save()
+
+        # Sincronizar también cliente.plan para que los PDFs y límites
+        # reflejen el plan activo sin depender de la Suscripcion.
+        suscripcion.cliente.plan = plan_nuevo
+        suscripcion.cliente.save(update_fields=['plan'])
 
     return Response(status=status.HTTP_200_OK)
 

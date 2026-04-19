@@ -175,6 +175,22 @@ class Contrato(models.Model):
 
     def __str__(self):
         return f"Contrato {self.tipo_contrato} - {self.empleado} - {self.horas_semanales}h"
+
+# ==========================================
+# 3b. ANEXOS DE CONTRATO (Modificaciones contractuales)
+# ==========================================
+class AnexoContrato(models.Model):
+    contrato = models.ForeignKey(Contrato, on_delete=models.CASCADE, related_name='anexos')
+    titulo = models.CharField(max_length=200)
+    descripcion = models.TextField(blank=True)
+    clausulas_modificadas = models.JSONField(default=list, blank=True)
+    fecha_emision = models.DateField()
+    archivo_pdf = models.FileField(upload_to='anexos_contrato/', null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Anexo: {self.titulo} — {self.contrato.empleado} ({self.fecha_emision})"
+
 # ==========================================
 # 4. HISTORIAL LEGAL (Amonestaciones y Despidos)
 # ==========================================
