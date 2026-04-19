@@ -1348,23 +1348,19 @@ def crear_checkout_reveniu(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
-    from svix.webhooks import Webhook as SvixWebhook, WebhookVerificationError
+    import hmac
 
     webhook_secret = config('REVENIU_WEBHOOK_SECRET', default=None)
 
-    # El secret es obligatorio. Si no está configurado, rechazamos todo tráfico.
+    # Secret obligatorio. Sin él, rechazamos todo (fail closed).
     if not webhook_secret:
         return Response({'error': 'Webhook no configurado'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    # Svix verifica firma + timestamp (previene replay attacks de más de 5 minutos).
-    # Requiere los headers svix-id, svix-timestamp y svix-signature.
-    try:
-        wh = SvixWebhook(webhook_secret)
-        wh.verify(request.body, dict(request.headers))
-    except WebhookVerificationError:
-        return Response({'error': 'Firma inválida'}, status=status.HTTP_401_UNAUTHORIZED)
-    except Exception:
-        return Response({'error': 'Error al verificar webhook'}, status=status.HTTP_400_BAD_REQUEST)
+    token_recibido = request.headers.get('X-Webhook-Token', '')
+
+    # Comparación en tiempo constante para evitar timing attacks.
+    if not hmac.compare_digest(token_recibido, webhook_secret):
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
     data = request.data
     evento = data.get('event')
