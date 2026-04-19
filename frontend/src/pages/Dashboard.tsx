@@ -20,7 +20,6 @@ export default function Dashboard() {
     isModalMasivoOpen, setIsModalMasivoOpen,
     isUploading, isGeneratingZip, setIsGeneratingZip,
     selectedEmpleadosIds, setSelectedEmpleadosIds,
-    isDownloadMenuOpen, setIsDownloadMenuOpen,
     isDownloading,
     isUploadModalOpen, setIsUploadModalOpen,
     uploadResult, setUploadResult,
@@ -65,7 +64,6 @@ export default function Dashboard() {
     flippedWidgets,
     // Handlers
     handleSelectAll, handleSelectEmpleado,
-    ejecutarDescargaMasiva,
     descargarPlantillaExcel,
     handleFileUpload,
     abrirVer, abrirEditar, abrirCrear,
