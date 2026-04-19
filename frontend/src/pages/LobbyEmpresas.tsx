@@ -146,7 +146,6 @@ export default function LobbyEmpresas() {
       
       // Manejo estricto del error sin usar 'any'
       if (axios.isAxiosError(error)) {
-        const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Error desconocido";
         showToast('No se pudo guardar la empresa. Revisa los datos e inténtalo de nuevo.', 'error');
       } else {
         showToast('Ocurrió un error desconocido al guardar la empresa.', 'error');
