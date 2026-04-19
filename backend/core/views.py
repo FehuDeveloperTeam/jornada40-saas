@@ -1,9 +1,23 @@
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes, action, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
+from rest_framework.throttling import AnonRateThrottle
+
+
+class LoginRateThrottle(AnonRateThrottle):
+    rate = '10/minute'
+    scope = 'login'
+
+class RegisterRateThrottle(AnonRateThrottle):
+    rate = '5/minute'
+    scope = 'register'
+
+class PasswordResetRateThrottle(AnonRateThrottle):
+    rate = '5/hour'
+    scope = 'password_reset'
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
@@ -935,10 +949,24 @@ class ContratoViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # ==========================================
+# LOGIN CON RATE LIMITING
+# ==========================================
+from dj_rest_auth.views import LoginView as DjRestLoginView
+
+class ThrottledLoginView(DjRestLoginView):
+    throttle_classes = [LoginRateThrottle]
+
+from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
+
+class ThrottledPasswordResetView(DjRestPasswordResetView):
+    throttle_classes = [PasswordResetRateThrottle]
+
+# ==========================================
 # REGISTRO DE NUEVOS CLIENTES
 # ==========================================
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def registrar_cliente(request):
     rut = request.data.get('rut')
     password = request.data.get('password')
@@ -1365,6 +1393,7 @@ def webhook_reveniu(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetRateThrottle])
 def recuperar_password_por_rut(request):
     rut = request.data.get('rut')
     
