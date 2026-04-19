@@ -33,7 +33,7 @@ export default function Dashboard() {
     // Formulario empleado
     formData, setFormData,
     // Formulario contrato
-    contratoData, setContratoData,
+    contratoData,
     isSavingContrato, hayCambiosContrato, setHayCambiosContrato,
     funciones, setFunciones,
     clausulas, setClausulas,
