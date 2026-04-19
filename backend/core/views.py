@@ -440,11 +440,27 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     # ====================================================
     @staticmethod
     def _es_plan_semilla(user):
-        """True si el usuario no tiene plan o su plan es Semilla (gratuito)."""
+        """True si el usuario no tiene plan activo o su plan es Semilla (gratuito)."""
         cliente = getattr(user, 'perfil_cliente', None)
-        if not cliente or not cliente.plan:
+        if not cliente:
             return True
-        return cliente.plan.nombre.lower() == 'semilla'
+
+        plan = cliente.plan
+
+        # Fallback: leer el plan desde la suscripción activa
+        # (necesario para usuarios cuyo Cliente.plan aún no fue sincronizado)
+        if not plan:
+            try:
+                suscripcion = cliente.suscripcion_activa
+                if suscripcion.estado in ('ACTIVE', 'TRIAL', 'PAST_DUE'):
+                    plan = suscripcion.plan
+            except Exception:
+                pass
+
+        if not plan:
+            return True
+
+        return plan.nombre.lower() == 'semilla'
 
     def _html_a_pdf(self, html_string, nombre_doc):
         """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción clara si falla."""

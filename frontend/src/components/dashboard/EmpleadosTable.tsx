@@ -119,14 +119,17 @@ export default function EmpleadosTable({
           <table className="w-full min-w-[700px] text-left border-collapse">
             <thead>
               <tr className="border-b-2 border-gray-100">
-                <th className="sticky left-0 z-10 bg-white px-6 py-4 text-left w-10">
-                  <input
-                    type="checkbox"
-                    aria-label="Seleccionar todos los trabajadores"
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    onChange={handleSelectAll}
-                    checked={selectedEmpleadosIds.length === filteredEmpleados.length && filteredEmpleados.length > 0}
-                  />
+                <th className="px-3 py-4 text-left">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar todos los trabajadores"
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      onChange={handleSelectAll}
+                      checked={selectedEmpleadosIds.length === filteredEmpleados.length && filteredEmpleados.length > 0}
+                    />
+                    <span className="text-xs font-semibold text-gray-400 uppercase">Acciones</span>
+                  </div>
                 </th>
                 <th className="p-4 text-sm font-semibold text-gray-400 uppercase">RUT</th>
                 <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre Completo</th>
@@ -192,8 +195,6 @@ export default function EmpleadosTable({
                     </div>
                   )}
                 </th>
-
-                <th className="sticky right-0 z-10 bg-white p-4 text-sm font-semibold text-gray-400 uppercase text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -204,7 +205,20 @@ export default function EmpleadosTable({
               ) : (
                 filteredEmpleados.map((emp) => (
                   <tr key={emp.id} className={`border-b border-gray-50 transition-colors group ${!emp.activo ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}>
-                    <td className={`sticky left-0 z-10 px-6 py-4 ${!emp.activo ? 'bg-gray-50' : 'bg-white group-hover:bg-gray-50/50'}`}><input type="checkbox" aria-label={`Seleccionar a ${emp.nombres} ${emp.apellido_paterno}`} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked={selectedEmpleadosIds.includes(emp.id)} onChange={() => handleSelectEmpleado(emp.id)} onClick={(e) => e.stopPropagation()} /></td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" aria-label={`Seleccionar a ${emp.nombres} ${emp.apellido_paterno}`} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0" checked={selectedEmpleadosIds.includes(emp.id)} onChange={() => handleSelectEmpleado(emp.id)} onClick={(e) => e.stopPropagation()} />
+                        <button onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} disabled={downloadingId === emp.id || !emp.activo} className={`p-1.5 rounded-lg transition-colors ${!emp.activo ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`} title={emp.activo ? "Descargar Anexo" : "No disponible para inactivos"}>
+                          {downloadingId === emp.id ? <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" /> : <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>}
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
+                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
+                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                        </button>
+                      </div>
+                    </td>
                     <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
                     <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{emp.email || '---'}</td>
@@ -214,21 +228,6 @@ export default function EmpleadosTable({
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${emp.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {emp.activo ? 'Vigente' : 'Desvinculado'}
                       </span>
-                    </td>
-                    <td className={`sticky right-0 z-10 p-4 text-right flex justify-end gap-3 ${!emp.activo ? 'bg-gray-50' : 'bg-white group-hover:bg-gray-50/50'}`}>
-                      <button onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} disabled={downloadingId === emp.id || !emp.activo} className={`p-2 rounded-lg transition-colors ${!emp.activo ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`} title={emp.activo ? "Descargar Anexo" : "No disponible para inactivos"}>
-                        {downloadingId === emp.id ? (
-                          <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                        )}
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
-                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
-                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                      </button>
                     </td>
                   </tr>
                 ))

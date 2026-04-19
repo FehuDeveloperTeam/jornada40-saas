@@ -13,36 +13,50 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
   return (
     <>
       {panelMode === 'view' && selectedEmpleado ? (
-        <div className="grid grid-cols-2 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
           <div className="space-y-6">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Información Personal</h4>
-            <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Nacionalidad</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.nacionalidad?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Fecha Nac.</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.fecha_nacimiento || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Estado Civil</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.estado_civil?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Teléfono</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.numero_telefono || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Email</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.email?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Comuna</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.comuna?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Dirección</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.direccion?.toLowerCase() || '-'}</dd></div>
+            <dl className="space-y-3 text-sm">
+              {[
+                ['Nacionalidad', selectedEmpleado.nacionalidad?.toLowerCase()],
+                ['Fecha Nac.', selectedEmpleado.fecha_nacimiento],
+                ['Estado Civil', selectedEmpleado.estado_civil?.toLowerCase()],
+                ['Teléfono', selectedEmpleado.numero_telefono],
+                ['Email', selectedEmpleado.email?.toLowerCase()],
+                ['Comuna', selectedEmpleado.comuna?.toLowerCase()],
+                ['Dirección', selectedEmpleado.direccion?.toLowerCase()],
+              ].map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</dt>
+                  <dd className="font-semibold text-slate-900 capitalize">{value || '-'}</dd>
+                </div>
+              ))}
             </dl>
           </div>
 
           <div className="space-y-6">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">Condiciones Laborales</h4>
-            <dl className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Departamento</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.departamento?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Centro de Costo</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.centro_costo || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Ficha N°</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.ficha_numero || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Sucursal</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.sucursal?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Fecha Ingreso</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.fecha_ingreso || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Modalidad</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.modalidad?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Jornada</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.horas_laborales} Hrs.</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Sueldo Base</dt><dd className="col-span-2 font-semibold text-slate-900">${Number(selectedEmpleado.sueldo_base || 0).toLocaleString('es-CL')}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Previsión AFP</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.afp?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Salud</dt><dd className="col-span-2 font-semibold text-slate-900 capitalize">{selectedEmpleado.sistema_salud?.toLowerCase() || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Forma de Pago</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.forma_pago || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">Banco</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.banco || '-'} - {selectedEmpleado.tipo_cuenta || '-'}</dd></div>
-              <div className="grid grid-cols-3 gap-4"><dt className="text-slate-500 font-medium">N° Cuenta</dt><dd className="col-span-2 font-semibold text-slate-900">{selectedEmpleado.numero_cuenta || '-'}</dd></div>
+            <dl className="space-y-3 text-sm">
+              {[
+                ['Departamento', selectedEmpleado.departamento?.toLowerCase()],
+                ['Centro de Costo', selectedEmpleado.centro_costo],
+                ['Ficha N°', selectedEmpleado.ficha_numero?.toString()],
+                ['Sucursal', selectedEmpleado.sucursal?.toLowerCase()],
+                ['Fecha Ingreso', selectedEmpleado.fecha_ingreso],
+                ['Modalidad', selectedEmpleado.modalidad?.toLowerCase()],
+                ['Jornada', `${selectedEmpleado.horas_laborales} Hrs.`],
+                ['Sueldo Base', `$${Number(selectedEmpleado.sueldo_base || 0).toLocaleString('es-CL')}`],
+                ['Previsión AFP', selectedEmpleado.afp?.toLowerCase()],
+                ['Salud', selectedEmpleado.sistema_salud?.toLowerCase()],
+                ['Forma de Pago', selectedEmpleado.forma_pago],
+                ['Banco / Cuenta', `${selectedEmpleado.banco || '-'} · ${selectedEmpleado.tipo_cuenta || '-'}`],
+                ['N° Cuenta', selectedEmpleado.numero_cuenta],
+              ].map(([label, value]) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</dt>
+                  <dd className="font-semibold text-slate-900">{value || '-'}</dd>
+                </div>
+              ))}
             </dl>
           </div>
         </div>

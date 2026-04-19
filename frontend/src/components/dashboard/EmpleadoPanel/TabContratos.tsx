@@ -139,7 +139,8 @@ export default function TabContratos({
         )}
 
         {contratoData.tipo_jornada === 'ORDINARIA' && (
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-x-auto">
+            <div className="min-w-[480px]">
             <div className="grid grid-cols-12 gap-2 text-xs font-bold text-slate-500 uppercase text-center px-2">
               <div className="col-span-1">Día</div>
               <div className="col-span-3 text-left">Habilitado</div>
@@ -186,6 +187,7 @@ export default function TabContratos({
                 </p>
               </div>
             </div>
+          </div>
           </div>
         )}
       </div>
