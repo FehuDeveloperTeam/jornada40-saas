@@ -109,23 +109,23 @@ export default function EmpleadoPanel({
         <div className="h-full w-full bg-white flex flex-col transform transition-transform duration-300" onClick={(e) => e.stopPropagation()}>
 
           {/* HEADER */}
-          <div className="px-8 py-6 border-b border-gray-200 flex items-start justify-between bg-white">
-            <div className="flex items-center gap-5">
+          <div className="px-4 md:px-8 py-4 md:py-6 border-b border-gray-200 flex items-start justify-between bg-white gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               {panelMode !== 'create' && selectedEmpleado ? (
-                <div className="w-16 h-16 bg-slate-800 text-white rounded-2xl flex items-center justify-center text-2xl font-bold shadow-sm">
+                <div className="w-10 h-10 md:w-16 md:h-16 shrink-0 bg-slate-800 text-white rounded-2xl flex items-center justify-center text-lg md:text-2xl font-bold shadow-sm">
                   {selectedEmpleado.nombres?.charAt(0) || ''}{selectedEmpleado.apellido_paterno?.charAt(0) || ''}
                 </div>
               ) : (
-                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-sm">
+                <div className="w-10 h-10 md:w-16 md:h-16 shrink-0 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-lg md:text-2xl font-bold shadow-sm">
                   +
                 </div>
               )}
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <div className="min-w-0">
+                <h2 className="text-lg md:text-2xl font-bold text-slate-900 tracking-tight truncate">
                   {panelMode === 'create' ? 'Nuevo Trabajador' : `${selectedEmpleado?.nombres} ${selectedEmpleado?.apellido_paterno}`}
                 </h2>
                 {panelMode !== 'create' && selectedEmpleado && (
-                  <div className="flex items-center gap-3 mt-1.5">
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
                     <span className="text-slate-500 font-medium">{selectedEmpleado.cargo}</span>
                     <span className="text-slate-300">•</span>
                     <span className="text-slate-500 font-mono text-sm">{selectedEmpleado.rut}</span>
@@ -155,8 +155,8 @@ export default function EmpleadoPanel({
 
           {/* TABS NAV */}
           {panelMode !== 'create' && (
-            <div className="px-8 border-b border-gray-200 bg-slate-50/50">
-              <nav className="flex gap-6 -mb-px">
+            <div className="border-b border-gray-200 bg-slate-50/50">
+              <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-none px-4">
                 {[
                   { id: 'perfil', label: 'Datos Generales' },
                   { id: 'contratos', label: 'Contratos y Anexos' },
@@ -166,7 +166,7 @@ export default function EmpleadoPanel({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors ${
+                    className={`py-3 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
                       activeTab === tab.id
                         ? 'border-blue-600 text-blue-600'
                         : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'

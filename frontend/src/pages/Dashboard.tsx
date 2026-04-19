@@ -130,13 +130,10 @@ export default function Dashboard() {
           allCargos={allCargos}
           allDeptos={allDeptos}
           selectedEmpleadosIds={selectedEmpleadosIds}
-          isDownloadMenuOpen={isDownloadMenuOpen}
-          setIsDownloadMenuOpen={setIsDownloadMenuOpen}
           isDownloading={isDownloading}
           downloadingId={downloadingId}
           handleSelectAll={handleSelectAll}
           handleSelectEmpleado={handleSelectEmpleado}
-          ejecutarDescargaMasiva={ejecutarDescargaMasiva}
           toggleArrayItem={toggleArrayItem}
           toggleSelectAll={toggleSelectAll}
           abrirVer={abrirVer}
