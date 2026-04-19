@@ -99,7 +99,7 @@ export default function TabLegal({
               <select
                 required
                 value={documentoData.tipo}
-                onChange={(e) => setDocumentoData({...documentoData, tipo: e.target.value})}
+                onChange={(e) => setDocumentoData({...documentoData, tipo: e.target.value as 'AMONESTACION' | 'DESPIDO' | 'MUTUO_ACUERDO' | 'CONSTANCIA'})}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-1 focus:ring-blue-500 bg-slate-50 font-medium"
               >
                 <option value="AMONESTACION">Carta de Amonestación</option>
