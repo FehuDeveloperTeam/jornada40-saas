@@ -167,11 +167,13 @@ if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
         "https://jornada40.cl",
         "https://www.jornada40.cl",
+        "https://jornada40-saas.vercel.app",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CSRF_TRUSTED_ORIGINS = [
         "https://jornada40.cl",
         "https://www.jornada40.cl",
+        "https://jornada40-saas.vercel.app",
         "https://api.jornada40.cl",
         "https://jornada40-saas-production.up.railway.app",
     ]
