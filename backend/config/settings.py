@@ -133,6 +133,11 @@ REST_AUTH = {
 #  CONFIGURACIÓN DE RED Y SEGURIDAD
 # ==================================
 
+# Headers de seguridad HTTP (aplican en todos los entornos desplegados)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 if IS_PRODUCTION:
 
     ALLOWED_HOSTS = [
@@ -156,6 +161,8 @@ if IS_PRODUCTION:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = 'None'
     CSRF_COOKIE_SAMESITE = 'None'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 elif IS_STAGING:
 
