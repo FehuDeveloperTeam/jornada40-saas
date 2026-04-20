@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 import type { DocumentosDisponibles } from '../../types';
 import client from '../../api/client';
+import { useToast } from '../../context/ToastContext';
 
 type Props = {
   empleados: UseDashboardReturn['empleados'];
@@ -60,6 +61,7 @@ export default function ModalDescargaMasiva({
   empleados, filteredEmpleados, selectedEmpleadosIds, setSelectedEmpleadosIds,
   isGeneratingZip, setIsGeneratingZip, setIsModalMasivoOpen, empresaActivaId,
 }: Props) {
+  const showToast = useToast();
   const [paso, setPaso] = useState<1 | 2>(1);
   const [docsMap, setDocsMap] = useState<DocsMap>({});
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -85,7 +87,7 @@ export default function ModalDescargaMasiva({
       setCantidadLiq(maxLiq > 0 ? 1 : 0);
       setPaso(2);
     } catch {
-      alert('Error al consultar disponibilidad de documentos. Inténtalo de nuevo.');
+      showToast('Error al consultar disponibilidad de documentos. Inténtalo de nuevo.', 'error');
     } finally {
       setLoadingDocs(false);
     }
@@ -137,7 +139,7 @@ export default function ModalDescargaMasiva({
       setIsModalMasivoOpen(false);
       setSelectedEmpleadosIds([]);
     } catch {
-      alert('Error al generar el ZIP. Inténtalo de nuevo.');
+      showToast('Error al generar el ZIP. Inténtalo de nuevo.', 'error');
     } finally {
       setIsGeneratingZip(false);
     }

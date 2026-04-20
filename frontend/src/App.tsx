@@ -2,9 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import client from './api/client';
-import Login from './pages/Login'; 
-import LobbyEmpresas from './pages/LobbyEmpresas'; 
-import Dashboard from './pages/Dashboard'; 
+import { ToastProvider } from './context/ToastContext';
+import Login from './pages/Login';
+import LobbyEmpresas from './pages/LobbyEmpresas';
+import Dashboard from './pages/Dashboard';
 import Register from './pages/Register';
 import Landing from './pages/Landing';
 import Terminos from './pages/Terminos';
@@ -51,6 +52,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 
 export default function App() {
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Routes>
         {/* Ruta Pública */}
@@ -93,5 +95,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }

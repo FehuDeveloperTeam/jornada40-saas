@@ -1,4 +1,4 @@
-import { Download, FileSpreadsheet, CheckCircle2, ChevronDown, FileSignature, FileText, Briefcase, AlertTriangle, FolderArchive, Layers } from 'lucide-react';
+import { Download, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 
 type Props = {
@@ -17,13 +17,10 @@ type Props = {
   allCargos: UseDashboardReturn['allCargos'];
   allDeptos: UseDashboardReturn['allDeptos'];
   selectedEmpleadosIds: UseDashboardReturn['selectedEmpleadosIds'];
-  isDownloadMenuOpen: UseDashboardReturn['isDownloadMenuOpen'];
-  setIsDownloadMenuOpen: UseDashboardReturn['setIsDownloadMenuOpen'];
   isDownloading: UseDashboardReturn['isDownloading'];
   downloadingId: UseDashboardReturn['downloadingId'];
   handleSelectAll: UseDashboardReturn['handleSelectAll'];
   handleSelectEmpleado: UseDashboardReturn['handleSelectEmpleado'];
-  ejecutarDescargaMasiva: UseDashboardReturn['ejecutarDescargaMasiva'];
   toggleArrayItem: UseDashboardReturn['toggleArrayItem'];
   toggleSelectAll: UseDashboardReturn['toggleSelectAll'];
   abrirVer: UseDashboardReturn['abrirVer'];
@@ -38,9 +35,9 @@ export default function EmpleadosTable({
   empleados, filteredEmpleados, searchTerm, setSearchTerm,
   selectedCargos, setSelectedCargos, selectedDeptos, setSelectedDeptos,
   selectedStatuses, setSelectedStatuses, openFilterDropdown, setOpenFilterDropdown,
-  allCargos, allDeptos, selectedEmpleadosIds, isDownloadMenuOpen, setIsDownloadMenuOpen,
+  allCargos, allDeptos, selectedEmpleadosIds,
   isDownloading, downloadingId, handleSelectAll, handleSelectEmpleado,
-  ejecutarDescargaMasiva, toggleArrayItem, toggleSelectAll,
+  toggleArrayItem, toggleSelectAll,
   abrirVer, abrirEditar, abrirCrear, generarYDescargarPDF,
   setIsModalMasivoOpen, setIsUploadModalOpen,
 }: Props) {
@@ -96,51 +93,20 @@ export default function EmpleadosTable({
             </div>
             <span className="text-slate-300 text-sm font-medium">¿Qué deseas generar?</span>
           </div>
-
-          <div className="relative">
-            <button
-              onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)}
-              disabled={isDownloading}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
-            >
-              {isDownloading ? (
-                <span className="animate-pulse">Generando documentos...</span>
-              ) : (
-                <>
-                  <Download className="w-5 h-5" />
-                  Descarga Masiva
-                  <ChevronDown className={`w-4 h-4 transition-transform ${isDownloadMenuOpen ? 'rotate-180' : ''}`} />
-                </>
-              )}
-            </button>
-
-            {isDownloadMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50">
-                <div className="p-2 space-y-1">
-                  <button onClick={() => ejecutarDescargaMasiva('contratos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                    <Briefcase className="w-5 h-5 text-indigo-500" /> Contratos de Trabajo
-                  </button>
-                  <button onClick={() => ejecutarDescargaMasiva('anexos')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                    <FileSignature className="w-5 h-5 text-emerald-500" /> Anexos 40 Horas
-                  </button>
-                  <div className="h-px bg-slate-100 my-2"></div>
-                  <button onClick={() => ejecutarDescargaMasiva('liq_actual')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                    <FileText className="w-5 h-5 text-blue-500" /> Liquidación (Mes Actual)
-                  </button>
-                  <button onClick={() => ejecutarDescargaMasiva('liq_12')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                    <Layers className="w-5 h-5 text-blue-600" /> Últimas 12 Liquidaciones
-                  </button>
-                  <div className="h-px bg-slate-100 my-2"></div>
-                  <button onClick={() => ejecutarDescargaMasiva('amonestacion')} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 text-slate-700 rounded-lg text-left text-sm font-bold">
-                    <AlertTriangle className="w-5 h-5 text-amber-500" /> Carta de Amonestación
-                  </button>
-                  <button onClick={() => ejecutarDescargaMasiva('zip_completo')} className="w-full flex items-center gap-3 px-3 py-2.5 bg-slate-50 hover:bg-slate-900 hover:text-white text-slate-900 rounded-lg text-left text-sm font-bold transition-colors">
-                    <FolderArchive className="w-5 h-5" /> Expediente Completo (ZIP)
-                  </button>
-                </div>
-              </div>
+          <button
+            onClick={() => { setIsModalMasivoOpen(true); }}
+            disabled={isDownloading}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+          >
+            {isDownloading ? (
+              <span className="animate-pulse">Generando documentos...</span>
+            ) : (
+              <>
+                <Download className="w-5 h-5" />
+                Seleccionar Documentos
+              </>
             )}
-          </div>
+          </button>
         </div>
       )}
 
@@ -153,14 +119,17 @@ export default function EmpleadosTable({
           <table className="w-full min-w-[700px] text-left border-collapse">
             <thead>
               <tr className="border-b-2 border-gray-100">
-                <th className="px-6 py-4 text-left w-10">
-                  <input
-                    type="checkbox"
-                    aria-label="Seleccionar todos los trabajadores"
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    onChange={handleSelectAll}
-                    checked={selectedEmpleadosIds.length === filteredEmpleados.length && filteredEmpleados.length > 0}
-                  />
+                <th className="px-3 py-4 text-left">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar todos los trabajadores"
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      onChange={handleSelectAll}
+                      checked={selectedEmpleadosIds.length === filteredEmpleados.length && filteredEmpleados.length > 0}
+                    />
+                    <span className="text-xs font-semibold text-gray-400 uppercase">Acciones</span>
+                  </div>
                 </th>
                 <th className="p-4 text-sm font-semibold text-gray-400 uppercase">RUT</th>
                 <th className="p-4 text-sm font-semibold text-gray-400 uppercase">Nombre Completo</th>
@@ -226,8 +195,6 @@ export default function EmpleadosTable({
                     </div>
                   )}
                 </th>
-
-                <th className="p-4 text-sm font-semibold text-gray-400 uppercase text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -238,7 +205,20 @@ export default function EmpleadosTable({
               ) : (
                 filteredEmpleados.map((emp) => (
                   <tr key={emp.id} className={`border-b border-gray-50 transition-colors group ${!emp.activo ? 'bg-gray-50/70 opacity-80' : 'hover:bg-gray-50/50'}`}>
-                    <td className="px-6 py-4"><input type="checkbox" aria-label={`Seleccionar a ${emp.nombres} ${emp.apellido_paterno}`} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked={selectedEmpleadosIds.includes(emp.id)} onChange={() => handleSelectEmpleado(emp.id)} onClick={(e) => e.stopPropagation()} /></td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" aria-label={`Seleccionar a ${emp.nombres} ${emp.apellido_paterno}`} className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0" checked={selectedEmpleadosIds.includes(emp.id)} onChange={() => handleSelectEmpleado(emp.id)} onClick={(e) => e.stopPropagation()} />
+                        <button onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} disabled={downloadingId === emp.id || !emp.activo} className={`p-1.5 rounded-lg transition-colors ${!emp.activo ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`} title={emp.activo ? "Descargar Anexo" : "No disponible para inactivos"}>
+                          {downloadingId === emp.id ? <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" /> : <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>}
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
+                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
+                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                        </button>
+                      </div>
+                    </td>
                     <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
                     <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{emp.email || '---'}</td>
@@ -248,21 +228,6 @@ export default function EmpleadosTable({
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${emp.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {emp.activo ? 'Vigente' : 'Desvinculado'}
                       </span>
-                    </td>
-                    <td className="p-4 text-right flex justify-end gap-3">
-                      <button onClick={(e) => { e.stopPropagation(); generarYDescargarPDF(emp); }} disabled={downloadingId === emp.id || !emp.activo} className={`p-2 rounded-lg transition-colors ${!emp.activo ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`} title={emp.activo ? "Descargar Anexo" : "No disponible para inactivos"}>
-                        {downloadingId === emp.id ? (
-                          <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                        )}
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); abrirVer(emp); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver Perfil">
-                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); abrirEditar(emp); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Editar Trabajador">
-                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                      </button>
                     </td>
                   </tr>
                 ))

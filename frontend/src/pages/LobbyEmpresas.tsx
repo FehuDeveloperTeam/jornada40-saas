@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
+import { useToast } from '../context/ToastContext';
 import {ShieldCheck, Settings, Trash2, RefreshCcw} from 'lucide-react';
 
 interface Empresa {
@@ -22,6 +23,7 @@ interface Empresa {
 
 
 export default function LobbyEmpresas() {
+  const showToast = useToast();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [mostrarInactivas, setMostrarInactivas] = useState<boolean>(false);
@@ -48,7 +50,7 @@ export default function LobbyEmpresas() {
         ? '/empresas/?incluir_inactivas=true'
         : '/empresas/';
       const response = await client.get(url);
-      setEmpresas(response.data);
+      setEmpresas(response.data.results ?? response.data);
       
     } catch (error) {
       // Reemplazamos el 'any' preguntándole a TS si el error es de Axios
@@ -144,10 +146,9 @@ export default function LobbyEmpresas() {
       
       // Manejo estricto del error sin usar 'any'
       if (axios.isAxiosError(error)) {
-        const errorMsg = error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Error desconocido";
-        alert(`Django rechazó la operación:\n\n${errorMsg}`);
+        showToast('No se pudo guardar la empresa. Revisa los datos e inténtalo de nuevo.', 'error');
       } else {
-        alert("Ocurrió un error desconocido al guardar la empresa.");
+        showToast('Ocurrió un error desconocido al guardar la empresa.', 'error');
       }
     }
   };
@@ -160,7 +161,7 @@ export default function LobbyEmpresas() {
       await fetchEmpresas(mostrarInactivas); 
     } catch (error) {
       console.error('Error al desactivar empresa:', error);
-      alert('Hubo un error al desactivar la empresa.');
+      showToast('Hubo un error al desactivar la empresa.', 'error');
     }
   };
 
@@ -171,7 +172,7 @@ export default function LobbyEmpresas() {
       fetchEmpresas(mostrarInactivas);
     } catch (error) {
       console.error('Error al reactivar empresa:', error);
-      alert('Hubo un error al reactivar la empresa.');
+      showToast('Hubo un error al reactivar la empresa.', 'error');
     }
   };
 

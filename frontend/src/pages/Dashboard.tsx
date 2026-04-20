@@ -20,7 +20,6 @@ export default function Dashboard() {
     isModalMasivoOpen, setIsModalMasivoOpen,
     isUploading, isGeneratingZip, setIsGeneratingZip,
     selectedEmpleadosIds, setSelectedEmpleadosIds,
-    isDownloadMenuOpen, setIsDownloadMenuOpen,
     isDownloading,
     isUploadModalOpen, setIsUploadModalOpen,
     uploadResult, setUploadResult,
@@ -33,7 +32,7 @@ export default function Dashboard() {
     // Formulario empleado
     formData, setFormData,
     // Formulario contrato
-    contratoData, setContratoData,
+    contratoData,
     isSavingContrato, hayCambiosContrato, setHayCambiosContrato,
     funciones, setFunciones,
     clausulas, setClausulas,
@@ -65,7 +64,6 @@ export default function Dashboard() {
     flippedWidgets,
     // Handlers
     handleSelectAll, handleSelectEmpleado,
-    ejecutarDescargaMasiva,
     descargarPlantillaExcel,
     handleFileUpload,
     abrirVer, abrirEditar, abrirCrear,
@@ -130,13 +128,10 @@ export default function Dashboard() {
           allCargos={allCargos}
           allDeptos={allDeptos}
           selectedEmpleadosIds={selectedEmpleadosIds}
-          isDownloadMenuOpen={isDownloadMenuOpen}
-          setIsDownloadMenuOpen={setIsDownloadMenuOpen}
           isDownloading={isDownloading}
           downloadingId={downloadingId}
           handleSelectAll={handleSelectAll}
           handleSelectEmpleado={handleSelectEmpleado}
-          ejecutarDescargaMasiva={ejecutarDescargaMasiva}
           toggleArrayItem={toggleArrayItem}
           toggleSelectAll={toggleSelectAll}
           abrirVer={abrirVer}

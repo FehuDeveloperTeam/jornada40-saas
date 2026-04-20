@@ -6,18 +6,22 @@ from pathlib import Path
 import dj_database_url
 from decouple import config
 import os
+import re
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-test-key')
 
 # Detectar entorno Railway
 RAILWAY_ENV = config('RAILWAY_ENVIRONMENT_NAME', default=None)
 IS_PRODUCTION = RAILWAY_ENV == 'production'
 IS_STAGING = RAILWAY_ENV is not None and not IS_PRODUCTION
 IS_DEPLOYED = RAILWAY_ENV is not None  # cualquier entorno Railway
+
+# SECRET_KEY es obligatorio en producción. En desarrollo local se permite fallback.
+if IS_DEPLOYED:
+    SECRET_KEY = config('SECRET_KEY')
+else:
+    SECRET_KEY = config('SECRET_KEY', default='django-insecure-local-dev-only-never-use-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = not IS_DEPLOYED
@@ -45,9 +49,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -114,6 +118,19 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',
+        'user': '1000/day',
+        'login': '10/minute',
+        'register': '5/minute',
+        'password_reset': '5/hour',
+    },
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 200,
 }
 
 SITE_ID = 1
@@ -170,14 +187,15 @@ elif IS_STAGING:
         config('RAILWAY_PUBLIC_DOMAIN', default=''),
         '.railway.app',
     ]
-    # Acepta cualquier preview de Vercel como origen válido
+    # Solo acepta previews del proyecto propio en Vercel (no cualquier *.vercel.app)
+    _vercel_project = config('VERCEL_PROJECT_NAME', default='jornada40-saas')
     CORS_ALLOWED_ORIGIN_REGEXES = [
-        r'^https://.*\.vercel\.app$',
+        rf'^https://{re.escape(_vercel_project)}(-[a-z0-9]+)*\.vercel\.app$',
     ]
     CORS_ALLOWED_ORIGINS = []
     CORS_ALLOW_CREDENTIALS = True
     CSRF_TRUSTED_ORIGINS = [
-        'https://*.vercel.app',
+        f'https://{_vercel_project}*.vercel.app',
         f"https://{config('RAILWAY_PUBLIC_DOMAIN', default='')}",
     ]
     SESSION_COOKIE_SECURE = True

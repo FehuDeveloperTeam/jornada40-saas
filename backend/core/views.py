@@ -1,9 +1,20 @@
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes, action, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
+from rest_framework.throttling import AnonRateThrottle
+
+
+class LoginRateThrottle(AnonRateThrottle):
+    scope = 'login'
+
+class RegisterRateThrottle(AnonRateThrottle):
+    scope = 'register'
+
+class PasswordResetRateThrottle(AnonRateThrottle):
+    scope = 'password_reset'
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
@@ -116,8 +127,27 @@ def estandarizar_fecha(fecha_valor):
             return dt
         except ValueError:
             continue
-            
+
     return None
+
+
+def _es_plan_semilla(user) -> bool:
+    """True si el usuario no tiene plan activo o su plan es Semilla (gratuito)."""
+    cliente = getattr(user, 'perfil_cliente', None)
+    if not cliente:
+        return True
+    plan = cliente.plan
+    if not plan:
+        try:
+            suscripcion = cliente.suscripcion_activa
+            if suscripcion.estado in ('ACTIVE', 'TRIAL', 'PAST_DUE'):
+                plan = suscripcion.plan
+        except Exception:
+            pass
+    if not plan:
+        return True
+    return plan.nombre.lower() == 'semilla'
+
 
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
     queryset = DocumentoLegal.objects.all().order_by('-fecha_emision', '-creado_en')
@@ -148,7 +178,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
             comuna_empl = getattr(empleado, 'comuna', '') or ''
             ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             context = {
                 'documento': documento,
@@ -169,7 +199,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
-                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+                return HttpResponse('Error al generar el PDF.', status=500)
             
             return response
 
@@ -295,7 +325,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=400)
-                
+
+            MAX_EXCEL_MB = 5
+            if hasattr(archivo_excel, 'size') and archivo_excel.size > MAX_EXCEL_MB * 1024 * 1024:
+                return Response({'error': f'El archivo no puede superar {MAX_EXCEL_MB} MB.'}, status=400)
+
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             cliente = getattr(request.user, 'perfil_cliente', None)
             limite_trabajadores = cliente.plan.limite_trabajadores if (cliente and cliente.plan) else 1000
@@ -303,10 +337,15 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             # Leemos el Excel
             df = pd.read_excel(archivo_excel).fillna('')
             registros = df.to_dict('records')
+
+            MAX_FILAS = 500
+            if len(registros) > MAX_FILAS:
+                return Response({'error': f'El archivo no puede tener más de {MAX_FILAS} filas por importación.'}, status=400)
             
             empleados_creados = 0
             empleados_actualizados = 0
             limite_alcanzado = False
+            errores = []
             
             # Preparamos el mapa de empleados actuales para evitar duplicados
             empleados_bd = Empleado.objects.filter(empresa=empresa)
@@ -317,7 +356,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 total_actual = empleados_bd.count()
 
-                for row in registros:
+                for fila_num, row in enumerate(registros, start=2):  # start=2 porque fila 1 es el header del Excel
                     # --- NORMALIZADOR DE COLUMNAS ---
                     # Creamos un nuevo diccionario con todas las llaves en minúsculas y sin espacios
                     # Así row.get('email') funcionará aunque el Excel diga "Email", " EMAIL" o "email"
@@ -409,11 +448,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 'agregados': empleados_creados,
                 'actualizados': empleados_actualizados,
                 'limite_alcanzado': limite_alcanzado,
-                'errores': []
+                'errores': errores,
             }, status=200)
 
-        except Exception as e:
-            return Response({'error': f'Error procesando: {str(e)}'}, status=500)
+        except Exception:
+            return Response({'error': 'Error procesando el archivo. Revisa el formato e inténtalo de nuevo.'}, status=500)
                 
    # ====================================================
     # DISPONIBILIDAD DE DOCUMENTOS POR TRABAJADOR
@@ -438,13 +477,6 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
    # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
-    @staticmethod
-    def _es_plan_semilla(user):
-        """True si el usuario no tiene plan o su plan es Semilla (gratuito)."""
-        cliente = getattr(user, 'perfil_cliente', None)
-        if not cliente or not cliente.plan:
-            return True
-        return cliente.plan.nombre.lower() == 'semilla'
 
     def _html_a_pdf(self, html_string, nombre_doc):
         """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción clara si falla."""
@@ -468,7 +500,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         """Revisa si el PDF ya existe en la BD. Si no, lo genera usando los templates HTML reales."""
 
         empresa = empleado.empresa
-        es_plan_semilla = self._es_plan_semilla(user) if user else False
+        es_plan_semilla = _es_plan_semilla(user) if user else False
 
         # --- LÓGICA PARA CONTRATOS ---
         if tipo_documento == 'contrato':
@@ -648,7 +680,15 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Faltan IDs de trabajadores o empresa'}, status=400)
             if not documentos:
                 return Response({'error': 'Debes seleccionar al menos un tipo de documento'}, status=400)
-            if self._es_plan_semilla(request.user):
+
+            MAX_EMPLEADOS_ZIP = 50
+            if len(empleados_ids) > MAX_EMPLEADOS_ZIP:
+                return Response({'error': f'Máximo {MAX_EMPLEADOS_ZIP} trabajadores por descarga. Divide la selección en grupos.'}, status=400)
+
+            MAX_LIQUIDACIONES_ZIP = 12
+            cantidad_liquidaciones = min(cantidad_liquidaciones, MAX_LIQUIDACIONES_ZIP)
+
+            if _es_plan_semilla(request.user):
                 return Response({'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Actualiza a PYME para desbloquear esta función.'}, status=403)
 
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
@@ -738,10 +778,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             response['Access-Control-Expose-Headers'] = 'Content-Disposition'
             return response
 
-        except Exception as e:
+        except Exception:
             import traceback
             print(traceback.format_exc())
-            return Response({'error': str(e)}, status=500)
+            return Response({'error': 'Error al generar el ZIP. Inténtalo de nuevo.'}, status=500)
         
 
     @action(detail=False, methods=['post'])
@@ -755,9 +795,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             )
         
         empleado_ids = request.data.get('empleados', [])
-        
+
         if not empleado_ids:
             return Response({'error': 'No se seleccionaron trabajadores'}, status=status.HTTP_400_BAD_REQUEST)
+
+        MAX_EMPLEADOS_ZIP = 50
+        if len(empleado_ids) > MAX_EMPLEADOS_ZIP:
+            return Response({'error': f'Máximo {MAX_EMPLEADOS_ZIP} trabajadores por descarga. Divide la selección en grupos.'}, status=status.HTTP_400_BAD_REQUEST)
         
         zip_buffer = io.BytesIO()
         
@@ -843,7 +887,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
             hoy = datetime.date.today()
@@ -873,7 +917,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
-                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+                return HttpResponse('Error al generar el PDF.', status=500)
             
             return response
 
@@ -886,7 +930,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato = self.get_object() 
             empleado = contrato.empleado
             empresa = empleado.empresa
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
             meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -916,17 +960,31 @@ class ContratoViewSet(viewsets.ModelViewSet):
             pisa_status = pisa.CreatePDF(html, dest=response)
 
             if pisa_status.err:
-                return HttpResponse(f'Errores al generar PDF <pre>{html}</pre>', status=500)
+                return HttpResponse('Error al generar el PDF.', status=500)
             
             return response
 
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # ==========================================
+# LOGIN CON RATE LIMITING
+# ==========================================
+from dj_rest_auth.views import LoginView as DjRestLoginView
+
+class ThrottledLoginView(DjRestLoginView):
+    throttle_classes = [LoginRateThrottle]
+
+from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
+
+class ThrottledPasswordResetView(DjRestPasswordResetView):
+    throttle_classes = [PasswordResetRateThrottle]
+
+# ==========================================
 # REGISTRO DE NUEVOS CLIENTES
 # ==========================================
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def registrar_cliente(request):
     rut = request.data.get('rut')
     password = request.data.get('password')
@@ -1003,7 +1061,7 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             contrato = anexo.contrato
             empleado = contrato.empleado
             empresa = empleado.empresa
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
 
             meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
             hoy = anexo.fecha_emision
@@ -1163,7 +1221,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
-            es_plan_semilla = self._es_plan_semilla(request.user)
+            es_plan_semilla = _es_plan_semilla(request.user)
             empleado = liquidacion.empleado
             empresa = empleado.empresa
             contrato = Contrato.objects.filter(empleado=empleado).first()
@@ -1308,14 +1366,19 @@ def crear_checkout_reveniu(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
-    # TODO: implementar verificación HMAC con el secret de Reveniu cuando esté disponible.
-    # Ejemplo: comparar header 'X-Reveniu-Signature' con HMAC-SHA256(secret, request.body)
-    # Por ahora se usa un token estático configurable como capa básica de protección.
+    import hmac
+
     webhook_secret = config('REVENIU_WEBHOOK_SECRET', default=None)
-    if webhook_secret:
-        token_recibido = request.headers.get('X-Webhook-Token', '')
-        if token_recibido != webhook_secret:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # Secret obligatorio. Sin él, rechazamos todo (fail closed).
+    if not webhook_secret:
+        return Response({'error': 'Webhook no configurado'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    token_recibido = request.headers.get('X-Webhook-Token', '')
+
+    # Comparación en tiempo constante para evitar timing attacks.
+    if not hmac.compare_digest(token_recibido, webhook_secret):
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
     data = request.data
     evento = data.get('event')
@@ -1353,6 +1416,7 @@ def webhook_reveniu(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetRateThrottle])
 def recuperar_password_por_rut(request):
     rut = request.data.get('rut')
     
