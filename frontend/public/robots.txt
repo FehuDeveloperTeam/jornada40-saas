@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /terminos
+Allow: /forgot-password
+
+# Rutas protegidas — no indexar
+Disallow: /dashboard
+Disallow: /empresas
+Disallow: /suscripcion
+Disallow: /reset-password/
+
+Sitemap: https://jornada40.cl/sitemap.xml
