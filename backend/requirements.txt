@@ -1,5 +1,7 @@
 annotated-types==0.7.0
 anyio==4.13.0
+boto3==1.37.0
+botocore==1.37.0
 arabic-reshaper==3.0.0
 asgiref==3.11.1
 asn1crypto==1.5.1
@@ -17,6 +19,7 @@ Django==5.2.13
 django-allauth==65.14.1
 django-anymail==14.0
 django-cors-headers==4.9.0
+django-storages==1.14.4
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 docopt==0.6.2
@@ -29,6 +32,7 @@ html5lib==1.1
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.11
+jmespath==1.0.1
 lxml==6.0.2
 num2words==0.5.14
 numpy==2.4.3
@@ -57,6 +61,7 @@ requests==2.33.0
 resend==2.26.0
 rlPyCairo==0.4.0
 six==1.17.0
+s3transfer==0.11.0
 sqlparse==0.5.5
 standardwebhooks==1.0.1
 stripe==14.4.1

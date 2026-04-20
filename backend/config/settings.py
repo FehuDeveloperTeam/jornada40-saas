@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     
     # Third party
+    'storages',
     'rest_framework',
     'rest_framework.authtoken',
     'dj_rest_auth',
@@ -260,6 +261,31 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jo
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
 PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
-# Configuración para guardar archivos físicos (PDFs)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# ==========================================
+# ALMACENAMIENTO DE ARCHIVOS (PDFs, contratos)
+# ==========================================
+if IS_DEPLOYED:
+    # Backblaze B2 — S3-compatible object storage
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "access_key":    config('B2_KEY_ID'),
+                "secret_key":    config('B2_APPLICATION_KEY'),
+                "bucket_name":   config('B2_BUCKET_NAME'),
+                "endpoint_url":  config('B2_ENDPOINT_URL'),
+                "default_acl":   "private",
+                "querystring_auth":    True,
+                "querystring_expire":  3600,  # URLs firmadas válidas por 1 hora
+                "file_overwrite":      False,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = config('B2_PUBLIC_URL', default='')
+else:
+    # Desarrollo local — filesystem
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
