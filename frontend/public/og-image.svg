@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Círculos decorativos -->
+  <circle cx="1050" cy="100" r="200" fill="#3b82f6" opacity="0.15"/>
+  <circle cx="150" cy="530" r="150" fill="#60a5fa" opacity="0.10"/>
+
+  <!-- Card central -->
+  <rect x="60" y="60" width="1080" height="510" rx="24" fill="url(#card)" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
+
+  <!-- Badge superior -->
+  <rect x="100" y="108" width="260" height="36" rx="18" fill="#2563eb"/>
+  <text x="230" y="131" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="#bfdbfe" text-anchor="middle" letter-spacing="2">SOFTWARE RR.HH.</text>
+
+  <!-- Logo text / Nombre -->
+  <text x="100" y="240" font-family="system-ui, -apple-system, sans-serif" font-size="96" font-weight="800" fill="#ffffff" letter-spacing="-2">Jornada40</text>
+
+  <!-- Línea separadora -->
+  <rect x="100" y="268" width="120" height="5" rx="3" fill="#60a5fa"/>
+
+  <!-- Tagline -->
+  <text x="100" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="400" fill="#bfdbfe">Gestión laboral para la Ley de 40 horas</text>
+
+  <!-- Features -->
+  <text x="100" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#93c5fd">✓ Contratos</text>
+  <text x="280" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#93c5fd">✓ Liquidaciones</text>
+  <text x="520" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#93c5fd">✓ Documentos legales</text>
+  <text x="800" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="22" fill="#93c5fd">✓ Empresas</text>
+
+  <!-- URL -->
+  <text x="100" y="512" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="600" fill="#60a5fa">jornada40.cl</text>
+</svg>
