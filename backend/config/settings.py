@@ -266,20 +266,22 @@ PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
 # ==========================================
 # ALMACENAMIENTO DE ARCHIVOS (PDFs, contratos)
 # ==========================================
-if IS_DEPLOYED:
-    # Backblaze B2 — S3-compatible object storage
+_b2_key_id = config('B2_KEY_ID', default=None)
+
+if IS_DEPLOYED and _b2_key_id:
+    # Backblaze B2 — S3-compatible object storage (activo cuando las vars están configuradas)
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
-                "access_key":    config('B2_KEY_ID'),
-                "secret_key":    config('B2_APPLICATION_KEY'),
-                "bucket_name":   config('B2_BUCKET_NAME'),
-                "endpoint_url":  config('B2_ENDPOINT_URL'),
-                "default_acl":   "private",
-                "querystring_auth":    True,
-                "querystring_expire":  3600,  # URLs firmadas válidas por 1 hora
-                "file_overwrite":      False,
+                "access_key":         _b2_key_id,
+                "secret_key":         config('B2_APPLICATION_KEY'),
+                "bucket_name":        config('B2_BUCKET_NAME'),
+                "endpoint_url":       config('B2_ENDPOINT_URL'),
+                "default_acl":        "private",
+                "querystring_auth":   True,
+                "querystring_expire": 3600,
+                "file_overwrite":     False,
             },
         },
         "staticfiles": {
@@ -288,6 +290,6 @@ if IS_DEPLOYED:
     }
     MEDIA_URL = config('B2_PUBLIC_URL', default='')
 else:
-    # Desarrollo local — filesystem
+    # Filesystem local (dev) o Railway sin B2 aún configurado
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
