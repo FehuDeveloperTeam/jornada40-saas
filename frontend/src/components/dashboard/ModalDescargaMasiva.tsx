@@ -71,26 +71,30 @@ export default function ModalDescargaMasiva({
   ]);
   const [cantidadLiq, setCantidadLiq] = useState(1);
 
+  const docVacio: DocumentosDisponibles = {
+    tiene_contrato: false, tiene_anexo_40h: false, cantidad_liquidaciones: 0,
+    cantidad_amonestaciones: 0, tiene_despido: false, tiene_mutuo_acuerdo: false,
+    cantidad_constancias: 0, cantidad_anexos_contrato: 0,
+  };
+
   const irAlPaso2 = async () => {
     setLoadingDocs(true);
-    try {
-      const resultados = await Promise.all(
-        selectedEmpleadosIds.map(id =>
-          client.get<DocumentosDisponibles>(`/empleados/${id}/documentos_disponibles/`)
-            .then(r => ({ id, data: r.data }))
-        )
-      );
-      const mapa: DocsMap = {};
-      resultados.forEach(({ id, data }) => { mapa[id] = data; });
-      setDocsMap(mapa);
-      const maxLiq = resultados.reduce((m, r) => Math.max(m, r.data.cantidad_liquidaciones), 0);
-      setCantidadLiq(maxLiq > 0 ? 1 : 0);
-      setPaso(2);
-    } catch {
-      showToast('Error al consultar disponibilidad de documentos. Inténtalo de nuevo.', 'error');
-    } finally {
-      setLoadingDocs(false);
-    }
+    const resultados = await Promise.allSettled(
+      selectedEmpleadosIds.map(id =>
+        client.get<DocumentosDisponibles>(`/empleados/${id}/documentos_disponibles/`)
+          .then(r => ({ id, data: r.data }))
+      )
+    );
+    const mapa: DocsMap = {};
+    resultados.forEach((res, i) => {
+      const id = selectedEmpleadosIds[i];
+      mapa[id] = res.status === 'fulfilled' ? res.value.data : docVacio;
+    });
+    setDocsMap(mapa);
+    const maxLiq = Object.values(mapa).reduce((m, d) => Math.max(m, d.cantidad_liquidaciones), 0);
+    setCantidadLiq(maxLiq > 0 ? 1 : 0);
+    setPaso(2);
+    setLoadingDocs(false);
   };
 
   const toggle = (tipo: string) =>

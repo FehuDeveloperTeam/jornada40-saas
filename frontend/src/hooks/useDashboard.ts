@@ -383,7 +383,7 @@ export function useDashboard() {
           tipo_jornada: 'ORDINARIA',
           cargo: emp?.cargo || 'NO ESPECIFICADO',
           sueldo_base: emp?.sueldo_base || 0,
-          horas_semanales: '44',
+          horas_semanales: String(emp?.horas_laborales ?? 44),
           distribucion_dias: 5,
           fecha_inicio: emp?.fecha_ingreso || new Date().toISOString().split('T')[0],
           dia_pago: 5,

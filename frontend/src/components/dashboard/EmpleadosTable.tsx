@@ -219,7 +219,7 @@ export default function EmpleadosTable({
                         </button>
                       </div>
                     </td>
-                    <td className="p-4 font-mono text-sm text-gray-600">{emp.rut}</td>
+                    <td className="p-4 font-mono text-sm text-gray-600 whitespace-nowrap">{emp.rut}</td>
                     <td className="p-4 font-medium text-gray-900">{emp.nombres} {emp.apellido_paterno}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{emp.email || '---'}</td>
                     <td className="p-4 text-gray-600 capitalize">{emp.departamento?.toLowerCase() || 'No especificado'}</td>
