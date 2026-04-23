@@ -536,8 +536,7 @@ export function useDashboard() {
   const guardarContrato = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingContrato(true);
-    const payload = {
-      ...contratoData,
+    const basePayload = {
       funciones_especificas: funciones,
       clausulas_especiales: clausulas,
       distribucion_horario: horario,
@@ -546,11 +545,23 @@ export function useDashboard() {
     };
     try {
       if (contratoData.id) {
-        await client.patch(`/contratos/${contratoData.id}/`, payload);
+        // Excluir campos inmutables del payload para que DRF no los procese
+        const {
+          id: _id, empleado: _emp, creado_en: _cr,
+          archivo_contrato: _ac, archivo_anexo_40h: _aa,
+          tiene_contrato_pdf: _tcp, tiene_anexo_40h_pdf: _ta,
+          ...campos
+        } = contratoData;
+        const res = await client.patch(`/contratos/${contratoData.id}/`, { ...campos, ...basePayload });
+        setContratoData(res.data);
+        setFunciones(res.data.funciones_especificas || []);
+        setClausulas(res.data.clausulas_especiales || []);
         showToast('¡Contrato actualizado exitosamente!', 'success');
       } else {
-        const res = await client.post('/contratos/', payload);
+        const res = await client.post('/contratos/', { ...contratoData, ...basePayload });
         setContratoData(res.data);
+        setFunciones(res.data.funciones_especificas || []);
+        setClausulas(res.data.clausulas_especiales || []);
         showToast('¡Contrato creado exitosamente!', 'success');
       }
       setHayCambiosContrato(false);
