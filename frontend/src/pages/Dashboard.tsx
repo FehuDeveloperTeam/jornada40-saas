@@ -73,7 +73,9 @@ export default function Dashboard() {
     calcularValorHorasExtras,
     generarLiquidacion,
     descargarLiquidacionPDF, descargarDocumentoPDF,
-    descargarContratoPDF, descargarAnexoPDF,
+    generarContratoPDF, descargarContratoGuardado,
+    generarAnexo40hPDF, descargarAnexo40hGuardado,
+    isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
     toggleWidget, toggleArrayItem, toggleSelectAll,
     volverAlLobby,
     empresaActivaId,
@@ -170,8 +172,12 @@ export default function Dashboard() {
           horario={horario}
           setHorario={setHorario}
           hayCambiosContrato={hayCambiosContrato}
-          descargarContratoPDF={descargarContratoPDF}
-          descargarAnexoPDF={descargarAnexoPDF}
+          generarContratoPDF={generarContratoPDF}
+          descargarContratoGuardado={descargarContratoGuardado}
+          generarAnexo40hPDF={generarAnexo40hPDF}
+          descargarAnexo40hGuardado={descargarAnexo40hGuardado}
+          isGeneratingContratoPDF={isGeneratingContratoPDF}
+          isGeneratingAnexo40hPDF={isGeneratingAnexo40hPDF}
           anexosContrato={anexosContrato}
           showAnexoContratoForm={showAnexoContratoForm}
           setShowAnexoContratoForm={setShowAnexoContratoForm}

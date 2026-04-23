@@ -89,6 +89,8 @@ export interface Contrato {
     clausulas_especiales: string[] | null;
     archivo_contrato: string | null;
     archivo_anexo_40h: string | null;
+    tiene_contrato_pdf: boolean;
+    tiene_anexo_40h_pdf: boolean;
     creado_en: string;
 }
 

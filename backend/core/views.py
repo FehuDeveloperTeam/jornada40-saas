@@ -881,91 +881,98 @@ class ContratoViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(empleado_id=empleado_id)
         return queryset
 
+    def _build_contrato_context(self, contrato, es_plan_semilla):
+        empleado = contrato.empleado
+        empresa = empleado.empresa
+        meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+        hoy = datetime.date.today()
+        fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
+        comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
+        ciudad_segura = str(comuna_emp or getattr(empleado, 'comuna', '') or 'Santiago').strip().title()
+        return {
+            'contrato': contrato, 'empleado': empleado, 'empresa': empresa,
+            'fecha_actual': fecha_espanol, 'ciudad': ciudad_segura,
+            'es_plan_semilla': es_plan_semilla,
+        }
+
+    @action(detail=True, methods=['post'])
+    def generar_contrato_pdf(self, request, pk=None):
+        try:
+            contrato = self.get_object()
+            es_plan_semilla = _es_plan_semilla(request.user)
+            context = self._build_contrato_context(contrato, es_plan_semilla)
+            html = get_template('contrato_trabajo.html').render(context)
+            pdf_buf = io.BytesIO()
+            pisa_status = pisa.CreatePDF(html, dest=pdf_buf)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar el PDF.'}, status=500)
+            if contrato.archivo_contrato:
+                contrato.archivo_contrato.delete(save=False)
+            nombre = f"Contrato_{contrato.empleado.rut}.pdf"
+            contrato.archivo_contrato.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
+            return Response({'ok': True, 'mensaje': 'Contrato generado y guardado exitosamente.'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def descargar_contrato(self, request, pk=None):
+        try:
+            contrato = self.get_object()
+            if not contrato.archivo_contrato:
+                return Response({'error': 'El contrato aún no tiene PDF generado.'}, status=status.HTTP_404_NOT_FOUND)
+            nombre = f"Contrato_{contrato.empleado.rut}.pdf"
+            response = HttpResponse(contrato.archivo_contrato.read(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+            return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'])
+    def generar_anexo_40h(self, request, pk=None):
+        try:
+            contrato = self.get_object()
+            es_plan_semilla = _es_plan_semilla(request.user)
+            context = self._build_contrato_context(contrato, es_plan_semilla)
+            html = get_template('anexo_40h.html').render(context)
+            pdf_buf = io.BytesIO()
+            pisa_status = pisa.CreatePDF(html, dest=pdf_buf)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar el PDF.'}, status=500)
+            if contrato.archivo_anexo_40h:
+                contrato.archivo_anexo_40h.delete(save=False)
+            nombre = f"Anexo_40h_{contrato.empleado.rut}.pdf"
+            contrato.archivo_anexo_40h.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
+            return Response({'ok': True, 'mensaje': 'Anexo 40h generado y guardado exitosamente.'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def descargar_anexo_40h(self, request, pk=None):
+        try:
+            contrato = self.get_object()
+            if not contrato.archivo_anexo_40h:
+                return Response({'error': 'El anexo 40h aún no tiene PDF generado.'}, status=status.HTTP_404_NOT_FOUND)
+            nombre = f"Anexo_40h_{contrato.empleado.rut}.pdf"
+            response = HttpResponse(contrato.archivo_anexo_40h.read(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+            return response
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Mantener compatibilidad con descarga masiva ZIP (sin guardar)
     @action(detail=True, methods=['get'])
     def generar_anexo(self, request, pk=None):
         try:
-            contrato = self.get_object() 
-            empleado = contrato.empleado
-            empresa = empleado.empresa
+            contrato = self.get_object()
             es_plan_semilla = _es_plan_semilla(request.user)
-
-            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-            hoy = datetime.date.today()
-            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-
-            comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
-            comuna_empl = getattr(empleado, 'comuna', '') or ''
-            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-
-            context = {
-                'contrato': contrato,
-                'empleado': empleado,
-                'empresa': empresa,
-                'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura,
-                'es_plan_semilla': es_plan_semilla
-
-            }
-
-            template = get_template('anexo_40h.html')
-            html = template.render(context)
-
+            context = self._build_contrato_context(contrato, es_plan_semilla)
+            html = get_template('anexo_40h.html').render(context)
             response = HttpResponse(content_type='application/pdf')
-            nombre_archivo = f'Anexo_40h_{empleado.rut}.pdf'
-            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
-
-            pisa_status = pisa.CreatePDF(html, dest=response)
-
-            if pisa_status.err:
-                return HttpResponse('Error al generar el PDF.', status=500)
-            
+            response['Content-Disposition'] = f'attachment; filename="Anexo_40h_{contrato.empleado.rut}.pdf"'
+            pisa.CreatePDF(html, dest=response)
             return response
-
         except Exception as e:
-            return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=True, methods=['get'])
-    def generar_contrato_pdf(self, request, pk=None):
-        try:
-            contrato = self.get_object() 
-            empleado = contrato.empleado
-            empresa = empleado.empresa
-            es_plan_semilla = _es_plan_semilla(request.user)
-
-            # Formatear la fecha actual a español (Ej: "10 de Marzo de 2026")
-            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-            hoy = datetime.date.today()
-            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-
-            comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
-            comuna_empl = getattr(empleado, 'comuna', '') or ''
-            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-
-            context = {
-                'contrato': contrato,
-                'empleado': empleado,
-                'empresa': empresa,
-                'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura,
-                'es_plan_semilla': es_plan_semilla
-            }
-
-            template = get_template('contrato_trabajo.html')
-            html = template.render(context)
-
-            response = HttpResponse(content_type='application/pdf')
-            nombre_archivo = f'Contrato_{empleado.rut}.pdf'
-            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
-
-            pisa_status = pisa.CreatePDF(html, dest=response)
-
-            if pisa_status.err:
-                return HttpResponse('Error al generar el PDF.', status=500)
-            
-            return response
-
-        except Exception as e:
-            return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # ==========================================
 # LOGIN CON RATE LIMITING
 # ==========================================
@@ -1053,6 +1060,31 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
         except Contrato.DoesNotExist:
             return Response({'error': 'Contrato no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
         return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        anexo = serializer.save()
+        try:
+            contrato = anexo.contrato
+            empleado = contrato.empleado
+            empresa = empleado.empresa
+            es_plan_semilla = _es_plan_semilla(self.request.user)
+            meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+            fecha_obj = anexo.fecha_emision
+            fecha_espanol = f"{fecha_obj.day:02d} de {meses[fecha_obj.month - 1]} de {fecha_obj.year}"
+            ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+            context = {
+                'anexo': anexo, 'contrato': contrato, 'empleado': empleado,
+                'empresa': empresa, 'fecha_actual': fecha_espanol,
+                'ciudad': ciudad, 'es_plan_semilla': es_plan_semilla,
+            }
+            html = get_template('anexo_contrato.html').render(context)
+            pdf_buf = io.BytesIO()
+            pisa_status = pisa.CreatePDF(html, dest=pdf_buf)
+            if not pisa_status.err and pdf_buf.getvalue():
+                nombre = f"AnexoContrato_{empleado.rut}_{anexo.fecha_emision}.pdf"
+                anexo.archivo_pdf.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
+        except Exception:
+            pass  # No bloqueamos el guardado si el PDF falla
 
     @action(detail=True, methods=['get'])
     def generar_pdf(self, request, pk=None):

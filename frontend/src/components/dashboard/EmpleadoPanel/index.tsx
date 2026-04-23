@@ -35,8 +35,12 @@ type Props = {
   horario: UseDashboardReturn['horario'];
   setHorario: UseDashboardReturn['setHorario'];
   hayCambiosContrato: UseDashboardReturn['hayCambiosContrato'];
-  descargarContratoPDF: UseDashboardReturn['descargarContratoPDF'];
-  descargarAnexoPDF: UseDashboardReturn['descargarAnexoPDF'];
+  generarContratoPDF: UseDashboardReturn['generarContratoPDF'];
+  descargarContratoGuardado: UseDashboardReturn['descargarContratoGuardado'];
+  generarAnexo40hPDF: UseDashboardReturn['generarAnexo40hPDF'];
+  descargarAnexo40hGuardado: UseDashboardReturn['descargarAnexo40hGuardado'];
+  isGeneratingContratoPDF: UseDashboardReturn['isGeneratingContratoPDF'];
+  isGeneratingAnexo40hPDF: UseDashboardReturn['isGeneratingAnexo40hPDF'];
   anexosContrato: UseDashboardReturn['anexosContrato'];
   showAnexoContratoForm: UseDashboardReturn['showAnexoContratoForm'];
   setShowAnexoContratoForm: UseDashboardReturn['setShowAnexoContratoForm'];
@@ -85,7 +89,10 @@ export default function EmpleadoPanel({
   handleInputChange, guardarEmpleado,
   handleContratoChange, guardarContrato, setHayCambiosContrato,
   funciones, setFunciones, clausulas, setClausulas, horario, setHorario,
-  hayCambiosContrato, descargarContratoPDF, descargarAnexoPDF,
+  hayCambiosContrato,
+  generarContratoPDF, descargarContratoGuardado,
+  generarAnexo40hPDF, descargarAnexo40hGuardado,
+  isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
   anexosContrato, showAnexoContratoForm, setShowAnexoContratoForm,
   isSavingAnexoContrato, anexoContratoData, setAnexoContratoData,
   guardarAnexoContrato, descargarAnexoContratoPDF,
@@ -199,8 +206,12 @@ export default function EmpleadoPanel({
                 setHorario={setHorario}
                 totalHorasCalculadas={totalHorasCalculadas}
                 hayCambiosContrato={hayCambiosContrato}
-                descargarContratoPDF={descargarContratoPDF}
-                descargarAnexoPDF={descargarAnexoPDF}
+                generarContratoPDF={generarContratoPDF}
+                descargarContratoGuardado={descargarContratoGuardado}
+                generarAnexo40hPDF={generarAnexo40hPDF}
+                descargarAnexo40hGuardado={descargarAnexo40hGuardado}
+                isGeneratingContratoPDF={isGeneratingContratoPDF}
+                isGeneratingAnexo40hPDF={isGeneratingAnexo40hPDF}
                 anexosContrato={anexosContrato}
                 showAnexoContratoForm={showAnexoContratoForm}
                 setShowAnexoContratoForm={setShowAnexoContratoForm}
