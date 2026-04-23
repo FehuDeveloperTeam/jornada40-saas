@@ -8,7 +8,7 @@ import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
 export default function Dashboard() {
   const {
     // Estado de datos
-    empresa, empleados, loading, downloadingId,
+    empresa, empleados, loading,
     // Filtros
     searchTerm, setSearchTerm,
     selectedCargos, setSelectedCargos,
@@ -74,7 +74,6 @@ export default function Dashboard() {
     generarLiquidacion,
     descargarLiquidacionPDF, descargarDocumentoPDF,
     descargarContratoPDF, descargarAnexoPDF,
-    generarYDescargarPDF,
     toggleWidget, toggleArrayItem, toggleSelectAll,
     volverAlLobby,
     empresaActivaId,
@@ -129,7 +128,6 @@ export default function Dashboard() {
           allDeptos={allDeptos}
           selectedEmpleadosIds={selectedEmpleadosIds}
           isDownloading={isDownloading}
-          downloadingId={downloadingId}
           handleSelectAll={handleSelectAll}
           handleSelectEmpleado={handleSelectEmpleado}
           toggleArrayItem={toggleArrayItem}
@@ -137,7 +135,6 @@ export default function Dashboard() {
           abrirVer={abrirVer}
           abrirEditar={abrirEditar}
           abrirCrear={abrirCrear}
-          generarYDescargarPDF={generarYDescargarPDF}
           setIsModalMasivoOpen={setIsModalMasivoOpen}
           setIsUploadModalOpen={setIsUploadModalOpen}
         />
