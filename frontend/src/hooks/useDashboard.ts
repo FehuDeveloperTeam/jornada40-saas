@@ -93,6 +93,10 @@ export function useDashboard() {
   const [isSavingAnexoContrato, setIsSavingAnexoContrato] = useState(false);
   const [anexoContratoData, setAnexoContratoData] = useState<Partial<AnexoContrato>>({});
 
+  // --- Generación de PDFs de contrato ---
+  const [isGeneratingContratoPDF, setIsGeneratingContratoPDF] = useState(false);
+  const [isGeneratingAnexo40hPDF, setIsGeneratingAnexo40hPDF] = useState(false);
+
   // --- Widgets BI ---
   const [flippedWidgets, setFlippedWidgets] = useState<Record<string, boolean>>({});
 
@@ -678,6 +682,62 @@ export function useDashboard() {
     }
   };
 
+  const generarContratoPDF = async () => {
+    if (!contratoData.id) return;
+    setIsGeneratingContratoPDF(true);
+    try {
+      await client.post(`/contratos/${contratoData.id}/generar_contrato_pdf/`);
+      setContratoData(prev => ({ ...prev, tiene_contrato_pdf: true }));
+      showToast('¡Contrato generado y guardado exitosamente!', 'success');
+    } catch {
+      showToast('Error al generar el contrato. Inténtalo de nuevo.', 'error');
+    } finally {
+      setIsGeneratingContratoPDF(false);
+    }
+  };
+
+  const descargarContratoGuardado = async () => {
+    try {
+      const response = await client.get(`/contratos/${contratoData.id}/descargar_contrato/`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Contrato_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      showToast('Error al descargar el contrato.', 'error');
+    }
+  };
+
+  const generarAnexo40hPDF = async () => {
+    if (!contratoData.id) return;
+    setIsGeneratingAnexo40hPDF(true);
+    try {
+      await client.post(`/contratos/${contratoData.id}/generar_anexo_40h/`);
+      setContratoData(prev => ({ ...prev, tiene_anexo_40h_pdf: true }));
+      showToast('¡Anexo Ley 40h generado y guardado exitosamente!', 'success');
+    } catch {
+      showToast('Error al generar el anexo 40h. Inténtalo de nuevo.', 'error');
+    } finally {
+      setIsGeneratingAnexo40hPDF(false);
+    }
+  };
+
+  const descargarAnexo40hGuardado = async () => {
+    try {
+      const response = await client.get(`/contratos/${contratoData.id}/descargar_anexo_40h/`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Anexo_40h_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      showToast('Error al descargar el anexo 40h.', 'error');
+    }
+  };
+
   const generarYDescargarPDF = async (empleado: Empleado) => {
     setDownloadingId(empleado.id);
     try {
@@ -800,6 +860,8 @@ export function useDashboard() {
     showAnexoContratoForm, setShowAnexoContratoForm,
     isSavingAnexoContrato,
     anexoContratoData, setAnexoContratoData,
+    // Generación PDFs de contrato
+    isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
     // Widgets BI
     flippedWidgets,
     // Handlers
@@ -815,6 +877,8 @@ export function useDashboard() {
     generarLiquidacion,
     descargarLiquidacionPDF, descargarDocumentoPDF,
     descargarContratoPDF, descargarAnexoPDF,
+    generarContratoPDF, descargarContratoGuardado,
+    generarAnexo40hPDF, descargarAnexo40hGuardado,
     generarYDescargarPDF,
     toggleWidget, toggleArrayItem, toggleSelectAll,
     volverAlLobby,

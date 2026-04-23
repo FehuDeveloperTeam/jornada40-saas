@@ -15,6 +15,15 @@ class EmpresaSerializer(serializers.ModelSerializer):
 
 
 class ContratoSerializer(serializers.ModelSerializer):
+    tiene_contrato_pdf = serializers.SerializerMethodField()
+    tiene_anexo_40h_pdf = serializers.SerializerMethodField()
+
+    def get_tiene_contrato_pdf(self, obj):
+        return bool(obj.archivo_contrato)
+
+    def get_tiene_anexo_40h_pdf(self, obj):
+        return bool(obj.archivo_anexo_40h)
+
     class Meta:
         model = Contrato
         fields = [
@@ -25,9 +34,11 @@ class ContratoSerializer(serializers.ModelSerializer):
             'tiene_quincena', 'dia_quincena', 'monto_quincena',
             'jornada_personalizada', 'funciones_especificas', 'clausulas_especiales',
             'archivo_contrato', 'archivo_anexo_40h',
+            'tiene_contrato_pdf', 'tiene_anexo_40h_pdf',
             'creado_en',
         ]
-        read_only_fields = ('id', 'archivo_contrato', 'archivo_anexo_40h', 'creado_en')
+        read_only_fields = ('id', 'archivo_contrato', 'archivo_anexo_40h', 'creado_en',
+                            'tiene_contrato_pdf', 'tiene_anexo_40h_pdf')
 
 
 class EmpleadoSerializer(serializers.ModelSerializer):
