@@ -138,15 +138,6 @@ export default function EmpleadoPanel({
             </div>
 
             <div className="flex items-center gap-2">
-              {panelMode === 'view' && selectedEmpleado && (
-                <button
-                  onClick={() => { setFormData({ ...selectedEmpleado }); setIsValidRut(true); setPanelMode('edit'); }}
-                  className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm flex items-center gap-2"
-                >
-                  <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                  Editar Ficha
-                </button>
-              )}
               <button onClick={() => setIsPanelOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                 <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
               </button>
@@ -189,6 +180,9 @@ export default function EmpleadoPanel({
                 isValidRut={isValidRut}
                 handleInputChange={handleInputChange}
                 guardarEmpleado={guardarEmpleado}
+                setPanelMode={setPanelMode}
+                setFormData={setFormData}
+                setIsValidRut={setIsValidRut}
               />
             )}
             {activeTab === 'contratos' && (
@@ -261,18 +255,12 @@ export default function EmpleadoPanel({
           </div>
 
           {/* FOOTER */}
-          <div className="px-8 py-4 border-t border-gray-200 bg-white flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-            {panelMode === 'view' && activeTab === 'perfil' ? (
-              <div className="w-full flex justify-end">
-                <button onClick={() => setIsPanelOpen(false)} className="px-6 py-2.5 text-slate-700 font-semibold bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-sm">
-                  Cerrar Ficha
-                </button>
-              </div>
-            ) : (
+          {!(panelMode === 'view' && activeTab === 'perfil') && (
+            <div className="px-8 py-4 border-t border-gray-200 bg-white flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <div className="flex w-full justify-end gap-3">
                 {(!showDocumentoForm || activeTab !== 'legal') && (
-                  <button type="button" onClick={() => { setIsPanelOpen(false); setActiveTab('perfil'); }} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
-                    Cancelar
+                  <button type="button" onClick={() => setIsPanelOpen(false)} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
+                    Cerrar
                   </button>
                 )}
                 {activeTab === 'perfil' ? (
@@ -284,9 +272,9 @@ export default function EmpleadoPanel({
                     type="submit"
                     form="contratoForm"
                     disabled={isSavingContrato || (contratoData.tipo_jornada === 'ORDINARIA' && totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44))}
-                    className="px-8 py-2.5 text-white font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2"
+                    className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2"
                   >
-                    {isSavingContrato ? 'Guardando...' : 'Guardar Contrato Legal'}
+                    {isSavingContrato ? 'Guardando...' : 'Guardar Contrato'}
                   </button>
                 ) : (activeTab === 'legal' && showDocumentoForm) ? (
                   <>
@@ -297,15 +285,15 @@ export default function EmpleadoPanel({
                       type="submit"
                       form="documentoForm"
                       disabled={isSavingDocumento}
-                      className="px-8 py-2.5 text-white font-semibold bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 rounded-xl transition-colors shadow-md flex items-center gap-2"
+                      className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl transition-colors shadow-md flex items-center gap-2"
                     >
                       {isSavingDocumento ? 'Generando...' : 'Guardar y Generar Documento'}
                     </button>
                   </>
                 ) : null}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
         </div>
       </div>
