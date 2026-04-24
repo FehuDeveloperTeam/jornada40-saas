@@ -39,9 +39,9 @@
         Página <pdf:pagenumber> de <pdf:pagecount>
     </div>
 
-    <h1>CONTRATO DE TRABAJO {{ contrato.tipo_contrato }}</h1>
+    <h1>CONTRATO DE TRABAJO {{ tipo_contrato_texto|upper }}</h1>
 
-   <p>En <span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha_actual }}</span>, entre <span class="bold">{{ empresa.nombre_legal }}</span>, RUT <span class="bold">{{ empresa.rut }}</span>, representada legalmente por don(a) <span class="bold">{{ empresa.representante_legal|default:"________________________" }}</span>, RUT <span class="bold">{{ empresa.rut_representante|default:"______________" }}</span>, ambos domiciliados en {{ empresa.direccion|default:"____________________" }}, comuna de {{ empresa.comuna|default:"____________________" }}, en adelante "el Empleador"; y don(a) <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}</span>, RUT <span class="bold">{{ empleado.rut }}</span>, de nacionalidad {{ empleado.nacionalidad }}, nacido(a) el {{ empleado.fecha_nacimiento|default:"__/__/____" }}, de estado civil {{ empleado.estado_civil|default:"_________" }}, domiciliado(a) en {{ empleado.direccion|default:"____________________" }}, comuna de {{ empleado.comuna|default:"____________________" }}, en adelante "el Trabajador", se ha convenido el siguiente contrato de trabajo:</p>
+   <p>En <span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha_actual }}</span>, entre <span class="bold">{{ empresa.nombre_legal }}</span>, RUT <span class="bold">{{ empresa.rut }}</span>, representada legalmente por don(a) <span class="bold">{{ empresa.representante_legal|default:"________________________" }}</span>, RUT <span class="bold">{{ empresa.rut_representante|default:"______________" }}</span>, ambos domiciliados en {{ empresa.direccion|default:"____________________" }}, comuna de {{ empresa.comuna|default:"____________________" }}, en adelante "el Empleador"; y don(a) <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}</span>, RUT <span class="bold">{{ empleado.rut }}</span>, de nacionalidad {{ empleado.nacionalidad }}, nacido(a) el {{ fecha_nacimiento_texto|default:"__/__/____" }}, de estado civil {{ empleado.estado_civil|default:"_________" }}, domiciliado(a) en {{ empleado.direccion|default:"____________________" }}, comuna de {{ empleado.comuna|default:"____________________" }}, en adelante "el Trabajador", se ha convenido el siguiente contrato de trabajo:</p>
     <p><span class="bold">PRIMERO. Naturaleza de los servicios:</span> El Trabajador se compromete a desempeñar el cargo de <span class="bold">{{ contrato.cargo }}</span>. 
     {% if contrato.funciones_especificas %}
         Entre sus funciones principales, sin que esta enumeración sea excluyente de otras afines, se encuentran:
@@ -69,11 +69,9 @@
         {% else %}
             La jornada ordinaria de trabajo será de <span class="bold">{{ contrato.horas_semanales }} horas semanales</span>, distribuidas en <span class="bold">{{ contrato.distribucion_dias }} días</span> a la semana, con el siguiente detalle de turnos y colaciones acordadas (el tiempo de colación no es imputable a la jornada laboral):
             <ul>
-            {% if contrato.distribucion_horario %}
-                {% for dia, horario in contrato.distribucion_horario.items %}
-                    {% if horario.activo %}
-                    <li><span class="bold">{{ dia|title }}:</span> De {{ horario.entrada }} a {{ horario.salida }} hrs. (Colación: {{ horario.colacion }} minutos).</li>
-                    {% endif %}
+            {% if horario_formateado %}
+                {% for turno in horario_formateado %}
+                    <li><span class="bold">{{ turno.dia_nombre }}:</span> De {{ turno.entrada }} a {{ turno.salida }} hrs. (Colación: {{ turno.colacion }} minutos).</li>
                 {% endfor %}
             {% else %}
                 <li>Sin horario detallado configurado.</li>
@@ -82,12 +80,12 @@
         {% endif %}
     </p>
 
-    <p><span class="bold">TERCERO. Remuneración y Forma de Pago:</span> El Empleador pagará al Trabajador un Sueldo Base mensual de <span class="bold">${{ contrato.sueldo_base }}</span> pesos. 
-    
+    <p><span class="bold">TERCERO. Remuneración y Forma de Pago:</span> El Empleador pagará al Trabajador un Sueldo Base mensual de <span class="bold">{{ sueldo_base_texto }}</span> pesos.
+
     El pago de la remuneración se realizará a más tardar el día <span class="bold">{{ contrato.dia_pago }} de cada mes</span>.
-    
+
     {% if contrato.tiene_quincena %}
-        Adicionalmente, las partes acuerdan el pago de un anticipo quincenal de remuneraciones (Quincena) pagadero el día <span class="bold">{{ contrato.dia_quincena }}</span> de cada mes, por un monto de <span class="bold">${{ contrato.monto_quincena }}</span> pesos.
+        Adicionalmente, las partes acuerdan el pago de un anticipo quincenal de remuneraciones (Quincena) pagadero el día <span class="bold">{{ contrato.dia_quincena }}</span> de cada mes, por un monto de <span class="bold">{{ monto_quincena_texto }}</span> pesos.
     {% endif %}
     
     El Empleador pagará la Gratificación Legal en su modalidad <span class="bold">{% if contrato.gratificacion_legal == 'MENSUAL' %}Mensual (Art. 50 del Código del Trabajo){% else %}Anual (Art. 47 del Código del Trabajo){% endif %}</span>. De las remuneraciones se deducirán los impuestos, cotizaciones previsionales de AFP ({{ empleado.afp|default:"_____" }}) y Salud ({{ empleado.sistema_salud|default:"_____" }}).
@@ -103,9 +101,9 @@
     </p>
     {% endif %}
 
-    <p><span class="bold">{% if contrato.clausulas_especiales %}QUINTO{% else %}CUARTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ contrato.fecha_inicio }}</span> y tendrá el carácter de {{ contrato.tipo_contrato|lower }}. 
+    <p><span class="bold">{% if contrato.clausulas_especiales %}QUINTO{% else %}CUARTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ fecha_inicio_texto }}</span> y tendrá el carácter de {{ tipo_contrato_texto|lower }}.
     {% if contrato.tipo_contrato == 'PLAZO_FIJO' and contrato.fecha_fin %}
-        El contrato terminará el día {{ contrato.fecha_fin }}.
+        El contrato terminará el día <span class="bold">{{ fecha_fin_texto }}</span>.
     {% endif %}
     </p>
 
