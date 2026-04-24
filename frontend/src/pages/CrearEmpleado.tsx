@@ -2,146 +2,164 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import type { Empresa } from '../types';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, UserPlus } from 'lucide-react';
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '0.75rem',
+  padding: '0.875rem 1rem',
+  color: '#f8fafc',
+  fontFamily: 'Poppins, sans-serif',
+  fontSize: '0.9375rem',
+  outline: 'none',
+};
 
 export default function CrearEmpleado() {
-    const navigate = useNavigate();
-    const [empresas, setEmpresas] = useState<Empresa[]>([]);
-    const [formData, setFormData] = useState({
-        rut: '',
-        nombres: '',
-        apellidos: '',
-        cargo: '',
-        fecha_ingreso: new Date().toISOString().split('T')[0], // Fecha de hoy por defecto
-        empresa: '', // ID de la empresa seleccionada
-    });
-    const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [formData, setFormData] = useState({
+    rut: '',
+    nombres: '',
+    apellidos: '',
+    cargo: '',
+    fecha_ingreso: new Date().toISOString().split('T')[0],
+    empresa: '',
+  });
+  const [error, setError] = useState('');
 
-    // 1. Cargar las empresas del usuario al iniciar
-    useEffect(() => {
-        client.get<Empresa[]>('/empresas/')
-            .then(res => {
-                setEmpresas(res.data);
-                // Si existe al menos una empresa, pre-seleccionamos la primera
-                if (res.data.length > 0) {
-                    setFormData(prev => ({ ...prev, empresa: res.data[0].id.toString() }));
-                }
-            })
-            .catch(err => {
-                setError('No se pudieron cargar las empresas.');
-                console.error(err);
-            });
-    }, []);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
-
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        try {
-            await client.post('/empleados/', formData);
-            navigate('/dashboard'); // Volver al panel si sale bien
-        } catch (err) {
-            setError('Error al crear el empleado. Verifica los datos.');
-            console.error(err);
+  useEffect(() => {
+    client.get<Empresa[]>('/empresas/')
+      .then(res => {
+        setEmpresas(res.data);
+        if (res.data.length > 0) {
+          setFormData(prev => ({ ...prev, empresa: res.data[0].id.toString() }));
         }
-    };
+      })
+      .catch(() => setError('No se pudieron cargar las empresas.'));
+  }, []);
 
-    return (
-        <div className="min-h-screen bg-gray-50 p-8">
-            <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-                
-                <div className="flex items-center gap-4 mb-6">
-                    <button onClick={() => navigate('/dashboard')} className="text-gray-500 hover:text-gray-700">
-                        <ArrowLeft />
-                    </button>
-                    <h1 className="text-2xl font-bold text-gray-900">Nuevo Colaborador</h1>
-                </div>
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
-                {error && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
-                        {error}
-                    </div>
-                )}
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    try {
+      await client.post('/empleados/', formData);
+      navigate('/dashboard');
+    } catch {
+      setError('Error al crear el empleado. Verifica los datos.');
+    }
+  };
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Selección de Empresa */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-                        <select 
-                            name="empresa" 
-                            value={formData.empresa} 
-                            onChange={handleChange}
-                            className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2 border"
-                            required
-                        >
-                            {empresas.map(emp => (
-                                <option key={emp.id} value={emp.id}>{emp.nombre_legal}</option>
-                            ))}
-                        </select>
-                    </div>
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden" style={{ background: '#060f20' }}>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Nombres</label>
-                            <input 
-                                type="text" name="nombres" required
-                                value={formData.nombres} onChange={handleChange}
-                                className="w-full border-gray-300 rounded-lg shadow-sm p-2 border"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Apellidos</label>
-                            <input 
-                                type="text" name="apellidos" required
-                                value={formData.apellidos} onChange={handleChange}
-                                className="w-full border-gray-300 rounded-lg shadow-sm p-2 border"
-                            />
-                        </div>
-                    </div>
+      {/* Orbes */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full opacity-15"
+          style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
+      </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
-                            <input 
-                                type="text" name="rut" placeholder="12.345.678-9" required
-                                value={formData.rut} onChange={handleChange}
-                                className="w-full border-gray-300 rounded-lg shadow-sm p-2 border"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso</label>
-                            <input 
-                                type="date" name="fecha_ingreso" required
-                                value={formData.fecha_ingreso} onChange={handleChange}
-                                className="w-full border-gray-300 rounded-lg shadow-sm p-2 border"
-                            />
-                        </div>
-                    </div>
+      <div className="w-full max-w-2xl relative z-10 animate-fade-up">
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
-                        <input 
-                            type="text" name="cargo" placeholder="Ej: Desarrollador Full Stack" required
-                            value={formData.cargo} onChange={handleChange}
-                            className="w-full border-gray-300 rounded-lg shadow-sm p-2 border"
-                        />
-                    </div>
+        {/* Volver */}
+        <button onClick={() => navigate('/dashboard')}
+          className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors group"
+          style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span className="group-hover:text-white transition-colors">Volver al Dashboard</span>
+        </button>
 
-                    <div className="pt-4">
-                        <button 
-                            type="submit"
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition"
-                        >
-                            <Save size={18} /> Guardar Empleado
-                        </button>
-                    </div>
-                </form>
-            </div>
+        {/* Cabecera */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 4px 20px rgba(37,99,235,0.35)' }}>
+            <UserPlus size={22} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Nuevo Colaborador</h1>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Completa los datos básicos del trabajador</p>
+          </div>
         </div>
-    );
+
+        {/* Tarjeta */}
+        <div className="rounded-3xl p-8 glass-card">
+
+          {error && (
+            <div className="flex items-center gap-3 p-3.5 rounded-xl text-sm font-medium mb-6"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}>
+              <AlertCircle size={18} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+
+            {/* Empresa */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Empresa
+              </label>
+              <select name="empresa" value={formData.empresa} onChange={handleChange} required
+                style={{ ...inputStyle, cursor: 'pointer' }}>
+                {empresas.map(emp => (
+                  <option key={emp.id} value={emp.id} style={{ background: '#0c1a35' }}>
+                    {emp.nombre_legal}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  Nombres
+                </label>
+                <input type="text" name="nombres" required value={formData.nombres} onChange={handleChange} style={inputStyle} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  Apellidos
+                </label>
+                <input type="text" name="apellidos" required value={formData.apellidos} onChange={handleChange} style={inputStyle} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  RUT
+                </label>
+                <input type="text" name="rut" placeholder="12.345.678-9" required value={formData.rut} onChange={handleChange} style={inputStyle} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  Fecha de Ingreso
+                </label>
+                <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso} onChange={handleChange}
+                  style={{ ...inputStyle, colorScheme: 'dark' }} />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Cargo
+              </label>
+              <input type="text" name="cargo" placeholder="Ej: Desarrollador Full Stack" required
+                value={formData.cargo} onChange={handleChange} style={inputStyle} />
+            </div>
+
+            <div className="pt-2">
+              <button type="submit" className="btn-primary">
+                <Save size={16} /> Guardar Empleado
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 }
