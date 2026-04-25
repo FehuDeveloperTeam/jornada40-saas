@@ -4,7 +4,8 @@ import axios from 'axios';
 import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import { useToast } from '../context/ToastContext';
-import { ShieldCheck, Settings, Trash2, RefreshCcw, Plus, LogOut, X, ArrowRight, Building2 } from 'lucide-react';
+import { ShieldCheck, Settings, Trash2, RefreshCcw, Plus, LogOut, X, ArrowRight, Building2, PenLine } from 'lucide-react';
+import ModalFirmaEmpleador from '../components/ModalFirmaEmpleador';
 
 interface Empresa {
   id: number;
@@ -18,6 +19,10 @@ interface Empresa {
   comuna?: string;
   ciudad?: string;
   sucursal?: string;
+  firma_configurada?: boolean;
+  firma_firmante_nombre?: string;
+  firma_firmante_cargo?: string;
+  firma_configurada_en?: string | null;
   activo?: boolean;
 }
 
@@ -28,6 +33,7 @@ export default function LobbyEmpresas() {
   const [mostrarInactivas, setMostrarInactivas] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [empresaEditando, setEmpresaEditando] = useState<number | null>(null);
+  const [empresaFirma, setEmpresaFirma] = useState<Empresa | null>(null);
 
   const defaultForm = {
     nombre_legal: '', rut: '', representante_legal: '', rut_representante: '',
@@ -276,6 +282,12 @@ export default function LobbyEmpresas() {
                 {/* Botones flotantes (activas) */}
                 {empresa.activo !== false && (
                   <div className="absolute top-5 right-5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button onClick={(e) => { e.stopPropagation(); setEmpresaFirma(empresa); }}
+                      className="p-2 rounded-xl transition-all"
+                      style={{ background: empresa.firma_configurada ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: empresa.firma_configurada ? '#34d399' : '#fbbf24' }}
+                      title={empresa.firma_configurada ? 'Firma configurada — clic para editar' : 'Configurar firma del representante'}>
+                      <PenLine size={14} />
+                    </button>
                     <button onClick={(e) => abrirModalEditar(e, empresa)}
                       className="p-2 rounded-xl transition-all"
                       style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
@@ -319,6 +331,23 @@ export default function LobbyEmpresas() {
                   style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)' }}>
                   {empresa.rut}
                 </span>
+
+                {empresa.activo !== false && (
+                  <div className="mt-3">
+                    {empresa.firma_configurada ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                        Firma configurada
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{ background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.2)' }}>
+                        ⚠ Sin firma configurada
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-6 pt-5 flex justify-between items-center"
                   style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -440,6 +469,21 @@ export default function LobbyEmpresas() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal Firma del Representante Legal */}
+      {empresaFirma && (
+        <ModalFirmaEmpleador
+          empresaId={empresaFirma.id}
+          empresaNombre={empresaFirma.nombre_legal}
+          firmaActual={empresaFirma.firma_configurada ? {
+            nombre: empresaFirma.firma_firmante_nombre ?? '',
+            cargo: empresaFirma.firma_firmante_cargo ?? '',
+            configurada_en: empresaFirma.firma_configurada_en ?? null,
+          } : null}
+          onClose={() => setEmpresaFirma(null)}
+          onGuardada={() => fetchEmpresas(mostrarInactivas)}
+        />
       )}
     </div>
   );

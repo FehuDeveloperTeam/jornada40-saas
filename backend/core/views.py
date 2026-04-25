@@ -24,6 +24,7 @@ from .serializers import PlanSerializer
 from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
 from django.conf import settings
+from django.utils import timezone
 import datetime
 import io
 import zipfile
@@ -218,13 +219,36 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reactivar(self, request, pk=None):
         try:
-            # Buscamos directo en la base de datos (saltando el filtro de activas)
             empresa = Empresa.objects.get(pk=pk, owner=request.user)
             empresa.activo = True
             empresa.save()
             return Response({"mensaje": "Empresa reactivada correctamente"}, status=status.HTTP_200_OK)
         except Empresa.DoesNotExist:
             return Response({"error": "Empresa no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['patch'], url_path='configurar-firma')
+    def configurar_firma(self, request, pk=None):
+        """Guarda la firma dibujada del representante legal de la empresa."""
+        empresa = self.get_object()
+
+        firma_imagen = request.data.get('firma_imagen', '').strip()
+        nombre       = request.data.get('firma_firmante_nombre', '').strip()
+        cargo        = request.data.get('firma_firmante_cargo', '').strip()
+
+        if not firma_imagen:
+            return Response({'error': 'La imagen de firma es requerida.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not firma_imagen.startswith('data:image/'):
+            return Response({'error': 'Formato de imagen inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        empresa.firma_imagen          = firma_imagen
+        empresa.firma_firmante_nombre = nombre
+        empresa.firma_firmante_cargo  = cargo
+        empresa.firma_configurada_en  = timezone.now()
+        empresa.save(update_fields=['firma_imagen', 'firma_firmante_nombre',
+                                    'firma_firmante_cargo', 'firma_configurada_en'])
+
+        serializer = self.get_serializer(empresa)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         cliente = getattr(self.request.user, 'perfil_cliente', None)

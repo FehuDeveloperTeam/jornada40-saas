@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -54,7 +55,13 @@ class Empresa(models.Model):
     representante_legal = models.CharField(max_length=200, blank=True, null=True)
     rut_representante = models.CharField(max_length=20, blank=True, null=True)
     activo = models.BooleanField(default=True)
-            
+
+    # --- FIRMA ELECTRÓNICA DEL REPRESENTANTE LEGAL ---
+    firma_imagen          = models.TextField(blank=True, default='')   # base64 PNG del canvas
+    firma_firmante_nombre = models.CharField(max_length=200, blank=True, default='')
+    firma_firmante_cargo  = models.CharField(max_length=200, blank=True, default='')
+    firma_configurada_en  = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.nombre_legal} ({self.rut})"
 
@@ -117,6 +124,8 @@ class Empleado(models.Model):
         # Finalmente, ejecutamos el guardado normal de Django
         super(Empleado, self).save(*args, **kwargs)
 
+    class Meta:
+        unique_together = [('empresa', 'rut')]
 
 
 # ==========================================
@@ -302,3 +311,85 @@ class Suscripcion(models.Model):
     @property
     def is_active(self):
         return self.estado in ['ACTIVE', 'TRIAL']
+
+
+# ==========================================
+# 7. FIRMA ELECTRÓNICA
+# ==========================================
+
+class SolicitudFirma(models.Model):
+    ESTADOS = [
+        ('PENDIENTE',  'Pendiente de firma'),
+        ('FIRMADO',    'Firmado'),
+        ('RECHAZADO',  'Rechazado por el trabajador'),
+        ('EXPIRADO',   'Plazo vencido'),
+        ('CANCELADO',  'Cancelado por el empleador'),
+    ]
+    TIPOS_DOCUMENTO = [
+        ('CONTRATO',        'Contrato Laboral'),
+        ('ANEXO_40H',       'Anexo Ley 40 Horas'),
+        ('AMONESTACION',    'Carta de Amonestación'),
+        ('DESPIDO',         'Carta de Despido'),
+        ('CONSTANCIA',      'Constancia Laboral'),
+        ('ANEXO_CONTRATO',  'Anexo de Contrato'),
+    ]
+
+    empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
+    empresa          = models.ForeignKey('Empresa',       on_delete=models.CASCADE,    related_name='solicitudes_firma')
+    contrato         = models.ForeignKey('Contrato',      on_delete=models.SET_NULL,   null=True, blank=True)
+    documento_legal  = models.ForeignKey('DocumentoLegal', on_delete=models.SET_NULL,  null=True, blank=True)
+
+    tipo_documento   = models.CharField(max_length=20, choices=TIPOS_DOCUMENTO)
+    token            = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    estado           = models.CharField(max_length=12, choices=ESTADOS, default='PENDIENTE')
+
+    b2_key_temporal  = models.CharField(max_length=500, blank=True, default='')
+    b2_key_firmado   = models.CharField(max_length=500, blank=True, default='')
+
+    firma_trabajador_imagen = models.TextField(blank=True, default='')  # base64 PNG
+    ip_firmante      = models.GenericIPAddressField(null=True, blank=True)
+    email_firmante   = models.EmailField(blank=True, default='')
+
+    enviado_en       = models.DateTimeField(auto_now_add=True)
+    firmado_en       = models.DateTimeField(null=True, blank=True)
+    expira_en        = models.DateTimeField()
+
+    creado_en        = models.DateTimeField(auto_now_add=True)
+    actualizado_en   = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.expira_en:
+            self.expira_en = timezone.now() + timezone.timedelta(days=7)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.tipo_documento} — {self.empleado} [{self.estado}]"
+
+    class Meta:
+        ordering = ['-enviado_en']
+
+
+class OTPFirma(models.Model):
+    solicitud     = models.ForeignKey(SolicitudFirma, on_delete=models.CASCADE, related_name='otps')
+    codigo        = models.CharField(max_length=6)
+    email_destino = models.EmailField()
+    creado_en     = models.DateTimeField(auto_now_add=True)
+    expira_en     = models.DateTimeField()
+    verificado    = models.BooleanField(default=False)
+    intentos      = models.PositiveSmallIntegerField(default=0)
+
+    def save(self, *args, **kwargs):
+        if not self.expira_en:
+            self.expira_en = timezone.now() + timezone.timedelta(minutes=10)
+        super().save(*args, **kwargs)
+
+    @property
+    def es_valido(self):
+        return (
+            not self.verificado
+            and self.intentos < 3
+            and timezone.now() < self.expira_en
+        )
+
+    def __str__(self):
+        return f"OTP {self.solicitud_id} — {'✓' if self.verificado else '⏳'}"

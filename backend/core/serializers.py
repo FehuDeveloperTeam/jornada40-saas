@@ -3,6 +3,11 @@ from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, 
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
+    firma_configurada = serializers.SerializerMethodField()
+
+    def get_firma_configurada(self, obj):
+        return bool(obj.firma_imagen)
+
     class Meta:
         model = Empresa
         fields = [
@@ -10,8 +15,11 @@ class EmpresaSerializer(serializers.ModelSerializer):
             'direccion', 'comuna', 'ciudad', 'sucursal',
             'representante_legal', 'rut_representante',
             'activo', 'created_at',
+            'firma_firmante_nombre', 'firma_firmante_cargo', 'firma_configurada_en',
+            'firma_configurada',
         ]
-        read_only_fields = ('id', 'owner', 'activo', 'created_at')
+        read_only_fields = ('id', 'owner', 'activo', 'created_at',
+                            'firma_imagen', 'firma_configurada_en', 'firma_configurada')
 
 
 class ContratoSerializer(serializers.ModelSerializer):

@@ -49,6 +49,11 @@ export interface Empresa {
     rut_representante: string | null;
     activo: boolean;
     created_at: string | null;
+    // Firma electrónica
+    firma_firmante_nombre: string;
+    firma_firmante_cargo: string;
+    firma_configurada_en: string | null;
+    firma_configurada: boolean;
 }
 
 // Entrada de detalle para haberes o descuentos en una liquidación
