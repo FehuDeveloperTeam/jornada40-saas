@@ -83,6 +83,13 @@ def eliminar_documento(key: str) -> None:
         pass
 
 
+def descargar_documento(key: str) -> bytes:
+    """Descarga un archivo de B2 y retorna sus bytes."""
+    cliente = _cliente()
+    response = cliente.get_object(Bucket=settings.B2_BUCKET_NAME, Key=key)
+    return response['Body'].read()
+
+
 def documento_existe(key: str) -> bool:
     """Verifica si un key existe en B2 sin descargarlo."""
     cliente = _cliente()

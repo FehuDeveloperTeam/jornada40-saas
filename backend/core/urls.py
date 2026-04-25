@@ -7,6 +7,7 @@ from .views import (
     SolicitudFirmaViewSet, mi_suscripcion, recuperar_password_por_rut,
     webhook_reveniu, crear_checkout_reveniu, perfil_usuario,
     firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
+    firma_publica_firmar,
 )
 
 
@@ -33,4 +34,5 @@ urlpatterns = [
     path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),
     path('firma-publica/<uuid:token>/solicitar-otp/', firma_publica_solicitar_otp, name='firma_publica_solicitar_otp'),
     path('firma-publica/<uuid:token>/verificar-otp/', firma_publica_verificar_otp, name='firma_publica_verificar_otp'),
+    path('firma-publica/<uuid:token>/firmar/', firma_publica_firmar, name='firma_publica_firmar'),
 ]

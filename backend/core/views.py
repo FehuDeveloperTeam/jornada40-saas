@@ -2110,3 +2110,259 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
     )
     msg.attach_alternative(html_body, "text/html")
     msg.send()
+
+
+# ==========================================
+# FASE 8 — Procesamiento de la firma
+# ==========================================
+
+def _ip_desde_request(request) -> str:
+    """Extrae la IP real del firmante considerando proxies (Railway/Vercel)."""
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    return forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR', '')
+
+
+def _enviar_emails_firma_completada(
+    solicitud: SolicitudFirma,
+    empleado,
+    empresa,
+    pdf_firmado_bytes: bytes,
+):
+    """Envía confirmación de firma al trabajador y notificación al empleador."""
+    tipo_labels = {
+        'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
+        'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
+        'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+    }
+    tipo_label        = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
+    nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
+    firmado_str       = solicitud.firmado_en.strftime('%d/%m/%Y a las %H:%M') + ' UTC'
+    nombre_pdf        = f"{tipo_label.replace(' ', '_')}_{empleado.rut}_firmado.pdf"
+
+    # ── Email al trabajador ──────────────────────────────────────────────────
+    texto_trabajador = (
+        f"Hola {nombre_trabajador},\n\n"
+        f"Tu firma electrónica simple fue registrada exitosamente el {firmado_str}.\n\n"
+        f"Documento: {tipo_label}\n"
+        f"Empresa: {empresa.nombre_legal}\n\n"
+        f"Adjunto encontrarás una copia del documento firmado con el certificado de firma.\n\n"
+        f"Jornada40 — Sistema de Gestión Laboral"
+    )
+    html_trabajador = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:32px 40px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">¡Documento Firmado!</h1>
+      <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:14px;">{empresa.nombre_legal}</p>
+    </div>
+    <div style="padding:32px 40px;">
+      <p style="color:#374151;font-size:15px;margin:0 0 8px;">Hola <strong>{nombre_trabajador}</strong>,</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+        Tu firma electrónica simple fue registrada exitosamente.
+      </p>
+      <div style="background:#f0fdf4;border-left:4px solid #059669;padding:16px 20px;border-radius:6px;margin-bottom:28px;">
+        <p style="margin:0;font-weight:700;color:#065f46;font-size:15px;">{tipo_label}</p>
+        <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">Firmado el {firmado_str}</p>
+      </div>
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+        Adjunto a este correo encontrarás el documento firmado con el certificado de autenticidad.
+        Guárdalo en un lugar seguro.
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+        Firma Electrónica Simple válida bajo Ley N° 19.799 (Chile). Generado por Jornada40.
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    msg_trabajador = EmailMultiAlternatives(
+        subject=f"Documento firmado: {tipo_label} — {empresa.nombre_legal}",
+        body=texto_trabajador,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[solicitud.email_firmante],
+    )
+    msg_trabajador.attach_alternative(html_trabajador, "text/html")
+    msg_trabajador.attach(nombre_pdf, pdf_firmado_bytes, 'application/pdf')
+    msg_trabajador.send()
+
+    # ── Email al empleador ───────────────────────────────────────────────────
+    email_empleador = empresa.owner.email
+    if not email_empleador:
+        return
+
+    texto_empleador = (
+        f"El trabajador {nombre_trabajador} firmó el documento «{tipo_label}» "
+        f"el {firmado_str}.\n\n"
+        f"Empresa: {empresa.nombre_legal}\n"
+        f"El documento firmado está adjunto a este correo.\n\n"
+        f"Jornada40 — Sistema de Gestión Laboral"
+    )
+    html_empleador = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:32px 40px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Firma Recibida</h1>
+      <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:14px;">{empresa.nombre_legal}</p>
+    </div>
+    <div style="padding:32px 40px;">
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+        El trabajador <strong>{nombre_trabajador}</strong> firmó el siguiente documento:
+      </p>
+      <div style="background:#f0f4ff;border-left:4px solid #2563eb;padding:16px 20px;border-radius:6px;margin-bottom:28px;">
+        <p style="margin:0;font-weight:700;color:#1e3a6e;font-size:15px;">{tipo_label}</p>
+        <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">Firmado el {firmado_str}</p>
+      </div>
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 0;">
+        El documento firmado con certificado de autenticidad está adjunto a este correo.
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+        Firma Electrónica Simple válida bajo Ley N° 19.799 (Chile). Generado por Jornada40.
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    msg_empleador = EmailMultiAlternatives(
+        subject=f"Firma recibida: {nombre_trabajador} firmó «{tipo_label}»",
+        body=texto_empleador,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[email_empleador],
+    )
+    msg_empleador.attach_alternative(html_empleador, "text/html")
+    msg_empleador.attach(nombre_pdf, pdf_firmado_bytes, 'application/pdf')
+    msg_empleador.send()
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def firma_publica_firmar(request, token):
+    """
+    Procesa la firma del trabajador:
+    1. Valida sesion_token y datos de entrada
+    2. Descarga PDF original de B2
+    3. Genera PDF firmado con página de certificado (pdf_firma.py)
+    4. Sube PDF firmado a B2 y elimina el temporal
+    5. Marca SolicitudFirma como FIRMADO
+    6. Envía emails de confirmación con el PDF adjunto
+    """
+    sesion_token    = str(request.data.get('sesion_token',    '')).strip()
+    firma_trabajador = str(request.data.get('firma_trabajador', '')).strip()
+
+    if not sesion_token:
+        return Response({'error': 'Sesión inválida. Vuelve a verificar tu identidad.'}, status=400)
+    if not firma_trabajador:
+        return Response({'error': 'Debes dibujar tu firma antes de continuar.'}, status=400)
+
+    try:
+        solicitud = SolicitudFirma.objects.select_related(
+            'empleado', 'empresa', 'empresa__owner'
+        ).get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
+
+    # ── Validaciones de estado ──────────────────────────────────────────────
+    if solicitud.estado != 'PENDIENTE':
+        return Response(
+            {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
+            status=400,
+        )
+
+    if timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+    if (not solicitud.sesion_token_trabajador
+            or str(solicitud.sesion_token_trabajador) != sesion_token):
+        return Response(
+            {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
+            status=403,
+        )
+
+    if not solicitud.b2_key_temporal:
+        return Response(
+            {'error': 'No se encontró el PDF del documento. Contacta al empleador.'},
+            status=400,
+        )
+
+    # ── Descargar PDF original de B2 ────────────────────────────────────────
+    try:
+        pdf_original_bytes = b2_client.descargar_documento(solicitud.b2_key_temporal)
+    except Exception as exc:
+        return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
+
+    # ── Generar PDF firmado con certificado ─────────────────────────────────
+    empleado = solicitud.empleado
+    empresa  = solicitud.empresa
+    tipo_labels = {
+        'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
+        'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
+        'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+    }
+    firmado_en  = timezone.now()
+    ip_firmante = _ip_desde_request(request)
+
+    try:
+        from .pdf_firma import agregar_certificado_firma
+        pdf_firmado_bytes = agregar_certificado_firma(
+            pdf_original_bytes    = pdf_original_bytes,
+            tipo_documento_label  = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento),
+            empresa_nombre        = empresa.nombre_legal,
+            empresa_rut           = empresa.rut,
+            firmante_nombre       = empresa.firma_firmante_nombre or empresa.representante_legal or '',
+            firmante_cargo        = empresa.firma_firmante_cargo or 'Representante Legal',
+            firma_empleador_b64   = empresa.firma_imagen or '',
+            trabajador_nombre     = f"{empleado.nombres} {empleado.apellido_paterno}",
+            trabajador_rut        = empleado.rut,
+            firma_trabajador_b64  = firma_trabajador,
+            token                 = str(solicitud.token),
+            firmado_en            = firmado_en,
+            ip_firmante           = ip_firmante,
+            email_firmante        = solicitud.email_firmante,
+        )
+    except Exception as exc:
+        return Response({'error': f'Error al generar el documento firmado: {exc}'}, status=500)
+
+    # ── Subir PDF firmado a B2 ──────────────────────────────────────────────
+    key_firmado = b2_client.key_firmado(
+        empresa_id=empresa.id,
+        uuid=str(solicitud.token),
+        year=firmado_en.year,
+        month=firmado_en.month,
+    )
+    try:
+        b2_client.subir_documento(pdf_firmado_bytes, key_firmado)
+    except Exception as exc:
+        return Response({'error': f'Error al guardar el documento firmado: {exc}'}, status=500)
+
+    # Eliminar PDF temporal (no crítico)
+    b2_client.eliminar_documento(solicitud.b2_key_temporal)
+
+    # ── Actualizar SolicitudFirma ───────────────────────────────────────────
+    solicitud.estado                 = 'FIRMADO'
+    solicitud.firmado_en             = firmado_en
+    solicitud.ip_firmante            = ip_firmante or None
+    solicitud.firma_trabajador_imagen = firma_trabajador
+    solicitud.b2_key_firmado         = key_firmado
+    solicitud.sesion_token_trabajador = None   # invalidar sesión
+    solicitud.save(update_fields=[
+        'estado', 'firmado_en', 'ip_firmante',
+        'firma_trabajador_imagen', 'b2_key_firmado',
+        'sesion_token_trabajador', 'actualizado_en',
+    ])
+
+    # ── Emails de confirmación (no críticos) ────────────────────────────────
+    try:
+        _enviar_emails_firma_completada(solicitud, empleado, empresa, pdf_firmado_bytes)
+    except Exception:
+        pass
+
+    return Response({'firmado': True, 'firmado_en': firmado_en.isoformat()})
