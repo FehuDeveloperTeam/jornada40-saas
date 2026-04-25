@@ -79,6 +79,12 @@ type Props = {
   setDocumentoData: UseDashboardReturn['setDocumentoData'];
   guardarDocumentoLegal: UseDashboardReturn['guardarDocumentoLegal'];
   descargarDocumentoPDF: UseDashboardReturn['descargarDocumentoPDF'];
+  // Firma electrónica
+  solicitudesFirma: UseDashboardReturn['solicitudesFirma'];
+  isSendingFirma: UseDashboardReturn['isSendingFirma'];
+  enviarAFirma: UseDashboardReturn['enviarAFirma'];
+  cancelarFirma: UseDashboardReturn['cancelarFirma'];
+  reenviarFirma: UseDashboardReturn['reenviarFirma'];
 };
 
 export default function EmpleadoPanel({
@@ -104,6 +110,7 @@ export default function EmpleadoPanel({
   horasExtrasList, setHorasExtrasList,
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
   documentosLegales, documentoData, setDocumentoData, guardarDocumentoLegal, descargarDocumentoPDF,
+  solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
 }: Props) {
   return (
     <div className="fixed inset-0 z-40 overflow-hidden">
@@ -226,6 +233,11 @@ export default function EmpleadoPanel({
                 setAnexoContratoData={setAnexoContratoData}
                 guardarAnexoContrato={guardarAnexoContrato}
                 descargarAnexoContratoPDF={descargarAnexoContratoPDF}
+                solicitudesFirma={solicitudesFirma}
+                isSendingFirma={isSendingFirma}
+                enviarAFirma={enviarAFirma}
+                cancelarFirma={cancelarFirma}
+                reenviarFirma={reenviarFirma}
               />
             )}
             {activeTab === 'liquidaciones' && (
@@ -267,6 +279,11 @@ export default function EmpleadoPanel({
                 guardarDocumentoLegal={guardarDocumentoLegal}
                 isSavingDocumento={isSavingDocumento}
                 descargarDocumentoPDF={descargarDocumentoPDF}
+                solicitudesFirma={solicitudesFirma}
+                isSendingFirma={isSendingFirma}
+                enviarAFirma={enviarAFirma}
+                cancelarFirma={cancelarFirma}
+                reenviarFirma={reenviarFirma}
               />
             )}
           </div>

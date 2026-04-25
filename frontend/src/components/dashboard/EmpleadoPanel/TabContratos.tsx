@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
+import type { SolicitudFirma } from '../../../types';
 
 type Props = {
   contratoData: UseDashboardReturn['contratoData'];
@@ -29,7 +31,98 @@ type Props = {
   setAnexoContratoData: UseDashboardReturn['setAnexoContratoData'];
   guardarAnexoContrato: UseDashboardReturn['guardarAnexoContrato'];
   descargarAnexoContratoPDF: UseDashboardReturn['descargarAnexoContratoPDF'];
+  // Firma electrónica
+  solicitudesFirma: UseDashboardReturn['solicitudesFirma'];
+  isSendingFirma: UseDashboardReturn['isSendingFirma'];
+  enviarAFirma: UseDashboardReturn['enviarAFirma'];
+  cancelarFirma: UseDashboardReturn['cancelarFirma'];
+  reenviarFirma: UseDashboardReturn['reenviarFirma'];
 };
+
+function FirmaBadge({
+  tipo, solicitudes, onCancelar, onReenviar, onEnviar, sending,
+}: {
+  tipo: SolicitudFirma['tipo_documento'];
+  solicitudes: SolicitudFirma[];
+  onCancelar: (id: number) => void;
+  onReenviar: (id: number) => void;
+  onEnviar: () => void;
+  sending: boolean;
+}) {
+  const activa = solicitudes
+    .filter(s => s.tipo_documento === tipo)
+    .sort((a, b) => new Date(b.enviado_en).getTime() - new Date(a.enviado_en).getTime())[0];
+
+  if (!activa || activa.estado === 'CANCELADO') {
+    return (
+      <button
+        type="button"
+        onClick={onEnviar}
+        disabled={sending}
+        className="px-3 py-1.5 text-sm font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+        style={{
+          background: 'rgba(99,102,241,0.12)',
+          border: '1px solid rgba(99,102,241,0.3)',
+          color: '#a5b4fc',
+          opacity: sending ? 0.5 : 1,
+          cursor: sending ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {sending ? (
+          <><div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />Enviando...</>
+        ) : (
+          <><Send className="w-3.5 h-3.5" />Enviar a Firma</>
+        )}
+      </button>
+    );
+  }
+
+  if (activa.estado === 'PENDIENTE') {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+          style={{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)' }}>
+          <Clock className="w-3 h-3" />Pendiente de firma
+        </span>
+        <button type="button" onClick={() => onReenviar(activa.id)}
+          className="text-xs font-semibold flex items-center gap-1 transition-colors"
+          style={{ color: 'rgba(255,255,255,0.4)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+          <RotateCcw className="w-3 h-3" />Reenviar
+        </button>
+        <button type="button" onClick={() => onCancelar(activa.id)}
+          className="text-xs font-semibold flex items-center gap-1 transition-colors"
+          style={{ color: 'rgba(239,68,68,0.6)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.6)')}>
+          <XCircle className="w-3 h-3" />Cancelar
+        </button>
+      </div>
+    );
+  }
+
+  if (activa.estado === 'FIRMADO') {
+    return (
+      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+        style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>
+        <CheckCircle className="w-3 h-3" />Firmado
+      </span>
+    );
+  }
+
+  if (activa.estado === 'EXPIRADO') {
+    return (
+      <button type="button" onClick={onEnviar} disabled={sending}
+        className="px-3 py-1.5 text-sm font-semibold rounded-lg flex items-center gap-1.5"
+        style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc', opacity: sending ? 0.5 : 1, cursor: sending ? 'not-allowed' : 'pointer' }}>
+        {sending ? <><div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />Enviando...</> : <><Send className="w-3.5 h-3.5" />Reenviar (expirado)</>}
+      </button>
+    );
+  }
+
+  return null;
+}
 
 export default function TabContratos({
   contratoData, handleContratoChange, guardarContrato, setHayCambiosContrato,
@@ -42,6 +135,7 @@ export default function TabContratos({
   anexosContrato, showAnexoContratoForm, setShowAnexoContratoForm,
   isSavingAnexoContrato, anexoContratoData, setAnexoContratoData,
   guardarAnexoContrato, descargarAnexoContratoPDF,
+  solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
 }: Props) {
   const [clausulasAnexo, setClausulasAnexo] = useState<string[]>([]);
   return (
@@ -251,6 +345,16 @@ export default function TabContratos({
                   {isGeneratingContratoPDF ? (<><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Generando...</>) : (<>{contratoData.tiene_contrato_pdf ? 'Regenerar PDF' : 'Generar PDF'}</>)}
                 </button>
               </div>
+              <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <FirmaBadge
+                  tipo="CONTRATO"
+                  solicitudes={solicitudesFirma}
+                  onEnviar={() => enviarAFirma('CONTRATO')}
+                  onCancelar={cancelarFirma}
+                  onReenviar={reenviarFirma}
+                  sending={!!isSendingFirma['CONTRATO']}
+                />
+              </div>
             </div>
 
             <div className="p-4 rounded-xl" style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
@@ -273,6 +377,16 @@ export default function TabContratos({
                 <button type="button" onClick={generarAnexo40hPDF} disabled={hayCambiosContrato || isGeneratingAnexo40hPDF} className="px-3 py-1.5 text-sm font-semibold text-white rounded-lg transition-colors flex items-center gap-1.5" style={{ background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)', opacity: (hayCambiosContrato || isGeneratingAnexo40hPDF) ? 0.4 : 1, cursor: (hayCambiosContrato || isGeneratingAnexo40hPDF) ? 'not-allowed' : 'pointer' }}>
                   {isGeneratingAnexo40hPDF ? (<><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Generando...</>) : (<>{contratoData.tiene_anexo_40h_pdf ? 'Regenerar PDF' : 'Generar PDF'}</>)}
                 </button>
+              </div>
+              <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <FirmaBadge
+                  tipo="ANEXO_40H"
+                  solicitudes={solicitudesFirma}
+                  onEnviar={() => enviarAFirma('ANEXO_40H')}
+                  onCancelar={cancelarFirma}
+                  onReenviar={reenviarFirma}
+                  sending={!!isSendingFirma['ANEXO_40H']}
+                />
               </div>
             </div>
           </div>
@@ -359,23 +473,35 @@ export default function TabContratos({
                 const fechaHora = creadoEn.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
                   + ' ' + creadoEn.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
                 return (
-                  <div key={anexo.id} className="flex items-center justify-between p-4 rounded-xl transition-colors" style={{ border:'1px solid rgba(255,255,255,0.07)' }} onMouseEnter={e=>(e.currentTarget.style.background='rgba(255,255,255,0.04)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
-                    <div>
-                      <p className="font-semibold text-sm text-white">{anexo.titulo}</p>
-                      <p className="text-xs mt-0.5" style={{ color:'rgba(255,255,255,0.4)' }}>Emitido: {anexo.fecha_emision} · Generado: {fechaHora}</p>
+                  <div key={anexo.id} className="p-4 rounded-xl transition-colors" style={{ border:'1px solid rgba(255,255,255,0.07)' }} onMouseEnter={e=>(e.currentTarget.style.background='rgba(255,255,255,0.04)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-semibold text-sm text-white">{anexo.titulo}</p>
+                        <p className="text-xs mt-0.5" style={{ color:'rgba(255,255,255,0.4)' }}>Emitido: {anexo.fecha_emision} · Generado: {fechaHora}</p>
+                      </div>
+                      <button
+                        onClick={() => descargarAnexoContratoPDF(anexo.id, anexo.titulo)}
+                        className="font-semibold text-sm flex items-center gap-1 transition-colors"
+                        style={{ color:'#60a5fa' }}
+                        onMouseEnter={e=>(e.currentTarget.style.color='#93c5fd')}
+                        onMouseLeave={e=>(e.currentTarget.style.color='#60a5fa')}
+                      >
+                        <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        PDF
+                      </button>
                     </div>
-                    <button
-                      onClick={() => descargarAnexoContratoPDF(anexo.id, anexo.titulo)}
-                      className="font-semibold text-sm flex items-center gap-1 transition-colors"
-                      style={{ color:'#60a5fa' }}
-                      onMouseEnter={e=>(e.currentTarget.style.color='#93c5fd')}
-                      onMouseLeave={e=>(e.currentTarget.style.color='#60a5fa')}
-                    >
-                      <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                      </svg>
-                      PDF
-                    </button>
+                    <div className="pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                      <FirmaBadge
+                        tipo="ANEXO_CONTRATO"
+                        solicitudes={solicitudesFirma.filter(s => s.contrato === contratoData.id)}
+                        onEnviar={() => enviarAFirma('ANEXO_CONTRATO', { anexoContratoId: anexo.id })}
+                        onCancelar={cancelarFirma}
+                        onReenviar={reenviarFirma}
+                        sending={!!isSendingFirma[`ANEXO_CONTRATO${anexo.id}`]}
+                      />
+                    </div>
                   </div>
                 );
               })}

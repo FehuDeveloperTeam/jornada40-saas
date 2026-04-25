@@ -1,4 +1,6 @@
+import { Send, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
+import type { SolicitudFirma } from '../../../types';
 
 type Props = {
   selectedEmpleado: UseDashboardReturn['selectedEmpleado'];
@@ -10,6 +12,19 @@ type Props = {
   guardarDocumentoLegal: UseDashboardReturn['guardarDocumentoLegal'];
   isSavingDocumento: UseDashboardReturn['isSavingDocumento'];
   descargarDocumentoPDF: UseDashboardReturn['descargarDocumentoPDF'];
+  // Firma electrónica
+  solicitudesFirma: UseDashboardReturn['solicitudesFirma'];
+  isSendingFirma: UseDashboardReturn['isSendingFirma'];
+  enviarAFirma: UseDashboardReturn['enviarAFirma'];
+  cancelarFirma: UseDashboardReturn['cancelarFirma'];
+  reenviarFirma: UseDashboardReturn['reenviarFirma'];
+};
+
+const tipoDocToFirma: Record<string, SolicitudFirma['tipo_documento']> = {
+  AMONESTACION: 'AMONESTACION',
+  DESPIDO: 'DESPIDO',
+  CONSTANCIA: 'CONSTANCIA',
+  MUTUO_ACUERDO: 'CONSTANCIA',
 };
 
 const inp: React.CSSProperties = {
@@ -36,6 +51,7 @@ const lbl: React.CSSProperties = {
 export default function TabLegal({
   selectedEmpleado, documentosLegales, showDocumentoForm, setShowDocumentoForm,
   documentoData, setDocumentoData, guardarDocumentoLegal, isSavingDocumento, descargarDocumentoPDF,
+  solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
 }: Props) {
   return (
     <div className="max-w-4xl mx-auto">
@@ -80,36 +96,86 @@ export default function TabLegal({
                   </tr>
                 </thead>
                 <tbody>
-                  {documentosLegales.map(doc => (
-                    <tr key={doc.id} className="transition-colors" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <td className="p-4 text-sm font-medium text-white">{doc.fecha_emision}</td>
-                      <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          doc.tipo === 'DESPIDO'
-                            ? 'bg-red-500/15 text-red-400'
-                            : doc.tipo === 'AMONESTACION'
-                              ? 'bg-orange-500/15 text-orange-400'
-                              : 'bg-white/10 text-white/60'
-                        }`}>
-                          {doc.tipo.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <button
-                          onClick={() => descargarDocumentoPDF(doc.id!, doc.tipo)}
-                          className="text-sm font-semibold flex items-center justify-end gap-1 ml-auto transition-colors"
-                          style={{ color: '#60a5fa' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}
-                        >
-                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                          Descargar PDF
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {documentosLegales.map(doc => {
+                    const firmaKey = tipoDocToFirma[doc.tipo];
+                    const solicitudActiva = firmaKey
+                      ? solicitudesFirma
+                          .filter(s => s.tipo_documento === firmaKey && s.documento_legal === doc.id)
+                          .sort((a, b) => new Date(b.enviado_en).getTime() - new Date(a.enviado_en).getTime())[0]
+                      : undefined;
+                    const sending = !!isSendingFirma[`${firmaKey}${doc.id}`];
+                    return (
+                      <tr key={doc.id} className="transition-colors" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <td className="p-4 text-sm font-medium text-white">{doc.fecha_emision}</td>
+                        <td className="p-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            doc.tipo === 'DESPIDO'
+                              ? 'bg-red-500/15 text-red-400'
+                              : doc.tipo === 'AMONESTACION'
+                                ? 'bg-orange-500/15 text-orange-400'
+                                : 'bg-white/10 text-white/60'
+                          }`}>
+                            {doc.tipo.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center justify-end gap-3 flex-wrap">
+                            {firmaKey && (!solicitudActiva || solicitudActiva.estado === 'CANCELADO' || solicitudActiva.estado === 'EXPIRADO') && (
+                              <button
+                                type="button"
+                                onClick={() => enviarAFirma(firmaKey, { documentoLegalId: doc.id })}
+                                disabled={sending}
+                                className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                style={{ color: '#a5b4fc', opacity: sending ? 0.5 : 1 }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#c7d2fe')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#a5b4fc')}
+                              >
+                                {sending
+                                  ? <><div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />Enviando...</>
+                                  : <><Send className="w-3 h-3" />Firma</>}
+                              </button>
+                            )}
+                            {solicitudActiva?.estado === 'PENDIENTE' && (
+                              <>
+                                <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#fbbf24' }}>
+                                  <Clock className="w-3 h-3" />Pendiente
+                                </span>
+                                <button type="button" onClick={() => reenviarFirma(solicitudActiva.id)}
+                                  className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                                  <RotateCcw className="w-3 h-3" />
+                                </button>
+                                <button type="button" onClick={() => cancelarFirma(solicitudActiva.id)}
+                                  className="text-xs transition-colors" style={{ color: 'rgba(239,68,68,0.5)' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.5)')}>
+                                  <XCircle className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                            {solicitudActiva?.estado === 'FIRMADO' && (
+                              <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#34d399' }}>
+                                <CheckCircle className="w-3 h-3" />Firmado
+                              </span>
+                            )}
+                            <button
+                              onClick={() => descargarDocumentoPDF(doc.id!, doc.tipo)}
+                              className="text-sm font-semibold flex items-center gap-1 transition-colors"
+                              style={{ color: '#60a5fa' }}
+                              onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
+                              onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}
+                            >
+                              <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                              PDF
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

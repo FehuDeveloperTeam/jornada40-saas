@@ -77,6 +77,9 @@ export default function Dashboard() {
     generarContratoPDF, descargarContratoGuardado,
     generarAnexo40hPDF, descargarAnexo40hGuardado,
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
+    // Firma electrónica
+    solicitudesFirma, isSendingFirma,
+    enviarAFirma, cancelarFirma, reenviarFirma,
     toggleWidget, toggleArrayItem, toggleSelectAll,
     volverAlLobby,
     empresaActivaId,
@@ -226,6 +229,11 @@ export default function Dashboard() {
           setDocumentoData={setDocumentoData}
           guardarDocumentoLegal={guardarDocumentoLegal}
           descargarDocumentoPDF={descargarDocumentoPDF}
+          solicitudesFirma={solicitudesFirma}
+          isSendingFirma={isSendingFirma}
+          enviarAFirma={enviarAFirma}
+          cancelarFirma={cancelarFirma}
+          reenviarFirma={reenviarFirma}
         />
       )}
 

@@ -37,8 +37,11 @@ import urllib.parse
 from django.db.models import Max
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer
+from . import b2_client
+from django.core.mail import EmailMultiAlternatives
+import uuid as uuid_mod
 
 # ==========================================
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
@@ -148,6 +151,18 @@ def _es_plan_semilla(user) -> bool:
     if not plan:
         return True
     return plan.nombre.lower() == 'semilla'
+
+
+def _html_a_pdf_bytes(html_string: str, nombre_doc: str) -> bytes:
+    """Convierte HTML a bytes PDF con xhtml2pdf. Lanza excepción si falla."""
+    resultado = io.BytesIO()
+    status = pisa.pisaDocument(io.BytesIO(html_string.encode("UTF-8")), resultado)
+    if status.err:
+        raise Exception(f"Error generando PDF '{nombre_doc}'.")
+    pdf_bytes = resultado.getvalue()
+    if not pdf_bytes:
+        raise Exception(f"PDF '{nombre_doc}' resultó vacío.")
+    return pdf_bytes
 
 
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
@@ -1367,6 +1382,260 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             print(traceback.format_exc())
             print("===========================")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ==========================================
+# FIRMA ELECTRÓNICA
+# ==========================================
+
+class SolicitudFirmaViewSet(viewsets.GenericViewSet):
+    serializer_class = SolicitudFirmaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        cliente = getattr(self.request.user, 'perfil_cliente', None)
+        if not cliente:
+            return SolicitudFirma.objects.none()
+        return SolicitudFirma.objects.filter(
+            empresa__owner=cliente
+        ).select_related('empleado', 'empresa')
+
+    def list(self, request):
+        empleado_id = request.query_params.get('empleado_id')
+        qs = self.get_queryset()
+        if empleado_id:
+            qs = qs.filter(empleado_id=empleado_id)
+        return Response(self.get_serializer(qs, many=True).data)
+
+    @action(detail=False, methods=['post'])
+    def solicitar(self, request):
+        empleado_id   = request.data.get('empleado_id')
+        tipo_doc      = request.data.get('tipo_documento')
+        contrato_id   = request.data.get('contrato_id')
+        doc_legal_id  = request.data.get('documento_legal_id')
+        anexo_id      = request.data.get('anexo_contrato_id')
+
+        tipos_validos = [t[0] for t in SolicitudFirma.TIPOS_DOCUMENTO]
+        if tipo_doc not in tipos_validos:
+            return Response({'error': 'Tipo de documento inválido.'}, status=400)
+
+        cliente = getattr(request.user, 'perfil_cliente', None)
+        if not cliente:
+            return Response({'error': 'Perfil de cliente no encontrado.'}, status=403)
+
+        try:
+            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=cliente)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Trabajador no encontrado.'}, status=404)
+
+        empresa = empleado.empresa
+
+        if not empresa.firma_imagen:
+            return Response(
+                {'error': 'La empresa no tiene firma del empleador configurada. Configúrela en el Lobby de Empresas.'},
+                status=400
+            )
+
+        email_trabajador = empleado.email
+        if not email_trabajador:
+            return Response(
+                {'error': 'El trabajador no tiene email registrado. Agréguelo antes de enviar a firma.'},
+                status=400
+            )
+
+        es_plan_semilla = _es_plan_semilla(request.user)
+
+        try:
+            pdf_bytes, contrato_obj, doc_legal_obj = self._generar_pdf_firma(
+                empleado, empresa, tipo_doc,
+                contrato_id, doc_legal_id, anexo_id, es_plan_semilla
+            )
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+        key = b2_client.key_pendiente(empresa.id, str(uuid_mod.uuid4()))
+        try:
+            b2_client.subir_documento(pdf_bytes, key)
+        except RuntimeError as e:
+            return Response({'error': str(e)}, status=503)
+        except Exception:
+            return Response({'error': 'Error al subir el documento al almacenamiento.'}, status=500)
+
+        solicitud = SolicitudFirma.objects.create(
+            empleado=empleado,
+            empresa=empresa,
+            tipo_documento=tipo_doc,
+            contrato=contrato_obj,
+            documento_legal=doc_legal_obj,
+            email_firmante=email_trabajador,
+            b2_key_temporal=key,
+        )
+
+        try:
+            self._enviar_email_firma(solicitud, empleado, empresa)
+        except Exception:
+            pass
+
+        return Response(SolicitudFirmaSerializer(solicitud).data, status=201)
+
+    @action(detail=True, methods=['patch'])
+    def cancelar(self, request, pk=None):
+        solicitud = self.get_object()
+        if solicitud.estado != 'PENDIENTE':
+            return Response({'error': 'Solo se puede cancelar una solicitud pendiente.'}, status=400)
+        solicitud.estado = 'CANCELADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response(SolicitudFirmaSerializer(solicitud).data)
+
+    @action(detail=True, methods=['post'])
+    def reenviar(self, request, pk=None):
+        solicitud = self.get_object()
+        if solicitud.estado != 'PENDIENTE':
+            return Response({'error': 'Solo se puede reenviar una solicitud pendiente.'}, status=400)
+        try:
+            self._enviar_email_firma(solicitud, solicitud.empleado, solicitud.empresa)
+        except Exception as e:
+            return Response({'error': f'Error al reenviar el email: {str(e)}'}, status=500)
+        return Response({'mensaje': 'Email de firma reenviado correctamente.'})
+
+    # -------------------------------------------------
+    # Helpers internos
+    # -------------------------------------------------
+
+    MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+
+    def _generar_pdf_firma(self, empleado, empresa, tipo_doc,
+                           contrato_id, doc_legal_id, anexo_id, es_plan_semilla):
+        if tipo_doc == 'CONTRATO':
+            try:
+                contrato = (Contrato.objects.get(id=contrato_id)
+                            if contrato_id else Contrato.objects.get(empleado=empleado))
+            except Contrato.DoesNotExist:
+                raise Exception('El trabajador no tiene contrato registrado.')
+            ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
+                   'es_plan_semilla': es_plan_semilla}
+            html = render_to_string('contrato_trabajo.html', ctx)
+            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None
+
+        if tipo_doc == 'ANEXO_40H':
+            try:
+                contrato = (Contrato.objects.get(id=contrato_id)
+                            if contrato_id else Contrato.objects.get(empleado=empleado))
+            except Contrato.DoesNotExist:
+                raise Exception('El trabajador no tiene contrato registrado.')
+            ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
+                   'es_plan_semilla': es_plan_semilla}
+            html = render_to_string('anexo_40h.html', ctx)
+            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None
+
+        if tipo_doc in ('AMONESTACION', 'DESPIDO', 'CONSTANCIA'):
+            if doc_legal_id:
+                try:
+                    doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
+                except DocumentoLegal.DoesNotExist:
+                    raise Exception('Documento legal no encontrado.')
+            else:
+                doc = DocumentoLegal.objects.filter(
+                    empleado=empleado, tipo=tipo_doc
+                ).order_by('-fecha_emision').first()
+                if not doc:
+                    raise Exception(f'No se encontró documento de tipo {tipo_doc}.')
+            hoy = doc.fecha_emision
+            fecha_es = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
+            ciudad = str(getattr(empresa, 'comuna', '') or
+                         getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+            ctx = {'documento': doc, 'empleado': empleado, 'empresa': empresa,
+                   'fecha_actual': fecha_es, 'ciudad': ciudad,
+                   'es_plan_semilla': es_plan_semilla}
+            html = render_to_string('documento_legal.html', ctx)
+            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc
+
+        if tipo_doc == 'ANEXO_CONTRATO':
+            if not anexo_id:
+                raise Exception('Se requiere el ID del anexo de contrato.')
+            try:
+                contrato = Contrato.objects.get(empleado=empleado)
+                anexo = AnexoContrato.objects.get(id=anexo_id, contrato=contrato)
+            except (Contrato.DoesNotExist, AnexoContrato.DoesNotExist):
+                raise Exception('Anexo de contrato no encontrado.')
+            hoy = anexo.fecha_emision
+            fecha_es = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
+            ciudad = str(getattr(empresa, 'comuna', '') or
+                         getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+            ctx = {'anexo': anexo, 'contrato': contrato, 'empleado': empleado,
+                   'empresa': empresa, 'fecha_actual': fecha_es, 'ciudad': ciudad,
+                   'es_plan_semilla': es_plan_semilla}
+            html = render_to_string('anexo_contrato.html', ctx)
+            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None
+
+        raise Exception(f'Tipo de documento no soportado: {tipo_doc}')
+
+    def _enviar_email_firma(self, solicitud, empleado, empresa):
+        tipo_labels = {
+            'CONTRATO':       'Contrato Laboral',
+            'ANEXO_40H':      'Anexo Ley 40 Horas',
+            'AMONESTACION':   'Carta de Amonestación',
+            'DESPIDO':        'Carta de Despido',
+            'CONSTANCIA':     'Constancia Laboral',
+            'ANEXO_CONTRATO': 'Anexo de Contrato',
+        }
+        tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
+        firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"
+        nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
+        expira_fecha     = solicitud.expira_en.strftime('%d/%m/%Y')
+
+        texto_plano = (
+            f"Hola {nombre_trabajador},\n\n"
+            f"{empresa.nombre_legal} requiere tu firma en: {tipo_label}.\n\n"
+            f"Para firmar ingresa al siguiente enlace (válido hasta el {expira_fecha}):\n"
+            f"{firma_url}\n\n"
+            f"Si no reconoces esta solicitud, ignora este mensaje.\n\n"
+            f"Jornada40 — Sistema de Gestión Laboral"
+        )
+        html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:32px 40px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Firma Electrónica Requerida</h1>
+      <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:14px;">{empresa.nombre_legal}</p>
+    </div>
+    <div style="padding:32px 40px;">
+      <p style="color:#374151;font-size:15px;margin:0 0 8px;">Hola <strong>{nombre_trabajador}</strong>,</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+        Tu empleador requiere tu firma electrónica en el siguiente documento:
+      </p>
+      <div style="background:#f0f4ff;border-left:4px solid #2563eb;padding:16px 20px;border-radius:6px;margin-bottom:28px;">
+        <p style="margin:0;font-weight:700;color:#1e3a6e;font-size:15px;">{tipo_label}</p>
+        <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">Válido para firmar hasta el {expira_fecha}</p>
+      </div>
+      <a href="{firma_url}"
+         style="display:inline-block;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:8px;text-decoration:none;">
+        Revisar y Firmar Documento
+      </a>
+      <p style="color:#9ca3af;font-size:12px;margin:28px 0 0;line-height:1.6;">
+        Si el botón no funciona, copia este enlace:<br>
+        <a href="{firma_url}" style="color:#2563eb;word-break:break-all;">{firma_url}</a>
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+        Mensaje enviado a trabajador de <strong>{empresa.nombre_legal}</strong>.
+        Firma Electrónica Simple válida bajo Ley 19.799 (Chile).
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+        msg = EmailMultiAlternatives(
+            subject=f"Firma requerida: {tipo_label} — {empresa.nombre_legal}",
+            body=texto_plano,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[solicitud.email_firmante],
+        )
+        msg.attach_alternative(html_body, "text/html")
+        msg.send()
+
 
 # Endpoint para listar los planes activos en la BD
 class PlanViewSet(viewsets.ReadOnlyModelViewSet):
