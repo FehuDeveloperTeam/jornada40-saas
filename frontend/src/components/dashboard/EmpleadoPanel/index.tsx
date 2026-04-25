@@ -113,48 +113,54 @@ export default function EmpleadoPanel({
       />
 
       <div className="absolute inset-y-0 right-0 max-w-4xl w-full flex shadow-2xl">
-        <div className="h-full w-full bg-white flex flex-col transform transition-transform duration-300" onClick={(e) => e.stopPropagation()}>
+        <div className="h-full w-full flex flex-col" style={{ background: '#0c1a35', borderLeft: '1px solid rgba(255,255,255,0.08)' }} onClick={(e) => e.stopPropagation()}>
 
           {/* HEADER */}
-          <div className="px-4 md:px-8 py-4 md:py-6 border-b border-gray-200 flex items-start justify-between bg-white gap-3">
+          <div className="px-6 py-5 flex items-start justify-between gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
             <div className="flex items-center gap-3 min-w-0">
               {panelMode !== 'create' && selectedEmpleado ? (
-                <div className="w-10 h-10 md:w-16 md:h-16 shrink-0 bg-slate-800 text-white rounded-2xl flex items-center justify-center text-lg md:text-2xl font-bold shadow-sm">
+                <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-lg font-bold text-white"
+                  style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
                   {selectedEmpleado.nombres?.charAt(0) || ''}{selectedEmpleado.apellido_paterno?.charAt(0) || ''}
                 </div>
               ) : (
-                <div className="w-10 h-10 md:w-16 md:h-16 shrink-0 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-lg md:text-2xl font-bold shadow-sm">
+                <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-xl font-bold"
+                  style={{ background: 'rgba(37,99,235,0.2)', border: '1px solid rgba(37,99,235,0.3)', color: '#60a5fa' }}>
                   +
                 </div>
               )}
               <div className="min-w-0">
-                <h2 className="text-lg md:text-2xl font-bold text-slate-900 tracking-tight truncate">
+                <h2 className="text-lg font-bold text-white tracking-tight truncate">
                   {panelMode === 'create' ? 'Nuevo Trabajador' : `${selectedEmpleado?.nombres} ${selectedEmpleado?.apellido_paterno}`}
                 </h2>
                 {panelMode !== 'create' && selectedEmpleado && (
                   <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <span className="text-slate-500 font-medium">{selectedEmpleado.cargo}</span>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-slate-500 font-mono text-sm">{selectedEmpleado.rut}</span>
-                    <span className={`px-2.5 py-0.5 rounded-md text-xs font-semibold tracking-wide ${selectedEmpleado.activo ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20' : 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/20'}`}>
+                    <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{selectedEmpleado.cargo}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
+                    <span className="font-mono text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{selectedEmpleado.rut}</span>
+                    <span className="px-2 py-0.5 rounded-md text-xs font-bold tracking-wide"
+                      style={selectedEmpleado.activo
+                        ? { background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }
+                        : { background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
                       {selectedEmpleado.activo ? 'VIGENTE' : 'DESVINCULADO'}
                     </span>
                   </div>
                 )}
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button onClick={() => setIsPanelOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
+            <button onClick={() => setIsPanelOpen(false)}
+              className="p-2 rounded-lg transition-colors shrink-0"
+              style={{ color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.04)' }}>
+              <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
           {/* TABS NAV */}
           {panelMode !== 'create' && (
-            <div className="border-b border-gray-200 bg-slate-50/50">
-              <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-none px-4">
+            <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <nav className="flex gap-0 overflow-x-auto px-4">
                 {[
                   { id: 'perfil', label: 'Datos Generales' },
                   { id: 'contratos', label: 'Contratos y Anexos' },
@@ -164,11 +170,11 @@ export default function EmpleadoPanel({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal')}
-                    className={`py-3 px-3 border-b-2 font-medium text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
-                      activeTab === tab.id
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                    }`}
+                    className="py-3.5 px-4 text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                    style={{
+                      borderBottom: activeTab === tab.id ? '2px solid #2563eb' : '2px solid transparent',
+                      color: activeTab === tab.id ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+                    }}
                   >
                     {tab.label}
                   </button>
@@ -178,7 +184,7 @@ export default function EmpleadoPanel({
           )}
 
           {/* BODY */}
-          <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30">
+          <div className="flex-1 overflow-y-auto p-7" style={{ background: '#0c1a35' }}>
             {activeTab === 'perfil' && (
               <TabPerfil
                 panelMode={panelMode}
@@ -267,15 +273,21 @@ export default function EmpleadoPanel({
 
           {/* FOOTER */}
           {!(panelMode === 'view' && activeTab === 'perfil') && (
-            <div className="px-8 py-4 border-t border-gray-200 bg-white flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <div className="px-8 py-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: '#0c1a35' }}>
               <div className="flex w-full justify-end gap-3">
                 {(!showDocumentoForm || activeTab !== 'legal') && (
-                  <button type="button" onClick={() => setIsPanelOpen(false)} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
+                  <button type="button" onClick={() => setIsPanelOpen(false)}
+                    className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
+                    style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
                     Cerrar
                   </button>
                 )}
                 {activeTab === 'perfil' ? (
-                  <button type="submit" form="empleadoForm" disabled={!isValidRut} className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2">
+                  <button type="submit" form="empleadoForm" disabled={!isValidRut}
+                    className="px-8 py-2.5 text-sm text-white font-semibold rounded-xl transition-colors flex items-center gap-2"
+                    style={{ background: isValidRut ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'rgba(37,99,235,0.3)', cursor: isValidRut ? 'pointer' : 'not-allowed' }}>
                     {panelMode === 'create' ? 'Crear Trabajador' : 'Guardar Perfil'}
                   </button>
                 ) : activeTab === 'contratos' ? (
@@ -283,20 +295,26 @@ export default function EmpleadoPanel({
                     type="submit"
                     form="contratoForm"
                     disabled={isSavingContrato || (contratoData.tipo_jornada === 'ORDINARIA' && totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44))}
-                    className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md flex items-center gap-2"
+                    className="px-8 py-2.5 text-sm text-white font-semibold rounded-xl transition-colors flex items-center gap-2"
+                    style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
                   >
                     {isSavingContrato ? 'Guardando...' : 'Guardar Contrato'}
                   </button>
                 ) : (activeTab === 'legal' && showDocumentoForm) ? (
                   <>
-                    <button type="button" onClick={() => setShowDocumentoForm(false)} className="px-6 py-2.5 text-slate-600 font-semibold bg-transparent hover:bg-slate-100 rounded-xl transition-colors">
+                    <button type="button" onClick={() => setShowDocumentoForm(false)}
+                      className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
+                      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
                       Volver al Historial
                     </button>
                     <button
                       type="submit"
                       form="documentoForm"
                       disabled={isSavingDocumento}
-                      className="px-8 py-2.5 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-xl transition-colors shadow-md flex items-center gap-2"
+                      className="px-8 py-2.5 text-sm text-white font-semibold rounded-xl transition-colors flex items-center gap-2"
+                      style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
                     >
                       {isSavingDocumento ? 'Generando...' : 'Guardar y Generar Documento'}
                     </button>

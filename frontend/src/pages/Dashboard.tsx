@@ -82,29 +82,43 @@ export default function Dashboard() {
   } = useDashboard();
 
 
-  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div></div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#060f20' }}>
+      <div className="w-12 h-12 border-2 rounded-full animate-spin"
+        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#2563eb' }} />
+    </div>
+  );
 
   return (
-    <div className="p-6 md:p-10 bg-gray-50 min-h-screen font-sans flex" onClick={() => setOpenFilterDropdown(null)}>
-      <div className={`max-w-7xl mx-auto w-full min-w-0 transition-all duration-300 ${isPanelOpen ? 'md:mr-[450px]' : ''}`}>
-        
+    <div className="p-6 md:p-10 min-h-screen font-sans flex" style={{ background: '#060f20' }} onClick={() => setOpenFilterDropdown(null)}>
+      <div className={`max-w-7xl mx-auto w-full min-w-0 transition-all duration-300 ${isPanelOpen ? 'md:mr-[900px]' : ''}`}>
+
         <div className="flex justify-between items-center mb-8">
-          <button onClick={volverAlLobby} className="text-gray-500 hover:text-gray-900 flex items-center gap-2 font-medium transition-colors">
-            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
-            Cambiar de Empresa
+          <button onClick={volverAlLobby}
+            className="flex items-center gap-2 text-sm font-medium transition-colors group"
+            style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+            <span className="group-hover:text-white transition-colors">Cambiar de Empresa</span>
           </button>
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+              style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
               {empresa?.nombre_legal?.charAt(0)?.toUpperCase() || 'E'}
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">{empresa?.nombre_legal}</h1>
-          <div className="flex gap-4 mt-3 text-sm text-gray-500 font-medium">
-            <span className="bg-gray-100 px-3 py-1 rounded-lg">RUT: {empresa?.rut}</span>
-            {empresa?.giro && <span className="bg-gray-100 px-3 py-1 rounded-lg">Giro: {empresa.giro}</span>}
+        <div className="rounded-3xl p-7 mb-8 glass-card">
+          <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
+          <div className="flex gap-3 mt-3 text-sm font-medium">
+            <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+              RUT: {empresa?.rut}
+            </span>
+            {empresa?.giro && (
+              <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+                Giro: {empresa.giro}
+              </span>
+            )}
           </div>
         </div>
 

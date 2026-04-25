@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { useToast } from '../context/ToastContext';
-import { Check, CreditCard, User, Shield, ArrowLeft } from 'lucide-react';
+import { Check, CreditCard, User, Shield, ArrowLeft, Zap } from 'lucide-react';
 
-// --- INTERFACES ---
 interface Plan {
   id: number;
   nombre: string;
@@ -21,28 +20,33 @@ interface MiSuscripcion {
   trabajadores_actuales: number;
 }
 
+const TABS = [
+  { id: 'cuenta' as const, label: 'Datos Personales', icon: User },
+  { id: 'suscripcion' as const, label: 'Mi Suscripción', icon: CreditCard },
+  { id: 'seguridad' as const, label: 'Seguridad', icon: Shield },
+];
+
+const inputDark = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '0.75rem',
+  padding: '0.875rem 1rem',
+  color: '#f8fafc',
+  fontFamily: 'Poppins, sans-serif',
+  fontSize: '0.9375rem',
+  outline: 'none',
+} as React.CSSProperties;
 
 export default function Suscripcion() {
   const navigate = useNavigate();
   const showToast = useToast();
   const [activeTab, setActiveTab] = useState<'cuenta' | 'suscripcion' | 'seguridad'>('cuenta');
-
-  // Estados reales
   const [loading, setLoading] = useState(true);
   const [errorCarga, setErrorCarga] = useState(false);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const [miSuscripcion, setMiSuscripcion] = useState<MiSuscripcion | null>(null);
-  
-  // Datos reales del perfil (ahora con paterno y materno)
-  const [userData, setUserData] = useState({ 
-    nombres: '', 
-    apellido_paterno: '', 
-    apellido_materno: '', 
-    email: '', 
-    rut: '' 
-  });
-
- 
+  const [userData, setUserData] = useState({ nombres: '', apellido_paterno: '', apellido_materno: '', email: '', rut: '' });
 
   useEffect(() => {
     const fetchDatos = async () => {
@@ -51,10 +55,7 @@ export default function Suscripcion() {
           client.get('/clientes/mi_suscripcion/'),
           client.get('/clientes/perfil/')
         ]);
-        
         setMiSuscripcion(subRes.data);
-        
-        // Evitamos undefined si vienen vacíos desde Django
         setUserData({
           nombres: perfilRes.data.nombres || '',
           apellido_paterno: perfilRes.data.apellido_paterno || '',
@@ -62,9 +63,7 @@ export default function Suscripcion() {
           email: perfilRes.data.email || '',
           rut: perfilRes.data.rut || ''
         });
-
-      } catch (error) {
-        console.error("Error al cargar datos de suscripción o perfil:", error);
+      } catch {
         setErrorCarga(true);
       } finally {
         setLoading(false);
@@ -73,176 +72,144 @@ export default function Suscripcion() {
     fetchDatos();
   }, []);
 
-  // Función para guardar los datos del cliente
   const handleActualizarPerfil = async () => {
     try {
       await client.put('/clientes/perfil/', userData);
       showToast('¡Perfil actualizado con éxito!', 'success');
-    } catch (error) {
-      console.error("Error al actualizar perfil", error);
+    } catch {
       showToast('Hubo un error al guardar los cambios.', 'error');
     }
   };
 
-  // Función para ir a la pasarela de pago
   const handleMejorarPlan = async (planId: number, ciclo: string) => {
     setProcesandoPago(true);
     try {
-      const response = await client.post('/pagos/crear-checkout/', {
-        plan_id: planId,
-        ciclo: ciclo
-      });
-      
-      if (response.data.url) {
-        window.location.href = response.data.url;
-      }
-    } catch (error) {
-      console.error("Error al generar link de pago", error);
+      const response = await client.post('/pagos/crear-checkout/', { plan_id: planId, ciclo });
+      if (response.data.url) window.location.href = response.data.url;
+    } catch {
       showToast('Hubo un error al conectar con la pasarela de pagos.', 'error');
     } finally {
       setProcesandoPago(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#060f20' }}>
+      <div className="w-10 h-10 border-2 rounded-full animate-spin"
+        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#2563eb' }} />
+    </div>
+  );
 
-  if (errorCarga) {
-    return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
-        <div className="text-center space-y-4">
-          <p className="text-slate-700 font-semibold text-lg">No se pudo cargar la información de tu cuenta.</p>
-          <p className="text-slate-500 text-sm">Verifica tu conexión e intenta nuevamente.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-700 transition-colors"
-          >
-            Reintentar
-          </button>
-        </div>
+  if (errorCarga) return (
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#060f20' }}>
+      <div className="text-center space-y-4">
+        <p className="text-white font-semibold text-lg">No se pudo cargar la información de tu cuenta.</p>
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Verifica tu conexión e intenta nuevamente.</p>
+        <button onClick={() => window.location.reload()} className="btn-primary" style={{ width: 'auto', display: 'inline-flex' }}>
+          Reintentar
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
 
-  const porcentajeUso = miSuscripcion 
-    ? Math.min((miSuscripcion.trabajadores_actuales / miSuscripcion.plan.limite_trabajadores) * 100, 100) 
+  const porcentajeUso = miSuscripcion
+    ? Math.min((miSuscripcion.trabajadores_actuales / miSuscripcion.plan.limite_trabajadores) * 100, 100)
     : 0;
 
+  const esCorporativo = miSuscripcion?.plan?.nombre?.toUpperCase().includes('CORPO');
+  const esPyme = miSuscripcion?.plan?.nombre?.toUpperCase().includes('PYME');
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-slate-900 font-sans relative overflow-hidden">
-      {/* Fondos Abstractos */}
-      <div className="absolute inset-0 pointer-events-none flex justify-center items-center z-0 overflow-hidden">
-        <div className="absolute -top-40 w-[800px] h-[400px] bg-blue-500/10 blur-[100px] rounded-[100%]"></div>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#060f20' }}>
+
+      {/* Orbes */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
       </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-12">
-        {/* Cabecera */}
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-8 font-semibold">
-          <ArrowLeft className="w-5 h-5" /> Volver al Dashboard
+      <div className="relative z-10 max-w-5xl mx-auto w-full px-6 py-12">
+
+        {/* Volver */}
+        <button onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm font-medium mb-10 transition-colors group"
+          style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span className="group-hover:text-white transition-colors">Volver al Dashboard</span>
         </button>
 
-        <div className="mb-12">
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-3">Configuración de Cuenta</h1>
-          <p className="text-slate-500 text-lg">Administra tus datos personales y plan de suscripción.</p>
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold text-white mb-2">Configuración de Cuenta</h1>
+          <p className="text-base" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            Administra tus datos personales y plan de suscripción.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          
-          {/* Menú Lateral (Tabs) */}
-          <div className="lg:col-span-1 space-y-2">
-            <button 
-              onClick={() => setActiveTab('cuenta')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'cuenta' ? 'bg-slate-900 text-white shadow-lg' : 'bg-transparent text-slate-500 hover:bg-slate-100'}`}
-            >
-              <User className="w-5 h-5" /> Datos Personales
-            </button>
-            <button 
-              onClick={() => setActiveTab('suscripcion')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'suscripcion' ? 'bg-slate-900 text-white shadow-lg' : 'bg-transparent text-slate-500 hover:bg-slate-100'}`}
-            >
-              <CreditCard className="w-5 h-5" /> Mi Suscripción
-            </button>
-            <button 
-              onClick={() => setActiveTab('seguridad')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'seguridad' ? 'bg-slate-900 text-white shadow-lg' : 'bg-transparent text-slate-500 hover:bg-slate-100'}`}
-            >
-              <Shield className="w-5 h-5" /> Seguridad
-            </button>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+          {/* Sidebar tabs */}
+          <div className="lg:col-span-1 space-y-1">
+            {TABS.map((tab) => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  background: activeTab === tab.id ? 'rgba(37,99,235,0.2)' : 'rgba(255,255,255,0.03)',
+                  border: activeTab === tab.id ? '1px solid rgba(37,99,235,0.35)' : '1px solid rgba(255,255,255,0.05)',
+                  color: activeTab === tab.id ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+                }}>
+                <tab.icon size={16} />
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          {/* Área de Contenido Principal */}
-          <div className="lg:col-span-3 bg-white/80 backdrop-blur-xl rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/40 p-8">
-            
-            {/* Taba: Cuenta */}
-            {activeTab === 'cuenta' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                <h2 className="text-2xl font-extrabold text-slate-900 border-b border-slate-100 pb-4">Información del Perfil</h2>
-                
-                <div className="space-y-6">
-                  {/* Grid 3 columnas para Nombres y Apellidos */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-500 mb-2">Nombres</label>
-                      <input 
-                        type="text" 
-                        value={userData.nombres}
-                        onChange={(e) => setUserData({...userData, nombres: e.target.value})}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-500 mb-2">Apellido Paterno</label>
-                      <input 
-                        type="text" 
-                        value={userData.apellido_paterno}
-                        onChange={(e) => setUserData({...userData, apellido_paterno: e.target.value})}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-500 mb-2">Apellido Materno</label>
-                      <input 
-                        type="text" 
-                        value={userData.apellido_materno}
-                        onChange={(e) => setUserData({...userData, apellido_materno: e.target.value})}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" 
-                      />
-                    </div>
-                  </div>
+          {/* Contenido */}
+          <div className="lg:col-span-3 rounded-3xl p-8 glass-card animate-fade-in">
 
-                  {/* Grid 2 columnas para Correo y RUT */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-500 mb-2">Correo Electrónico</label>
-                      <input 
-                        type="email" 
-                        value={userData.email}
-                        onChange={(e) => setUserData({...userData, email: e.target.value})}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" 
-                      />
+            {/* Tab: Cuenta */}
+            {activeTab === 'cuenta' && (
+              <div className="space-y-7">
+                <h2 className="text-xl font-bold text-white pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  Información del Perfil
+                </h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { label: 'Nombres', key: 'nombres' as const },
+                    { label: 'Apellido Paterno', key: 'apellido_paterno' as const },
+                    { label: 'Apellido Materno', key: 'apellido_materno' as const },
+                  ].map(({ label, key }) => (
+                    <div key={key} className="space-y-1.5">
+                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        {label}
+                      </label>
+                      <input type="text" value={userData[key]}
+                        onChange={(e) => setUserData({ ...userData, [key]: e.target.value })}
+                        style={inputDark} />
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-500 mb-2">RUT Empresa / Cliente</label>
-                      <input 
-                        type="text" 
-                        value={userData.rut} 
-                        disabled
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed outline-none" 
-                      />
-                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      Correo Electrónico
+                    </label>
+                    <input type="email" value={userData.email}
+                      onChange={(e) => setUserData({ ...userData, email: e.target.value })}
+                      style={inputDark} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      RUT
+                    </label>
+                    <input type="text" value={userData.rut} disabled
+                      style={{ ...inputDark, opacity: 0.4, cursor: 'not-allowed' }} />
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100">
-                  <button 
-                    onClick={handleActualizarPerfil}
-                    className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition-colors"
-                  >
+                <div className="pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button onClick={handleActualizarPerfil} className="btn-primary" style={{ width: 'auto', display: 'inline-flex' }}>
                     Guardar Cambios
                   </button>
                 </div>
@@ -251,115 +218,121 @@ export default function Suscripcion() {
 
             {/* Tab: Suscripción */}
             {activeTab === 'suscripcion' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                
-                {/* Estado Actual */}
-                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+              <div className="space-y-7">
+
+                {/* Plan actual */}
+                <div className="rounded-2xl p-6" style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
-                      <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Plan Actual</p>
-                      <h3 className="text-2xl font-black text-slate-900">{miSuscripcion?.plan?.nombre?.toUpperCase() || 'Cargando...'}</h3>
+                      <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        Plan Actual
+                      </p>
+                      <h3 className="text-2xl font-bold text-white">{miSuscripcion?.plan?.nombre?.toUpperCase() || '…'}</h3>
                     </div>
-                    <span className="px-4 py-1.5 bg-emerald-100 text-emerald-700 font-bold rounded-full text-sm">
-                      Estado: Activo
+                    <span className="px-4 py-1.5 rounded-full text-xs font-bold"
+                      style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
+                      Activo
                     </span>
                   </div>
 
-                  <div className="mb-2 flex justify-between text-sm font-bold">
-                    <span className="text-slate-600">Uso de Trabajadores</span>
-                    <span className="text-slate-900">{miSuscripcion?.trabajadores_actuales || 0} / {miSuscripcion?.plan?.limite_trabajadores || 0}</span>
+                  <div className="mb-2 flex justify-between text-sm font-medium">
+                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>Uso de Trabajadores</span>
+                    <span className="text-white font-bold">
+                      {miSuscripcion?.trabajadores_actuales || 0} / {miSuscripcion?.plan?.limite_trabajadores || 0}
+                    </span>
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-3">
-                    <div 
-                      className={`h-3 rounded-full transition-all duration-1000 ${porcentajeUso >= 100 ? 'bg-red-500' : 'bg-slate-900'}`} 
-                      style={{ width: `${porcentajeUso}%` }}
-                    ></div>
+                  <div className="w-full rounded-full h-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <div className="h-2 rounded-full transition-all duration-700"
+                      style={{
+                        width: `${porcentajeUso}%`,
+                        background: porcentajeUso >= 100 ? '#ef4444' : 'linear-gradient(90deg, #2563eb, #60a5fa)',
+                      }} />
                   </div>
                 </div>
 
-                {/* LOGICA INTELIGENTE DE PLANES */}
-                {/* Si tiene el plan Corporativo (el máximo), mostramos un mensaje de éxito */}
-                {miSuscripcion?.plan?.nombre?.toUpperCase().includes('CORPO') ? (
-                  <div className="bg-slate-900 rounded-2xl p-8 text-center border border-slate-800">
-                    <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Check className="w-8 h-8 text-emerald-400" />
+                {/* Planes de mejora */}
+                {esCorporativo ? (
+                  <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}>
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                      style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                      <Check size={28} className="text-emerald-400" />
                     </div>
-                    <h3 className="text-2xl font-extrabold text-white mb-2">¡Tienes el plan máximo!</h3>
-                    <p className="text-slate-400">Disfrutas de trabajadores ilimitados y todas las herramientas premium de Jornada40.</p>
+                    <h3 className="text-xl font-bold text-white mb-2">¡Tienes el plan máximo!</h3>
+                    <p style={{ color: 'rgba(255,255,255,0.45)' }}>Disfrutas de todas las herramientas premium de Jornada40.</p>
                   </div>
                 ) : (
-                  <>
-                    <h2 className="text-xl font-extrabold text-slate-900 pt-4">Mejorar Plan</h2>
+                  <div className="space-y-4">
+                    <h2 className="text-base font-bold text-white">Mejorar Plan</h2>
 
-                    {/* Mostrar Plan PYME SOLO si su plan actual NO incluye la palabra PYME */}
-                    {!miSuscripcion?.plan?.nombre?.toUpperCase().includes('PYME') && (
-                      <div className="bg-white rounded-2xl p-6 border-2 border-blue-100 hover:border-blue-500 transition-colors relative">
-                        <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">POPULAR</div>
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                    {!esPyme && (
+                      <div className="rounded-2xl p-6 relative transition-all"
+                        style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.3)' }}>
+                        <div className="absolute top-4 right-4">
+                          <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white"
+                            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+                            <Zap size={10} /> Popular
+                          </span>
+                        </div>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
                           <div>
-                            <h3 className="text-xl font-extrabold text-slate-900 mb-1">Plan PYME</h3>
-                            <p className="text-slate-500 text-sm">Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
-                            <p className="text-2xl font-black text-slate-900 mt-2">$29.990 <span className="text-xs text-slate-400 font-medium">/ mes</span></p>
+                            <h3 className="text-lg font-bold text-white mb-1">Plan PYME</h3>
+                            <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
+                            <p className="text-2xl font-bold text-white">$29.990 <span className="text-sm font-normal" style={{ color: 'rgba(255,255,255,0.4)' }}>/ mes</span></p>
                           </div>
-                          <button 
-                            onClick={() => handleMejorarPlan(2, 'mensual')}
-                            disabled={procesandoPago}
-                            className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:bg-slate-300"
-                          >
-                            {procesandoPago ? 'Procesando...' : 'Mejorar a PYME'}
+                          <button onClick={() => handleMejorarPlan(2, 'mensual')} disabled={procesandoPago} className="btn-primary"
+                            style={{ width: 'auto', display: 'inline-flex' }}>
+                            {procesandoPago ? 'Procesando…' : 'Mejorar a PYME'}
                           </button>
                         </div>
                       </div>
                     )}
 
-                    {/* Plan Corporativo (Siempre se muestra a menos que ya sea Corporativo, lo cual filtramos arriba) */}
-                    <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
                         <div>
-                          <h3 className="text-xl font-extrabold text-white mb-1">Plan Corporativo</h3>
-                          <p className="text-slate-400 text-sm">Hasta 200 trabajadores. Cargas masivas y soporte 24/7.</p>
-                          <p className="text-2xl font-black text-white mt-2">$69.990 <span className="text-xs text-slate-500 font-medium">/ mes</span></p>
+                          <h3 className="text-lg font-bold text-white mb-1">Plan Corporativo</h3>
+                          <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Hasta 200 trabajadores. Cargas masivas y soporte prioritario.</p>
+                          <p className="text-2xl font-bold text-white">$69.990 <span className="text-sm font-normal" style={{ color: 'rgba(255,255,255,0.4)' }}>/ mes</span></p>
                         </div>
-                        <button 
-                          onClick={() => handleMejorarPlan(3, 'mensual')}
-                          disabled={procesandoPago}
-                          className="w-full md:w-auto px-6 py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition-all disabled:bg-slate-700 disabled:text-slate-500"
-                        >
-                          {procesandoPago ? 'Procesando...' : 'Obtener Corporativo'}
+                        <button onClick={() => handleMejorarPlan(3, 'mensual')} disabled={procesandoPago} className="btn-secondary"
+                          style={{ width: 'auto', display: 'inline-flex' }}>
+                          {procesandoPago ? 'Procesando…' : 'Obtener Corporativo'}
                         </button>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
             {/* Tab: Seguridad */}
             {activeTab === 'seguridad' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                <h2 className="text-2xl font-extrabold text-slate-900 border-b border-slate-100 pb-4">Cambiar Contraseña</h2>
+              <div className="space-y-7">
+                <h2 className="text-xl font-bold text-white pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  Cambiar Contraseña
+                </h2>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 mb-2">Contraseña Actual</label>
-                    <input type="password" placeholder="••••••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 mb-2">Nueva Contraseña</label>
-                    <input type="password" placeholder="Mínimo 8 caracteres" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-500 mb-2">Repetir Nueva Contraseña</label>
-                    <input type="password" placeholder="Mínimo 8 caracteres" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 outline-none" />
-                  </div>
+                  {[
+                    { label: 'Contraseña Actual', placeholder: '••••••••' },
+                    { label: 'Nueva Contraseña', placeholder: 'Mínimo 8 caracteres' },
+                    { label: 'Repetir Nueva Contraseña', placeholder: 'Mínimo 8 caracteres' },
+                  ].map(({ label, placeholder }) => (
+                    <div key={label} className="space-y-1.5">
+                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        {label}
+                      </label>
+                      <input type="password" placeholder={placeholder} style={inputDark} />
+                    </div>
+                  ))}
                 </div>
-                <div className="pt-4">
-                  <button className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-md transition-colors">
+                <div className="pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button className="btn-primary" style={{ width: 'auto', display: 'inline-flex' }}>
                     Actualizar Contraseña
                   </button>
                 </div>
               </div>
             )}
-            
+
           </div>
         </div>
       </div>

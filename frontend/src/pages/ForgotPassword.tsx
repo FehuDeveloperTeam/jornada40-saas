@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, User, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle2, AlertCircle, Send } from 'lucide-react';
 import client from '../api/client';
 import { formatRut } from '../utils/rutUtils';
 
 export default function ForgotPassword() {
   const [rut, setRut] = useState('');
-  const [hiddenEmail, setHiddenEmail] = useState(''); // Aquí guardaremos el correo con asteriscos
+  const [hiddenEmail, setHiddenEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
@@ -19,119 +19,122 @@ export default function ForgotPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rut) return;
-
     setStatus('loading');
     setErrorMessage('');
 
     try {
-      // Apuntamos a nuestra nueva ruta personalizada en Django
-      const response = await client.post('/auth/recuperar-por-rut/', {
-        rut: rut
-      });
-      
-      // Atrapamos el correo enmascarado que nos manda el backend
+      const response = await client.post('/auth/recuperar-por-rut/', { rut });
       setHiddenEmail(response.data.correo_oculto);
       setStatus('success');
-      
     } catch (error) {
-      console.error("Error al solicitar reseteo:", error);
       setStatus('error');
-      
       if (axios.isAxiosError(error)) {
-        // Mostramos el error exacto que mandó Django (ej: "No tiene correo" o "RUT no existe")
-        if (error.response?.data?.error) {
-          setErrorMessage(error.response.data.error);
-        } else {
-          setErrorMessage("Ocurrió un error al enviar el correo. Inténtalo más tarde.");
-        }
+        setErrorMessage(error.response?.data?.error || 'Ocurrió un error al enviar el correo. Inténtalo más tarde.');
       } else {
-        setErrorMessage("Ocurrió un error inesperado. Revisa tu conexión.");
+        setErrorMessage('Ocurrió un error inesperado. Revisa tu conexión.');
       }
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
-        
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: '#060f20' }}>
+
+      {/* Orbes */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full opacity-15"
+          style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
+      </div>
+
+      <div className="w-full max-w-[420px] relative z-10 animate-fade-up">
+
+        {/* Volver */}
+        <button
+          onClick={() => navigate('/login')}
+          className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors group"
+          style={{ color: 'rgba(255,255,255,0.4)' }}
+        >
+          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span className="group-hover:text-white transition-colors">Volver al Login</span>
+        </button>
+
         {/* Cabecera */}
         <div className="mb-8">
-          <button 
-            onClick={() => navigate('/login')}
-            className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors mb-6 text-sm font-medium"
-          >
-            <ArrowLeft size={16} /> Volver al Login
-          </button>
-          <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Recuperar Contraseña</h1>
-          <p className="text-slate-500 text-sm">
+          <h1 className="text-3xl font-bold text-white mb-2">Recuperar Contraseña</h1>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
             Ingresa tu RUT y enviaremos las instrucciones de recuperación a tu correo corporativo.
           </p>
         </div>
 
-        {/* Estado de Éxito */}
-        {status === 'success' ? (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center animate-fade-in">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 size={32} />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">¡Enlace Enviado!</h3>
-            <p className="text-slate-600 mb-6 text-sm">
-              Se envió un enlace de recuperación asociado al correo:<br/>
-              <strong className="text-slate-900 text-base block mt-2">{hiddenEmail}</strong>
-            </p>
-            <p className="text-slate-500 text-xs mb-6">
-              Si no lo ves en unos minutos, revisa tu carpeta de Spam.
-            </p>
-            <button 
-              onClick={() => navigate('/login')}
-              className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-md"
-            >
-              Entendido
-            </button>
-          </div>
-        ) : (
-          /* Formulario */
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Mensaje de Error */}
-            {status === 'error' && (
-              <div className="flex items-center gap-3 bg-red-50 text-red-700 p-4 rounded-xl text-sm font-medium border border-red-100 animate-shake">
-                <AlertCircle size={20} className="shrink-0" />
-                <p>{errorMessage}</p>
-              </div>
-            )}
+        {/* Tarjeta */}
+        <div className="rounded-3xl p-8 glass-card">
 
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">RUT Corporativo</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User size={20} className="text-slate-400" />
+          {status === 'success' ? (
+            <div className="text-center animate-fade-in">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                <CheckCircle2 size={32} className="text-emerald-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">¡Enlace Enviado!</h3>
+              <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                Se envió un enlace de recuperación al correo:
+              </p>
+              <p className="font-bold text-white mb-6">{hiddenEmail}</p>
+              <p className="text-xs mb-8" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                Si no lo ves en unos minutos, revisa tu carpeta de Spam.
+              </p>
+              <button onClick={() => navigate('/login')} className="btn-primary">
+                Entendido
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+
+              {status === 'error' && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl text-sm font-medium"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}>
+                  <AlertCircle size={18} className="shrink-0" />
+                  {errorMessage}
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={rut}
-                  onChange={handleRutChange}
-                  placeholder="12.345.678-9"
-                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all font-medium text-slate-900 bg-slate-50 focus:bg-white"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={status === 'loading' || rut.length < 8}
-              className="w-full py-4 text-white font-bold bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 rounded-xl transition-all shadow-md flex justify-center items-center"
-            >
-              {status === 'loading' ? (
-                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                'Enviar Enlace de Recuperación'
               )}
-            </button>
-          </form>
-        )}
 
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  RUT Corporativo
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <User size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={rut}
+                    onChange={handleRutChange}
+                    placeholder="12.345.678-9"
+                    className="input-dark"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={status === 'loading' || rut.length < 8}
+                className="btn-primary"
+              >
+                {status === 'loading' ? (
+                  <div className="w-5 h-5 border-2 rounded-full animate-spin"
+                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
+                ) : (
+                  <><Send size={15} /> Enviar Enlace de Recuperación</>
+                )}
+              </button>
+
+            </form>
+          )}
+
+        </div>
       </div>
     </div>
   );
