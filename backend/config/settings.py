@@ -266,7 +266,12 @@ PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
 # ==========================================
 # ALMACENAMIENTO DE ARCHIVOS (PDFs, contratos)
 # ==========================================
-_b2_key_id = config('B2_KEY_ID', default=None)
+B2_KEY_ID        = config('B2_KEY_ID',         default=None)
+B2_APPLICATION_KEY = config('B2_APPLICATION_KEY', default=None)
+B2_BUCKET_NAME   = config('B2_BUCKET_NAME',    default=None)
+B2_ENDPOINT_URL  = config('B2_ENDPOINT_URL',   default=None)
+
+_b2_key_id = B2_KEY_ID
 
 if IS_DEPLOYED and _b2_key_id:
     # Backblaze B2 — S3-compatible object storage (activo cuando las vars están configuradas)
@@ -274,10 +279,10 @@ if IS_DEPLOYED and _b2_key_id:
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
-                "access_key":         _b2_key_id,
-                "secret_key":         config('B2_APPLICATION_KEY'),
-                "bucket_name":        config('B2_BUCKET_NAME'),
-                "endpoint_url":       config('B2_ENDPOINT_URL'),
+                "access_key":         B2_KEY_ID,
+                "secret_key":         B2_APPLICATION_KEY,
+                "bucket_name":        B2_BUCKET_NAME,
+                "endpoint_url":       B2_ENDPOINT_URL,
                 "default_acl":        "private",
                 "querystring_auth":   True,
                 "querystring_expire": 3600,
