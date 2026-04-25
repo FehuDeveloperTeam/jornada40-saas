@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
+import FirmaCanvas from '../components/FirmaCanvas';
 import {
   FileText, Shield, CheckCircle2, AlertCircle,
   Clock, XCircle, Building2, User, Mail, Calendar,
-  ArrowRight, Send, RotateCcw, KeyRound,
+  ArrowRight, Send, RotateCcw, KeyRound, Pen,
 } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -61,6 +62,9 @@ export default function FirmaPublica() {
   const [otpError, setOtpError]     = useState('');
   const [cooldown, setCooldown]     = useState(0);         // segundos restantes para reenviar
   const [sesionToken, setSesionToken] = useState('');
+  const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+  const [firmaLoading, setFirmaLoading] = useState(false);
+  const [firmaError, setFirmaError] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // ── Countdown del cooldown ──────────────────────────────────────────────────
@@ -151,6 +155,29 @@ export default function FirmaPublica() {
       }
     } finally {
       setOtpLoading(false);
+    }
+  };
+
+  // ── Firmar documento ───────────────────────────────────────────────────────
+  const firmarDocumento = async () => {
+    if (!firmaDataUrl) return;
+    setFirmaLoading(true);
+    setFirmaError('');
+    try {
+      await client.post(`/firma-publica/${token}/firmar/`, {
+        sesion_token: sesionToken,
+        firma_trabajador: firmaDataUrl,
+      });
+      sessionStorage.removeItem(`firma_sesion_${token}`);
+      setStep('firmado_ok');
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setFirmaError(err.response?.data?.error ?? 'Error al procesar la firma. Intenta nuevamente.');
+      } else {
+        setFirmaError('Error de conexión. Intenta nuevamente.');
+      }
+    } finally {
+      setFirmaLoading(false);
     }
   };
 
@@ -743,31 +770,147 @@ export default function FirmaPublica() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // STEP: firmar — implementado en 7.3
+  // STEP: firmar  (7.3)
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === 'firmar') {
+  if (step === 'firmar' && info) {
     return (
       <PageWrapper>
-        <div className="w-full max-w-md animate-fade-up">
-          <div className="rounded-3xl p-8 text-center glass-card">
+        <div className="w-full max-w-lg animate-fade-up space-y-4">
+
+          {/* Encabezado */}
+          <div className="text-center mb-2">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+              className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
               style={{
-                background: 'rgba(5,150,105,0.15)',
-                border: '1px solid rgba(5,150,105,0.3)',
+                background: 'linear-gradient(135deg, rgba(37,99,235,0.25), rgba(29,78,216,0.15))',
+                border: '1px solid rgba(37,99,235,0.35)',
+                boxShadow: '0 8px 24px rgba(37,99,235,0.2)',
               }}
             >
-              <CheckCircle2 size={26} style={{ color: '#34d399' }} />
+              <Pen size={26} style={{ color: '#60a5fa' }} />
             </div>
-            <h2 className="text-lg font-bold text-white mb-2">Identidad Verificada</h2>
+            <h1 className="text-2xl font-bold text-white mb-1">Firmar Documento</h1>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              La firma del documento estará disponible en breve.
-            </p>
-            {/* sesionToken listo: {sesionToken} */}
-            <p className="text-xs mt-4 font-mono px-3 py-2 rounded-lg" style={{ color: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.04)' }}>
-              sesion_token guardado ✓
+              Revisa el documento y dibuja tu firma para completar el proceso
             </p>
           </div>
+
+          {/* Resumen del documento */}
+          <div className="rounded-3xl p-5 glass-card space-y-3">
+
+            {/* Badge identidad verificada */}
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl w-fit"
+              style={{ background: 'rgba(5,150,105,0.12)', border: '1px solid rgba(5,150,105,0.25)' }}
+            >
+              <CheckCircle2 size={13} style={{ color: '#34d399' }} />
+              <span className="text-xs font-semibold" style={{ color: '#34d399' }}>
+                Identidad verificada
+              </span>
+            </div>
+
+            <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+            {/* Datos del doc */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Documento
+                </p>
+                <p className="text-sm font-semibold text-white">{info.tipo_documento_label}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Empresa
+                </p>
+                <p className="text-sm font-semibold text-white">{info.empresa_nombre}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Firmante
+                </p>
+                <p className="text-sm font-semibold text-white">{info.trabajador_nombre}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Área de firma */}
+          <div className="rounded-3xl p-5 glass-card space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <Pen size={14} style={{ color: '#60a5fa' }} />
+              <p className="text-sm font-bold text-white">Tu Firma</p>
+              {firmaDataUrl && (
+                <span
+                  className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full"
+                  style={{ background: 'rgba(5,150,105,0.15)', color: '#34d399', border: '1px solid rgba(5,150,105,0.25)' }}
+                >
+                  ✓ Capturada
+                </span>
+              )}
+            </div>
+            <FirmaCanvas
+              onChange={url => { setFirmaDataUrl(url); setFirmaError(''); }}
+              width={560}
+              height={160}
+              disabled={firmaLoading}
+            />
+            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              Usa el mouse o tu dedo (en móvil) para dibujar tu firma en el recuadro blanco.
+            </p>
+          </div>
+
+          {/* Aviso legal */}
+          <div
+            className="rounded-2xl px-4 py-3 flex items-start gap-3"
+            style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}
+          >
+            <Shield size={14} className="shrink-0 mt-0.5" style={{ color: '#60a5fa' }} />
+            <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              Al presionar <strong style={{ color: 'rgba(255,255,255,0.7)' }}>«Firmar Documento»</strong>, declaras
+              haber leído y aceptado el contenido del documento indicado. Esta acción
+              constituye tu firma electrónica simple conforme a la Ley N° 19.799.
+            </p>
+          </div>
+
+          {/* Error */}
+          {firmaError && (
+            <div
+              className="flex items-start gap-3 p-3.5 rounded-xl text-sm"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}
+            >
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span>{firmaError}</span>
+            </div>
+          )}
+
+          {/* Botón firmar */}
+          <button
+            className="btn-primary"
+            onClick={firmarDocumento}
+            disabled={!firmaDataUrl || firmaLoading}
+          >
+            {firmaLoading ? (
+              <div style={{
+                width: 20, height: 20,
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTopColor: '#fff',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+              }} />
+            ) : (
+              <>
+                <Pen size={16} />
+                Firmar Documento
+              </>
+            )}
+          </button>
+
+          {!firmaDataUrl && (
+            <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+              Dibuja tu firma para habilitar el botón
+            </p>
+          )}
+
         </div>
       </PageWrapper>
     );
