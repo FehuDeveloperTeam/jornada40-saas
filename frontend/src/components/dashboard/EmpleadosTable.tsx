@@ -142,7 +142,7 @@ export default function EmpleadosTable({
                   { key: 'cargo', label: 'Cargo', items: allCargos, selected: selectedCargos, setSelected: setSelectedCargos },
                 ].map(({ key, label, items, selected, setSelected }) => (
                   <th key={key} className="p-4 text-xs font-bold uppercase tracking-wider relative" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                    <button onClick={(e) => { e.stopPropagation(); setOpenFilterDropdown(openFilterDropdown === key ? null : key); }}
+                    <button onClick={(e) => { e.stopPropagation(); setOpenFilterDropdown(openFilterDropdown === key ? null : key as 'cargo' | 'depto' | 'estado'); }}
                       className="flex items-center gap-1 outline-none hover:text-white transition-colors">
                       {label}
                       <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={`w-3 h-3 transition-transform ${openFilterDropdown === key ? 'rotate-180' : ''}`}>
