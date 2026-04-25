@@ -3,11 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
-import { AlertCircle, Lock, User, ArrowRight, ChevronLeft } from 'lucide-react';
+import { AlertCircle, Lock, User, ArrowRight, ChevronLeft, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const [rut, setRut] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isValidRut, setIsValidRut] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -136,12 +137,23 @@ export default function Login() {
                     <Lock size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     className="input-dark"
+                    style={{ paddingRight: '2.75rem' }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center transition-colors"
+                    style={{ color: 'rgba(255,255,255,0.3)' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
                 </div>
               </div>
 

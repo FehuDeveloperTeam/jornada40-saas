@@ -1,4 +1,5 @@
 import { Download, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import { formatRut } from '../../utils/rutUtils';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 
 type Props = {
@@ -239,7 +240,7 @@ export default function EmpleadosTable({
                         </button>
                       </div>
                     </td>
-                    <td className="p-4 font-mono text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{emp.rut}</td>
+                    <td className="p-4 font-mono text-sm" style={{ color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>{formatRut(emp.rut)}</td>
                     <td className="p-4 font-medium text-white">{emp.nombres} {emp.apellido_paterno}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{emp.email || '—'}</td>
                     <td className="p-4 capitalize text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{emp.departamento?.toLowerCase() || 'No especificado'}</td>
