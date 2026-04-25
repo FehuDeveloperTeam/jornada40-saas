@@ -171,15 +171,18 @@ export default function LobbyEmpresas() {
       <div className="relative z-20 w-full px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
 
-        <button onClick={cerrarSesion}
-          className="flex items-center gap-2 text-sm font-medium transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.4)' }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center transition-all group-hover:-translate-x-0.5"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <LogOut size={14} />
-          </div>
-          <span className="group-hover:text-white transition-colors">Cerrar Sesión</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={cerrarSesion}
+            className="flex items-center gap-2 text-sm font-medium transition-colors group"
+            style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center transition-all group-hover:-translate-x-0.5"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <LogOut size={14} />
+            </div>
+            <span className="group-hover:text-white transition-colors">Cerrar Sesión</span>
+          </button>
+          <img src="/favicon.svg" alt="Jornada40" className="w-7 h-7 rounded-lg hidden sm:block" />
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"

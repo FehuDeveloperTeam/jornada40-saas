@@ -86,9 +86,9 @@ export default function Login() {
 
           {/* Logo y cabecera */}
           <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-5 animate-float"
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-5 animate-float overflow-hidden"
               style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 8px 32px rgba(37,99,235,0.4)' }}>
-              <span className="text-white text-2xl font-black">J</span>
+              <img src="/favicon.svg" alt="Jornada40" className="w-full h-full object-contain p-1" />
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">
               Jornada<span style={{ color: '#60a5fa' }}>40</span>

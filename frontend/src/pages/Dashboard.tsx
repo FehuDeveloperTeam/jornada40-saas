@@ -4,6 +4,7 @@ import EmpleadosTable from '../components/dashboard/EmpleadosTable';
 import ModalDescargaMasiva from '../components/dashboard/ModalDescargaMasiva';
 import ModalCargaMasiva from '../components/dashboard/ModalCargaMasiva';
 import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
+import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
   const {
@@ -101,18 +102,15 @@ export default function Dashboard() {
             <span className="group-hover:text-white transition-colors">Cambiar de Empresa</span>
           </button>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white"
-              style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
-              {empresa?.nombre_legal?.charAt(0)?.toUpperCase() || 'E'}
-            </div>
+            <img src="/favicon.svg" alt="Jornada40" className="w-8 h-8 rounded-lg" />
           </div>
         </div>
 
         <div className="rounded-3xl p-7 mb-8 glass-card">
           <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
-          <div className="flex gap-3 mt-3 text-sm font-medium">
-            <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
-              RUT: {empresa?.rut}
+          <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
+            <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+              RUT {empresa?.rut ? formatRut(empresa.rut) : '—'}
             </span>
             {empresa?.giro && (
               <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>

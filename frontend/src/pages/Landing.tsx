@@ -85,8 +85,9 @@ export default function Landing() {
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50" style={{ background: 'rgba(6,15,32,0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex justify-between items-center py-4 px-6 max-w-7xl mx-auto w-full">
-          <div className="text-xl font-bold tracking-tight text-white">
-            Jornada<span style={{ color: '#60a5fa' }}>40</span>
+          <div className="flex items-center gap-2.5">
+            <img src="/favicon.svg" alt="Jornada40" className="w-7 h-7 rounded-lg" />
+            <span className="text-xl font-bold tracking-tight text-white">Jornada<span style={{ color: '#60a5fa' }}>40</span></span>
           </div>
           <div className="flex gap-3 items-center">
             <Link to="/login" className="px-4 py-2 text-sm font-semibold transition-colors"
