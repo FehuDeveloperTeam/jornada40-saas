@@ -30,6 +30,8 @@ import io
 import zipfile
 import re
 import math
+import random
+import string
 from num2words import num2words
 import pandas as pd
 import traceback
@@ -37,7 +39,7 @@ import urllib.parse
 from django.db.models import Max
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer
 from . import b2_client
 from django.core.mail import EmailMultiAlternatives
@@ -1873,3 +1875,238 @@ def perfil_usuario(request):
         request.user.save()
 
         return Response({'mensaje': 'Perfil actualizado con éxito en ambas tablas'})
+
+
+# ==========================================
+# FIRMA ELECTRÓNICA — ENDPOINTS PÚBLICOS
+# (no requieren autenticación del empleador)
+# ==========================================
+
+def _enmascarar_email(email: str) -> str:
+    """Ej: juan.perez@gmail.com → ju***@gmail.com"""
+    partes = email.split('@')
+    usuario = partes[0]
+    dominio = partes[1] if len(partes) > 1 else ''
+    prefijo = usuario[:2] if len(usuario) >= 2 else usuario[:1]
+    return f"{prefijo}***@{dominio}"
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def firma_publica_info(request, token):
+    """
+    Retorna la información pública de una solicitud de firma:
+    tipo de documento, nombre de empresa, nombre del trabajador y fecha de expiración.
+    No expone datos sensibles.
+    """
+    try:
+        solicitud = SolicitudFirma.objects.select_related('empleado', 'empresa').get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
+
+    # Marcar como expirada si corresponde
+    if solicitud.estado == 'PENDIENTE' and timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+
+    tipo_labels = {
+        'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
+        'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
+        'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+    }
+    empleado = solicitud.empleado
+    empresa  = solicitud.empresa
+
+    return Response({
+        'estado': solicitud.estado,
+        'tipo_documento': solicitud.tipo_documento,
+        'tipo_documento_label': tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento),
+        'empresa_nombre': empresa.nombre_legal,
+        'trabajador_nombre': f"{empleado.nombres} {empleado.apellido_paterno}",
+        'email_firmante_enmascarado': _enmascarar_email(solicitud.email_firmante),
+        'expira_en': solicitud.expira_en.isoformat(),
+        'ya_verificado': solicitud.sesion_token_trabajador is not None,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def firma_publica_solicitar_otp(request, token):
+    """
+    Genera un código OTP de 6 dígitos y lo envía al email del trabajador.
+    Limita a 1 solicitud por minuto para evitar spam.
+    """
+    try:
+        solicitud = SolicitudFirma.objects.get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
+
+    if solicitud.estado != 'PENDIENTE':
+        return Response({'error': 'Esta solicitud no está pendiente de firma.'}, status=400)
+
+    if timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+    # Anti-spam: no permitir más de un OTP por minuto
+    ultimo_otp = OTPFirma.objects.filter(solicitud=solicitud).order_by('-creado_en').first()
+    if ultimo_otp:
+        segundos_transcurridos = (timezone.now() - ultimo_otp.creado_en).total_seconds()
+        if segundos_transcurridos < 60:
+            espera = int(60 - segundos_transcurridos)
+            return Response(
+                {'error': f'Debes esperar {espera} segundo(s) antes de solicitar un nuevo código.'},
+                status=429
+            )
+
+    # Invalidar OTPs previos no verificados
+    OTPFirma.objects.filter(
+        solicitud=solicitud, verificado=False
+    ).update(expira_en=timezone.now())
+
+    # Generar código de 6 dígitos
+    codigo = ''.join(random.choices(string.digits, k=6))
+
+    otp = OTPFirma.objects.create(
+        solicitud=solicitud,
+        codigo=codigo,
+        email_destino=solicitud.email_firmante,
+    )
+
+    # Enviar email con el código
+    try:
+        _enviar_email_otp(otp, solicitud)
+    except Exception as e:
+        otp.delete()
+        return Response({'error': f'No se pudo enviar el código por email: {str(e)}'}, status=500)
+
+    return Response({
+        'enviado': True,
+        'email_destino': _enmascarar_email(solicitud.email_firmante),
+        'expira_en_minutos': 10,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def firma_publica_verificar_otp(request, token):
+    """
+    Verifica el código OTP enviado al trabajador.
+    Si es correcto devuelve un sesion_token que autoriza el paso de firma.
+    """
+    codigo_enviado = str(request.data.get('codigo', '')).strip()
+
+    if not codigo_enviado:
+        return Response({'error': 'Debes ingresar el código.'}, status=400)
+
+    try:
+        solicitud = SolicitudFirma.objects.get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
+
+    if solicitud.estado != 'PENDIENTE':
+        return Response({'error': 'Esta solicitud no está pendiente de firma.'}, status=400)
+
+    if timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+    # Buscar el OTP más reciente válido
+    otp = OTPFirma.objects.filter(
+        solicitud=solicitud, verificado=False
+    ).order_by('-creado_en').first()
+
+    if not otp or not otp.es_valido:
+        return Response(
+            {'error': 'No hay un código activo. Por favor solicita uno nuevo.'},
+            status=400
+        )
+
+    # Incrementar intentos antes de verificar (previene timing attacks)
+    otp.intentos += 1
+    otp.save(update_fields=['intentos'])
+
+    if otp.intentos > 3:
+        return Response(
+            {'error': 'Código bloqueado por demasiados intentos. Solicita uno nuevo.'},
+            status=400
+        )
+
+    if otp.codigo != codigo_enviado:
+        restantes = 3 - otp.intentos
+        msg = (f'Código incorrecto. Te quedan {restantes} intento(s).'
+               if restantes > 0 else 'Código bloqueado. Solicita uno nuevo.')
+        return Response({'error': msg}, status=400)
+
+    # Código correcto — marcar OTP como verificado
+    otp.verificado = True
+    otp.save(update_fields=['verificado'])
+
+    # Generar sesion_token para el paso de firma
+    sesion_token = uuid_mod.uuid4()
+    solicitud.sesion_token_trabajador = sesion_token
+    solicitud.save(update_fields=['sesion_token_trabajador', 'actualizado_en'])
+
+    return Response({
+        'verificado': True,
+        'sesion_token': str(sesion_token),
+    })
+
+
+def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
+    """Envía el código OTP al trabajador por email."""
+    tipo_labels = {
+        'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
+        'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
+        'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+    }
+    tipo_label = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
+    empresa_nombre = solicitud.empresa.nombre_legal
+    codigo = otp.codigo
+
+    texto_plano = (
+        f"Tu código de verificación es: {codigo}\n\n"
+        f"Ingresa este código en la página de firma para verificar tu identidad.\n"
+        f"Válido por 10 minutos.\n\n"
+        f"Si no solicitaste este código, ignora este mensaje.\n\n"
+        f"Jornada40 — Sistema de Gestión Laboral"
+    )
+    html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:32px 40px;">
+      <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700;">Verifica tu identidad</h1>
+      <p style="color:rgba(255,255,255,0.6);margin:6px 0 0;font-size:14px;">{empresa_nombre} · {tipo_label}</p>
+    </div>
+    <div style="padding:36px 40px;">
+      <p style="color:#374151;font-size:14px;margin:0 0 24px;line-height:1.6;">
+        Ingresa el siguiente código en la página de firma para verificar tu identidad:
+      </p>
+      <div style="text-align:center;margin:0 0 28px;">
+        <div style="display:inline-block;background:#f0f4ff;border:2px dashed #2563eb;border-radius:12px;padding:20px 40px;">
+          <span style="font-size:38px;font-weight:900;letter-spacing:0.3em;color:#1e3a6e;font-family:monospace;">{codigo}</span>
+        </div>
+        <p style="color:#6b7280;font-size:13px;margin:10px 0 0;">Válido por <strong>10 minutos</strong></p>
+      </div>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+        Si no solicitaste este código, puedes ignorar este mensaje con seguridad.<br>
+        Firma Electrónica Simple válida bajo Ley 19.799 (Chile).
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    msg = EmailMultiAlternatives(
+        subject=f"Tu código de verificación — {empresa_nombre}",
+        body=texto_plano,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[otp.email_destino],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send()
