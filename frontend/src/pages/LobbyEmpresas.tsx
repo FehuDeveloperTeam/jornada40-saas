@@ -281,7 +281,7 @@ export default function LobbyEmpresas() {
 
                 {/* Botones flotantes (activas) */}
                 {empresa.activo !== false && (
-                  <div className="absolute top-5 right-5 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="absolute top-5 right-5 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                     <button onClick={(e) => { e.stopPropagation(); setEmpresaFirma(empresa); }}
                       className="p-2 rounded-xl transition-all"
                       style={{ background: empresa.firma_configurada ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: empresa.firma_configurada ? '#34d399' : '#fbbf24' }}
