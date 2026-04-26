@@ -4,6 +4,7 @@ import EmpleadosTable from '../components/dashboard/EmpleadosTable';
 import ModalDescargaMasiva from '../components/dashboard/ModalDescargaMasiva';
 import ModalCargaMasiva from '../components/dashboard/ModalCargaMasiva';
 import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
+import ModalDetalleFirma from '../components/ModalDetalleFirma';
 import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
@@ -77,6 +78,10 @@ export default function Dashboard() {
     generarContratoPDF, descargarContratoGuardado,
     generarAnexo40hPDF, descargarAnexo40hGuardado,
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
+    // Firma electrónica
+    solicitudesFirma, isSendingFirma,
+    enviarAFirma, cancelarFirma, reenviarFirma,
+    solicitudFirmaModal, setSolicitudFirmaModal,
     toggleWidget, toggleArrayItem, toggleSelectAll,
     volverAlLobby,
     empresaActivaId,
@@ -226,9 +231,21 @@ export default function Dashboard() {
           setDocumentoData={setDocumentoData}
           guardarDocumentoLegal={guardarDocumentoLegal}
           descargarDocumentoPDF={descargarDocumentoPDF}
+          solicitudesFirma={solicitudesFirma}
+          isSendingFirma={isSendingFirma}
+          enviarAFirma={enviarAFirma}
+          cancelarFirma={cancelarFirma}
+          reenviarFirma={reenviarFirma}
+          onVerDetalleFirma={setSolicitudFirmaModal}
         />
       )}
 
+      {solicitudFirmaModal && (
+        <ModalDetalleFirma
+          solicitud={solicitudFirmaModal}
+          onClose={() => setSolicitudFirmaModal(null)}
+        />
+      )}
 
       {isModalMasivoOpen && (
         <ModalDescargaMasiva

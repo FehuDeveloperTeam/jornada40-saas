@@ -1,7 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
-from .views import DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet, AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet, mi_suscripcion, recuperar_password_por_rut, webhook_reveniu, crear_checkout_reveniu, perfil_usuario
+from .views import (
+    DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet,
+    AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet,
+    SolicitudFirmaViewSet, mi_suscripcion, recuperar_password_por_rut,
+    webhook_reveniu, crear_checkout_reveniu, perfil_usuario,
+    firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
+    firma_publica_firmar,
+)
 
 
 router = DefaultRouter()
@@ -12,6 +19,7 @@ router.register(r'documentos_legales', DocumentoLegalViewSet, basename='document
 router.register(r'anexos_contrato', AnexoContratoViewSet, basename='anexo_contrato')
 router.register(r'liquidaciones', LiquidacionViewSet, basename='liquidacion')
 router.register(r'planes', PlanViewSet, basename='plan')
+router.register(r'firmas', SolicitudFirmaViewSet, basename='firma')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -22,4 +30,9 @@ urlpatterns = [
     path('clientes/mi_suscripcion/', mi_suscripcion, name='mi_suscripcion'),
     path('clientes/perfil/', perfil_usuario, name='perfil_usuario'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
+    # Firma electrónica — endpoints públicos (sin autenticación)
+    path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),
+    path('firma-publica/<uuid:token>/solicitar-otp/', firma_publica_solicitar_otp, name='firma_publica_solicitar_otp'),
+    path('firma-publica/<uuid:token>/verificar-otp/', firma_publica_verificar_otp, name='firma_publica_verificar_otp'),
+    path('firma-publica/<uuid:token>/firmar/', firma_publica_firmar, name='firma_publica_firmar'),
 ]

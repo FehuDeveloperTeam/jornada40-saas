@@ -207,6 +207,24 @@ export interface Liquidacion {
     fecha_emision: string;
 }
 
+export interface SolicitudFirma {
+    id: number;
+    empleado: number;
+    empresa: number;
+    contrato: number | null;
+    documento_legal: number | null;
+    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO';
+    token: string;
+    estado: 'PENDIENTE' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
+    email_firmante: string;
+    ip_firmante: string | null;
+    enviado_en: string;
+    firmado_en: string | null;
+    expira_en: string;
+    empleado_nombre: string;
+    empresa_nombre: string;
+}
+
 export interface Suscripcion {
     id: number;
     cliente: number;

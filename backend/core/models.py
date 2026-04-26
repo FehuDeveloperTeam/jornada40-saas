@@ -350,6 +350,8 @@ class SolicitudFirma(models.Model):
     ip_firmante      = models.GenericIPAddressField(null=True, blank=True)
     email_firmante   = models.EmailField(blank=True, default='')
 
+    sesion_token_trabajador = models.UUIDField(null=True, blank=True)
+
     enviado_en       = models.DateTimeField(auto_now_add=True)
     firmado_en       = models.DateTimeField(null=True, blank=True)
     expira_en        = models.DateTimeField()

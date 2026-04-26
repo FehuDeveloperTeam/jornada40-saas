@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
   Contrato, AnexoContrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
+  SolicitudFirma,
 } from '../types';
 
 export const defaultHorario: HorarioSemana = {
@@ -96,6 +97,11 @@ export function useDashboard() {
   // --- Generación de PDFs de contrato ---
   const [isGeneratingContratoPDF, setIsGeneratingContratoPDF] = useState(false);
   const [isGeneratingAnexo40hPDF, setIsGeneratingAnexo40hPDF] = useState(false);
+
+  // --- Firma electrónica ---
+  const [solicitudesFirma, setSolicitudesFirma] = useState<SolicitudFirma[]>([]);
+  const [isSendingFirma, setIsSendingFirma] = useState<Record<string, boolean>>({});
+  const [solicitudFirmaModal, setSolicitudFirmaModal] = useState<SolicitudFirma | null>(null);
 
   // --- Widgets BI ---
   const [flippedWidgets, setFlippedWidgets] = useState<Record<string, boolean>>({});
@@ -411,6 +417,9 @@ export function useDashboard() {
       const resAnexos = await client.get(`/anexos_contrato/?empleado=${empleadoId}`);
       setAnexosContrato(resAnexos.data.results ?? resAnexos.data);
       setShowAnexoContratoForm(false);
+
+      const resFirmas = await client.get(`/firmas/?empleado_id=${empleadoId}`);
+      setSolicitudesFirma(resFirmas.data);
     } catch (error) {
       console.error('Error al cargar datos del panel:', error);
     }
@@ -814,6 +823,56 @@ export function useDashboard() {
     }
   };
 
+  const enviarAFirma = async (
+    tipoDocumento: SolicitudFirma['tipo_documento'],
+    opciones?: { contratoId?: number; documentoLegalId?: number; anexoContratoId?: number }
+  ) => {
+    if (!selectedEmpleado) return;
+    const key = tipoDocumento + String(opciones?.documentoLegalId ?? opciones?.anexoContratoId ?? '');
+    setIsSendingFirma(prev => ({ ...prev, [key]: true }));
+    try {
+      await client.post('/firmas/solicitar/', {
+        empleado_id: selectedEmpleado.id,
+        tipo_documento: tipoDocumento,
+        contrato_id: opciones?.contratoId ?? null,
+        documento_legal_id: opciones?.documentoLegalId ?? null,
+        anexo_contrato_id: opciones?.anexoContratoId ?? null,
+      });
+      showToast('Documento enviado a firma. El trabajador recibirá un email.', 'success');
+      const { data } = await client.get(`/firmas/?empleado_id=${selectedEmpleado.id}`);
+      setSolicitudesFirma(data);
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? (err.response?.data?.error ?? 'Error al enviar a firma.')
+        : 'Error al enviar a firma.';
+      showToast(msg, 'error');
+    } finally {
+      setIsSendingFirma(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const cancelarFirma = async (solicitudId: number) => {
+    try {
+      await client.patch(`/firmas/${solicitudId}/cancelar/`);
+      showToast('Solicitud de firma cancelada.', 'success');
+      if (selectedEmpleado) {
+        const { data } = await client.get(`/firmas/?empleado_id=${selectedEmpleado.id}`);
+        setSolicitudesFirma(data);
+      }
+    } catch {
+      showToast('Error al cancelar la solicitud.', 'error');
+    }
+  };
+
+  const reenviarFirma = async (solicitudId: number) => {
+    try {
+      await client.post(`/firmas/${solicitudId}/reenviar/`);
+      showToast('Email de firma reenviado correctamente.', 'success');
+    } catch {
+      showToast('Error al reenviar el email.', 'error');
+    }
+  };
+
   // ─── Return ────────────────────────────────────────────────────────────────
 
   return {
@@ -873,6 +932,10 @@ export function useDashboard() {
     anexoContratoData, setAnexoContratoData,
     // Generación PDFs de contrato
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
+    // Firma electrónica
+    solicitudesFirma, isSendingFirma,
+    enviarAFirma, cancelarFirma, reenviarFirma,
+    solicitudFirmaModal, setSolicitudFirmaModal,
     // Widgets BI
     flippedWidgets,
     // Handlers

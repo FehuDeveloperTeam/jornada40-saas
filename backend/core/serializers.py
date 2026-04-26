@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion
+from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion, SolicitudFirma
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
@@ -118,6 +118,32 @@ class PlanSerializer(serializers.ModelSerializer):
         model = Plan
         fields = ['id', 'nombre', 'descripcion', 'precio', 'max_empresas', 'limite_trabajadores', 'activo']
         read_only_fields = ('id', 'nombre', 'descripcion', 'precio', 'max_empresas', 'limite_trabajadores', 'activo')
+
+
+class SolicitudFirmaSerializer(serializers.ModelSerializer):
+    empleado_nombre = serializers.SerializerMethodField()
+    empresa_nombre  = serializers.SerializerMethodField()
+
+    def get_empleado_nombre(self, obj):
+        return f"{obj.empleado.nombres} {obj.empleado.apellido_paterno}"
+
+    def get_empresa_nombre(self, obj):
+        return obj.empresa.nombre_legal
+
+    class Meta:
+        model = SolicitudFirma
+        fields = [
+            'id', 'empleado', 'empresa', 'contrato', 'documento_legal',
+            'tipo_documento', 'token', 'estado',
+            'email_firmante', 'ip_firmante',
+            'enviado_en', 'firmado_en', 'expira_en',
+            'empleado_nombre', 'empresa_nombre',
+        ]
+        read_only_fields = (
+            'id', 'token', 'estado', 'email_firmante', 'ip_firmante',
+            'enviado_en', 'firmado_en', 'expira_en',
+            'empleado_nombre', 'empresa_nombre',
+        )
 
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
