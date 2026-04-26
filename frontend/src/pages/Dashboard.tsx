@@ -4,6 +4,7 @@ import EmpleadosTable from '../components/dashboard/EmpleadosTable';
 import ModalDescargaMasiva from '../components/dashboard/ModalDescargaMasiva';
 import ModalCargaMasiva from '../components/dashboard/ModalCargaMasiva';
 import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
+import ModalDetalleFirma from '../components/ModalDetalleFirma';
 import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
@@ -80,6 +81,7 @@ export default function Dashboard() {
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
+    solicitudFirmaModal, setSolicitudFirmaModal,
     toggleWidget, toggleArrayItem, toggleSelectAll,
     volverAlLobby,
     empresaActivaId,
@@ -234,9 +236,16 @@ export default function Dashboard() {
           enviarAFirma={enviarAFirma}
           cancelarFirma={cancelarFirma}
           reenviarFirma={reenviarFirma}
+          onVerDetalleFirma={setSolicitudFirmaModal}
         />
       )}
 
+      {solicitudFirmaModal && (
+        <ModalDetalleFirma
+          solicitud={solicitudFirmaModal}
+          onClose={() => setSolicitudFirmaModal(null)}
+        />
+      )}
 
       {isModalMasivoOpen && (
         <ModalDescargaMasiva

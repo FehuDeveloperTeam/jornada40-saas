@@ -85,6 +85,7 @@ type Props = {
   enviarAFirma: UseDashboardReturn['enviarAFirma'];
   cancelarFirma: UseDashboardReturn['cancelarFirma'];
   reenviarFirma: UseDashboardReturn['reenviarFirma'];
+  onVerDetalleFirma: (s: import('../../../types').SolicitudFirma) => void;
 };
 
 export default function EmpleadoPanel({
@@ -111,6 +112,7 @@ export default function EmpleadoPanel({
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
   documentosLegales, documentoData, setDocumentoData, guardarDocumentoLegal, descargarDocumentoPDF,
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
+  onVerDetalleFirma,
 }: Props) {
   return (
     <div className="fixed inset-0 z-40 overflow-hidden">
@@ -238,6 +240,7 @@ export default function EmpleadoPanel({
                 enviarAFirma={enviarAFirma}
                 cancelarFirma={cancelarFirma}
                 reenviarFirma={reenviarFirma}
+                onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
             {activeTab === 'liquidaciones' && (
@@ -284,6 +287,7 @@ export default function EmpleadoPanel({
                 enviarAFirma={enviarAFirma}
                 cancelarFirma={cancelarFirma}
                 reenviarFirma={reenviarFirma}
+                onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
           </div>

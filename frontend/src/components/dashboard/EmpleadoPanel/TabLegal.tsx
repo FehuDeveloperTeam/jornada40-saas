@@ -1,4 +1,4 @@
-import { Send, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
 import type { SolicitudFirma } from '../../../types';
 
@@ -18,6 +18,7 @@ type Props = {
   enviarAFirma: UseDashboardReturn['enviarAFirma'];
   cancelarFirma: UseDashboardReturn['cancelarFirma'];
   reenviarFirma: UseDashboardReturn['reenviarFirma'];
+  onVerDetalleFirma: (s: SolicitudFirma) => void;
 };
 
 const tipoDocToFirma: Record<string, SolicitudFirma['tipo_documento']> = {
@@ -52,6 +53,7 @@ export default function TabLegal({
   selectedEmpleado, documentosLegales, showDocumentoForm, setShowDocumentoForm,
   documentoData, setDocumentoData, guardarDocumentoLegal, isSavingDocumento, descargarDocumentoPDF,
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
+  onVerDetalleFirma,
 }: Props) {
   return (
     <div className="max-w-4xl mx-auto">
@@ -157,9 +159,18 @@ export default function TabLegal({
                               </>
                             )}
                             {solicitudActiva?.estado === 'FIRMADO' && (
-                              <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#34d399' }}>
-                                <CheckCircle className="w-3 h-3" />Firmado
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#34d399' }}>
+                                  <CheckCircle className="w-3 h-3" />Firmado
+                                </span>
+                                <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
+                                  className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                  style={{ color: 'rgba(255,255,255,0.4)' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                  <Eye className="w-3 h-3" />Ver
+                                </button>
+                              </div>
                             )}
                             <button
                               onClick={() => descargarDocumentoPDF(doc.id!, doc.tipo)}

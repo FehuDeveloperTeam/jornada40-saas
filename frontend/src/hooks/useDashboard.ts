@@ -101,6 +101,7 @@ export function useDashboard() {
   // --- Firma electrónica ---
   const [solicitudesFirma, setSolicitudesFirma] = useState<SolicitudFirma[]>([]);
   const [isSendingFirma, setIsSendingFirma] = useState<Record<string, boolean>>({});
+  const [solicitudFirmaModal, setSolicitudFirmaModal] = useState<SolicitudFirma | null>(null);
 
   // --- Widgets BI ---
   const [flippedWidgets, setFlippedWidgets] = useState<Record<string, boolean>>({});
@@ -934,6 +935,7 @@ export function useDashboard() {
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
+    solicitudFirmaModal, setSolicitudFirmaModal,
     // Widgets BI
     flippedWidgets,
     // Handlers

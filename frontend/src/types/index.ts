@@ -217,9 +217,12 @@ export interface SolicitudFirma {
     token: string;
     estado: 'PENDIENTE' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;
+    ip_firmante: string | null;
     enviado_en: string;
     firmado_en: string | null;
     expira_en: string;
+    empleado_nombre: string;
+    empresa_nombre: string;
 }
 
 export interface Suscripcion {

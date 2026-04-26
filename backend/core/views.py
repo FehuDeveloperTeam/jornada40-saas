@@ -1499,6 +1499,20 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             return Response({'error': f'Error al reenviar el email: {str(e)}'}, status=500)
         return Response({'mensaje': 'Email de firma reenviado correctamente.'})
 
+    @action(detail=True, methods=['post'])
+    def descargar(self, request, pk=None):
+        """Genera una URL presignada de corta duración para descargar el PDF firmado."""
+        solicitud = self.get_object()
+        if solicitud.estado != 'FIRMADO' or not solicitud.b2_key_firmado:
+            return Response({'error': 'No hay PDF firmado disponible para esta solicitud.'}, status=400)
+        try:
+            url = b2_client.generar_url_presignada(solicitud.b2_key_firmado, ttl_segundos=300)
+        except RuntimeError as exc:
+            return Response({'error': str(exc)}, status=503)
+        except Exception:
+            return Response({'error': 'Error al generar el enlace de descarga.'}, status=500)
+        return Response({'url': url})
+
     # -------------------------------------------------
     # Helpers internos
     # -------------------------------------------------

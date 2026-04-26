@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Send, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
 import type { SolicitudFirma } from '../../../types';
 
@@ -37,10 +37,11 @@ type Props = {
   enviarAFirma: UseDashboardReturn['enviarAFirma'];
   cancelarFirma: UseDashboardReturn['cancelarFirma'];
   reenviarFirma: UseDashboardReturn['reenviarFirma'];
+  onVerDetalleFirma: (s: SolicitudFirma) => void;
 };
 
 function FirmaBadge({
-  tipo, solicitudes, onCancelar, onReenviar, onEnviar, sending,
+  tipo, solicitudes, onCancelar, onReenviar, onEnviar, sending, onVerDetalle,
 }: {
   tipo: SolicitudFirma['tipo_documento'];
   solicitudes: SolicitudFirma[];
@@ -48,6 +49,7 @@ function FirmaBadge({
   onReenviar: (id: number) => void;
   onEnviar: () => void;
   sending: boolean;
+  onVerDetalle: (s: SolicitudFirma) => void;
 }) {
   const activa = solicitudes
     .filter(s => s.tipo_documento === tipo)
@@ -104,10 +106,19 @@ function FirmaBadge({
 
   if (activa.estado === 'FIRMADO') {
     return (
-      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
-        style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>
-        <CheckCircle className="w-3 h-3" />Firmado
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+          style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <CheckCircle className="w-3 h-3" />Firmado
+        </span>
+        <button type="button" onClick={() => onVerDetalle(activa)}
+          className="text-xs font-semibold flex items-center gap-1 transition-colors"
+          style={{ color: 'rgba(255,255,255,0.4)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+          <Eye className="w-3 h-3" />Ver detalles
+        </button>
+      </div>
     );
   }
 
@@ -136,6 +147,7 @@ export default function TabContratos({
   isSavingAnexoContrato, anexoContratoData, setAnexoContratoData,
   guardarAnexoContrato, descargarAnexoContratoPDF,
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
+  onVerDetalleFirma,
 }: Props) {
   const [clausulasAnexo, setClausulasAnexo] = useState<string[]>([]);
   return (
@@ -353,6 +365,7 @@ export default function TabContratos({
                   onCancelar={cancelarFirma}
                   onReenviar={reenviarFirma}
                   sending={!!isSendingFirma['CONTRATO']}
+                  onVerDetalle={onVerDetalleFirma}
                 />
               </div>
             </div>
@@ -386,6 +399,7 @@ export default function TabContratos({
                   onCancelar={cancelarFirma}
                   onReenviar={reenviarFirma}
                   sending={!!isSendingFirma['ANEXO_40H']}
+                  onVerDetalle={onVerDetalleFirma}
                 />
               </div>
             </div>
@@ -500,6 +514,7 @@ export default function TabContratos({
                         onCancelar={cancelarFirma}
                         onReenviar={reenviarFirma}
                         sending={!!isSendingFirma[`ANEXO_CONTRATO${anexo.id}`]}
+                        onVerDetalle={onVerDetalleFirma}
                       />
                     </div>
                   </div>
