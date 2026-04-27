@@ -167,6 +167,61 @@ def _html_a_pdf_bytes(html_string: str, nombre_doc: str) -> bytes:
     return pdf_bytes
 
 
+_MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto",
+          "septiembre","octubre","noviembre","diciembre"]
+_DIAS_NOMBRES = {
+    'lunes': 'Lunes', 'martes': 'Martes', 'miercoles': 'Miércoles',
+    'jueves': 'Jueves', 'viernes': 'Viernes', 'sabado': 'Sábado', 'domingo': 'Domingo',
+}
+
+
+def _ctx_contrato(contrato, es_plan_semilla: bool) -> dict:
+    """Construye el contexto completo para el template contrato_trabajo.html."""
+    empleado = contrato.empleado
+    empresa = empleado.empresa
+    hoy = datetime.date.today()
+    fecha_espanol = f"{hoy.day:02d} de {_MESES[hoy.month - 1]} de {hoy.year}"
+    comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
+    ciudad = str(comuna_emp or getattr(empleado, 'comuna', '') or 'Santiago').strip().title()
+
+    def fmt_fecha(fecha):
+        if not fecha:
+            return None
+        return f"{fecha.day:02d} de {_MESES[fecha.month - 1]} de {fecha.year}"
+
+    def fmt_pesos(valor):
+        if not valor:
+            return "$0"
+        return f"${valor:,}".replace(",", ".")
+
+    horario_formateado = []
+    if contrato.distribucion_horario:
+        for dia_key, datos in contrato.distribucion_horario.items():
+            if datos.get('activo'):
+                horario_formateado.append({
+                    'dia_nombre': _DIAS_NOMBRES.get(dia_key, dia_key.title()),
+                    'entrada': datos.get('entrada', ''),
+                    'salida': datos.get('salida', ''),
+                    'colacion': datos.get('colacion', 0),
+                })
+
+    return {
+        'contrato': contrato,
+        'empleado': empleado,
+        'empresa': empresa,
+        'es_plan_semilla': es_plan_semilla,
+        'fecha_actual': fecha_espanol,
+        'ciudad': ciudad,
+        'tipo_contrato_texto': contrato.get_tipo_contrato_display(),
+        'fecha_inicio_texto': fmt_fecha(contrato.fecha_inicio),
+        'fecha_fin_texto': fmt_fecha(contrato.fecha_fin),
+        'fecha_nacimiento_texto': fmt_fecha(empleado.fecha_nacimiento),
+        'sueldo_base_texto': fmt_pesos(contrato.sueldo_base),
+        'monto_quincena_texto': fmt_pesos(contrato.monto_quincena),
+        'horario_formateado': horario_formateado,
+    }
+
+
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
     queryset = DocumentoLegal.objects.all().order_by('-fecha_emision', '-creado_en')
     serializer_class = DocumentoLegalSerializer
@@ -564,7 +619,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato, 'es_plan_semilla': es_plan_semilla}
+            context = _ctx_contrato(contrato, es_plan_semilla)
             html_string = render_to_string('contrato_trabajo.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Contrato_{empleado.rut}')
             contrato.archivo_contrato.save(f"Contrato_{empleado.rut}.pdf", ContentFile(pdf_bytes))
@@ -932,51 +987,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
         return queryset
 
     def _build_contrato_context(self, contrato, es_plan_semilla):
-        empleado = contrato.empleado
-        empresa = empleado.empresa
-        meses = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"]
-        hoy = datetime.date.today()
-        fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-        comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
-        ciudad_segura = str(comuna_emp or getattr(empleado, 'comuna', '') or 'Santiago').strip().title()
-
-        def fmt_fecha(fecha):
-            if not fecha:
-                return None
-            return f"{fecha.day:02d} de {meses[fecha.month - 1]} de {fecha.year}"
-
-        def fmt_pesos(valor):
-            if not valor:
-                return "$0"
-            return f"${valor:,}".replace(",", ".")
-
-        _dias_nombres = {
-            'lunes': 'Lunes', 'martes': 'Martes', 'miercoles': 'Miércoles',
-            'jueves': 'Jueves', 'viernes': 'Viernes', 'sabado': 'Sábado', 'domingo': 'Domingo',
-        }
-        horario_formateado = []
-        if contrato.distribucion_horario:
-            for dia_key, datos in contrato.distribucion_horario.items():
-                if datos.get('activo'):
-                    horario_formateado.append({
-                        'dia_nombre': _dias_nombres.get(dia_key, dia_key.title()),
-                        'entrada': datos.get('entrada', ''),
-                        'salida': datos.get('salida', ''),
-                        'colacion': datos.get('colacion', 0),
-                    })
-
-        return {
-            'contrato': contrato, 'empleado': empleado, 'empresa': empresa,
-            'fecha_actual': fecha_espanol, 'ciudad': ciudad_segura,
-            'es_plan_semilla': es_plan_semilla,
-            'tipo_contrato_texto': contrato.get_tipo_contrato_display(),
-            'fecha_inicio_texto': fmt_fecha(contrato.fecha_inicio),
-            'fecha_fin_texto': fmt_fecha(contrato.fecha_fin),
-            'fecha_nacimiento_texto': fmt_fecha(empleado.fecha_nacimiento),
-            'sueldo_base_texto': fmt_pesos(contrato.sueldo_base),
-            'monto_quincena_texto': fmt_pesos(contrato.monto_quincena),
-            'horario_formateado': horario_formateado,
-        }
+        return _ctx_contrato(contrato, es_plan_semilla)
 
     @action(detail=True, methods=['post'])
     def generar_contrato_pdf(self, request, pk=None):
@@ -1534,8 +1545,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                             if contrato_id else Contrato.objects.get(empleado=empleado))
             except Contrato.DoesNotExist:
                 raise Exception('El trabajador no tiene contrato registrado.')
-            ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
-                   'es_plan_semilla': es_plan_semilla}
+            ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('contrato_trabajo.html', ctx)
             return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None
 
