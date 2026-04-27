@@ -506,7 +506,7 @@ export function useDashboard() {
     }
     const payload: Record<string, unknown> = { ...formData } as Record<string, unknown>;
     if (payload.numero_telefono) payload.numero_telefono = `+56${payload.numero_telefono}`;
-    const camposOpcionales = ['apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 'direccion', 'comuna', 'numero_telefono', 'departamento', 'sucursal', 'afp', 'sistema_salud', 'nacionalidad'];
+    const camposOpcionales = ['apellido_materno', 'sexo', 'fecha_nacimiento', 'estado_civil', 'direccion', 'comuna', 'numero_telefono', 'email', 'departamento', 'sucursal', 'afp', 'sistema_salud', 'nacionalidad'];
     camposOpcionales.forEach(campo => { if (payload[campo] === '') delete payload[campo]; });
     if (payload.empresa) payload.empresa = Number(payload.empresa);
     payload.horas_laborales = Number(payload.horas_laborales || 40);

@@ -57,9 +57,10 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               {[
                 ['Nacionalidad', selectedEmpleado.nacionalidad?.toLowerCase()],
                 ['Fecha Nac.', selectedEmpleado.fecha_nacimiento],
+                ['Sexo', selectedEmpleado.sexo === 'M' ? 'Masculino' : selectedEmpleado.sexo === 'F' ? 'Femenino' : selectedEmpleado.sexo === 'O' ? 'Otro' : undefined],
                 ['Estado Civil', selectedEmpleado.estado_civil?.toLowerCase()],
                 ['Teléfono', selectedEmpleado.numero_telefono],
-                ['Email', selectedEmpleado.email?.toLowerCase()],
+                ['Email', selectedEmpleado.email],
                 ['Comuna', selectedEmpleado.comuna?.toLowerCase()],
                 ['Dirección', selectedEmpleado.direccion?.toLowerCase()],
               ].map(([label, value]) => (
@@ -145,6 +146,15 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                 <input type="text" name="estado_civil" value={formData.estado_civil || ''} onChange={handleInputChange} style={inp} />
               </div>
               <div>
+                <label style={lbl}>Sexo</label>
+                <select name="sexo" value={formData.sexo || ''} onChange={handleInputChange} style={sel}>
+                  <option value="" style={{ background: '#0c1a35' }}>Sin especificar</option>
+                  <option value="M" style={{ background: '#0c1a35' }}>Masculino</option>
+                  <option value="F" style={{ background: '#0c1a35' }}>Femenino</option>
+                  <option value="O" style={{ background: '#0c1a35' }}>Otro</option>
+                </select>
+              </div>
+              <div>
                 <label style={lbl}>Teléfono</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -153,6 +163,10 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                   <input type="text" name="numero_telefono" value={formData.numero_telefono || ''} onChange={handleInputChange} placeholder="912345678"
                     style={{ ...inp, paddingLeft: '2.75rem' }} />
                 </div>
+              </div>
+              <div>
+                <label style={lbl}>Email</label>
+                <input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="trabajador@email.com" style={inp} />
               </div>
               <div className="col-span-2">
                 <label style={lbl}>Comuna y Dirección</label>
