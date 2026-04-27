@@ -321,40 +321,49 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
-        
-        # Obtenemos la empresa a la que se está intentando agregar el trabajador
+
         empresa_destino = serializer.validated_data.get('empresa')
-        
+
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
             if not validar_rut(rut_raw):
                 raise ValidationError({'error': 'El RUT ingresado no es válido.'})
             rut_form = formatear_rut(rut_raw)
-            
-            # Solo verificamos si existe dentro de ESTA empresa específica
+
             if Empleado.objects.filter(empresa=empresa_destino, rut=rut_form).exists():
                 raise ValidationError({'error': 'Este trabajador ya está registrado en esta empresa.'})
-            
+
             datos_mayusculas['rut'] = rut_form
-            
+
+        telefono = datos_mayusculas.get('numero_telefono')
+        if telefono and isinstance(telefono, str):
+            solo_digitos = re.sub(r'[^0-9]', '', telefono)
+            datos_mayusculas['numero_telefono'] = f'+56{solo_digitos[-9:]}' if solo_digitos else None
+
         serializer.save(**datos_mayusculas)
 
     def perform_update(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
-        
+
         empresa_destino = serializer.validated_data.get('empresa', serializer.instance.empresa)
-        
+
         rut_raw = self.request.data.get('rut', '')
         if rut_raw:
             if not validar_rut(rut_raw):
                 raise ValidationError({'error': 'El RUT ingresado no es válido.'})
             rut_form = formatear_rut(rut_raw)
-            
+
             if Empleado.objects.filter(empresa=empresa_destino, rut=rut_form).exclude(id=serializer.instance.id).exists():
                 raise ValidationError({'error': 'Ya existe otro trabajador con este RUT en esta empresa.'})
-            
+
             datos_mayusculas['rut'] = rut_form
-            
+
+        # Normalizar teléfono: extraer solo los últimos 9 dígitos y anteponer +56
+        telefono = datos_mayusculas.get('numero_telefono')
+        if telefono and isinstance(telefono, str):
+            solo_digitos = re.sub(r'[^0-9]', '', telefono)
+            datos_mayusculas['numero_telefono'] = f'+56{solo_digitos[-9:]}' if solo_digitos else None
+
         serializer.save(**datos_mayusculas)
 
     @action(detail=False, methods=['post'])

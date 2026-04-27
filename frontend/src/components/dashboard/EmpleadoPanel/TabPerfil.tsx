@@ -100,7 +100,14 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
 
           <div className="md:col-span-2 mt-4 flex justify-start">
             <button
-              onClick={() => { setFormData({ ...selectedEmpleado! }); setIsValidRut(true); setPanelMode('edit'); }}
+              onClick={() => {
+                const telefonoLimpio = selectedEmpleado!.numero_telefono
+                  ? selectedEmpleado!.numero_telefono.replace(/[^0-9]/g, '').slice(-9)
+                  : '';
+                setFormData({ ...selectedEmpleado!, numero_telefono: telefonoLimpio });
+                setIsValidRut(true);
+                setPanelMode('edit');
+              }}
               className="px-4 py-2 text-sm font-semibold rounded-lg flex items-center gap-2 transition-colors"
               style={{ color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}

@@ -435,7 +435,7 @@ export function useDashboard() {
 
   const abrirEditar = (emp: Empleado) => {
     setSelectedEmpleado(emp);
-    const telefonoLimpio = emp.numero_telefono ? emp.numero_telefono.replace('+56', '') : '';
+    const telefonoLimpio = emp.numero_telefono ? emp.numero_telefono.replace(/[^0-9]/g, '').slice(-9) : '';
     setFormData({ ...emp, numero_telefono: telefonoLimpio });
     setIsValidRut(true);
     setPanelMode('edit');
@@ -533,7 +533,17 @@ export function useDashboard() {
       fetchData();
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        showToast('No se pudo guardar el trabajador. Revisa los datos e inténtalo de nuevo.', 'error');
+        const data = error.response?.data;
+        let msg = 'No se pudo guardar el trabajador.';
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+          const detalles = Object.entries(data as Record<string, unknown>)
+            .flatMap(([campo, msgs]) => {
+              const textos = Array.isArray(msgs) ? msgs : [String(msgs)];
+              return campo === 'error' ? textos : textos.map(t => `[${campo}] ${t}`);
+            });
+          if (detalles.length) msg += ' ' + detalles.join(' · ');
+        }
+        showToast(msg, 'error');
       } else {
         showToast('Ocurrió un error desconocido al guardar.', 'error');
       }
