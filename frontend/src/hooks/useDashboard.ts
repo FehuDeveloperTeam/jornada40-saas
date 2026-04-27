@@ -849,15 +849,19 @@ export function useDashboard() {
         anexo_contrato_id: opciones?.anexoContratoId ?? null,
       });
       showToast('Documento enviado a firma. El trabajador recibirá un email.', 'success');
-      const { data } = await client.get(`/firmas/?empleado_id=${selectedEmpleado.id}`);
-      setSolicitudesFirma(data);
     } catch (err: unknown) {
-      const msg = axios.isAxiosError(err)
-        ? (err.response?.data?.error ?? 'Error al enviar a firma.')
-        : 'Error al enviar a firma.';
+      const data = axios.isAxiosError(err) ? err.response?.data : null;
+      const msg = data?.error ?? (typeof data === 'string' ? 'Error al enviar a firma.' : 'Error al enviar a firma.');
       showToast(msg, 'error');
+      return;
     } finally {
       setIsSendingFirma(prev => ({ ...prev, [key]: false }));
+    }
+    try {
+      const { data } = await client.get(`/firmas/?empleado_id=${selectedEmpleado.id}`);
+      setSolicitudesFirma(data);
+    } catch {
+      // refresco silencioso — la firma fue enviada correctamente
     }
   };
 

@@ -1403,11 +1403,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        cliente = getattr(self.request.user, 'perfil_cliente', None)
-        if not cliente:
-            return SolicitudFirma.objects.none()
         return SolicitudFirma.objects.filter(
-            empresa__owner=cliente
+            empresa__owner=self.request.user
         ).select_related('empleado', 'empresa')
 
     def list(self, request):
@@ -1429,12 +1426,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         if tipo_doc not in tipos_validos:
             return Response({'error': 'Tipo de documento inválido.'}, status=400)
 
-        cliente = getattr(request.user, 'perfil_cliente', None)
-        if not cliente:
-            return Response({'error': 'Perfil de cliente no encontrado.'}, status=403)
-
         try:
-            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=cliente)
+            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
         except Empleado.DoesNotExist:
             return Response({'error': 'Trabajador no encontrado.'}, status=404)
 
@@ -1449,7 +1442,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         email_trabajador = empleado.email
         if not email_trabajador:
             return Response(
-                {'error': 'El trabajador no tiene email registrado. Agréguelo antes de enviar a firma.'},
+                {'error': 'El trabajador no tiene email registrado. Agréguelo en Datos Generales antes de enviar a firma.'},
                 status=400
             )
 
@@ -1471,15 +1464,19 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         except Exception:
             return Response({'error': 'Error al subir el documento al almacenamiento.'}, status=500)
 
-        solicitud = SolicitudFirma.objects.create(
-            empleado=empleado,
-            empresa=empresa,
-            tipo_documento=tipo_doc,
-            contrato=contrato_obj,
-            documento_legal=doc_legal_obj,
-            email_firmante=email_trabajador,
-            b2_key_temporal=key,
-        )
+        try:
+            solicitud = SolicitudFirma.objects.create(
+                empleado=empleado,
+                empresa=empresa,
+                tipo_documento=tipo_doc,
+                contrato=contrato_obj,
+                documento_legal=doc_legal_obj,
+                email_firmante=email_trabajador,
+                b2_key_temporal=key,
+            )
+        except Exception as e:
+            b2_client.eliminar_documento(key)
+            return Response({'error': f'Error al registrar la solicitud: {e}'}, status=500)
 
         try:
             self._enviar_email_firma(solicitud, empleado, empresa)
