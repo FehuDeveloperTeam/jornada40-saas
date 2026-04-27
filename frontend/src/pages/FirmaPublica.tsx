@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
@@ -49,6 +49,64 @@ function formatFecha(iso: string): string {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout compartido — definido fuera del componente para evitar remounts
+// ─────────────────────────────────────────────────────────────────────────────
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="min-h-screen flex flex-col relative overflow-hidden"
+      style={{ background: '#060f20' }}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-20"
+          style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }}
+        />
+        <div
+          className="absolute -bottom-60 -right-40 w-[700px] h-[700px] rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }}
+        />
+      </div>
+
+      <div className="absolute top-0 left-0 w-full px-6 py-4 flex items-center justify-between z-20">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
+          >
+            <img src="/favicon.svg" alt="Jornada40" className="w-full h-full object-contain p-1" />
+          </div>
+          <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            Jornada<span style={{ color: '#60a5fa' }}>40</span>
+          </span>
+        </div>
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase"
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: 'rgba(255,255,255,0.35)',
+          }}
+        >
+          <Shield size={11} className="text-emerald-400" />
+          Firma Electrónica Simple
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-4 pt-20 relative z-10">
+        {children}
+      </div>
+
+      <div className="relative z-10 text-center py-4 px-6">
+        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          Firma Electrónica Simple · Ley N° 19.799 · República de Chile · Jornada40
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function FirmaPublica() {
   const { token } = useParams<{ token: string }>();
 
@@ -69,10 +127,9 @@ export default function FirmaPublica() {
 
   // ── Countdown del cooldown ──────────────────────────────────────────────────
   useEffect(() => {
-    if (cooldown <= 0) return;
     const id = setInterval(() => setCooldown(s => (s <= 1 ? 0 : s - 1)), 1000);
     return () => clearInterval(id);
-  }, [cooldown]);
+  }, []);
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -208,62 +265,6 @@ export default function FirmaPublica() {
     setOtpError('');
     inputRefs.current[Math.min(pegado.length, 5)]?.focus();
   };
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Layout compartido
-  // ─────────────────────────────────────────────────────────────────────────────
-  const PageWrapper = ({ children }: { children: React.ReactNode }) => (
-    <div
-      className="min-h-screen flex flex-col relative overflow-hidden"
-      style={{ background: '#060f20' }}
-    >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }}
-        />
-        <div
-          className="absolute -bottom-60 -right-40 w-[700px] h-[700px] rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }}
-        />
-      </div>
-
-      <div className="absolute top-0 left-0 w-full px-6 py-4 flex items-center justify-between z-20">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
-          >
-            <img src="/favicon.svg" alt="Jornada40" className="w-full h-full object-contain p-1" />
-          </div>
-          <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>
-            Jornada<span style={{ color: '#60a5fa' }}>40</span>
-          </span>
-        </div>
-        <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase"
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.35)',
-          }}
-        >
-          <Shield size={11} className="text-emerald-400" />
-          Firma Electrónica Simple
-        </div>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center p-4 pt-20 relative z-10">
-        {children}
-      </div>
-
-      <div className="relative z-10 text-center py-4 px-6">
-        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
-          Firma Electrónica Simple · Ley N° 19.799 · República de Chile · Jornada40
-        </p>
-      </div>
-    </div>
-  );
 
   // ─────────────────────────────────────────────────────────────────────────────
   // STEP: loading
