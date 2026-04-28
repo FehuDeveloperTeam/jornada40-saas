@@ -86,6 +86,15 @@ class DocumentoLegalSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'empleado', 'tipo', 'fecha_emision',
             'causal_legal', 'hechos', 'aviso_previo_pagado',
+            # Campos específicos carta de despido
+            'causal_articulo',
+            'fecha_ultimo_dia',
+            'cotizaciones_al_dia',
+            'aviso_previo_dias',
+            'monto_indemnizacion_anos',
+            'monto_indemnizacion_sustitutiva',
+            'modalidad_finiquito',
+            'copia_inspeccion_trabajo',
             'archivo_pdf', 'creado_en',
         ]
         read_only_fields = ('id', 'archivo_pdf', 'creado_en')
