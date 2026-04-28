@@ -4,7 +4,7 @@ from django.views.generic import TemplateView
 from .views import (
     DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet,
     AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet,
-    SolicitudFirmaViewSet, mi_suscripcion, recuperar_password_por_rut,
+    SolicitudFirmaViewSet, VacacionViewSet, mi_suscripcion, recuperar_password_por_rut,
     webhook_reveniu, crear_checkout_reveniu, perfil_usuario,
     firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
     firma_publica_firmar,
@@ -20,6 +20,7 @@ router.register(r'anexos_contrato', AnexoContratoViewSet, basename='anexo_contra
 router.register(r'liquidaciones', LiquidacionViewSet, basename='liquidacion')
 router.register(r'planes', PlanViewSet, basename='plan')
 router.register(r'firmas', SolicitudFirmaViewSet, basename='firma')
+router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -442,6 +442,104 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# ==========================================
+# VACACIONES Y PERMISOS
+# ==========================================
+class VacacionViewSet(viewsets.ModelViewSet):
+    serializer_class = None  # se asigna abajo tras importar el serializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        from .serializers import VacacionSerializer
+        return VacacionSerializer
+
+    def get_queryset(self):
+        qs = VacacionEmpleado.objects.filter(
+            empresa__owner=self.request.user
+        ).order_by('-fecha_inicio')
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            qs = qs.filter(empleado_id=empleado_id)
+        return qs
+
+    def perform_create(self, serializer):
+        """Auto-calcula días hábiles si el cliente no los envía."""
+        fecha_inicio = serializer.validated_data.get('fecha_inicio')
+        fecha_fin    = serializer.validated_data.get('fecha_fin')
+        dias = serializer.validated_data.get('dias_habiles') or 0
+        if fecha_inicio and fecha_fin and not dias:
+            dias = _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin)
+        serializer.save(dias_habiles=dias)
+
+    @action(detail=False, methods=['get'], url_path='saldo')
+    def saldo(self, request):
+        """GET /api/vacaciones/saldo/?empleado=<id>
+        Retorna el saldo de vacaciones del empleado.
+        """
+        empleado_id = request.query_params.get('empleado')
+        if not empleado_id:
+            return Response({'error': 'Parámetro empleado requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            empleado = Empleado.objects.get(pk=empleado_id, empresa__owner=request.user)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(calcular_saldo_vacaciones(empleado))
+
+    @action(detail=True, methods=['get'], url_path='generar_pdf')
+    def generar_pdf(self, request, pk=None):
+        """GET /api/vacaciones/<id>/generar_pdf/
+        Genera y devuelve el comprobante de vacaciones en PDF.
+        """
+        try:
+            vacacion = self.get_object()
+            empleado = vacacion.empleado
+            empresa  = vacacion.empresa
+            es_semilla = _es_plan_semilla(request.user)
+
+            hoy = datetime.date.today()
+            fecha_hoy_texto = f"{hoy.day:02d} de {_MESES[hoy.month - 1]} de {hoy.year}"
+
+            def _fmt_fecha(f):
+                if not f:
+                    return '—'
+                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
+
+            context = {
+                'vacacion':          vacacion,
+                'empleado':          empleado,
+                'empresa':           empresa,
+                'fecha_actual':      fecha_hoy_texto,
+                'fecha_inicio_texto': _fmt_fecha(vacacion.fecha_inicio),
+                'fecha_fin_texto':    _fmt_fecha(vacacion.fecha_fin),
+                'ciudad': str(
+                    getattr(empresa, 'ciudad', '') or
+                    getattr(empresa, 'comuna', '') or
+                    getattr(empleado, 'comuna', '') or 'Santiago'
+                ).strip().title(),
+                'es_plan_semilla': es_semilla,
+            }
+
+            template = get_template('comprobante_vacaciones.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            nombre = f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return HttpResponse('Error al generar el PDF.', status=500)
+
+            return response
+
+        except Exception as e:
+            return Response(
+                {'error': f'Error al generar PDF: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]

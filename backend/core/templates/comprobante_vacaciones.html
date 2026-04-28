@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Comprobante de Autorización de Vacaciones</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 2.5cm 2cm 2.5cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm;
+                height: 1cm; text-align: center;
+            }
+        }
+        body       { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
+        h1         { text-align: center; font-size: 13pt; font-weight: bold; margin-bottom: 8px; text-decoration: underline; text-transform: uppercase; }
+        h2         { text-align: center; font-size: 11pt; font-weight: normal; margin-top: 0; margin-bottom: 28px; color: #555; }
+        p          { margin-bottom: 12px; }
+        .bold      { font-weight: bold; }
+        .fecha     { text-align: right; margin-bottom: 35px; }
+        table.datos {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 20px 0;
+            font-size: 10.5pt;
+        }
+        table.datos td {
+            padding: 7px 10px;
+            border: 1px solid #ccc;
+        }
+        table.datos td.label  { font-weight: bold; width: 40%; background: #f5f5f5; }
+        table.datos td.valor  { width: 60%; }
+        table.datos tr.total  { background: #eef2ff; }
+        table.datos tr.total td { font-weight: bold; font-size: 11pt; }
+        table.firmas { width: 100%; margin-top: 70px; page-break-inside: avoid; }
+        td.col-firma { width: 45%; text-align: center; vertical-align: bottom; }
+        .linea-firma { border-top: 1px solid #000; padding-top: 5px; margin-top: 55px; font-size: 10pt; }
+        .pie-legal { font-size: 9pt; color: #555; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }
+        .tipo-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 10pt;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 4px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Gratuito. Actualiza a PYME para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="fecha">
+        <span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha_actual }}</span>
+    </div>
+
+    <h1>Comprobante de Autorización de Vacaciones</h1>
+    <h2>{{ empresa.nombre_legal }} — RUT {{ empresa.rut }}</h2>
+
+    <!-- Datos del trabajador -->
+    <p>Por medio del presente documento, la empresa <span class="bold">{{ empresa.nombre_legal }}</span>,
+    representada legalmente por don(a) <span class="bold">{{ empresa.representante_legal|default:"________________________" }}</span>,
+    autoriza el uso del feriado legal al trabajador individualizado a continuación, en conformidad con lo
+    establecido en los Artículos 67 y siguientes del Código del Trabajo.</p>
+
+    <table class="datos">
+        <tr>
+            <td class="label">Nombre completo</td>
+            <td class="valor">{{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}</td>
+        </tr>
+        <tr>
+            <td class="label">RUT</td>
+            <td class="valor">{{ empleado.rut }}</td>
+        </tr>
+        <tr>
+            <td class="label">Cargo</td>
+            <td class="valor">{{ empleado.cargo }}</td>
+        </tr>
+        <tr>
+            <td class="label">Fecha de ingreso</td>
+            <td class="valor">{{ empleado.fecha_ingreso }}</td>
+        </tr>
+    </table>
+
+    <!-- Detalle del período -->
+    <table class="datos">
+        <tr>
+            <td class="label">Tipo de permiso</td>
+            <td class="valor">
+                {% if vacacion.tipo == 'VACACION_LEGAL' %}
+                    Vacación Legal (Art. 67 Código del Trabajo)
+                {% elif vacacion.tipo == 'VACACION_PROGRESIVA' %}
+                    Feriado Progresivo (Art. 68 Código del Trabajo)
+                {% else %}
+                    Permiso Sin Goce de Sueldo
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td class="label">Fecha de inicio</td>
+            <td class="valor"><span class="bold">{{ fecha_inicio_texto }}</span></td>
+        </tr>
+        <tr>
+            <td class="label">Fecha de regreso</td>
+            <td class="valor"><span class="bold">{{ fecha_fin_texto }}</span></td>
+        </tr>
+        <tr class="total">
+            <td class="label">Total días hábiles</td>
+            <td class="valor">{{ vacacion.dias_habiles }} días hábiles</td>
+        </tr>
+    </table>
+
+    {% if vacacion.observaciones %}
+        <p><span class="bold">Observaciones:</span> {{ vacacion.observaciones }}</p>
+    {% endif %}
+
+    <p>El trabajador deberá reintegrarse a sus funciones el primer día hábil siguiente a la fecha de término
+    del feriado indicada en el presente documento.</p>
+
+    <p>El presente comprobante se emite en dos ejemplares de igual valor, uno para el empleador y otro para
+    el trabajador, dejándose constancia de la fecha de autorización señalada.</p>
+
+    <!-- Firmas -->
+    <table class="firmas">
+        <tr>
+            <td class="col-firma">
+                <div class="linea-firma">
+                    <span class="bold">{{ empresa.nombre_legal }}</span><br>
+                    RUT: {{ empresa.rut }}<br>
+                    p.p. {{ empresa.representante_legal|default:"________________________" }}<br>
+                    Empleador
+                </div>
+            </td>
+            <td style="width:10%;"></td>
+            <td class="col-firma">
+                <div class="linea-firma">
+                    <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }}</span><br>
+                    RUT: {{ empleado.rut }}<br>
+                    Recibí conforme — Fecha: ___/___/______<br>
+                    Trabajador
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <p class="pie-legal">
+        Documento emitido en conformidad con el Artículo 67 del Código del Trabajo, República de Chile.<br>
+        Generado con Jornada40.cl · Firma Electrónica Simple según Ley N°19.799.
+    </p>
+
+</body>
+</html>
