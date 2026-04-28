@@ -165,6 +165,15 @@ export interface DocumentoLegal {
     causal_legal: string | null;
     hechos: string;
     aviso_previo_pagado: boolean;
+    // Campos específicos carta de despido
+    causal_articulo: string | null;
+    fecha_ultimo_dia: string | null;
+    cotizaciones_al_dia: boolean | null;
+    aviso_previo_dias: number | null;
+    monto_indemnizacion_anos: number | null;
+    monto_indemnizacion_sustitutiva: number | null;
+    modalidad_finiquito: 'PRESENCIAL' | 'ELECTRONICO' | null;
+    copia_inspeccion_trabajo: boolean | null;
     archivo_pdf: string | null;
     creado_en: string;
 }
