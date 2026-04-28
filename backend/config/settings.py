@@ -266,6 +266,8 @@ PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
 # ==========================================
 # ALMACENAMIENTO DE ARCHIVOS (PDFs, contratos)
 # ==========================================
+GEMINI_API_KEY     = config('GEMINI_API_KEY',     default=None)
+
 B2_KEY_ID          = config('B2_KEY_ID',          default=None)
 B2_APPLICATION_KEY = config('B2_APPLICATION_KEY', default=None)
 B2_BUCKET_NAME     = config('B2_BUCKET_NAME',     default=None)
