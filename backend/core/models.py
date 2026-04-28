@@ -211,21 +211,67 @@ class DocumentoLegal(models.Model):
         ('CONSTANCIA', 'Constancia Laboral'),
     ]
 
+    CAUSAL_ARTICULO_CHOICES = [
+        # Art. 159 — Causales objetivas
+        ('159_1', 'Art. 159 N°1 — Mutuo acuerdo de las partes'),
+        ('159_2', 'Art. 159 N°2 — Renuncia voluntaria del trabajador'),
+        ('159_3', 'Art. 159 N°3 — Muerte del trabajador'),
+        ('159_4', 'Art. 159 N°4 — Vencimiento del plazo convenido'),
+        ('159_5', 'Art. 159 N°5 — Conclusión del trabajo o servicio'),
+        ('159_6', 'Art. 159 N°6 — Caso fortuito o fuerza mayor'),
+        # Art. 160 — Causales disciplinarias
+        ('160_1a', 'Art. 160 N°1 a) — Falta de probidad'),
+        ('160_1b', 'Art. 160 N°1 b) — Acoso sexual'),
+        ('160_1c', 'Art. 160 N°1 c) — Vías de hecho contra empleador u otro trabajador'),
+        ('160_1d', 'Art. 160 N°1 d) — Injurias al empleador'),
+        ('160_1e', 'Art. 160 N°1 e) — Conducta inmoral grave'),
+        ('160_1f', 'Art. 160 N°1 f) — Acoso laboral (mobbing)'),
+        ('160_2',  'Art. 160 N°2 — Negociaciones prohibidas en el contrato'),
+        ('160_3',  'Art. 160 N°3 — Inasistencias injustificadas'),
+        ('160_4a', 'Art. 160 N°4 a) — Abandono: salida intempestiva'),
+        ('160_4b', 'Art. 160 N°4 b) — Abandono: negativa injustificada a trabajar'),
+        ('160_5',  'Art. 160 N°5 — Actos que afectan la seguridad'),
+        ('160_6',  'Art. 160 N°6 — Daño material intencional'),
+        ('160_7',  'Art. 160 N°7 — Incumplimiento grave del contrato'),
+        # Art. 161 — Decisión del empleador
+        ('161_1',  'Art. 161 inc. 1° — Necesidades de la empresa'),
+        ('161_2',  'Art. 161 inc. 2° — Desahucio del empleador'),
+        # Otros
+        ('163bis', 'Art. 163 bis — Liquidación concursal del empleador'),
+    ]
+
+    MODALIDAD_FINIQUITO_CHOICES = [
+        ('PRESENCIAL',  'Presencial ante ministro de fe'),
+        ('ELECTRONICO', 'Electrónico (voluntario para el trabajador)'),
+    ]
+
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='documentos_legales')
     tipo = models.CharField(max_length=20, choices=TIPO_DOCUMENTO_CHOICES)
     fecha_emision = models.DateField()
-    
+
     # Causal legal invocada (Ej: "Artículo 160 N°3 del Código del Trabajo")
-    causal_legal = models.CharField(max_length=255, blank=True, null=True) 
-    
+    causal_legal = models.CharField(max_length=255, blank=True, null=True)
+
     # Descripción detallada de los hechos que motivan la carta
     hechos = models.TextField()
-    
+
     # Para cartas de despido: indicar si se pagan o no los días de aviso previo
     aviso_previo_pagado = models.BooleanField(default=False)
 
+    # ── Campos específicos para Carta de Despido (tipo=DESPIDO) ──────────────
+    causal_articulo        = models.CharField(max_length=20, choices=CAUSAL_ARTICULO_CHOICES,
+                                              blank=True, null=True)
+    fecha_ultimo_dia       = models.DateField(blank=True, null=True)
+    cotizaciones_al_dia    = models.BooleanField(blank=True, null=True)
+    aviso_previo_dias      = models.IntegerField(blank=True, null=True)
+    monto_indemnizacion_anos        = models.IntegerField(blank=True, null=True)
+    monto_indemnizacion_sustitutiva = models.IntegerField(blank=True, null=True)
+    modalidad_finiquito    = models.CharField(max_length=15, choices=MODALIDAD_FINIQUITO_CHOICES,
+                                              blank=True, null=True)
+    copia_inspeccion_trabajo = models.BooleanField(blank=True, null=True)
+
     archivo_pdf = models.FileField(upload_to='documentos_legales/', null=True, blank=True)
-    
+
     creado_en = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
