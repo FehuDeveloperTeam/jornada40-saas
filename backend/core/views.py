@@ -227,6 +227,54 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentoLegalSerializer
     permission_classes = [IsAuthenticated]
 
+    # Textos legales de cada causal para el PDF
+    _CAUSAL_INFO = {
+        '159_1':  ('Art. 159 N°1 — Mutuo acuerdo de las partes',
+                   'Ambas partes acuerdan, de mutuo acuerdo, poner término al contrato de trabajo.', False),
+        '159_2':  ('Art. 159 N°2 — Renuncia voluntaria del trabajador',
+                   'El trabajador ha presentado su renuncia voluntaria al cargo.', False),
+        '159_3':  ('Art. 159 N°3 — Muerte del trabajador',
+                   'El contrato de trabajo termina por fallecimiento del trabajador.', False),
+        '159_4':  ('Art. 159 N°4 — Vencimiento del plazo convenido',
+                   'Ha vencido el plazo estipulado en el contrato de trabajo a plazo fijo.', False),
+        '159_5':  ('Art. 159 N°5 — Conclusión del trabajo o servicio que dio origen al contrato',
+                   'Ha concluido el trabajo, obra o servicio específico para el cual fue contratado el trabajador.', False),
+        '159_6':  ('Art. 159 N°6 — Caso fortuito o fuerza mayor',
+                   'Se ha producido un evento de caso fortuito o fuerza mayor que hace imposible continuar con la relación laboral.', False),
+        '160_1a': ('Art. 160 N°1 a) — Falta de probidad del trabajador',
+                   'El trabajador ha incurrido en conductas contrarias a la honradez e integridad que debe observar en el ejercicio de su cargo.', False),
+        '160_1b': ('Art. 160 N°1 b) — Acoso sexual',
+                   'El trabajador ha incurrido en conductas de acoso sexual, conforme a lo definido en el Artículo 2° del Código del Trabajo.', False),
+        '160_1c': ('Art. 160 N°1 c) — Vías de hecho ejercidas por el trabajador',
+                   'El trabajador ha ejercido vías de hecho en contra del empleador o de algún compañero de trabajo de la empresa.', False),
+        '160_1d': ('Art. 160 N°1 d) — Injurias proferidas al empleador',
+                   'El trabajador ha proferido injurias graves en contra del empleador, afectando su honor y dignidad.', False),
+        '160_1e': ('Art. 160 N°1 e) — Conducta inmoral del trabajador',
+                   'El trabajador ha incurrido en conductas inmorales graves que afectan a la empresa donde se desempeña.', False),
+        '160_1f': ('Art. 160 N°1 f) — Conductas de acoso laboral',
+                   'El trabajador ha incurrido en conductas de acoso laboral (mobbing), atentando contra la dignidad de otros trabajadores de la empresa.', False),
+        '160_2':  ('Art. 160 N°2 — Negociaciones que ejecute el trabajador dentro del giro del negocio prohibidas por escrito',
+                   'El trabajador ha realizado negociaciones dentro del giro del negocio de la empresa, en contravención a la prohibición expresa establecida en el contrato de trabajo.', False),
+        '160_3':  ('Art. 160 N°3 — No concurrencia del trabajador a sus labores sin causa justificada',
+                   'El trabajador no ha concurrido a sus labores sin causa justificada, configurándose la causal de inasistencias injustificadas establecida en el Código del Trabajo.', False),
+        '160_4a': ('Art. 160 N°4 a) — Abandono del trabajo: salida intempestiva e injustificada',
+                   'El trabajador ha abandonado el lugar de trabajo de forma intempestiva e injustificada durante la jornada laboral, sin permiso del empleador.', False),
+        '160_4b': ('Art. 160 N°4 b) — Abandono del trabajo: negativa injustificada a trabajar',
+                   'El trabajador se ha negado injustificadamente a realizar las faenas convenidas en el contrato de trabajo.', False),
+        '160_5':  ('Art. 160 N°5 — Actos, omisiones o imprudencias temerarias que afecten la seguridad',
+                   'El trabajador ha incurrido en actos, omisiones o imprudencias temerarias que afectan gravemente la seguridad o el funcionamiento del establecimiento, o la salud de los trabajadores.', False),
+        '160_6':  ('Art. 160 N°6 — Perjuicio material causado intencionalmente',
+                   'El trabajador ha causado intencionalmente perjuicio material en las instalaciones, maquinarias, herramientas, útiles de trabajo, productos o mercaderías de la empresa.', False),
+        '160_7':  ('Art. 160 N°7 — Incumplimiento grave de las obligaciones que impone el contrato',
+                   'El trabajador ha incurrido en incumplimiento grave de las obligaciones que le impone el contrato de trabajo.', False),
+        '161_1':  ('Art. 161 inciso 1° — Necesidades de la empresa, establecimiento o servicio',
+                   'La empresa, por razones derivadas de la racionalización o modernización de la misma, bajas en la productividad, cambios en las condiciones del mercado o de la economía, o que hagan necesaria la separación de uno o más trabajadores, ha decidido poner término al contrato de trabajo.', True),
+        '161_2':  ('Art. 161 inciso 2° — Desahucio del empleador',
+                   'El empleador, en ejercicio de la facultad contemplada en el inciso segundo del Artículo 161 del Código del Trabajo, pone término al contrato de trabajo mediante desahucio.', True),
+        '163bis': ('Art. 163 bis — Liquidación concursal del empleador',
+                   'La empresa ha sido sometida a un procedimiento concursal de liquidación de sus bienes por resolución judicial, lo que determina el término del contrato de trabajo conforme a lo dispuesto en el Artículo 163 bis del Código del Trabajo.', True),
+    }
+
     def get_queryset(self):
         # Solo documentos de empleados que pertenecen al usuario autenticado
         queryset = DocumentoLegal.objects.filter(
@@ -259,10 +307,45 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
                 'empresa': empresa,
                 'fecha_actual': fecha_espanol,
                 'ciudad': ciudad_segura,
-                'es_plan_semilla': es_plan_semilla
+                'es_plan_semilla': es_plan_semilla,
             }
 
-            template = get_template('documento_legal.html')
+            if documento.tipo == 'DESPIDO':
+                # Contexto enriquecido para carta_despido.html
+                codigo = documento.causal_articulo or ''
+                causal_label, causal_descripcion, requiere_indemnizacion = self._CAUSAL_INFO.get(
+                    codigo, (documento.causal_legal or '—', '', False)
+                )
+                def _fmt_pesos(v):
+                    if not v:
+                        return '$ 0'
+                    return f'$ {v:,}'.replace(',', '.')
+                monto_anos  = documento.monto_indemnizacion_anos or 0
+                monto_sust  = documento.monto_indemnizacion_sustitutiva or 0
+                # Cargo desde contrato si existe
+                try:
+                    contrato_cargo = documento.empleado.contrato.cargo
+                except Exception:
+                    contrato_cargo = None
+                # Fecha último día en español
+                fecha_ultimo_dia_texto = None
+                if documento.fecha_ultimo_dia:
+                    f = documento.fecha_ultimo_dia
+                    fecha_ultimo_dia_texto = f"{f.day:02d} de {meses[f.month - 1]} de {f.year}"
+                context.update({
+                    'causal_label': causal_label,
+                    'causal_descripcion': causal_descripcion,
+                    'requiere_indemnizacion': requiere_indemnizacion,
+                    'monto_anos_texto': _fmt_pesos(monto_anos),
+                    'monto_sustitutiva_texto': _fmt_pesos(monto_sust),
+                    'monto_total_texto': _fmt_pesos(monto_anos + monto_sust),
+                    'fecha_ultimo_dia_texto': fecha_ultimo_dia_texto,
+                    'contrato_cargo': contrato_cargo,
+                })
+                template = get_template('carta_despido.html')
+            else:
+                template = get_template('documento_legal.html')
+
             html = template.render(context)
 
             response = HttpResponse(content_type='application/pdf')
@@ -741,7 +824,34 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             'fecha_actual': fecha_espanol, 'ciudad': ciudad,
             'es_plan_semilla': es_plan_semilla,
         }
-        html = render_to_string('documento_legal.html', context)
+        if doc.tipo == 'DESPIDO':
+            codigo = doc.causal_articulo or ''
+            causal_label, causal_descripcion, requiere_indemnizacion = self._CAUSAL_INFO.get(
+                codigo, (doc.causal_legal or '—', '', False)
+            )
+            def _fmt(v):
+                return f'$ {v:,}'.replace(',', '.') if v else '$ 0'
+            fecha_ult = None
+            if doc.fecha_ultimo_dia:
+                f = doc.fecha_ultimo_dia
+                fecha_ult = f"{f.day:02d} de {meses[f.month - 1]} de {f.year}"
+            try:
+                contrato_cargo = doc.empleado.contrato.cargo
+            except Exception:
+                contrato_cargo = None
+            context.update({
+                'causal_label': causal_label,
+                'causal_descripcion': causal_descripcion,
+                'requiere_indemnizacion': requiere_indemnizacion,
+                'monto_anos_texto': _fmt(doc.monto_indemnizacion_anos or 0),
+                'monto_sustitutiva_texto': _fmt(doc.monto_indemnizacion_sustitutiva or 0),
+                'monto_total_texto': _fmt((doc.monto_indemnizacion_anos or 0) + (doc.monto_indemnizacion_sustitutiva or 0)),
+                'fecha_ultimo_dia_texto': fecha_ult,
+                'contrato_cargo': contrato_cargo,
+            })
+            html = render_to_string('carta_despido.html', context)
+        else:
+            html = render_to_string('documento_legal.html', context)
         return self._html_a_pdf(html, f'{doc.tipo}_{empleado.rut}_{doc.fecha_emision}')
 
     def _pdf_para_anexo_contrato(self, anexo, es_plan_semilla):

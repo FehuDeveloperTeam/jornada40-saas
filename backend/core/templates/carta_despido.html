@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Carta de Término de Contrato de Trabajo</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 2.5cm 2cm 2.5cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm;
+                height: 1cm; text-align: center;
+            }
+        }
+        body       { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
+        h1         { text-align: center; font-size: 13pt; font-weight: bold; margin-bottom: 25px; text-decoration: underline; text-transform: uppercase; }
+        p          { margin-bottom: 12px; }
+        .bold      { font-weight: bold; }
+        .fecha     { text-align: right; margin-bottom: 35px; }
+        .destinatario { margin-bottom: 25px; }
+        .seccion-titulo { font-weight: bold; text-decoration: underline; margin-top: 18px; margin-bottom: 4px; }
+        .causal-box {
+            border: 1px solid #888;
+            padding: 8px 12px;
+            margin: 10px 0 14px 0;
+            background: #f9f9f9;
+        }
+        .alerta {
+            border: 1px solid #c00;
+            padding: 6px 10px;
+            margin: 10px 0;
+            font-size: 10pt;
+            color: #c00;
+        }
+        table.indemnizacion {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0 16px 0;
+            font-size: 10.5pt;
+        }
+        table.indemnizacion td {
+            padding: 5px 8px;
+            border: 1px solid #ccc;
+        }
+        table.indemnizacion td.label { font-weight: bold; width: 65%; }
+        table.indemnizacion td.monto { text-align: right; }
+        table.firmas { width: 100%; margin-top: 70px; page-break-inside: avoid; }
+        td.col-firma { width: 45%; text-align: center; vertical-align: bottom; }
+        .linea-firma { border-top: 1px solid #000; padding-top: 5px; margin-top: 55px; font-size: 10pt; }
+        .pie-legal { font-size: 9pt; color: #555; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 4px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Gratuito. Actualiza a PYME para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="fecha">
+        <span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha_actual }}</span>
+    </div>
+
+    <h1>Carta de Término de Contrato de Trabajo</h1>
+
+    <!-- Destinatario -->
+    <div class="destinatario">
+        <p>
+            <span class="bold">Señor(a):</span> {{ empleado.nombres }} {{ empleado.apellido_paterno }} {{ empleado.apellido_materno|default:"" }}<br>
+            <span class="bold">RUT:</span> {{ empleado.rut }}<br>
+            <span class="bold">Cargo:</span> {{ contrato_cargo|default:empleado.cargo|default:"__________________" }}<br>
+            <span class="bold">Presente.</span>
+        </p>
+    </div>
+
+    <p>De nuestra consideración:</p>
+
+    <p>Por medio de la presente, la empresa <span class="bold">{{ empresa.nombre_legal }}</span>,
+    RUT <span class="bold">{{ empresa.rut }}</span>,
+    representada legalmente por don(a) <span class="bold">{{ empresa.representante_legal|default:"________________________" }}</span>,
+    comunica a usted el término de su contrato de trabajo,
+    {% if documento.fecha_ultimo_dia %}
+        cuya fecha efectiva de término es el día <span class="bold">{{ fecha_ultimo_dia_texto }}</span>,
+    {% endif %}
+    en conformidad con lo establecido en el Código del Trabajo.</p>
+
+    <!-- Causal invocada -->
+    <p class="seccion-titulo">I. Causal Legal Invocada</p>
+    <div class="causal-box">
+        <p style="margin:0;"><span class="bold">{{ causal_label }}</span></p>
+        {% if causal_descripcion %}
+            <p style="margin-top:6px; margin-bottom:0; font-size:10.5pt;">{{ causal_descripcion }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Hechos -->
+    <p class="seccion-titulo">II. Hechos que Fundamentan la Decisión</p>
+    <p>{{ documento.hechos|linebreaks }}</p>
+
+    <!-- Aviso previo -->
+    {% if documento.aviso_previo_dias is not None %}
+        <p class="seccion-titulo">III. Aviso Previo</p>
+        {% if documento.aviso_previo_dias == 30 %}
+            <p>La presente carta constituye el aviso previo de treinta (30) días que exige el Artículo 161 del Código del Trabajo. La fecha efectiva de término del contrato será el <span class="bold">{{ fecha_ultimo_dia_texto }}</span>.</p>
+        {% elif documento.aviso_previo_dias == 0 %}
+            <p>En virtud de lo dispuesto en el inciso segundo del Artículo 162 del Código del Trabajo, la empresa opta por pagar al trabajador la indemnización sustitutiva del mes de aviso, correspondiente a la última remuneración mensual devengada, sin perjuicio de las demás indemnizaciones que puedan corresponder.</p>
+        {% endif %}
+    {% endif %}
+
+    <!-- Indemnizaciones (solo Art. 161 / 163 bis) -->
+    {% if requiere_indemnizacion %}
+        <p class="seccion-titulo">{% if documento.aviso_previo_dias is not None %}IV{% else %}III{% endif %}. Indemnizaciones</p>
+        <table class="indemnizacion">
+            {% if documento.monto_indemnizacion_anos %}
+                <tr>
+                    <td class="label">Indemnización por años de servicio (Art. 163 Código del Trabajo)</td>
+                    <td class="monto">{{ monto_anos_texto }}</td>
+                </tr>
+            {% endif %}
+            {% if documento.monto_indemnizacion_sustitutiva %}
+                <tr>
+                    <td class="label">Indemnización sustitutiva de aviso previo (Art. 162 inc. 2°)</td>
+                    <td class="monto">{{ monto_sustitutiva_texto }}</td>
+                </tr>
+            {% endif %}
+            {% if documento.monto_indemnizacion_anos or documento.monto_indemnizacion_sustitutiva %}
+                <tr>
+                    <td class="label bold">Total indemnizaciones</td>
+                    <td class="monto bold">{{ monto_total_texto }}</td>
+                </tr>
+            {% endif %}
+        </table>
+        <p style="font-size:10pt; color:#555;">Los montos señalados serán incluidos en el finiquito correspondiente.</p>
+    {% endif %}
+
+    <!-- Cotizaciones previsionales -->
+    {% with num_sec=requiere_indemnizacion|yesno:"V,IV" %}
+    {% if documento.aviso_previo_dias is not None %}
+        {% with num_sec_real=requiere_indemnizacion|yesno:"V,IV" %}
+        <p class="seccion-titulo">{{ num_sec_real }}. Estado de Cotizaciones Previsionales</p>
+        {% endwith %}
+    {% else %}
+        <p class="seccion-titulo">{{ num_sec }}. Estado de Cotizaciones Previsionales</p>
+    {% endif %}
+    {% endwith %}
+
+    {% if documento.cotizaciones_al_dia %}
+        <p>Se deja constancia que las cotizaciones previsionales del trabajador se encuentran <span class="bold">al día</span> hasta el último día del mes anterior a la fecha de esta comunicación, en conformidad con lo exigido por el Artículo 162 inciso 5° del Código del Trabajo.</p>
+    {% else %}
+        <div class="alerta">
+            <span class="bold">ATENCIÓN:</span> Las cotizaciones previsionales presentan deuda pendiente. De conformidad con la Ley N°19.631 ("Ley Bustos"), este despido quedará en suspenso hasta que el empleador acredite el íntegro pago de las cotizaciones adeudadas, debiendo continuar pagando las remuneraciones del trabajador durante dicho período.
+        </div>
+    {% endif %}
+
+    <!-- Finiquito y modalidad -->
+    <p>El finiquito correspondiente será puesto a disposición del trabajador dentro de los plazos legales, en modalidad
+    <span class="bold">{% if documento.modalidad_finiquito == 'ELECTRONICO' %}electrónica (de carácter voluntario para el trabajador, quien siempre podrá optar por la actuación presencial ante ministro de fe){% else %}presencial ante ministro de fe{% endif %}</span>.
+    Se hace presente que, al momento de suscribir el finiquito, el trabajador podrá formular reserva de derechos si lo estima conveniente.</p>
+
+    {% if documento.copia_inspeccion_trabajo %}
+        <p>Se remite copia de la presente comunicación a la Inspección del Trabajo correspondiente, en conformidad con lo dispuesto en el Artículo 162 del Código del Trabajo.</p>
+    {% endif %}
+
+    <p>Sin otro particular, saluda atentamente a usted,</p>
+
+    <!-- Firmas -->
+    <table class="firmas">
+        <tr>
+            <td class="col-firma">
+                <div class="linea-firma">
+                    <span class="bold">{{ empresa.nombre_legal }}</span><br>
+                    RUT: {{ empresa.rut }}<br>
+                    p.p. {{ empresa.representante_legal|default:"________________________" }}<br>
+                    Empleador
+                </div>
+            </td>
+            <td style="width:10%;"></td>
+            <td class="col-firma">
+                <div class="linea-firma">
+                    <span class="bold">{{ empleado.nombres }} {{ empleado.apellido_paterno }}</span><br>
+                    RUT: {{ empleado.rut }}<br>
+                    Recibí conforme — Fecha: ___/___/______<br>
+                    Trabajador
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <p class="pie-legal">
+        Documento emitido en dos ejemplares de igual tenor y fecha: uno para el empleador y uno para el trabajador.<br>
+        Generado con Jornada40.cl · Firma Electrónica Simple según Ley N°19.799 · República de Chile.
+    </p>
+
+</body>
+</html>
