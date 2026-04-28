@@ -208,7 +208,7 @@ export default function TabContratos({
         <div className="px-4 py-3 rounded-xl flex items-start gap-3" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
           <svg className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
           <p className="text-xs" style={{ color: '#fcd34d' }}>
-            Datos extraídos automáticamente. <strong>Revisá cada campo antes de guardar</strong> — la IA puede cometer errores.
+            Datos extraídos automáticamente. <strong>Revise cada campo antes de guardar</strong> — la IA puede cometer errores.
           </p>
           <button type="button" onClick={() => setExtraccionRealizada(false)} className="ml-auto shrink-0 text-amber-400 hover:text-amber-300">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>

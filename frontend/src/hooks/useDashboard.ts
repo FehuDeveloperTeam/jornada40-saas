@@ -820,7 +820,7 @@ export function useDashboard() {
 
       const totalExtraidos = Object.values(data).filter(v => v !== null && v !== '').length;
       showToast(
-        `Documento analizado: ${totalExtraidos} campos extraídos. Revisá y corregí antes de guardar.`,
+        `Documento analizado: ${totalExtraidos} campos extraídos. Revise y corrija antes de guardar.`,
         'success',
       );
 
