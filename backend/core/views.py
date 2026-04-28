@@ -974,6 +974,42 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = 'attachment; filename="Anexos_Masivos_40h.zip"'
         return response
 
+    @action(detail=True, methods=['post'], url_path='digitalizar_contrato')
+    def digitalizar_contrato(self, request, pk=None):
+        from .extractor_contrato import extraer_campos_contrato
+
+        archivo = request.FILES.get('file')
+        if not archivo:
+            return Response({'error': 'No se recibió ningún archivo.'}, status=400)
+
+        MIME_PERMITIDOS = {
+            'application/pdf': 'application/pdf',
+            'image/jpeg':      'image/jpeg',
+            'image/png':       'image/png',
+        }
+        mime = archivo.content_type or ''
+        if mime not in MIME_PERMITIDOS:
+            return Response(
+                {'error': 'Formato no soportado. Sube un PDF, JPG o PNG.'},
+                status=400,
+            )
+
+        LIMITE_BYTES = 20 * 1024 * 1024  # 20 MB
+        if archivo.size > LIMITE_BYTES:
+            return Response({'error': 'El archivo supera el límite de 20 MB.'}, status=400)
+
+        try:
+            campos = extraer_campos_contrato(archivo.read(), mime)
+        except RuntimeError as e:
+            return Response({'error': str(e)}, status=502)
+        except Exception as e:
+            return Response(
+                {'error': f'Error inesperado al analizar el documento: {e}'},
+                status=500,
+            )
+
+        return Response(campos)
+
 
 class ContratoViewSet(viewsets.ModelViewSet):
     serializer_class = ContratoSerializer
