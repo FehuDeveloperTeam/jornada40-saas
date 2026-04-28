@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye, ScanLine } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
 import type { SolicitudFirma } from '../../../types';
 
@@ -38,6 +38,9 @@ type Props = {
   cancelarFirma: UseDashboardReturn['cancelarFirma'];
   reenviarFirma: UseDashboardReturn['reenviarFirma'];
   onVerDetalleFirma: (s: SolicitudFirma) => void;
+  // Digitalización
+  isDigitalizando: UseDashboardReturn['isDigitalizando'];
+  digitalizarContrato: UseDashboardReturn['digitalizarContrato'];
 };
 
 function FirmaBadge({
@@ -148,11 +151,71 @@ export default function TabContratos({
   guardarAnexoContrato, descargarAnexoContratoPDF,
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
   onVerDetalleFirma,
+  isDigitalizando, digitalizarContrato,
 }: Props) {
   const [clausulasAnexo, setClausulasAnexo] = useState<string[]>([]);
+  const [extraccionRealizada, setExtraccionRealizada] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    await digitalizarContrato(archivo);
+    setExtraccionRealizada(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <>
     <form id="contratoForm" onSubmit={guardarContrato} onChange={() => setHayCambiosContrato(true)} className="max-w-4xl mx-auto space-y-8 pb-10">
+
+      {/* ── Digitalización de contrato en papel ── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png"
+        className="hidden"
+        onChange={handleArchivoSeleccionado}
+      />
+      <div className="p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">¿Tienes el contrato en papel?</p>
+          <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            Sube una foto o PDF escaneado y la IA extraerá los datos automáticamente.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isDigitalizando}
+          className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
+          style={{
+            background: isDigitalizando ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.25)',
+            border: '1px solid rgba(99,102,241,0.4)',
+            color: isDigitalizando ? 'rgba(165,180,252,0.5)' : '#a5b4fc',
+            cursor: isDigitalizando ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isDigitalizando
+            ? <><div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />Analizando...</>
+            : <><ScanLine className="w-4 h-4" />Digitalizar contrato en papel</>
+          }
+        </button>
+      </div>
+
+      {/* Banner de advertencia post-extracción */}
+      {extraccionRealizada && (
+        <div className="px-4 py-3 rounded-xl flex items-start gap-3" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+          <svg className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+          <p className="text-xs" style={{ color: '#fcd34d' }}>
+            Datos extraídos automáticamente. <strong>Revisá cada campo antes de guardar</strong> — la IA puede cometer errores.
+          </p>
+          <button type="button" onClick={() => setExtraccionRealizada(false)} className="ml-auto shrink-0 text-amber-400 hover:text-amber-300">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
+
       <div className="p-6 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
         <h3 className="text-lg font-bold text-white mb-4 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>1. Condiciones Generales</h3>
         <div className="grid grid-cols-2 gap-6">

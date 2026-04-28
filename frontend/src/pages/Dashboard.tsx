@@ -78,6 +78,7 @@ export default function Dashboard() {
     generarContratoPDF, descargarContratoGuardado,
     generarAnexo40hPDF, descargarAnexo40hGuardado,
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
+    isDigitalizando, digitalizarContrato,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
@@ -237,6 +238,8 @@ export default function Dashboard() {
           cancelarFirma={cancelarFirma}
           reenviarFirma={reenviarFirma}
           onVerDetalleFirma={setSolicitudFirmaModal}
+          isDigitalizando={isDigitalizando}
+          digitalizarContrato={digitalizarContrato}
         />
       )}
 
