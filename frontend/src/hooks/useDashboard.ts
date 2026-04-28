@@ -97,6 +97,7 @@ export function useDashboard() {
   // --- Generación de PDFs de contrato ---
   const [isGeneratingContratoPDF, setIsGeneratingContratoPDF] = useState(false);
   const [isGeneratingAnexo40hPDF, setIsGeneratingAnexo40hPDF] = useState(false);
+  const [isDigitalizando, setIsDigitalizando] = useState(false);
 
   // --- Firma electrónica ---
   const [solicitudesFirma, setSolicitudesFirma] = useState<SolicitudFirma[]>([]);
@@ -768,6 +769,75 @@ export function useDashboard() {
     }
   };
 
+  const digitalizarContrato = async (archivo: File) => {
+    if (!selectedEmpleado) return;
+    setIsDigitalizando(true);
+    try {
+      const form = new FormData();
+      form.append('file', archivo);
+      const { data } = await client.post(
+        `/empleados/${selectedEmpleado.id}/digitalizar_contrato/`,
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+
+      // Campos que van al Empleado
+      const camposEmpleado: (keyof typeof formData)[] = [
+        'nombres', 'apellido_paterno', 'apellido_materno', 'rut',
+        'fecha_nacimiento', 'estado_civil', 'nacionalidad',
+        'direccion', 'comuna', 'afp', 'sistema_salud', 'modalidad',
+      ];
+      const parteEmpleado: Partial<typeof formData> = {};
+      for (const campo of camposEmpleado) {
+        const valor = data[campo];
+        if (valor !== null && valor !== undefined && valor !== '') {
+          if (campo === 'rut') {
+            const rutFormateado = formatRut(String(valor));
+            if (validateRut(rutFormateado)) {
+              parteEmpleado.rut = rutFormateado;
+            }
+          } else {
+            (parteEmpleado as Record<string, unknown>)[campo] = valor;
+          }
+        }
+      }
+      setFormData(prev => ({ ...prev, ...parteEmpleado }));
+
+      // Campos que van al Contrato
+      const camposContrato: (keyof typeof contratoData)[] = [
+        'cargo', 'tipo_contrato', 'fecha_inicio', 'fecha_fin',
+        'sueldo_base', 'dia_pago', 'horas_semanales',
+        'gratificacion_legal', 'tiene_quincena', 'dia_quincena', 'monto_quincena',
+      ];
+      const parteContrato: Partial<typeof contratoData> = {};
+      for (const campo of camposContrato) {
+        const valor = data[campo];
+        if (valor !== null && valor !== undefined && valor !== '') {
+          (parteContrato as Record<string, unknown>)[campo] = valor;
+        }
+      }
+      setContratoData(prev => ({ ...prev, ...parteContrato }));
+
+      const totalExtraidos = Object.values(data).filter(v => v !== null && v !== '').length;
+      showToast(
+        `Documento analizado: ${totalExtraidos} campos extraídos. Revisá y corregí antes de guardar.`,
+        'success',
+      );
+
+      // Abrir el panel en modo edición para que el usuario revise
+      setPanelMode('edit');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const msg = err.response?.data?.error ?? 'No se pudo analizar el documento.';
+        showToast(msg, 'error');
+      } else {
+        showToast('Error inesperado al digitalizar el contrato.', 'error');
+      }
+    } finally {
+      setIsDigitalizando(false);
+    }
+  };
+
   const generarYDescargarPDF = async (empleado: Empleado) => {
     setDownloadingId(empleado.id);
     try {
@@ -946,6 +1016,7 @@ export function useDashboard() {
     anexoContratoData, setAnexoContratoData,
     // Generación PDFs de contrato
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
+    isDigitalizando, digitalizarContrato,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
