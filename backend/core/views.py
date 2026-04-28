@@ -36,10 +36,10 @@ from num2words import num2words
 import pandas as pd
 import traceback
 import urllib.parse
-from django.db.models import Max
+from django.db.models import Max, Sum
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer
 from . import b2_client
 from django.core.mail import EmailMultiAlternatives
@@ -219,6 +219,86 @@ def _ctx_contrato(contrato, es_plan_semilla: bool) -> dict:
         'sueldo_base_texto': fmt_pesos(contrato.sueldo_base),
         'monto_quincena_texto': fmt_pesos(contrato.monto_quincena),
         'horario_formateado': horario_formateado,
+    }
+
+
+# ==========================================
+# UTILIDADES DE VACACIONES (Art. 67-68 Código del Trabajo)
+# ==========================================
+
+# Feriados fijos chilenos (mes, día).
+# No incluye Viernes/Sábado Santo (variables); se excluyen al calcular en el año real.
+_FERIADOS_FIJOS_CL = frozenset([
+    (1,  1),   # Año Nuevo
+    (5,  1),   # Día del Trabajo
+    (5,  21),  # Glorias Navales
+    (6,  29),  # San Pedro y San Pablo
+    (7,  16),  # Virgen del Carmen
+    (8,  15),  # Asunción de la Virgen
+    (9,  18),  # Fiestas Patrias
+    (9,  19),  # Glorias del Ejército
+    (10, 12),  # Encuentro de Dos Mundos
+    (10, 31),  # Día de las Iglesias Evangélicas
+    (11, 1),   # Todos los Santos
+    (12, 8),   # Inmaculada Concepción
+    (12, 25),  # Navidad
+])
+
+
+def _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin) -> int:
+    """Días hábiles entre fecha_inicio y fecha_fin (inclusive) según ley chilena.
+
+    Para vacaciones: hábil = cualquier día que NO sea domingo NI feriado fijo.
+    Los sábados sí cuentan (Art. 67 Código del Trabajo).
+    """
+    dias = 0
+    current = fecha_inicio
+    delta_un_dia = datetime.timedelta(days=1)
+    while current <= fecha_fin:
+        if current.weekday() != 6 and (current.month, current.day) not in _FERIADOS_FIJOS_CL:
+            dias += 1
+        current += delta_un_dia
+    return dias
+
+
+def calcular_saldo_vacaciones(empleado) -> dict:
+    """Saldo de vacaciones legales de un empleado (Art. 67-68 Código del Trabajo).
+
+    Retorna:
+        anos_servicio       — años completos desde fecha_ingreso
+        dias_base           — 15 días × años_servicio
+        dias_progresivos    — 1 día extra por cada 3 años sobre 10 (Art. 68)
+        dias_devengados     — días_base + días_progresivos
+        dias_usados         — suma de días_hábiles de registros APROBADO
+        dias_disponibles    — devengados − usados (mínimo 0)
+    """
+    hoy = datetime.date.today()
+    anos_servicio = (hoy - empleado.fecha_ingreso).days // 365
+
+    dias_base = 15 * anos_servicio
+
+    # Feriado progresivo: 1 día adicional por cada período completo de 3 años sobre 10
+    dias_progresivos = max(0, (anos_servicio - 10) // 3) if anos_servicio >= 10 else 0
+
+    dias_devengados = dias_base + dias_progresivos
+
+    dias_usados = (
+        VacacionEmpleado.objects
+        .filter(
+            empleado=empleado,
+            estado='APROBADO',
+            tipo__in=['VACACION_LEGAL', 'VACACION_PROGRESIVA'],
+        )
+        .aggregate(total=Sum('dias_habiles'))['total'] or 0
+    )
+
+    return {
+        'anos_servicio':    anos_servicio,
+        'dias_base':        dias_base,
+        'dias_progresivos': dias_progresivos,
+        'dias_devengados':  dias_devengados,
+        'dias_usados':      int(dias_usados),
+        'dias_disponibles': max(0, dias_devengados - int(dias_usados)),
     }
 
 

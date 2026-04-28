@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion, SolicitudFirma
+from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion, SolicitudFirma, VacacionEmpleado
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
@@ -153,6 +153,28 @@ class SolicitudFirmaSerializer(serializers.ModelSerializer):
             'enviado_en', 'firmado_en', 'expira_en',
             'empleado_nombre', 'empresa_nombre',
         )
+
+
+class VacacionSerializer(serializers.ModelSerializer):
+    dias_habiles_calculados = serializers.SerializerMethodField()
+
+    def get_dias_habiles_calculados(self, obj):
+        """Días hábiles reales del período, útil para validación en frontend."""
+        if obj.fecha_inicio and obj.fecha_fin:
+            from .views import _calcular_dias_habiles_vacacion
+            return _calcular_dias_habiles_vacacion(obj.fecha_inicio, obj.fecha_fin)
+        return 0
+
+    class Meta:
+        model = VacacionEmpleado
+        fields = [
+            'id', 'empleado', 'empresa',
+            'fecha_inicio', 'fecha_fin', 'dias_habiles',
+            'tipo', 'estado', 'observaciones',
+            'archivo_pdf', 'creado_en',
+            'dias_habiles_calculados',
+        ]
+        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'dias_habiles_calculados')
 
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
