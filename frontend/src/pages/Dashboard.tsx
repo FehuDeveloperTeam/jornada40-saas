@@ -79,6 +79,11 @@ export default function Dashboard() {
     generarAnexo40hPDF, descargarAnexo40hGuardado,
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
     isDigitalizando, digitalizarContrato,
+    // Vacaciones
+    vacaciones, saldoVacaciones,
+    showVacacionForm, setShowVacacionForm,
+    vacacionData, setVacacionData,
+    guardarVacacion, isSavingVacacion, descargarVacacionPDF,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
@@ -240,6 +245,15 @@ export default function Dashboard() {
           onVerDetalleFirma={setSolicitudFirmaModal}
           isDigitalizando={isDigitalizando}
           digitalizarContrato={digitalizarContrato}
+          vacaciones={vacaciones}
+          saldoVacaciones={saldoVacaciones}
+          showVacacionForm={showVacacionForm}
+          setShowVacacionForm={setShowVacacionForm}
+          vacacionData={vacacionData}
+          setVacacionData={setVacacionData}
+          guardarVacacion={guardarVacacion}
+          isSavingVacacion={isSavingVacacion}
+          descargarVacacionPDF={descargarVacacionPDF}
         />
       )}
 
