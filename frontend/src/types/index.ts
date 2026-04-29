@@ -178,6 +178,33 @@ export interface DocumentoLegal {
     creado_en: string;
 }
 
+export type TipoVacacion = 'VACACION_LEGAL' | 'VACACION_PROGRESIVA' | 'PERMISO_SIN_GOCE';
+export type EstadoVacacion = 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+
+export interface VacacionEmpleado {
+    id: number;
+    empleado: number;
+    empresa: number;
+    fecha_inicio: string;
+    fecha_fin: string;
+    dias_habiles: number;
+    tipo: TipoVacacion;
+    estado: EstadoVacacion;
+    observaciones: string;
+    archivo_pdf: string | null;
+    creado_en: string;
+    dias_habiles_calculados: number;
+}
+
+export interface SaldoVacaciones {
+    anos_servicio: number;
+    dias_base: number;
+    dias_progresivos: number;
+    dias_devengados: number;
+    dias_usados: number;
+    dias_disponibles: number;
+}
+
 export interface HoraExtraItem {
     glosa: string;
     horas: number;
