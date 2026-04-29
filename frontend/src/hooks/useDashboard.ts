@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
   Contrato, AnexoContrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
-  SolicitudFirma,
+  SolicitudFirma, VacacionEmpleado, SaldoVacaciones,
 } from '../types';
 
 export const defaultHorario: HorarioSemana = {
@@ -56,7 +56,7 @@ export function useDashboard() {
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedEmpleado, setSelectedEmpleado] = useState<Empleado | null>(null);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal'>('perfil');
+  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones'>('perfil');
 
   // --- Formulario empleado ---
   const [formData, setFormData] = useState<Partial<Empleado>>({});
@@ -98,6 +98,13 @@ export function useDashboard() {
   const [isGeneratingContratoPDF, setIsGeneratingContratoPDF] = useState(false);
   const [isGeneratingAnexo40hPDF, setIsGeneratingAnexo40hPDF] = useState(false);
   const [isDigitalizando, setIsDigitalizando] = useState(false);
+
+  // --- Vacaciones ---
+  const [vacaciones, setVacaciones] = useState<VacacionEmpleado[]>([]);
+  const [saldoVacaciones, setSaldoVacaciones] = useState<SaldoVacaciones | null>(null);
+  const [showVacacionForm, setShowVacacionForm] = useState(false);
+  const [vacacionData, setVacacionData] = useState<Partial<VacacionEmpleado>>({});
+  const [isSavingVacacion, setIsSavingVacacion] = useState(false);
 
   // --- Firma electrónica ---
   const [solicitudesFirma, setSolicitudesFirma] = useState<SolicitudFirma[]>([]);
@@ -421,6 +428,14 @@ export function useDashboard() {
 
       const resFirmas = await client.get(`/firmas/?empleado_id=${empleadoId}`);
       setSolicitudesFirma(resFirmas.data);
+
+      const [resVac, resSaldo] = await Promise.all([
+        client.get(`/vacaciones/?empleado=${empleadoId}`),
+        client.get(`/vacaciones/saldo/?empleado=${empleadoId}`),
+      ]);
+      setVacaciones(resVac.data.results ?? resVac.data);
+      setSaldoVacaciones(resSaldo.data);
+      setShowVacacionForm(false);
     } catch (error) {
       console.error('Error al cargar datos del panel:', error);
     }
@@ -606,6 +621,49 @@ export function useDashboard() {
       showToast('Hubo un error al guardar el documento.', 'error');
     } finally {
       setIsSavingDocumento(false);
+    }
+  };
+
+  // ─── Vacaciones ────────────────────────────────────────────────────────────
+
+  const guardarVacacion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmpleado) return;
+    setIsSavingVacacion(true);
+    try {
+      const payload = {
+        ...vacacionData,
+        empleado: selectedEmpleado.id,
+        empresa: selectedEmpleado.empresa,
+      };
+      const res = await client.post('/vacaciones/', payload);
+      setVacaciones(prev => [res.data, ...prev]);
+      // Actualizar saldo después de crear
+      const resSaldo = await client.get(`/vacaciones/saldo/?empleado=${selectedEmpleado.id}`);
+      setSaldoVacaciones(resSaldo.data);
+      setShowVacacionForm(false);
+      setVacacionData({});
+      showToast('¡Vacación registrada exitosamente!', 'success');
+    } catch {
+      showToast('Hubo un error al registrar la vacación.', 'error');
+    } finally {
+      setIsSavingVacacion(false);
+    }
+  };
+
+  const descargarVacacionPDF = async (vacId: number) => {
+    try {
+      const response = await client.get(`/vacaciones/${vacId}/generar_pdf/`, { responseType: 'blob' });
+      const url  = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', `Vacacion_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      showToast('Error al descargar el comprobante de vacaciones.', 'error');
     }
   };
 
@@ -1017,6 +1075,12 @@ export function useDashboard() {
     // Generación PDFs de contrato
     isGeneratingContratoPDF, isGeneratingAnexo40hPDF,
     isDigitalizando, digitalizarContrato,
+    // Vacaciones
+    vacaciones, saldoVacaciones,
+    showVacacionForm, setShowVacacionForm,
+    vacacionData, setVacacionData,
+    isSavingVacacion,
+    guardarVacacion, descargarVacacionPDF,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,

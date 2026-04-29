@@ -36,10 +36,10 @@ from num2words import num2words
 import pandas as pd
 import traceback
 import urllib.parse
-from django.db.models import Max
+from django.db.models import Max, Sum
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer
 from . import b2_client
 from django.core.mail import EmailMultiAlternatives
@@ -222,6 +222,86 @@ def _ctx_contrato(contrato, es_plan_semilla: bool) -> dict:
     }
 
 
+# ==========================================
+# UTILIDADES DE VACACIONES (Art. 67-68 Código del Trabajo)
+# ==========================================
+
+# Feriados fijos chilenos (mes, día).
+# No incluye Viernes/Sábado Santo (variables); se excluyen al calcular en el año real.
+_FERIADOS_FIJOS_CL = frozenset([
+    (1,  1),   # Año Nuevo
+    (5,  1),   # Día del Trabajo
+    (5,  21),  # Glorias Navales
+    (6,  29),  # San Pedro y San Pablo
+    (7,  16),  # Virgen del Carmen
+    (8,  15),  # Asunción de la Virgen
+    (9,  18),  # Fiestas Patrias
+    (9,  19),  # Glorias del Ejército
+    (10, 12),  # Encuentro de Dos Mundos
+    (10, 31),  # Día de las Iglesias Evangélicas
+    (11, 1),   # Todos los Santos
+    (12, 8),   # Inmaculada Concepción
+    (12, 25),  # Navidad
+])
+
+
+def _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin) -> int:
+    """Días hábiles entre fecha_inicio y fecha_fin (inclusive) según ley chilena.
+
+    Para vacaciones: hábil = cualquier día que NO sea domingo NI feriado fijo.
+    Los sábados sí cuentan (Art. 67 Código del Trabajo).
+    """
+    dias = 0
+    current = fecha_inicio
+    delta_un_dia = datetime.timedelta(days=1)
+    while current <= fecha_fin:
+        if current.weekday() != 6 and (current.month, current.day) not in _FERIADOS_FIJOS_CL:
+            dias += 1
+        current += delta_un_dia
+    return dias
+
+
+def calcular_saldo_vacaciones(empleado) -> dict:
+    """Saldo de vacaciones legales de un empleado (Art. 67-68 Código del Trabajo).
+
+    Retorna:
+        anos_servicio       — años completos desde fecha_ingreso
+        dias_base           — 15 días × años_servicio
+        dias_progresivos    — 1 día extra por cada 3 años sobre 10 (Art. 68)
+        dias_devengados     — días_base + días_progresivos
+        dias_usados         — suma de días_hábiles de registros APROBADO
+        dias_disponibles    — devengados − usados (mínimo 0)
+    """
+    hoy = datetime.date.today()
+    anos_servicio = (hoy - empleado.fecha_ingreso).days // 365
+
+    dias_base = 15 * anos_servicio
+
+    # Feriado progresivo: 1 día adicional por cada período completo de 3 años sobre 10
+    dias_progresivos = max(0, (anos_servicio - 10) // 3) if anos_servicio >= 10 else 0
+
+    dias_devengados = dias_base + dias_progresivos
+
+    dias_usados = (
+        VacacionEmpleado.objects
+        .filter(
+            empleado=empleado,
+            estado='APROBADO',
+            tipo__in=['VACACION_LEGAL', 'VACACION_PROGRESIVA'],
+        )
+        .aggregate(total=Sum('dias_habiles'))['total'] or 0
+    )
+
+    return {
+        'anos_servicio':    anos_servicio,
+        'dias_base':        dias_base,
+        'dias_progresivos': dias_progresivos,
+        'dias_devengados':  dias_devengados,
+        'dias_usados':      int(dias_usados),
+        'dias_disponibles': max(0, dias_devengados - int(dias_usados)),
+    }
+
+
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
     queryset = DocumentoLegal.objects.all().order_by('-fecha_emision', '-creado_en')
     serializer_class = DocumentoLegalSerializer
@@ -361,6 +441,104 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==========================================
+# VACACIONES Y PERMISOS
+# ==========================================
+class VacacionViewSet(viewsets.ModelViewSet):
+    serializer_class = None  # se asigna abajo tras importar el serializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        from .serializers import VacacionSerializer
+        return VacacionSerializer
+
+    def get_queryset(self):
+        qs = VacacionEmpleado.objects.filter(
+            empresa__owner=self.request.user
+        ).order_by('-fecha_inicio')
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            qs = qs.filter(empleado_id=empleado_id)
+        return qs
+
+    def perform_create(self, serializer):
+        """Auto-calcula días hábiles si el cliente no los envía."""
+        fecha_inicio = serializer.validated_data.get('fecha_inicio')
+        fecha_fin    = serializer.validated_data.get('fecha_fin')
+        dias = serializer.validated_data.get('dias_habiles') or 0
+        if fecha_inicio and fecha_fin and not dias:
+            dias = _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin)
+        serializer.save(dias_habiles=dias)
+
+    @action(detail=False, methods=['get'], url_path='saldo')
+    def saldo(self, request):
+        """GET /api/vacaciones/saldo/?empleado=<id>
+        Retorna el saldo de vacaciones del empleado.
+        """
+        empleado_id = request.query_params.get('empleado')
+        if not empleado_id:
+            return Response({'error': 'Parámetro empleado requerido.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            empleado = Empleado.objects.get(pk=empleado_id, empresa__owner=request.user)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(calcular_saldo_vacaciones(empleado))
+
+    @action(detail=True, methods=['get'], url_path='generar_pdf')
+    def generar_pdf(self, request, pk=None):
+        """GET /api/vacaciones/<id>/generar_pdf/
+        Genera y devuelve el comprobante de vacaciones en PDF.
+        """
+        try:
+            vacacion = self.get_object()
+            empleado = vacacion.empleado
+            empresa  = vacacion.empresa
+            es_semilla = _es_plan_semilla(request.user)
+
+            hoy = datetime.date.today()
+            fecha_hoy_texto = f"{hoy.day:02d} de {_MESES[hoy.month - 1]} de {hoy.year}"
+
+            def _fmt_fecha(f):
+                if not f:
+                    return '—'
+                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
+
+            context = {
+                'vacacion':          vacacion,
+                'empleado':          empleado,
+                'empresa':           empresa,
+                'fecha_actual':      fecha_hoy_texto,
+                'fecha_inicio_texto': _fmt_fecha(vacacion.fecha_inicio),
+                'fecha_fin_texto':    _fmt_fecha(vacacion.fecha_fin),
+                'ciudad': str(
+                    getattr(empresa, 'ciudad', '') or
+                    getattr(empresa, 'comuna', '') or
+                    getattr(empleado, 'comuna', '') or 'Santiago'
+                ).strip().title(),
+                'es_plan_semilla': es_semilla,
+            }
+
+            template = get_template('comprobante_vacaciones.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            nombre = f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return HttpResponse('Error al generar el PDF.', status=500)
+
+            return response
+
+        except Exception as e:
+            return Response(
+                {'error': f'Error al generar PDF: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer

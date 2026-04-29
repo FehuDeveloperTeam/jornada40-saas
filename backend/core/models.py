@@ -417,6 +417,39 @@ class SolicitudFirma(models.Model):
         ordering = ['-enviado_en']
 
 
+# ==========================================
+# 8. VACACIONES Y PERMISOS
+# ==========================================
+class VacacionEmpleado(models.Model):
+    TIPO_CHOICES = [
+        ('VACACION_LEGAL',      'Vacación Legal (Art. 67)'),
+        ('VACACION_PROGRESIVA', 'Feriado Progresivo (Art. 68)'),
+        ('PERMISO_SIN_GOCE',    'Permiso Sin Goce de Sueldo'),
+    ]
+    ESTADO_CHOICES = [
+        ('PENDIENTE',  'Pendiente de aprobación'),
+        ('APROBADO',   'Aprobado'),
+        ('RECHAZADO',  'Rechazado'),
+    ]
+
+    empleado     = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='vacaciones')
+    empresa      = models.ForeignKey('Empresa',  on_delete=models.CASCADE, related_name='vacaciones')
+    fecha_inicio = models.DateField()
+    fecha_fin    = models.DateField()
+    dias_habiles = models.PositiveIntegerField(default=0)
+    tipo         = models.CharField(max_length=25, choices=TIPO_CHOICES, default='VACACION_LEGAL')
+    estado       = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='APROBADO')
+    observaciones = models.TextField(blank=True, default='')
+    archivo_pdf  = models.FileField(upload_to='vacaciones/', null=True, blank=True)
+    creado_en    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_inicio']
+
+    def __str__(self):
+        return f"Vacación {self.empleado} {self.fecha_inicio}→{self.fecha_fin} ({self.dias_habiles}d)"
+
+
 class OTPFirma(models.Model):
     solicitud     = models.ForeignKey(SolicitudFirma, on_delete=models.CASCADE, related_name='otps')
     codigo        = models.CharField(max_length=6)

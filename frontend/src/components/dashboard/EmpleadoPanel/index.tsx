@@ -3,6 +3,7 @@ import TabPerfil from './TabPerfil';
 import TabContratos from './TabContratos';
 import TabLiquidaciones from './TabLiquidaciones';
 import TabLegal from './TabLegal';
+import TabVacaciones from './TabVacaciones';
 
 type Props = {
   setIsPanelOpen: UseDashboardReturn['setIsPanelOpen'];
@@ -89,6 +90,16 @@ type Props = {
   // Digitalización
   isDigitalizando: UseDashboardReturn['isDigitalizando'];
   digitalizarContrato: UseDashboardReturn['digitalizarContrato'];
+  // Tab: Vacaciones
+  vacaciones: UseDashboardReturn['vacaciones'];
+  saldoVacaciones: UseDashboardReturn['saldoVacaciones'];
+  showVacacionForm: UseDashboardReturn['showVacacionForm'];
+  setShowVacacionForm: UseDashboardReturn['setShowVacacionForm'];
+  vacacionData: UseDashboardReturn['vacacionData'];
+  setVacacionData: UseDashboardReturn['setVacacionData'];
+  guardarVacacion: UseDashboardReturn['guardarVacacion'];
+  isSavingVacacion: UseDashboardReturn['isSavingVacacion'];
+  descargarVacacionPDF: UseDashboardReturn['descargarVacacionPDF'];
 };
 
 export default function EmpleadoPanel({
@@ -117,6 +128,10 @@ export default function EmpleadoPanel({
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
   onVerDetalleFirma,
   isDigitalizando, digitalizarContrato,
+  vacaciones, saldoVacaciones,
+  showVacacionForm, setShowVacacionForm,
+  vacacionData, setVacacionData,
+  guardarVacacion, isSavingVacacion, descargarVacacionPDF,
 }: Props) {
   return (
     <div className="fixed inset-0 z-40 overflow-hidden">
@@ -179,10 +194,12 @@ export default function EmpleadoPanel({
                   { id: 'contratos', label: 'Contratos y Anexos' },
                   { id: 'liquidaciones', label: 'Liquidaciones' },
                   { id: 'legal', label: 'Historial Legal' },
+                  { id: 'vacaciones', label: 'Vacaciones' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal')}
+                    onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones')}
+
                     className="py-3.5 px-4 text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0"
                     style={{
                       borderBottom: activeTab === tab.id ? '2px solid #2563eb' : '2px solid transparent',
@@ -296,6 +313,20 @@ export default function EmpleadoPanel({
                 onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
+            {activeTab === 'vacaciones' && (
+              <TabVacaciones
+                selectedEmpleado={selectedEmpleado}
+                vacaciones={vacaciones}
+                saldoVacaciones={saldoVacaciones}
+                showVacacionForm={showVacacionForm}
+                setShowVacacionForm={setShowVacacionForm}
+                vacacionData={vacacionData}
+                setVacacionData={setVacacionData}
+                guardarVacacion={guardarVacacion}
+                isSavingVacacion={isSavingVacacion}
+                descargarVacacionPDF={descargarVacacionPDF}
+              />
+            )}
           </div>
 
           {/* FOOTER */}
@@ -327,6 +358,25 @@ export default function EmpleadoPanel({
                   >
                     {isSavingContrato ? 'Guardando...' : 'Guardar Contrato'}
                   </button>
+                ) : (activeTab === 'vacaciones' && showVacacionForm) ? (
+                  <>
+                    <button type="button" onClick={() => setShowVacacionForm(false)}
+                      className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
+                      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      Volver al Historial
+                    </button>
+                    <button
+                      type="submit"
+                      form="vacacionForm"
+                      disabled={isSavingVacacion}
+                      className="px-8 py-2.5 text-sm text-white font-semibold rounded-xl transition-colors"
+                      style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
+                    >
+                      {isSavingVacacion ? 'Registrando...' : 'Registrar Vacación'}
+                    </button>
+                  </>
                 ) : (activeTab === 'legal' && showDocumentoForm) ? (
                   <>
                     <button type="button" onClick={() => setShowDocumentoForm(false)}
