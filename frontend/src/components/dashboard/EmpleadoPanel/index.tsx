@@ -292,6 +292,12 @@ export default function EmpleadoPanel({
                 generarLiquidacion={generarLiquidacion}
                 descargarLiquidacionPDF={descargarLiquidacionPDF}
                 calcularValorHorasExtras={calcularValorHorasExtras}
+                solicitudesFirma={solicitudesFirma}
+                isSendingFirma={isSendingFirma}
+                enviarAFirma={enviarAFirma}
+                cancelarFirma={cancelarFirma}
+                reenviarFirma={reenviarFirma}
+                onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
             {activeTab === 'legal' && (
@@ -325,6 +331,12 @@ export default function EmpleadoPanel({
                 guardarVacacion={guardarVacacion}
                 isSavingVacacion={isSavingVacacion}
                 descargarVacacionPDF={descargarVacacionPDF}
+                solicitudesFirma={solicitudesFirma}
+                isSendingFirma={isSendingFirma}
+                enviarAFirma={enviarAFirma}
+                cancelarFirma={cancelarFirma}
+                reenviarFirma={reenviarFirma}
+                onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
           </div>
