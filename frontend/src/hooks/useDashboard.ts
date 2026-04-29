@@ -963,10 +963,19 @@ export function useDashboard() {
 
   const enviarAFirma = async (
     tipoDocumento: SolicitudFirma['tipo_documento'],
-    opciones?: { contratoId?: number; documentoLegalId?: number; anexoContratoId?: number }
+    opciones?: {
+      contratoId?: number;
+      documentoLegalId?: number;
+      anexoContratoId?: number;
+      liquidacionId?: number;
+      vacacionId?: number;
+    }
   ) => {
     if (!selectedEmpleado) return;
-    const key = tipoDocumento + String(opciones?.documentoLegalId ?? opciones?.anexoContratoId ?? '');
+    const key = tipoDocumento + String(
+      opciones?.documentoLegalId ?? opciones?.anexoContratoId ??
+      opciones?.liquidacionId ?? opciones?.vacacionId ?? ''
+    );
     setIsSendingFirma(prev => ({ ...prev, [key]: true }));
     try {
       await client.post('/firmas/solicitar/', {
@@ -975,6 +984,8 @@ export function useDashboard() {
         contrato_id: opciones?.contratoId ?? null,
         documento_legal_id: opciones?.documentoLegalId ?? null,
         anexo_contrato_id: opciones?.anexoContratoId ?? null,
+        liquidacion_id: opciones?.liquidacionId ?? null,
+        vacacion_id: opciones?.vacacionId ?? null,
       });
       showToast('Documento enviado a firma. El trabajador recibirá un email.', 'success');
     } catch (err: unknown) {
