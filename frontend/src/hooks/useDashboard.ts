@@ -158,9 +158,8 @@ export function useDashboard() {
 
   const stats = useMemo(() => {
     if (!empleados || empleados.length === 0) return null;
-    const total = empleados.length;
-
-    const activos   = empleados.filter(e => e.activo !== false).length;
+    const total   = empleados.length;
+    const activos = empleados.filter(e => e.activo !== false).length;
     const inactivos = total - activos;
     const chartTotal = [
       { name: 'Activos',   valor: activos,   color: '#3b82f6' },
@@ -174,55 +173,77 @@ export function useDashboard() {
       { name: 'Hombres', valor: hombres, color: '#60a5fa' },
     ];
 
-    const teletrabajo = empleados.filter(e => e.modalidad?.toUpperCase() === 'TELETRABAJO').length;
-    const presencial  = total - teletrabajo;
+    // Modalidad — usa los valores reales del modelo (PRESENCIAL | REMOTO | HIBRIDO)
+    const presencial = empleados.filter(e => e.modalidad === 'PRESENCIAL').length;
+    const remoto     = empleados.filter(e => e.modalidad === 'REMOTO').length;
+    const hibrido    = empleados.filter(e => e.modalidad === 'HIBRIDO').length;
+    const teletrabajo = remoto; // alias para compatibilidad con StatsWidgets hasta Fase 2
     const chartModalidad = [
-      { name: 'Remoto', valor: teletrabajo, color: '#10b981' },
-      { name: 'Oficina', valor: presencial,  color: '#f59e0b' },
+      { name: 'Presencial', valor: presencial, color: '#f59e0b' },
+      { name: 'Remoto',     valor: remoto,     color: '#10b981' },
+      { name: 'Híbrido',    valor: hibrido,    color: '#06b6d4' },
     ];
 
-    const jornada40   = empleados.filter(e => (e.horas_laborales || 0) <= 40).length;
-    const jornadaMayor = total - jornada40;
-    const chartJornada = [
-      { name: '40 Hrs',   valor: jornada40,    color: '#10b981' },
-      { name: '> 40 Hrs', valor: jornadaMayor,  color: '#f59e0b' },
-    ];
-
-    const chilenos      = empleados.filter(e => e.nacionalidad?.toUpperCase() === 'CHILENA').length;
-    const extranjeros   = total - chilenos;
+    const chilenos       = empleados.filter(e => e.nacionalidad?.toUpperCase() === 'CHILENA').length;
+    const extranjeros    = total - chilenos;
     const pctExtranjeros = total > 0 ? (extranjeros / total) * 100 : 0;
     const chartNacionalidad = [
       { name: 'Chilenos', valor: chilenos,    color: '#3b82f6' },
       { name: 'Extranj.', valor: extranjeros, color: pctExtranjeros > 15 ? '#ef4444' : '#6366f1' },
     ];
 
-    const masaSalarial = empleados.reduce((sum, e) => sum + (e.sueldo_base || 0), 0);
+    // Masa salarial solo sobre empleados activos; agrega promedio
+    const empleadosActivos = empleados.filter(e => e.activo !== false);
+    const masaSalarial     = empleadosActivos.reduce((sum, e) => sum + (e.sueldo_base || 0), 0);
+    const promedioSalarial = activos > 0 ? Math.round(masaSalarial / activos) : 0;
     const costosPorCentro: Record<string, number> = {};
-    empleados.forEach(e => {
-      const centro = e.centro_costo?.toUpperCase() || 'SIN ASIGNAR';
+    empleadosActivos.forEach(e => {
+      const centro = e.centro_costo?.trim() || 'Sin asignar';
       costosPorCentro[centro] = (costosPorCentro[centro] || 0) + (e.sueldo_base || 0);
     });
     const chartCentros = Object.entries(costosPorCentro)
       .map(([name, valor]) => ({ name, valor }))
       .sort((a, b) => b.valor - a.valor)
-      .slice(0, 4);
+      .slice(0, 5);
     const topCentro = chartCentros[0] ?? { name: 'N/A', valor: 0 };
 
-    let menores30 = 0, entre30y50 = 0, mayores50 = 0;
-    const hoy = new Date();
-    empleados.forEach(e => {
-      if (!e.fecha_nacimiento) return;
-      const nac = new Date(e.fecha_nacimiento);
-      let edad = hoy.getFullYear() - nac.getFullYear();
-      if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) edad--;
-      if (edad < 30) menores30++;
-      else if (edad <= 50) entre30y50++;
-      else mayores50++;
-    });
-    const chartGeneraciones = [
-      { name: '< 30',  valor: menores30,   color: '#d946ef' },
-      { name: '30-50', valor: entre30y50,  color: '#a855f7' },
-      { name: '> 50',  valor: mayores50,   color: '#8b5cf6' },
+    // Tipos de contrato (desde contrato_activo embebido)
+    const indefinido = empleados.filter(e => e.contrato_activo?.tipo_contrato === 'INDEFINIDO').length;
+    const plazoFijo  = empleados.filter(e => e.contrato_activo?.tipo_contrato === 'PLAZO_FIJO').length;
+    const obraFaena  = empleados.filter(e => e.contrato_activo?.tipo_contrato === 'OBRA_FAENA').length;
+    const chartTiposContrato = [
+      { name: 'Indefinido', valor: indefinido, color: '#3b82f6' },
+      { name: 'Plazo Fijo', valor: plazoFijo,  color: '#f59e0b' },
+      { name: 'Obra/Faena', valor: obraFaena,  color: '#f97316' },
+    ];
+
+    // Contratos plazo fijo que vencen en los próximos 30 días
+    const hoy      = new Date();
+    const en30Dias = new Date(hoy);
+    en30Dias.setDate(hoy.getDate() + 30);
+    const contratosVencen = empleados
+      .filter(e => {
+        if (e.contrato_activo?.tipo_contrato !== 'PLAZO_FIJO') return false;
+        if (!e.contrato_activo.fecha_fin) return false;
+        const fin = new Date(e.contrato_activo.fecha_fin + 'T12:00:00');
+        return fin >= hoy && fin <= en30Dias;
+      })
+      .map(e => ({
+        nombre: `${e.nombres} ${e.apellido_paterno}`,
+        diasRestantes: Math.ceil(
+          (new Date(e.contrato_activo!.fecha_fin! + 'T12:00:00').getTime() - hoy.getTime())
+          / (1000 * 60 * 60 * 24),
+        ),
+        fechaFin: e.contrato_activo!.fecha_fin!,
+      }))
+      .sort((a, b) => a.diasRestantes - b.diasRestantes);
+
+    // Sistema de salud
+    const fonasa = empleados.filter(e => e.sistema_salud === 'FONASA').length;
+    const isapre = empleados.filter(e => e.sistema_salud === 'ISAPRE').length;
+    const chartSalud = [
+      { name: 'FONASA', valor: fonasa, color: '#3b82f6' },
+      { name: 'ISAPRE', valor: isapre, color: '#10b981' },
     ];
 
     const bancarizados   = empleados.filter(e => ['TRANSFERENCIA', 'DEPOSITO'].includes(e.forma_pago?.toUpperCase() || '')).length;
@@ -232,13 +253,51 @@ export function useDashboard() {
       { name: 'Manual',  valor: noBancarizados, color: '#f59e0b' },
     ];
 
+    // Campos legacy mantenidos para compatibilidad con StatsWidgets hasta Fase 2
+    const jornada40    = empleados.filter(e => (e.horas_laborales || 0) <= 40).length;
+    const jornadaMayor = total - jornada40;
+    const chartJornada = [
+      { name: '40 Hrs',   valor: jornada40,    color: '#10b981' },
+      { name: '> 40 Hrs', valor: jornadaMayor,  color: '#f59e0b' },
+    ];
+    let menores30 = 0, entre30y50 = 0, mayores50 = 0;
+    empleados.forEach(e => {
+      if (!e.fecha_nacimiento) return;
+      const nac  = new Date(e.fecha_nacimiento);
+      let edad   = hoy.getFullYear() - nac.getFullYear();
+      if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) edad--;
+      if (edad < 30) menores30++;
+      else if (edad <= 50) entre30y50++;
+      else mayores50++;
+    });
+    const chartGeneraciones = [
+      { name: '< 30',  valor: menores30,  color: '#d946ef' },
+      { name: '30-50', valor: entre30y50, color: '#a855f7' },
+      { name: '> 50',  valor: mayores50,  color: '#8b5cf6' },
+    ];
+
     return {
-      chartTotal, total, inactivos, mujeres, hombres, chartGenero,
-      teletrabajo, presencial, chartModalidad, jornada40, jornadaMayor, chartJornada,
+      // Trabajadores
+      total, activos, inactivos, chartTotal,
+      // Género
+      mujeres, hombres, chartGenero,
+      // Modalidad (corregido)
+      presencial, remoto, hibrido, teletrabajo, chartModalidad,
+      // Extranjería
       extranjeros, pctExtranjeros, chartNacionalidad,
-      masaSalarial, topCentro, chartCentros,
-      menores30, entre30y50, mayores50, chartGeneraciones,
+      // Masa salarial
+      masaSalarial, promedioSalarial, topCentro, chartCentros,
+      // Tipos de contrato (nuevo)
+      indefinido, plazoFijo, obraFaena, chartTiposContrato,
+      // Contratos por vencer (nuevo)
+      contratosVencen,
+      // Sistema de salud (nuevo)
+      fonasa, isapre, chartSalud,
+      // Bancarización
       bancarizados, noBancarizados, chartBancos,
+      // Legacy — se eliminan en Fase 2
+      jornada40, jornadaMayor, chartJornada,
+      menores30, entre30y50, mayores50, chartGeneraciones,
     };
   }, [empleados]);
 
@@ -963,10 +1022,19 @@ export function useDashboard() {
 
   const enviarAFirma = async (
     tipoDocumento: SolicitudFirma['tipo_documento'],
-    opciones?: { contratoId?: number; documentoLegalId?: number; anexoContratoId?: number }
+    opciones?: {
+      contratoId?: number;
+      documentoLegalId?: number;
+      anexoContratoId?: number;
+      liquidacionId?: number;
+      vacacionId?: number;
+    }
   ) => {
     if (!selectedEmpleado) return;
-    const key = tipoDocumento + String(opciones?.documentoLegalId ?? opciones?.anexoContratoId ?? '');
+    const key = tipoDocumento + String(
+      opciones?.documentoLegalId ?? opciones?.anexoContratoId ??
+      opciones?.liquidacionId ?? opciones?.vacacionId ?? ''
+    );
     setIsSendingFirma(prev => ({ ...prev, [key]: true }));
     try {
       await client.post('/firmas/solicitar/', {
@@ -975,6 +1043,8 @@ export function useDashboard() {
         contrato_id: opciones?.contratoId ?? null,
         documento_legal_id: opciones?.documentoLegalId ?? null,
         anexo_contrato_id: opciones?.anexoContratoId ?? null,
+        liquidacion_id: opciones?.liquidacionId ?? null,
+        vacacion_id: opciones?.vacacionId ?? null,
       });
       showToast('Documento enviado a firma. El trabajador recibirá un email.', 'success');
     } catch (err: unknown) {

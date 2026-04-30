@@ -1,4 +1,7 @@
+import React from 'react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
+import type { SolicitudFirma } from '../../../types';
 
 type Props = {
   selectedEmpleado: UseDashboardReturn['selectedEmpleado'];
@@ -25,6 +28,12 @@ type Props = {
   generarLiquidacion: UseDashboardReturn['generarLiquidacion'];
   descargarLiquidacionPDF: UseDashboardReturn['descargarLiquidacionPDF'];
   calcularValorHorasExtras: UseDashboardReturn['calcularValorHorasExtras'];
+  solicitudesFirma: UseDashboardReturn['solicitudesFirma'];
+  isSendingFirma: UseDashboardReturn['isSendingFirma'];
+  enviarAFirma: UseDashboardReturn['enviarAFirma'];
+  cancelarFirma: UseDashboardReturn['cancelarFirma'];
+  reenviarFirma: UseDashboardReturn['reenviarFirma'];
+  onVerDetalleFirma: (s: SolicitudFirma) => void;
 };
 
 const inp: React.CSSProperties = {
@@ -58,6 +67,7 @@ export default function TabLiquidaciones({
   haberesNoImponiblesList, setHaberesNoImponiblesList,
   horasExtrasList, setHorasExtrasList,
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
+  solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma, onVerDetalleFirma,
 }: Props) {
   return (
     <div className="max-w-4xl mx-auto">
@@ -108,8 +118,66 @@ export default function TabLiquidaciones({
                       <td className="p-4 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>${liq.total_imponible.toLocaleString('es-CL')}</td>
                       <td className="p-4 text-sm font-medium" style={{ color: '#f87171' }}>-${liq.total_descuentos.toLocaleString('es-CL')}</td>
                       <td className="p-4">
-                        <div className="flex items-center justify-end gap-4">
+                        <div className="flex items-center justify-end gap-3 flex-wrap">
                           <span className="font-extrabold text-lg" style={{ color: '#34d399' }}>${liq.sueldo_liquido.toLocaleString('es-CL')}</span>
+                          {(() => {
+                            const solicitudActiva = solicitudesFirma
+                              .filter(s => s.tipo_documento === 'LIQUIDACION' && s.liquidacion === liq.id)
+                              .sort((a, b) => new Date(b.enviado_en).getTime() - new Date(a.enviado_en).getTime())[0];
+                            const sending = !!isSendingFirma[`LIQUIDACION${liq.id}`];
+                            return (
+                              <>
+                                {(!solicitudActiva || solicitudActiva.estado === 'CANCELADO' || solicitudActiva.estado === 'EXPIRADO') && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); enviarAFirma('LIQUIDACION', { liquidacionId: liq.id }); }}
+                                    disabled={sending}
+                                    className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                    style={{ color: '#a5b4fc', opacity: sending ? 0.5 : 1 }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#c7d2fe')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#a5b4fc')}
+                                  >
+                                    {sending
+                                      ? <><div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />Enviando...</>
+                                      : <><Send className="w-3 h-3" />Firma</>}
+                                  </button>
+                                )}
+                                {solicitudActiva?.estado === 'PENDIENTE' && (
+                                  <>
+                                    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#fbbf24' }}>
+                                      <Clock className="w-3 h-3" />Pendiente
+                                    </span>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); reenviarFirma(solicitudActiva.id); }}
+                                      className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                                      <RotateCcw className="w-3 h-3" />
+                                    </button>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); cancelarFirma(solicitudActiva.id); }}
+                                      className="text-xs transition-colors" style={{ color: 'rgba(239,68,68,0.5)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.5)')}>
+                                      <XCircle className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
+                                {solicitudActiva?.estado === 'FIRMADO' && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#34d399' }}>
+                                      <CheckCircle className="w-3 h-3" />Firmado
+                                    </span>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); onVerDetalleFirma(solicitudActiva); }}
+                                      className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      <Eye className="w-3 h-3" />Ver
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                           <button
                             onClick={(e) => { e.stopPropagation(); descargarLiquidacionPDF(liq.id!, liq.mes, liq.anio); }}
                             className="p-2 rounded-lg transition-colors"

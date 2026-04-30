@@ -1756,6 +1756,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         contrato_id   = request.data.get('contrato_id')
         doc_legal_id  = request.data.get('documento_legal_id')
         anexo_id      = request.data.get('anexo_contrato_id')
+        liquidacion_id = request.data.get('liquidacion_id')
+        vacacion_id    = request.data.get('vacacion_id')
 
         tipos_validos = [t[0] for t in SolicitudFirma.TIPOS_DOCUMENTO]
         if tipo_doc not in tipos_validos:
@@ -1784,9 +1786,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         es_plan_semilla = _es_plan_semilla(request.user)
 
         try:
-            pdf_bytes, contrato_obj, doc_legal_obj = self._generar_pdf_firma(
+            pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj = self._generar_pdf_firma(
                 empleado, empresa, tipo_doc,
-                contrato_id, doc_legal_id, anexo_id, es_plan_semilla
+                contrato_id, doc_legal_id, anexo_id,
+                liquidacion_id, vacacion_id, es_plan_semilla
             )
         except Exception as e:
             return Response({'error': str(e)}, status=400)
@@ -1806,6 +1809,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 tipo_documento=tipo_doc,
                 contrato=contrato_obj,
                 documento_legal=doc_legal_obj,
+                liquidacion=liquidacion_obj,
+                vacacion=vacacion_obj,
                 email_firmante=email_trabajador,
                 b2_key_temporal=key,
             )
@@ -1862,7 +1867,13 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
              "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
     def _generar_pdf_firma(self, empleado, empresa, tipo_doc,
-                           contrato_id, doc_legal_id, anexo_id, es_plan_semilla):
+                           contrato_id, doc_legal_id, anexo_id,
+                           liquidacion_id, vacacion_id, es_plan_semilla):
+        """Genera el PDF a firmar y retorna (pdf_bytes, contrato, doc_legal, liquidacion, vacacion)."""
+        ciudad = str(
+            getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago'
+        ).strip().title()
+
         if tipo_doc == 'CONTRATO':
             try:
                 contrato = (Contrato.objects.get(id=contrato_id)
@@ -1871,7 +1882,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 raise Exception('El trabajador no tiene contrato registrado.')
             ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('contrato_trabajo.html', ctx)
-            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None
+            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None, None, None
 
         if tipo_doc == 'ANEXO_40H':
             try:
@@ -1882,7 +1893,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('anexo_40h.html', ctx)
-            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None
+            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None
 
         if tipo_doc in ('AMONESTACION', 'DESPIDO', 'CONSTANCIA'):
             if doc_legal_id:
@@ -1898,13 +1909,11 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                     raise Exception(f'No se encontró documento de tipo {tipo_doc}.')
             hoy = doc.fecha_emision
             fecha_es = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
-            ciudad = str(getattr(empresa, 'comuna', '') or
-                         getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
             ctx = {'documento': doc, 'empleado': empleado, 'empresa': empresa,
                    'fecha_actual': fecha_es, 'ciudad': ciudad,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('documento_legal.html', ctx)
-            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc
+            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
             if not anexo_id:
@@ -1916,13 +1925,67 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 raise Exception('Anexo de contrato no encontrado.')
             hoy = anexo.fecha_emision
             fecha_es = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
-            ciudad = str(getattr(empresa, 'comuna', '') or
-                         getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
             ctx = {'anexo': anexo, 'contrato': contrato, 'empleado': empleado,
                    'empresa': empresa, 'fecha_actual': fecha_es, 'ciudad': ciudad,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('anexo_contrato.html', ctx)
-            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None
+            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None, None, None
+
+        if tipo_doc == 'LIQUIDACION':
+            if not liquidacion_id:
+                raise Exception('Se requiere el ID de la liquidación.')
+            try:
+                liq = Liquidacion.objects.get(id=liquidacion_id, empleado=empleado)
+            except Liquidacion.DoesNotExist:
+                raise Exception('Liquidación no encontrada.')
+            contrato_liq = Contrato.objects.filter(empleado=empleado).first()
+            meses = self.MESES
+            mes_nombre = meses[liq.mes - 1]
+            sueldo_seguro = int(liq.sueldo_liquido or 0)
+            liquido_palabras = num2words(sueldo_seguro, lang='es')
+            det_no_imp = liq.detalle_haberes_no_imponibles
+            if not isinstance(det_no_imp, list): det_no_imp = []
+            suma_no_imponibles = sum(int(i.get('valor', 0)) for i in det_no_imp if isinstance(i, dict))
+            det_otros = liq.detalle_otros_descuentos
+            if not isinstance(det_otros, list): det_otros = []
+            suma_otros_descuentos = sum(int(i.get('valor', 0)) for i in det_otros if isinstance(i, dict))
+            total_ley = ((liq.afp_monto or 0) + (liq.salud_monto or 0) +
+                         (liq.seguro_cesantia or 0) + (liq.impuesto_unico or 0))
+            total_otros_dsctos = (liq.anticipo_quincena or 0) + suma_otros_descuentos
+            ctx = {
+                'liquidacion': liq, 'empleado': empleado, 'empresa': empresa,
+                'contrato': contrato_liq,
+                'mes_nombre': mes_nombre.upper(),
+                'liquido_palabras': liquido_palabras,
+                'total_no_imponible': suma_no_imponibles,
+                'total_ley': total_ley,
+                'total_otros_dsctos': total_otros_dsctos,
+                'es_plan_semilla': es_plan_semilla,
+            }
+            html = render_to_string('liquidacion.html', ctx)
+            return _html_a_pdf_bytes(html, f'Liquidacion_{liq.mes}_{liq.anio}_{empleado.rut}'), None, None, liq, None
+
+        if tipo_doc == 'VACACION':
+            if not vacacion_id:
+                raise Exception('Se requiere el ID del comprobante de vacaciones.')
+            try:
+                vac = VacacionEmpleado.objects.get(id=vacacion_id, empleado=empleado)
+            except VacacionEmpleado.DoesNotExist:
+                raise Exception('Comprobante de vacaciones no encontrado.')
+            hoy = datetime.date.today()
+            fecha_hoy = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
+            def _fmt(f):
+                return f"{f.day:02d} de {self.MESES[f.month - 1]} de {f.year}" if f else '—'
+            ctx = {
+                'vacacion': vac, 'empleado': empleado, 'empresa': empresa,
+                'fecha_actual': fecha_hoy,
+                'fecha_inicio_texto': _fmt(vac.fecha_inicio),
+                'fecha_fin_texto': _fmt(vac.fecha_fin),
+                'ciudad': ciudad,
+                'es_plan_semilla': es_plan_semilla,
+            }
+            html = render_to_string('comprobante_vacaciones.html', ctx)
+            return _html_a_pdf_bytes(html, f'Vacacion_{empleado.rut}'), None, None, None, vac
 
         raise Exception(f'Tipo de documento no soportado: {tipo_doc}')
 
@@ -1934,6 +1997,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             'DESPIDO':        'Carta de Despido',
             'CONSTANCIA':     'Constancia Laboral',
             'ANEXO_CONTRATO': 'Anexo de Contrato',
+            'LIQUIDACION':    'Liquidación de Sueldo',
+            'VACACION':       'Comprobante de Vacaciones',
         }
         tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
         firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"

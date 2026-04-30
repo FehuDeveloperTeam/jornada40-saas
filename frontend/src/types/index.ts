@@ -249,7 +249,9 @@ export interface SolicitudFirma {
     empresa: number;
     contrato: number | null;
     documento_legal: number | null;
-    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO';
+    liquidacion: number | null;
+    vacacion: number | null;
+    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION' | 'VACACION';
     token: string;
     estado: 'PENDIENTE' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;

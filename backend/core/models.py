@@ -378,12 +378,16 @@ class SolicitudFirma(models.Model):
         ('DESPIDO',         'Carta de Despido'),
         ('CONSTANCIA',      'Constancia Laboral'),
         ('ANEXO_CONTRATO',  'Anexo de Contrato'),
+        ('LIQUIDACION',     'Liquidación de Sueldo'),
+        ('VACACION',        'Comprobante de Vacaciones'),
     ]
 
     empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
     empresa          = models.ForeignKey('Empresa',       on_delete=models.CASCADE,    related_name='solicitudes_firma')
     contrato         = models.ForeignKey('Contrato',      on_delete=models.SET_NULL,   null=True, blank=True)
     documento_legal  = models.ForeignKey('DocumentoLegal', on_delete=models.SET_NULL,  null=True, blank=True)
+    liquidacion      = models.ForeignKey('Liquidacion',   on_delete=models.SET_NULL,   null=True, blank=True)
+    vacacion         = models.ForeignKey('VacacionEmpleado', on_delete=models.SET_NULL, null=True, blank=True)
 
     tipo_documento   = models.CharField(max_length=20, choices=TIPOS_DOCUMENTO)
     token            = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
