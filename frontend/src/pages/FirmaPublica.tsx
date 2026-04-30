@@ -16,8 +16,9 @@ type Step =
   | 'info'
   | 'solicitar_otp'
   | 'verificar_otp'
-  | 'firmar'          // 7.3
+  | 'firmar'
   | 'firmado_ok'
+  | 'rechazado_ok'
   | 'terminal_expirado'
   | 'terminal_cancelado'
   | 'terminal_no_encontrado';
@@ -125,6 +126,12 @@ export default function FirmaPublica() {
   const [firmaError, setFirmaError] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // ── Estado rechazo ──────────────────────────────────────────────────────────
+  const [rechazandoMode, setRechazandoMode] = useState(false);
+  const [rechazarMotivo, setRechazarMotivo] = useState('');
+  const [rechazarLoading, setRechazarLoading] = useState(false);
+  const [rechazarError, setRechazarError] = useState('');
+
   // ── Countdown del cooldown ──────────────────────────────────────────────────
   useEffect(() => {
     const id = setInterval(() => setCooldown(s => (s <= 1 ? 0 : s - 1)), 1000);
@@ -146,7 +153,7 @@ export default function FirmaPublica() {
       if (data.estado === 'FIRMADO')   { setStep('firmado_ok');           return; }
       if (data.estado === 'EXPIRADO')  { setStep('terminal_expirado');    return; }
       if (data.estado === 'CANCELADO') { setStep('terminal_cancelado');   return; }
-      if (data.estado === 'RECHAZADO') { setStep('terminal_cancelado');   return; }
+      if (data.estado === 'RECHAZADO') { setStep('rechazado_ok');         return; }
 
       // Si ya completó OTP en esta sesión del navegador, saltar directo a firmar
       const storedToken = sessionStorage.getItem(`firma_sesion_${token}`);
@@ -241,6 +248,28 @@ export default function FirmaPublica() {
       }
     } finally {
       setFirmaLoading(false);
+    }
+  };
+
+  // ── Rechazar documento ────────────────────────────────────────────────────
+  const rechazarDocumento = async () => {
+    setRechazarLoading(true);
+    setRechazarError('');
+    try {
+      await client.post(`/firma-publica/${token}/rechazar/`, {
+        sesion_token: sesionToken,
+        motivo: rechazarMotivo.trim() || null,
+      });
+      sessionStorage.removeItem(`firma_sesion_${token}`);
+      setStep('rechazado_ok');
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setRechazarError(err.response?.data?.error ?? 'Error al registrar el rechazo. Intenta nuevamente.');
+      } else {
+        setRechazarError('Error de conexión. Intenta nuevamente.');
+      }
+    } finally {
+      setRechazarLoading(false);
     }
   };
 
@@ -961,6 +990,139 @@ export default function FirmaPublica() {
             </p>
           )}
 
+          {/* ── Rechazo ── */}
+          {!rechazandoMode ? (
+            <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.22)' }}>
+              ¿No estás de acuerdo con este documento?{' '}
+              <button
+                className="underline transition-colors"
+                style={{ color: 'rgba(239,68,68,0.55)' }}
+                onClick={() => setRechazandoMode(true)}
+                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.85)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.55)')}
+              >
+                Rechazar documento
+              </button>
+            </p>
+          ) : (
+            <div
+              className="rounded-2xl p-5 space-y-4"
+              style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}
+            >
+              <div className="flex items-start gap-3">
+                <XCircle size={18} className="shrink-0 mt-0.5" style={{ color: '#f87171' }} />
+                <div>
+                  <p className="text-sm font-bold text-white">¿Rechazar este documento?</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Tu empleador será notificado para revisarlo y corregirlo si corresponde.
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                rows={3}
+                placeholder="Motivo del rechazo (opcional)"
+                value={rechazarMotivo}
+                onChange={e => { setRechazarMotivo(e.target.value); setRechazarError(''); }}
+                disabled={rechazarLoading}
+                className="w-full rounded-xl px-4 py-3 text-sm resize-none"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(239,68,68,0.25)',
+                  color: 'rgba(255,255,255,0.85)',
+                  outline: 'none',
+                }}
+              />
+
+              {rechazarError && (
+                <div
+                  className="flex items-start gap-2 p-3 rounded-xl text-xs"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}
+                >
+                  <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                  <span>{rechazarError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'rgba(255,255,255,0.55)',
+                  }}
+                  onClick={() => { setRechazandoMode(false); setRechazarMotivo(''); setRechazarError(''); }}
+                  disabled={rechazarLoading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+                  style={{
+                    background: rechazarLoading ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.18)',
+                    border: '1px solid rgba(239,68,68,0.4)',
+                    color: '#fca5a5',
+                  }}
+                  onClick={rechazarDocumento}
+                  disabled={rechazarLoading}
+                >
+                  {rechazarLoading ? (
+                    <div style={{
+                      width: 16, height: 16,
+                      border: '2px solid rgba(252,165,165,0.3)',
+                      borderTopColor: '#fca5a5',
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite',
+                    }} />
+                  ) : (
+                    <>
+                      <XCircle size={14} />
+                      Confirmar rechazo
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // STEP: rechazado_ok
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (step === 'rechazado_ok') {
+    return (
+      <PageWrapper>
+        <div className="w-full max-w-md animate-fade-up">
+          <div className="rounded-3xl p-8 text-center glass-card">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+              style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}
+            >
+              <XCircle size={32} style={{ color: '#f87171' }} />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Documento Rechazado</h2>
+            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              Tu rechazo fue registrado. Tu empleador fue notificado para
+              revisar el documento y corregirlo si corresponde.
+            </p>
+            {info && (
+              <div
+                className="rounded-xl px-4 py-3 text-left"
+                style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}
+              >
+                <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(248,113,113,0.6)' }}>
+                  Documento rechazado
+                </p>
+                <p className="text-sm font-semibold text-white">{info.tipo_documento_label}</p>
+                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{info.empresa_nombre}</p>
+              </div>
+            )}
+          </div>
         </div>
       </PageWrapper>
     );
