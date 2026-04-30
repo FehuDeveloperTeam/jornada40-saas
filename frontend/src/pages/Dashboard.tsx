@@ -84,6 +84,11 @@ export default function Dashboard() {
     showVacacionForm, setShowVacacionForm,
     vacacionData, setVacacionData,
     guardarVacacion, isSavingVacacion, descargarVacacionPDF,
+    // Finiquito
+    finiquitos,
+    showFiniquitoForm, setShowFiniquitoForm,
+    finiquitoData, setFiniquitoData,
+    guardarFiniquito, isSavingFiniquito, descargarFiniquitoPDF,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
@@ -254,6 +259,14 @@ export default function Dashboard() {
           guardarVacacion={guardarVacacion}
           isSavingVacacion={isSavingVacacion}
           descargarVacacionPDF={descargarVacacionPDF}
+          finiquitos={finiquitos}
+          showFiniquitoForm={showFiniquitoForm}
+          setShowFiniquitoForm={setShowFiniquitoForm}
+          finiquitoData={finiquitoData}
+          setFiniquitoData={setFiniquitoData}
+          guardarFiniquito={guardarFiniquito}
+          isSavingFiniquito={isSavingFiniquito}
+          descargarFiniquitoPDF={descargarFiniquitoPDF}
         />
       )}
 

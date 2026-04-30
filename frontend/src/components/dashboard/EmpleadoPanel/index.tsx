@@ -5,6 +5,7 @@ import TabContratos from './TabContratos';
 import TabLiquidaciones from './TabLiquidaciones';
 import TabLegal from './TabLegal';
 import TabVacaciones from './TabVacaciones';
+import TabFiniquito from './TabFiniquito';
 
 type Props = {
   setIsPanelOpen: UseDashboardReturn['setIsPanelOpen'];
@@ -87,7 +88,7 @@ type Props = {
   enviarAFirma: UseDashboardReturn['enviarAFirma'];
   cancelarFirma: UseDashboardReturn['cancelarFirma'];
   reenviarFirma: UseDashboardReturn['reenviarFirma'];
-  onVerDetalleFirma: (s: import('../../../types').SolicitudFirma) => void;
+  onVerDetalleFirma: (s: SolicitudFirma) => void;
   // Digitalización
   isDigitalizando: UseDashboardReturn['isDigitalizando'];
   digitalizarContrato: UseDashboardReturn['digitalizarContrato'];
@@ -101,6 +102,15 @@ type Props = {
   guardarVacacion: UseDashboardReturn['guardarVacacion'];
   isSavingVacacion: UseDashboardReturn['isSavingVacacion'];
   descargarVacacionPDF: UseDashboardReturn['descargarVacacionPDF'];
+  // Tab: Finiquito
+  finiquitos: UseDashboardReturn['finiquitos'];
+  showFiniquitoForm: UseDashboardReturn['showFiniquitoForm'];
+  setShowFiniquitoForm: UseDashboardReturn['setShowFiniquitoForm'];
+  finiquitoData: UseDashboardReturn['finiquitoData'];
+  setFiniquitoData: UseDashboardReturn['setFiniquitoData'];
+  guardarFiniquito: UseDashboardReturn['guardarFiniquito'];
+  isSavingFiniquito: UseDashboardReturn['isSavingFiniquito'];
+  descargarFiniquitoPDF: UseDashboardReturn['descargarFiniquitoPDF'];
 };
 
 export default function EmpleadoPanel({
@@ -133,6 +143,10 @@ export default function EmpleadoPanel({
   showVacacionForm, setShowVacacionForm,
   vacacionData, setVacacionData,
   guardarVacacion, isSavingVacacion, descargarVacacionPDF,
+  finiquitos,
+  showFiniquitoForm, setShowFiniquitoForm,
+  finiquitoData, setFiniquitoData,
+  guardarFiniquito, isSavingFiniquito, descargarFiniquitoPDF,
 }: Props) {
   return (
     <div className="fixed inset-0 z-40 overflow-hidden">
@@ -188,7 +202,7 @@ export default function EmpleadoPanel({
 
           {/* BANNER RECHAZOS */}
           {panelMode !== 'create' && (() => {
-            const TAB_POR_TIPO: Record<string, SolicitudFirma['tipo_documento'] extends infer T ? string : never> = {
+            const TAB_POR_TIPO: Record<string, string> = {
               CONTRATO: 'contratos', ANEXO_40H: 'contratos', ANEXO_CONTRATO: 'contratos',
               AMONESTACION: 'legal', DESPIDO: 'legal', CONSTANCIA: 'legal',
               LIQUIDACION: 'liquidaciones', VACACION: 'vacaciones',
@@ -216,7 +230,7 @@ export default function EmpleadoPanel({
                   {tiposUnicos.map(tipo => (
                     <button
                       key={tipo}
-                      onClick={() => setActiveTab(TAB_POR_TIPO[tipo] as 'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones')}
+                      onClick={() => setActiveTab(TAB_POR_TIPO[tipo] as 'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones' | 'finiquito')}
                       className="px-2.5 py-1 rounded-full text-xs font-bold transition-all"
                       style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}
                       onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.28)'; e.currentTarget.style.color = '#fff'; }}
@@ -240,10 +254,11 @@ export default function EmpleadoPanel({
                   { id: 'liquidaciones', label: 'Liquidaciones' },
                   { id: 'legal', label: 'Historial Legal' },
                   { id: 'vacaciones', label: 'Vacaciones' },
+                  { id: 'finiquito', label: 'Finiquito' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones')}
+                    onClick={() => setActiveTab(tab.id as 'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones' | 'finiquito')}
 
                     className="py-3.5 px-4 text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0"
                     style={{
@@ -384,6 +399,19 @@ export default function EmpleadoPanel({
                 onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
+            {activeTab === 'finiquito' && (
+              <TabFiniquito
+                selectedEmpleado={selectedEmpleado}
+                finiquitos={finiquitos}
+                showFiniquitoForm={showFiniquitoForm}
+                setShowFiniquitoForm={setShowFiniquitoForm}
+                finiquitoData={finiquitoData}
+                setFiniquitoData={setFiniquitoData}
+                guardarFiniquito={guardarFiniquito}
+                isSavingFiniquito={isSavingFiniquito}
+                descargarFiniquitoPDF={descargarFiniquitoPDF}
+              />
+            )}
           </div>
 
           {/* FOOTER */}
@@ -451,6 +479,25 @@ export default function EmpleadoPanel({
                       style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
                     >
                       {isSavingDocumento ? 'Generando...' : 'Guardar y Generar Documento'}
+                    </button>
+                  </>
+                ) : (activeTab === 'finiquito' && showFiniquitoForm) ? (
+                  <>
+                    <button type="button" onClick={() => setShowFiniquitoForm(false)}
+                      className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
+                      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      Volver al Historial
+                    </button>
+                    <button
+                      type="submit"
+                      form="finiquitoForm"
+                      disabled={isSavingFiniquito}
+                      className="px-8 py-2.5 text-sm text-white font-semibold rounded-xl transition-colors flex items-center gap-2"
+                      style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
+                    >
+                      {isSavingFiniquito ? 'Generando...' : 'Generar Finiquito'}
                     </button>
                   </>
                 ) : null}

@@ -49,8 +49,7 @@ const iconBox = (color: string) => ({
 } as React.CSSProperties);
 
 export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Props) {
-  const chartAxis = { fontSize: 9, fill: 'rgba(255,255,255,0.35)' };
-  const tooltip   = { background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' };
+  const tooltip = { background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">

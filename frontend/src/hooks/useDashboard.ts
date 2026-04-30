@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
   Contrato, AnexoContrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
-  SolicitudFirma, VacacionEmpleado, SaldoVacaciones,
+  SolicitudFirma, VacacionEmpleado, SaldoVacaciones, Finiquito,
 } from '../types';
 
 export const defaultHorario: HorarioSemana = {
@@ -56,7 +56,7 @@ export function useDashboard() {
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedEmpleado, setSelectedEmpleado] = useState<Empleado | null>(null);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones'>('perfil');
+  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones' | 'finiquito'>('perfil');
 
   // --- Formulario empleado ---
   const [formData, setFormData] = useState<Partial<Empleado>>({});
@@ -105,6 +105,12 @@ export function useDashboard() {
   const [showVacacionForm, setShowVacacionForm] = useState(false);
   const [vacacionData, setVacacionData] = useState<Partial<VacacionEmpleado>>({});
   const [isSavingVacacion, setIsSavingVacacion] = useState(false);
+
+  // --- Finiquito ---
+  const [finiquitos, setFiniquitos] = useState<Finiquito[]>([]);
+  const [showFiniquitoForm, setShowFiniquitoForm] = useState(false);
+  const [finiquitoData, setFiniquitoData] = useState<Partial<Finiquito>>({});
+  const [isSavingFiniquito, setIsSavingFiniquito] = useState(false);
 
   // --- Firma electrónica ---
   const [solicitudesFirma, setSolicitudesFirma] = useState<SolicitudFirma[]>([]);
@@ -495,6 +501,11 @@ export function useDashboard() {
       setVacaciones(resVac.data.results ?? resVac.data);
       setSaldoVacaciones(resSaldo.data);
       setShowVacacionForm(false);
+
+      const resFiniquitos = await client.get(`/finiquitos/?empleado=${empleadoId}`);
+      setFiniquitos(resFiniquitos.data.results ?? resFiniquitos.data);
+      setShowFiniquitoForm(false);
+      setFiniquitoData({});
     } catch (error) {
       console.error('Error al cargar datos del panel:', error);
     }
@@ -1063,6 +1074,53 @@ export function useDashboard() {
     }
   };
 
+  // ─── Finiquito ─────────────────────────────────────────────────────────────
+
+  const guardarFiniquito = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmpleado) return;
+    setIsSavingFiniquito(true);
+    try {
+      const total_a_pagar = Math.round(
+        (finiquitoData.sueldo_base ?? 0) * (finiquitoData.dias_trabajados_ultimo_mes ?? 30) / 30 +
+        (finiquitoData.gratificacion_proporcional ?? 0) +
+        (finiquitoData.feriado_proporcional ?? 0) +
+        (finiquitoData.indemnizacion_anos_servicio ?? 0) +
+        (finiquitoData.indemnizacion_sustitutiva_aviso ?? 0) +
+        (finiquitoData.otros_haberes ?? 0) -
+        (finiquitoData.otros_descuentos ?? 0) -
+        (finiquitoData.descuentos_prevision ?? 0),
+      );
+      const res = await client.post('/finiquitos/', {
+        ...finiquitoData,
+        empleado: selectedEmpleado.id,
+        total_a_pagar,
+      });
+      setFiniquitos(prev => [res.data, ...prev]);
+      setShowFiniquitoForm(false);
+      setFiniquitoData({});
+      showToast('¡Finiquito generado exitosamente!', 'success');
+    } catch {
+      showToast('Hubo un error al guardar el finiquito.', 'error');
+    } finally {
+      setIsSavingFiniquito(false);
+    }
+  };
+
+  const descargarFiniquitoPDF = async (finiquitoId: number) => {
+    try {
+      const response = await client.get(`/finiquitos/${finiquitoId}/generar_pdf/`, { responseType: 'blob' });
+      const url  = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', `Finiquito_${selectedEmpleado?.rut}.pdf`);
+      document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      showToast('Error al descargar el finiquito.', 'error');
+    }
+  };
+
   const cancelarFirma = async (solicitudId: number) => {
     try {
       await client.patch(`/firmas/${solicitudId}/cancelar/`);
@@ -1151,6 +1209,12 @@ export function useDashboard() {
     vacacionData, setVacacionData,
     isSavingVacacion,
     guardarVacacion, descargarVacacionPDF,
+    // Finiquito
+    finiquitos,
+    showFiniquitoForm, setShowFiniquitoForm,
+    finiquitoData, setFiniquitoData,
+    isSavingFiniquito,
+    guardarFiniquito, descargarFiniquitoPDF,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
