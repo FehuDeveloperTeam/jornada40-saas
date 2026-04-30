@@ -51,6 +51,7 @@ class ContratoSerializer(serializers.ModelSerializer):
 
 class EmpleadoSerializer(serializers.ModelSerializer):
     contrato_activo = ContratoSerializer(read_only=True)
+    tiene_rechazos_pendientes = serializers.BooleanField(read_only=True, default=False)
 
     class Meta:
         model = Empleado
@@ -65,8 +66,10 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
             'contrato_activo',
+            'tiene_rechazos_pendientes',
         ]
-        read_only_fields = ('id', 'ficha_numero', 'activo', 'creado_en', 'contrato_activo')
+        read_only_fields = ('id', 'ficha_numero', 'activo', 'creado_en', 'contrato_activo',
+                            'tiene_rechazos_pendientes')
 
 
 class AnexoContratoSerializer(serializers.ModelSerializer):

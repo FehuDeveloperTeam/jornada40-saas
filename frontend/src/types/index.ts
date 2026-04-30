@@ -133,6 +133,7 @@ export interface Empleado {
     activo: boolean;
     creado_en: string;
     contrato_activo?: Contrato | null;
+    tiene_rechazos_pendientes?: boolean;
 }
 
 export interface DocumentosDisponibles {

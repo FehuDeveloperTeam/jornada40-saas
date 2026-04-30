@@ -36,7 +36,7 @@ from num2words import num2words
 import pandas as pd
 import traceback
 import urllib.parse
-from django.db.models import Max, Sum
+from django.db.models import Max, Sum, Exists, OuterRef
 from django.core.files.base import ContentFile
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado
@@ -633,7 +633,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Empleado.objects.filter(empresa__owner=self.request.user)
+        rechazos_qs = SolicitudFirma.objects.filter(
+            empleado=OuterRef('pk'),
+            estado='RECHAZADO',
+        )
+        return Empleado.objects.filter(empresa__owner=self.request.user).annotate(
+            tiene_rechazos_pendientes=Exists(rechazos_qs)
+        )
 
     def perform_create(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}

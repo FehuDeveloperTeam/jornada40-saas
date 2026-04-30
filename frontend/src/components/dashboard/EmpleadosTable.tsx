@@ -241,7 +241,23 @@ export default function EmpleadosTable({
                       </div>
                     </td>
                     <td className="p-4 font-mono text-sm" style={{ color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>{formatRut(emp.rut)}</td>
-                    <td className="p-4 font-medium text-white">{emp.nombres} {emp.apellido_paterno}</td>
+                    <td className="p-4 font-medium text-white">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{emp.nombres} {emp.apellido_paterno}</span>
+                        {emp.tiene_rechazos_pendientes && (
+                          <span
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold"
+                            style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
+                            title="Tiene documentos rechazados"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            Rechazado
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{emp.email || '—'}</td>
                     <td className="p-4 capitalize text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{emp.departamento?.toLowerCase() || 'No especificado'}</td>
                     <td className="p-4 capitalize text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{emp.cargo.toLowerCase()}</td>
