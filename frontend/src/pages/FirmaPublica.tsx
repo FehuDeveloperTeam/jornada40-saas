@@ -826,15 +826,37 @@ export default function FirmaPublica() {
           {/* Resumen del documento */}
           <div className="rounded-3xl p-5 glass-card space-y-3">
 
-            {/* Badge identidad verificada */}
-            <div
-              className="flex items-center gap-2 px-3 py-2 rounded-xl w-fit"
-              style={{ background: 'rgba(5,150,105,0.12)', border: '1px solid rgba(5,150,105,0.25)' }}
-            >
-              <CheckCircle2 size={13} style={{ color: '#34d399' }} />
-              <span className="text-xs font-semibold" style={{ color: '#34d399' }}>
-                Identidad verificada
-              </span>
+            {/* Badge identidad verificada + Ver documento */}
+            <div className="flex items-center justify-between gap-3">
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                style={{ background: 'rgba(5,150,105,0.12)', border: '1px solid rgba(5,150,105,0.25)' }}
+              >
+                <CheckCircle2 size={13} style={{ color: '#34d399' }} />
+                <span className="text-xs font-semibold" style={{ color: '#34d399' }}>
+                  Identidad verificada
+                </span>
+              </div>
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.55)',
+                }}
+                onClick={abrirPDF}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.09)';
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
+                }}
+              >
+                <Eye size={13} />
+                Ver Documento
+              </button>
             </div>
 
             <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
