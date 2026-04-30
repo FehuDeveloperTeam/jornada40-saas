@@ -6,7 +6,7 @@ import FirmaCanvas from '../components/FirmaCanvas';
 import {
   FileText, Shield, CheckCircle2, AlertCircle,
   Clock, XCircle, Building2, User, Mail, Calendar,
-  ArrowRight, Send, RotateCcw, KeyRound, Pen,
+  ArrowRight, Send, RotateCcw, KeyRound, Pen, Eye,
 } from 'lucide-react';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -213,6 +213,12 @@ export default function FirmaPublica() {
     } finally {
       setOtpLoading(false);
     }
+  };
+
+  // ── Ver PDF del documento ─────────────────────────────────────────────────
+  const abrirPDF = () => {
+    const baseURL = import.meta.env.VITE_API_URL || '/api';
+    window.open(`${baseURL}/firma-publica/${token}/documento/`, '_blank');
   };
 
   // ── Firmar documento ───────────────────────────────────────────────────────
@@ -514,6 +520,27 @@ export default function FirmaPublica() {
               al correo registrado. Este proceso cumple con la Ley N° 19.799.
             </p>
           </div>
+
+          <button
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold transition-all"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.6)',
+            }}
+            onClick={abrirPDF}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.09)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.9)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
+            }}
+          >
+            <Eye size={15} />
+            Ver Documento
+          </button>
 
           <button className="btn-primary" onClick={() => setStep('solicitar_otp')}>
             Verificar mi Identidad <ArrowRight size={16} />
