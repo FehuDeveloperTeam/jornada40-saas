@@ -405,6 +405,7 @@ class SolicitudFirma(models.Model):
     enviado_en       = models.DateTimeField(auto_now_add=True)
     firmado_en       = models.DateTimeField(null=True, blank=True)
     expira_en        = models.DateTimeField()
+    motivo_rechazo   = models.TextField(blank=True, default='')
 
     creado_en        = models.DateTimeField(auto_now_add=True)
     actualizado_en   = models.DateTimeField(auto_now=True)

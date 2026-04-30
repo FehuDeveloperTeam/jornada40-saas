@@ -2882,7 +2882,8 @@ def firma_publica_rechazar(request, token):
         )
 
     solicitud.estado = 'RECHAZADO'
-    solicitud.save(update_fields=['estado', 'actualizado_en'])
+    solicitud.motivo_rechazo = motivo
+    solicitud.save(update_fields=['estado', 'motivo_rechazo', 'actualizado_en'])
 
     try:
         _notificar_rechazo_empleador(solicitud, motivo)

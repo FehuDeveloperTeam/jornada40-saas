@@ -147,11 +147,13 @@ class SolicitudFirmaSerializer(serializers.ModelSerializer):
             'tipo_documento', 'token', 'estado',
             'email_firmante', 'ip_firmante',
             'enviado_en', 'firmado_en', 'expira_en',
+            'motivo_rechazo',
             'empleado_nombre', 'empresa_nombre',
         ]
         read_only_fields = (
             'id', 'token', 'estado', 'email_firmante', 'ip_firmante',
             'enviado_en', 'firmado_en', 'expira_en',
+            'motivo_rechazo',
             'empleado_nombre', 'empresa_nombre',
         )
 
