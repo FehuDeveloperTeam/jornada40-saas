@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { BarChart2, Undo2, Users, Laptop, Clock, Globe, CircleDollarSign, Building2, Landmark, ChevronDown } from 'lucide-react';
+import React from 'react';
+import { BarChart2, Undo2, Users, Laptop, Globe, CircleDollarSign, Landmark, FileText, AlertTriangle, Activity } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 
@@ -40,7 +40,7 @@ const flipBtnStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = { fontSize: '0.8125rem', fontWeight: 700, color: 'rgba(255,255,255,0.45)', marginBottom: '0.25rem' };
 const valueStyle: React.CSSProperties = { fontSize: '1.5rem', fontWeight: 800, color: '#fff' };
-const subStyle: React.CSSProperties = { fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.35)', marginTop: '0.25rem' };
+const subStyle:  React.CSSProperties = { fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.35)', marginTop: '0.25rem' };
 
 const iconBox = (color: string) => ({
   width: '3rem', height: '3rem', borderRadius: '0.75rem', flexShrink: 0,
@@ -49,283 +49,334 @@ const iconBox = (color: string) => ({
 } as React.CSSProperties);
 
 export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
-
   const chartAxis = { fontSize: 9, fill: 'rgba(255,255,255,0.35)' };
+  const tooltip   = { background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' };
 
   return (
-    <div className="mb-8">
-      <button
-        onClick={() => setIsOpen(prev => !prev)}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all mb-4"
-        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.55)' }}
-      >
-        <BarChart2 className="w-4 h-4 text-blue-400" />
-        Estadísticas del equipo
-        <ChevronDown className={`w-4 h-4 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
 
-      {isOpen && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-fade-in">
-
-          {/* WIDGET A: Total Trabajadores */}
-          <div style={widgetStyle}>
-            <button onClick={() => toggleWidget('w_total')} style={flipBtnStyle}>
-              {flippedWidgets['w_total'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w_total'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox('#2563eb')}><Users size={20} style={{ color: '#60a5fa' }} /></div>
-                <div>
-                  <p style={labelStyle}>Total Trabajadores</p>
-                  <h4 style={valueStyle}>{stats.total}</h4>
-                  {stats.inactivos > 0 && <p style={subStyle}>{stats.inactivos} inactivos</p>}
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartTotal}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartTotal.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* WIDGET B: Género */}
-          <div style={widgetStyle}>
-            <button onClick={() => toggleWidget('w_genero')} style={flipBtnStyle}>
-              {flippedWidgets['w_genero'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w_genero'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox('#a855f7')}><Users size={20} style={{ color: '#c084fc' }} /></div>
-                <div className="w-full pr-8">
-                  <p style={labelStyle}>Distribución Género</p>
-                  <div className="flex justify-between items-center w-full">
-                    <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.mujeres} <span style={subStyle}>Muj.</span></span>
-                    <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.hombres} <span style={subStyle}>Hom.</span></span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <div style={{ width: `${(stats.mujeres / stats.total) * 100}%`, background: '#c084fc' }} className="h-full" />
-                    <div style={{ width: `${(stats.hombres / stats.total) * 100}%`, background: '#60a5fa' }} className="h-full" />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartGenero}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartGenero.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* WIDGET C: Modalidad */}
-          <div style={widgetStyle}>
-            <button onClick={() => toggleWidget('w_modalidad')} style={flipBtnStyle}>
-              {flippedWidgets['w_modalidad'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w_modalidad'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox('#10b981')}><Laptop size={20} style={{ color: '#34d399' }} /></div>
-                <div>
-                  <p style={labelStyle}>Teletrabajo</p>
-                  <h4 style={valueStyle}>{stats.teletrabajo} <span style={subStyle}>/ {stats.presencial} Ofi.</span></h4>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartModalidad}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartModalidad.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* WIDGET 1: Jornada */}
-          <div style={{ ...widgetStyle, borderColor: stats.jornadaMayor > 0 ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)' }}>
-            <button onClick={() => toggleWidget('w1')} style={flipBtnStyle}>
-              {flippedWidgets['w1'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w1'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox(stats.jornadaMayor > 0 ? '#f59e0b' : '#10b981')}>
-                  <Clock size={20} style={{ color: stats.jornadaMayor > 0 ? '#fbbf24' : '#34d399' }} />
-                </div>
-                <div>
-                  <p style={labelStyle}>Transición 40 Horas</p>
-                  <h4 style={valueStyle}>{stats.jornada40} <span style={subStyle}>listos</span></h4>
-                  {stats.jornadaMayor > 0 && <p style={{ ...subStyle, color: '#fbbf24' }}>Faltan {stats.jornadaMayor}</p>}
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartJornada}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartJornada.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* WIDGET 2: Extranjería */}
-          <div style={{ ...widgetStyle, borderColor: stats.pctExtranjeros > 15 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)' }}>
-            <button onClick={() => toggleWidget('w2')} style={flipBtnStyle}>
-              {flippedWidgets['w2'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w2'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox(stats.pctExtranjeros > 15 ? '#ef4444' : '#2563eb')}>
-                  <Globe size={20} style={{ color: stats.pctExtranjeros > 15 ? '#f87171' : '#60a5fa' }} />
-                </div>
-                <div>
-                  <p style={labelStyle}>Cuota Extranjería</p>
-                  <h4 style={valueStyle}>{stats.extranjeros} <span style={subStyle}>extranjeros</span></h4>
-                  <p style={{ ...subStyle, color: stats.pctExtranjeros > 15 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
-                    {stats.pctExtranjeros.toFixed(1)}% (Límite 15%)
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartNacionalidad}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartNacionalidad.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* WIDGET 3: Masa Salarial */}
-          <div style={widgetStyle}>
-            <button onClick={() => toggleWidget('w3')} style={flipBtnStyle}>
-              {flippedWidgets['w3'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w3'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox('#10b981')}><CircleDollarSign size={20} style={{ color: '#34d399' }} /></div>
-                <div>
-                  <p style={labelStyle}>Masa Salarial Total</p>
-                  <h4 style={{ ...valueStyle, fontSize: '1.25rem' }}>${stats.masaSalarial.toLocaleString('es-CL')}</h4>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartCentros}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} formatter={(v) => `$${Number(v || 0).toLocaleString('es-CL')}`} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ ...chartAxis, fontSize: 8 }} />
-                    <Bar dataKey="valor" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={30} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-
-          {/* WIDGET 4: Top Centro */}
-          <div style={{ ...widgetStyle, flexDirection: 'row', alignItems: 'center', gap: '1rem' }}>
-            <div style={iconBox('#6366f1')}><Building2 size={20} style={{ color: '#818cf8' }} /></div>
-            <div className="overflow-hidden">
-              <p style={labelStyle}>Mayor Centro de Costo</p>
-              <h4 className="truncate" style={{ ...valueStyle, fontSize: '1rem' }} title={stats.topCentro.name}>{stats.topCentro.name}</h4>
-              <p style={{ ...subStyle, color: '#818cf8' }}>${(stats.topCentro.valor as number).toLocaleString('es-CL')}</p>
+      {/* ── 1. Total Trabajadores ─────────────────────────── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w_total')} style={flipBtnStyle}>
+          {flippedWidgets['w_total'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w_total'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#2563eb')}><Users size={20} style={{ color: '#60a5fa' }} /></div>
+            <div>
+              <p style={labelStyle}>Total Trabajadores</p>
+              <h4 style={valueStyle}>{stats.activos}</h4>
+              {stats.inactivos > 0 && <p style={subStyle}>{stats.inactivos} inactivos</p>}
             </div>
           </div>
-
-          {/* WIDGET 5: Generaciones */}
-          <div style={widgetStyle}>
-            <button onClick={() => toggleWidget('w5')} style={flipBtnStyle}>
-              {flippedWidgets['w5'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w5'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox('#a855f7')}><Users size={20} style={{ color: '#c084fc' }} /></div>
-                <div className="w-full pr-8">
-                  <p style={labelStyle}>Generaciones</p>
-                  <div className="flex justify-between items-end text-center w-full mt-1">
-                    {[[stats.menores30, '< 30'], [stats.entre30y50, '30-50'], [stats.mayores50, '> 50']].map(([v, lbl]) => (
-                      <div key={String(lbl)}>
-                        <div style={{ fontSize: '1.125rem', fontWeight: 800, color: '#fff' }}>{v}</div>
-                        <div style={{ fontSize: '0.625rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)' }}>{lbl}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartGeneraciones}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartGeneraciones.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartTotal}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartTotal.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
+        )}
+      </div>
 
-          {/* WIDGET 6: Bancarización */}
-          <div style={widgetStyle}>
-            <button onClick={() => toggleWidget('w6')} style={flipBtnStyle}>
-              {flippedWidgets['w6'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
-            </button>
-            {!flippedWidgets['w6'] ? (
-              <div className="flex items-center gap-4">
-                <div style={iconBox('#06b6d4')}><Landmark size={20} style={{ color: '#22d3ee' }} /></div>
+      {/* ── 2. Distribución Género ────────────────────────── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w_genero')} style={flipBtnStyle}>
+          {flippedWidgets['w_genero'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w_genero'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#a855f7')}><Users size={20} style={{ color: '#c084fc' }} /></div>
+            <div className="w-full pr-8">
+              <p style={labelStyle}>Distribución Género</p>
+              <div className="flex justify-between items-center w-full">
+                <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.mujeres} <span style={subStyle}>Muj.</span></span>
+                <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.hombres} <span style={subStyle}>Hom.</span></span>
+              </div>
+              <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <div style={{ width: `${stats.total > 0 ? (stats.mujeres / stats.total) * 100 : 0}%`, background: '#c084fc' }} className="h-full" />
+                <div style={{ width: `${stats.total > 0 ? (stats.hombres / stats.total) * 100 : 0}%`, background: '#60a5fa' }} className="h-full" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartGenero}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartGenero.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ── 3. Modalidad (corregido: Presencial / Remoto / Híbrido) ── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w_modalidad')} style={flipBtnStyle}>
+          {flippedWidgets['w_modalidad'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w_modalidad'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#10b981')}><Laptop size={20} style={{ color: '#34d399' }} /></div>
+            <div className="w-full pr-8">
+              <p style={labelStyle}>Modalidad</p>
+              <div className="flex gap-5 mt-1">
                 <div>
-                  <p style={labelStyle}>Bancarización (Pagos)</p>
-                  <h4 style={valueStyle}>{stats.bancarizados} <span style={subStyle}>digital</span></h4>
-                  {stats.noBancarizados > 0 && <p style={{ ...subStyle, color: '#fbbf24' }}>{stats.noBancarizados} pagos manuales</p>}
+                  <div style={{ ...valueStyle, fontSize: '1.125rem' }}>{stats.presencial}</div>
+                  <div style={subStyle}>Presencial</div>
+                </div>
+                <div>
+                  <div style={{ ...valueStyle, fontSize: '1.125rem', color: '#34d399' }}>{stats.remoto}</div>
+                  <div style={subStyle}>Remoto</div>
+                </div>
+                <div>
+                  <div style={{ ...valueStyle, fontSize: '1.125rem', color: '#22d3ee' }}>{stats.hibrido}</div>
+                  <div style={subStyle}>Híbrido</div>
                 </div>
               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartModalidad}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartModalidad.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. Tipos de Contrato ──────────────────────────── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w_contratos')} style={flipBtnStyle}>
+          {flippedWidgets['w_contratos'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w_contratos'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#6366f1')}><FileText size={20} style={{ color: '#818cf8' }} /></div>
+            <div className="w-full pr-8">
+              <p style={labelStyle}>Tipos de Contrato</p>
+              <div className="flex gap-5 mt-1">
+                <div>
+                  <div style={{ ...valueStyle, fontSize: '1.125rem', color: '#60a5fa' }}>{stats.indefinido}</div>
+                  <div style={subStyle}>Indefinido</div>
+                </div>
+                <div>
+                  <div style={{ ...valueStyle, fontSize: '1.125rem', color: '#fbbf24' }}>{stats.plazoFijo}</div>
+                  <div style={subStyle}>Plazo Fijo</div>
+                </div>
+                <div>
+                  <div style={{ ...valueStyle, fontSize: '1.125rem', color: '#fb923c' }}>{stats.obraFaena}</div>
+                  <div style={subStyle}>Obra/Faena</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartTiposContrato}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartTiposContrato.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ── 5. Cuota Extranjería ──────────────────────────── */}
+      <div style={{ ...widgetStyle, borderColor: stats.pctExtranjeros > 15 ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)' }}>
+        <button onClick={() => toggleWidget('w2')} style={flipBtnStyle}>
+          {flippedWidgets['w2'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w2'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox(stats.pctExtranjeros > 15 ? '#ef4444' : '#2563eb')}>
+              <Globe size={20} style={{ color: stats.pctExtranjeros > 15 ? '#f87171' : '#60a5fa' }} />
+            </div>
+            <div>
+              <p style={labelStyle}>Cuota Extranjería</p>
+              <h4 style={valueStyle}>{stats.extranjeros} <span style={subStyle}>extranjeros</span></h4>
+              <p style={{ ...subStyle, color: stats.pctExtranjeros > 15 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
+                {stats.pctExtranjeros.toFixed(1)}% (Límite 15%)
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartNacionalidad}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartNacionalidad.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ── 6. Masa Salarial (+ promedio) ─────────────────── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w3')} style={flipBtnStyle}>
+          {flippedWidgets['w3'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w3'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#10b981')}><CircleDollarSign size={20} style={{ color: '#34d399' }} /></div>
+            <div>
+              <p style={labelStyle}>Masa Salarial Total</p>
+              <h4 style={{ ...valueStyle, fontSize: '1.25rem' }}>${stats.masaSalarial.toLocaleString('es-CL')}</h4>
+              <p style={subStyle}>Prom. ${stats.promedioSalarial.toLocaleString('es-CL')} / trabajador</p>
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartCentros}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} formatter={(v) => `$${Number(v || 0).toLocaleString('es-CL')}`} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ ...chartAxis, fontSize: 8 }} />
+                <Bar dataKey="valor" fill="#10b981" radius={[4,4,0,0]} maxBarSize={30} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ── 7. Sistema de Salud ───────────────────────────── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w_salud')} style={flipBtnStyle}>
+          {flippedWidgets['w_salud'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w_salud'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#10b981')}><Activity size={20} style={{ color: '#34d399' }} /></div>
+            <div className="w-full pr-8">
+              <p style={labelStyle}>Sistema de Salud</p>
+              <div className="flex justify-between items-center w-full mt-1">
+                <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.fonasa} <span style={subStyle}>FONASA</span></span>
+                <span style={{ ...valueStyle, fontSize: '1rem', color: '#34d399' }}>{stats.isapre} <span style={subStyle}>ISAPRE</span></span>
+              </div>
+              {(stats.fonasa + stats.isapre) > 0 && (
+                <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                  <div style={{ width: `${(stats.fonasa / (stats.fonasa + stats.isapre)) * 100}%`, background: '#3b82f6' }} className="h-full" />
+                  <div style={{ width: `${(stats.isapre / (stats.fonasa + stats.isapre)) * 100}%`, background: '#10b981' }} className="h-full" />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartSalud}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartSalud.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* ── 8. Contratos por Vencer ───────────────────────── */}
+      <div style={{
+        ...widgetStyle,
+        borderColor: stats.contratosVencen.length > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)',
+      }}>
+        <button onClick={() => toggleWidget('w_vencen')} style={flipBtnStyle}>
+          {flippedWidgets['w_vencen'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w_vencen'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox(stats.contratosVencen.length > 0 ? '#ef4444' : '#10b981')}>
+              <AlertTriangle size={20} style={{ color: stats.contratosVencen.length > 0 ? '#f87171' : '#34d399' }} />
+            </div>
+            <div>
+              <p style={labelStyle}>Contratos por Vencer</p>
+              <h4 style={valueStyle}>{stats.contratosVencen.length}</h4>
+              <p style={{ ...subStyle, color: stats.contratosVencen.length > 0 ? '#f87171' : '#34d399' }}>
+                {stats.contratosVencen.length > 0 ? 'vencen en ≤ 30 días' : 'ninguno próximo'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full">
+            {stats.contratosVencen.length === 0 ? (
+              <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
+                No hay contratos próximos a vencer
+              </p>
             ) : (
-              <div className="h-full w-full pt-2">
-                <ResponsiveContainer width="100%" height={80}>
-                  <BarChart data={stats.chartBancos}>
-                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' }} />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                    <Bar dataKey="valor" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {stats.chartBancos.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="space-y-2">
+                {stats.contratosVencen.slice(0, 4).map((c, i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <span style={{ fontSize: '0.775rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                      {c.nombre}
+                    </span>
+                    <span style={{
+                      fontSize: '0.7rem', fontWeight: 700,
+                      color: c.diasRestantes <= 7 ? '#f87171' : c.diasRestantes <= 15 ? '#fbbf24' : 'rgba(255,255,255,0.4)',
+                      background: c.diasRestantes <= 7 ? 'rgba(239,68,68,0.12)' : c.diasRestantes <= 15 ? 'rgba(251,191,36,0.1)' : 'transparent',
+                      padding: '0.15rem 0.5rem', borderRadius: '1rem',
+                    }}>
+                      {c.diasRestantes}d
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
+        )}
+      </div>
 
-        </div>
-      )}
+      {/* ── 9. Bancarización ──────────────────────────────── */}
+      <div style={widgetStyle}>
+        <button onClick={() => toggleWidget('w6')} style={flipBtnStyle}>
+          {flippedWidgets['w6'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
+        </button>
+        {!flippedWidgets['w6'] ? (
+          <div className="flex items-center gap-4">
+            <div style={iconBox('#06b6d4')}><Landmark size={20} style={{ color: '#22d3ee' }} /></div>
+            <div>
+              <p style={labelStyle}>Bancarización (Pagos)</p>
+              <h4 style={valueStyle}>{stats.bancarizados} <span style={subStyle}>digital</span></h4>
+              {stats.noBancarizados > 0 && <p style={{ ...subStyle, color: '#fbbf24' }}>{stats.noBancarizados} pagos manuales</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="h-full w-full pt-2">
+            <ResponsiveContainer width="100%" height={80}>
+              <BarChart data={stats.chartBancos}>
+                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
+                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+                  {stats.chartBancos.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
