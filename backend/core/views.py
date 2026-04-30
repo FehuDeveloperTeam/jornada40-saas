@@ -39,8 +39,8 @@ import urllib.parse
 from django.db.models import Max, Sum, Exists, OuterRef
 from django.core.files.base import ContentFile
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer, FiniquitoSerializer
 from . import b2_client
 from django.core.mail import EmailMultiAlternatives
 import uuid as uuid_mod
@@ -1734,6 +1734,268 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             print(traceback.format_exc())
             print("===========================")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ==========================================
+# FINIQUITO
+# ==========================================
+
+_TASAS_AFP = {
+    'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
+    'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049,
+}
+_VALOR_UF = 38000  # valor referencial
+
+# Causales que dan derecho a indemnización por años (Art. 161)
+_CAUSALES_CON_INDEMNIZACION = {'161_1', '161_2', '163bis'}
+
+
+def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, causal_articulo):
+    """Precalcula todos los montos del finiquito a partir de datos del empleado."""
+    contrato = Contrato.objects.filter(empleado=empleado).first()
+    sueldo_base = contrato.sueldo_base if contrato else empleado.sueldo_base
+
+    # Sueldo proporcional último mes
+    sueldo_proporcional = math.floor((sueldo_base / 30) * dias_trabajados_ultimo_mes)
+
+    # Gratificación proporcional (25% del sueldo proporcional, tope $200.000)
+    gratificacion = min(math.floor(sueldo_proporcional * 0.25), 200_000)
+
+    # Vacaciones adeudadas → feriado proporcional
+    saldo_vac = calcular_saldo_vacaciones(empleado)
+    dias_vac = saldo_vac['dias_disponibles']
+    feriado_prop = math.floor((sueldo_base / 30) * dias_vac)
+
+    # Indemnización por años de servicio (solo Art. 161 y 163bis)
+    anos = (fecha_termino - empleado.fecha_ingreso).days // 365 if empleado.fecha_ingreso else 0
+    if causal_articulo in _CAUSALES_CON_INDEMNIZACION:
+        indemnizacion_anos = sueldo_base * min(anos, 11)
+    else:
+        indemnizacion_anos = 0
+
+    # Descuentos previsionales sobre sueldo proporcional
+    nombre_afp = (empleado.afp or 'MODELO').upper()
+    tasa_afp = _TASAS_AFP.get(nombre_afp, 0.11)
+    afp_monto = math.floor(sueldo_proporcional * tasa_afp)
+
+    salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
+    if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf and float(empleado.plan_isapre_uf) > 0:
+        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * _VALOR_UF),
+                          math.floor(sueldo_proporcional * 0.07))
+    else:
+        salud_monto = math.floor(sueldo_proporcional * 0.07)
+
+    descuentos_prevision = afp_monto + salud_monto
+
+    total = (sueldo_proporcional + gratificacion + feriado_prop
+             + indemnizacion_anos - descuentos_prevision)
+
+    return {
+        'sueldo_base':                  sueldo_base,
+        'dias_trabajados_ultimo_mes':   dias_trabajados_ultimo_mes,
+        'gratificacion_proporcional':   gratificacion,
+        'feriado_proporcional':         feriado_prop,
+        'indemnizacion_anos_servicio':  indemnizacion_anos,
+        'indemnizacion_sustitutiva_aviso': 0,
+        'otros_haberes':                0,
+        'otros_descuentos':             0,
+        'descuentos_prevision':         descuentos_prevision,
+        'total_a_pagar':                max(total, 0),
+    }
+
+
+class FiniquitoViewSet(viewsets.ModelViewSet):
+    serializer_class = FiniquitoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Finiquito.objects.filter(
+            empleado__empresa__owner=self.request.user
+        ).order_by('-fecha_emision')
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            qs = qs.filter(empleado_id=empleado_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        empleado_id = data.get('empleado')
+
+        try:
+            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            fecha_termino = datetime.date.fromisoformat(str(data.get('fecha_termino', '')))
+        except (ValueError, TypeError):
+            return Response({'error': 'Fecha de término inválida.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        dias = int(data.get('dias_trabajados_ultimo_mes', 30))
+        causal = str(data.get('causal_articulo', ''))
+
+        montos = _calcular_finiquito(empleado, fecha_termino, dias, causal)
+
+        # Los montos pueden ser sobreescritos si el usuario los envía explícitamente
+        for campo in montos:
+            if campo in data and data[campo] is not None:
+                montos[campo] = int(data[campo])
+
+        # Recalcular total si algún monto fue sobreescrito
+        montos['total_a_pagar'] = max(
+            montos['sueldo_base'] // 30 * montos['dias_trabajados_ultimo_mes']
+            + montos['gratificacion_proporcional']
+            + montos['feriado_proporcional']
+            + montos['indemnizacion_anos_servicio']
+            + montos['indemnizacion_sustitutiva_aviso']
+            + montos['otros_haberes']
+            - montos['otros_descuentos']
+            - montos['descuentos_prevision'],
+            0,
+        )
+
+        finiquito = Finiquito.objects.create(
+            empleado=empleado,
+            documento_legal_id=data.get('documento_legal') or None,
+            causal_articulo=causal,
+            fecha_termino=fecha_termino,
+            fecha_emision=datetime.date.fromisoformat(
+                str(data.get('fecha_emision', datetime.date.today().isoformat()))
+            ),
+            modalidad=data.get('modalidad', 'PRESENCIAL'),
+            **montos,
+        )
+
+        serializer = self.get_serializer(finiquito)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='generar_pdf')
+    def generar_pdf(self, request, pk=None):
+        try:
+            finiquito = self.get_object()
+            empleado  = finiquito.empleado
+            empresa   = empleado.empresa
+
+            def _fmt(f):
+                if not f:
+                    return '—'
+                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
+
+            ciudad = (getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
+            causal_label = finiquito.get_causal_articulo_display() if finiquito.causal_articulo else '—'
+
+            sueldo_prop = math.floor(
+                (finiquito.sueldo_base / 30) * finiquito.dias_trabajados_ultimo_mes
+            )
+
+            html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page {{ size: letter; margin: 2cm 2.5cm; }}
+  body {{ font-family: Arial, sans-serif; font-size: 10pt; color: #111; line-height: 1.5; }}
+  h1 {{ font-size: 14pt; text-align: center; text-transform: uppercase;
+        letter-spacing: 2px; margin-bottom: 4px; }}
+  h2 {{ font-size: 10pt; text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }}
+  .seccion {{ margin-bottom: 16px; }}
+  .seccion-titulo {{ font-size: 9pt; font-weight: bold; text-transform: uppercase;
+                     letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
+                     padding-bottom: 3px; margin-bottom: 8px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
+  table td {{ padding: 4px 6px; vertical-align: top; }}
+  table td:last-child {{ text-align: right; font-weight: bold; }}
+  .total-row td {{ border-top: 2px solid #333; font-weight: bold; font-size: 11pt;
+                   padding-top: 8px; }}
+  .firma-bloque {{ margin-top: 60px; display: flex; justify-content: space-between; }}
+  .firma-item {{ text-align: center; width: 44%; }}
+  .firma-linea {{ border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 9pt; }}
+  p {{ margin: 4px 0; }}
+  .aviso {{ font-size: 8pt; color: #666; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }}
+</style>
+</head>
+<body>
+
+<h1>Finiquito de Contrato de Trabajo</h1>
+<h2>{ciudad}, {_fmt(finiquito.fecha_emision)}</h2>
+
+<div class="seccion">
+  <div class="seccion-titulo">Partes</div>
+  <p><strong>Empleador:</strong> {empresa.nombre_legal} — RUT {empresa.rut}</p>
+  <p><strong>Trabajador:</strong> {empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''} — RUT {empleado.rut}</p>
+  <p><strong>Cargo:</strong> {empleado.cargo or '—'} &nbsp;|&nbsp; <strong>Departamento:</strong> {empleado.departamento or '—'}</p>
+  <p><strong>Fecha de ingreso:</strong> {_fmt(empleado.fecha_ingreso)} &nbsp;|&nbsp;
+     <strong>Fecha de término:</strong> {_fmt(finiquito.fecha_termino)}</p>
+  <p><strong>Causal de término:</strong> {causal_label}</p>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Liquidación Final</div>
+  <table>
+    <tr><td>Sueldo base proporcional ({finiquito.dias_trabajados_ultimo_mes} días)</td>
+        <td>${sueldo_prop:,.0f}</td></tr>
+    <tr><td>Gratificación proporcional</td>
+        <td>${finiquito.gratificacion_proporcional:,.0f}</td></tr>
+    <tr><td>Feriado proporcional ({(finiquito.feriado_proporcional * 30 // finiquito.sueldo_base) if finiquito.sueldo_base else 0} días aprox.)</td>
+        <td>${finiquito.feriado_proporcional:,.0f}</td></tr>
+    {f'<tr><td>Indemnización por años de servicio (Art. 163)</td><td>${finiquito.indemnizacion_anos_servicio:,.0f}</td></tr>' if finiquito.indemnizacion_anos_servicio else ''}
+    {f'<tr><td>Indemnización sustitutiva de aviso previo</td><td>${finiquito.indemnizacion_sustitutiva_aviso:,.0f}</td></tr>' if finiquito.indemnizacion_sustitutiva_aviso else ''}
+    {f'<tr><td>Otros haberes</td><td>${finiquito.otros_haberes:,.0f}</td></tr>' if finiquito.otros_haberes else ''}
+    <tr><td>Descuentos previsionales (AFP + Salud)</td>
+        <td>-${finiquito.descuentos_prevision:,.0f}</td></tr>
+    {f'<tr><td>Otros descuentos</td><td>-${finiquito.otros_descuentos:,.0f}</td></tr>' if finiquito.otros_descuentos else ''}
+    <tr class="total-row">
+      <td>TOTAL A PAGAR</td>
+      <td>${finiquito.total_a_pagar:,.0f}</td>
+    </tr>
+  </table>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Declaración del Trabajador</div>
+  <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
+  y nada más tiene que reclamar al empleador por concepto alguno derivado de la relación laboral
+  que los vinculó, quedando ambas partes en paz y a finiquito.</p>
+  <p>Modalidad de suscripción del finiquito: <strong>{finiquito.get_modalidad_display()}</strong></p>
+</div>
+
+<div class="firma-bloque">
+  <div class="firma-item">
+    <div class="firma-linea">
+      <strong>{empresa.nombre_legal}</strong><br/>RUT {empresa.rut}<br/>Empleador
+    </div>
+  </div>
+  <div class="firma-item">
+    <div class="firma-linea">
+      <strong>{empleado.nombres} {empleado.apellido_paterno}</strong><br/>RUT {empleado.rut}<br/>Trabajador
+    </div>
+  </div>
+</div>
+
+<p class="aviso">
+  Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de la República de Chile.
+  Generado por Jornada40 · {_fmt(finiquito.fecha_emision)}.
+</p>
+
+</body>
+</html>"""
+
+            buffer = io.BytesIO()
+            pisa_status = pisa.CreatePDF(html, dest=buffer)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar el PDF.'}, status=500)
+
+            buffer.seek(0)
+            response = HttpResponse(buffer.read(), content_type='application/pdf')
+            response['Content-Disposition'] = (
+                f'attachment; filename="finiquito_{empleado.rut}_{finiquito.fecha_termino}.pdf"'
+            )
+            return response
+
+        except Finiquito.DoesNotExist:
+            return Response({'error': 'Finiquito no encontrado.'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
 
 # ==========================================
 # FIRMA ELECTRÓNICA

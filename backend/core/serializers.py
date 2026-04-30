@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion, SolicitudFirma, VacacionEmpleado
+from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion, SolicitudFirma, VacacionEmpleado, Finiquito
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
@@ -181,6 +181,27 @@ class VacacionSerializer(serializers.ModelSerializer):
             'dias_habiles_calculados',
         ]
         read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'dias_habiles_calculados')
+
+
+class FiniquitoSerializer(serializers.ModelSerializer):
+    causal_articulo_label = serializers.SerializerMethodField()
+
+    def get_causal_articulo_label(self, obj):
+        return obj.get_causal_articulo_display() if obj.causal_articulo else ''
+
+    class Meta:
+        model = Finiquito
+        fields = [
+            'id', 'empleado', 'documento_legal',
+            'causal_articulo', 'causal_articulo_label',
+            'fecha_termino', 'fecha_emision',
+            'sueldo_base', 'dias_trabajados_ultimo_mes', 'gratificacion_proporcional',
+            'feriado_proporcional', 'indemnizacion_anos_servicio',
+            'indemnizacion_sustitutiva_aviso', 'otros_haberes', 'otros_descuentos',
+            'descuentos_prevision', 'total_a_pagar',
+            'modalidad', 'archivo_pdf', 'creado_en',
+        ]
+        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'causal_articulo_label')
 
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
