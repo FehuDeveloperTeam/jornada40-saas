@@ -125,6 +125,33 @@ function FirmaBadge({
     );
   }
 
+  if (activa.estado === 'RECHAZADO') {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+          style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)' }}>
+          <XCircle className="w-3 h-3" />Rechazado
+        </span>
+        <button type="button" onClick={() => onVerDetalle(activa)}
+          className="text-xs font-semibold flex items-center gap-1 transition-colors"
+          style={{ color: 'rgba(255,255,255,0.4)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+          <Eye className="w-3 h-3" />Ver motivo
+        </button>
+        <button type="button" onClick={onEnviar} disabled={sending}
+          className="text-xs font-semibold flex items-center gap-1 transition-colors"
+          style={{ color: sending ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.4)', cursor: sending ? 'not-allowed' : 'pointer' }}
+          onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+          onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}>
+          {sending
+            ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white/60 rounded-full animate-spin" />Enviando...</>
+            : <><RotateCcw className="w-3 h-3" />Re-enviar</>}
+        </button>
+      </div>
+    );
+  }
+
   if (activa.estado === 'EXPIRADO') {
     return (
       <button type="button" onClick={onEnviar} disabled={sending}
