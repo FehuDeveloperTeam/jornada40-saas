@@ -2267,6 +2267,7 @@ def firma_publica_info(request, token):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
     }
     empleado = solicitud.empleado
     empresa  = solicitud.empresa
@@ -2720,3 +2721,172 @@ def firma_publica_firmar(request, token):
         pass
 
     return Response({'firmado': True, 'firmado_en': firmado_en.isoformat()})
+
+
+# ============================================================
+# FASE 9 — Previsualización y rechazo por parte del trabajador
+# ============================================================
+
+_TIPO_LABELS_PUBLICO = {
+    'CONTRATO':       'Contrato Laboral',
+    'ANEXO_40H':      'Anexo Ley 40 Horas',
+    'AMONESTACION':   'Carta de Amonestación',
+    'DESPIDO':        'Carta de Despido',
+    'CONSTANCIA':     'Constancia Laboral',
+    'ANEXO_CONTRATO': 'Anexo de Contrato',
+    'LIQUIDACION':    'Liquidación de Sueldo',
+    'VACACION':       'Comprobante de Vacaciones',
+}
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def firma_publica_documento(request, token):
+    """
+    Retorna el PDF del documento para que el trabajador lo revise antes de firmar.
+    Solo requiere el token — ver el documento no constituye firma ni compromiso.
+    Si la solicitud ya fue firmada, retorna el PDF firmado con certificado.
+    """
+    try:
+        solicitud = SolicitudFirma.objects.select_related('empleado').get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return HttpResponse(status=404)
+
+    if solicitud.estado in ('CANCELADO', 'EXPIRADO'):
+        return HttpResponse(status=410)
+
+    # Elegir qué versión del PDF servir
+    if solicitud.estado == 'FIRMADO' and solicitud.b2_key_firmado:
+        b2_key = solicitud.b2_key_firmado
+    elif solicitud.b2_key_temporal:
+        b2_key = solicitud.b2_key_temporal
+    else:
+        return HttpResponse(status=404)
+
+    try:
+        pdf_bytes = b2_client.descargar_documento(b2_key)
+    except Exception as exc:
+        return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
+
+    tipo_label = _TIPO_LABELS_PUBLICO.get(solicitud.tipo_documento, solicitud.tipo_documento)
+    apellido   = solicitud.empleado.apellido_paterno.replace(' ', '_')
+    filename   = f"{tipo_label.replace(' ', '_')}_{apellido}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    response['Content-Length']      = len(pdf_bytes)
+    return response
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def firma_publica_rechazar(request, token):
+    """
+    El trabajador rechaza el documento tras verificar su identidad con OTP.
+    Requiere sesion_token válido. Cambia estado a RECHAZADO y notifica al empleador.
+    """
+    sesion_token = str(request.data.get('sesion_token', '')).strip()
+    motivo       = str(request.data.get('motivo', '')).strip()
+
+    if not sesion_token:
+        return Response({'error': 'Sesión inválida. Vuelve a verificar tu identidad.'}, status=400)
+
+    try:
+        solicitud = SolicitudFirma.objects.select_related(
+            'empleado', 'empresa', 'empresa__owner'
+        ).get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud no encontrada.'}, status=404)
+
+    if solicitud.estado != 'PENDIENTE':
+        return Response(
+            {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
+            status=400,
+        )
+
+    if timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+    if (not solicitud.sesion_token_trabajador
+            or str(solicitud.sesion_token_trabajador) != sesion_token):
+        return Response(
+            {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
+            status=403,
+        )
+
+    solicitud.estado = 'RECHAZADO'
+    solicitud.save(update_fields=['estado', 'actualizado_en'])
+
+    try:
+        _notificar_rechazo_empleador(solicitud, motivo)
+    except Exception:
+        pass  # el rechazo ya fue registrado; el email es no-crítico
+
+    return Response({'rechazado': True})
+
+
+def _notificar_rechazo_empleador(solicitud: SolicitudFirma, motivo: str):
+    """Envía un email al empleador informando que el trabajador rechazó el documento."""
+    tipo_label      = _TIPO_LABELS_PUBLICO.get(solicitud.tipo_documento, solicitud.tipo_documento)
+    empleado        = solicitud.empleado
+    empresa         = solicitud.empresa
+    nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
+    email_empleador = empresa.owner.email
+    if not email_empleador:
+        return
+
+    motivo_bloque = (
+        f"<div style='background:#fff3cd;border-left:4px solid #f59e0b;padding:12px 16px;"
+        f"border-radius:6px;margin:20px 0;'>"
+        f"<p style='margin:0;font-size:13px;color:#92400e;font-weight:600;'>Motivo indicado</p>"
+        f"<p style='margin:4px 0 0;font-size:14px;color:#374151;'>{motivo}</p></div>"
+        if motivo else ""
+    )
+    motivo_texto = f"\n\nMotivo indicado por el trabajador: {motivo}" if motivo else ""
+
+    texto_plano = (
+        f"El trabajador {nombre_trabajador} rechazó la firma del documento «{tipo_label}».\n"
+        f"Empresa: {empresa.nombre_legal}{motivo_texto}\n\n"
+        f"Revisa el documento y comunícate con el trabajador para resolver el inconveniente.\n\n"
+        f"Jornada40 — Sistema de Gestión Laboral"
+    )
+    html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#7f1d1d,#991b1b);padding:32px 40px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Documento Rechazado</h1>
+      <p style="color:rgba(255,255,255,0.7);margin:6px 0 0;font-size:14px;">{empresa.nombre_legal}</p>
+    </div>
+    <div style="padding:32px 40px;">
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px;">
+        El trabajador <strong>{nombre_trabajador}</strong> rechazó la firma del siguiente documento:
+      </p>
+      <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+        <p style="margin:0;font-weight:700;color:#991b1b;font-size:15px;">{tipo_label}</p>
+        <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">{empresa.nombre_legal}</p>
+      </div>
+      {motivo_bloque}
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">
+        Comunícate con el trabajador para revisar el documento y volver a enviarlo una vez corregido.
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+        Firma Electrónica Simple · Ley N° 19.799 · Jornada40
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    msg = EmailMultiAlternatives(
+        subject=f"Documento rechazado: {nombre_trabajador} rechazó «{tipo_label}»",
+        body=texto_plano,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[email_empleador],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send()
