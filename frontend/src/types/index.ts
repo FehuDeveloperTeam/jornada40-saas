@@ -244,6 +244,29 @@ export interface Liquidacion {
     fecha_emision: string;
 }
 
+export interface Finiquito {
+    id: number;
+    empleado: number;
+    documento_legal: number | null;
+    causal_articulo: string;
+    causal_articulo_label: string;
+    fecha_termino: string;
+    fecha_emision: string;
+    sueldo_base: number;
+    dias_trabajados_ultimo_mes: number;
+    gratificacion_proporcional: number;
+    feriado_proporcional: number;
+    indemnizacion_anos_servicio: number;
+    indemnizacion_sustitutiva_aviso: number;
+    otros_haberes: number;
+    otros_descuentos: number;
+    descuentos_prevision: number;
+    total_a_pagar: number;
+    modalidad: 'PRESENCIAL' | 'ELECTRONICO';
+    archivo_pdf: string | null;
+    creado_en: string;
+}
+
 export interface SolicitudFirma {
     id: number;
     empleado: number;
