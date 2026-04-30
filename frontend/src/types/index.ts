@@ -259,6 +259,7 @@ export interface SolicitudFirma {
     enviado_en: string;
     firmado_en: string | null;
     expira_en: string;
+    motivo_rechazo: string;
     empleado_nombre: string;
     empresa_nombre: string;
 }
