@@ -1,6 +1,6 @@
 import React from 'react';
 import { BarChart2, Undo2, Users, Laptop, Globe, CircleDollarSign, Landmark, FileText, AlertTriangle, Activity } from 'lucide-react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 
 type Props = {
@@ -70,15 +70,14 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartTotal}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+          <div className="flex items-center justify-center py-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={stats.chartTotal} cx="50%" cy="50%" innerRadius={26} outerRadius={42} dataKey="valor" paddingAngle={3} strokeWidth={0}>
                   {stats.chartTotal.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip contentStyle={tooltip} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -105,15 +104,14 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartGenero}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+          <div className="flex items-center justify-center py-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={stats.chartGenero} cx="50%" cy="50%" innerRadius={26} outerRadius={42} dataKey="valor" paddingAngle={3} strokeWidth={0}>
                   {stats.chartGenero.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip contentStyle={tooltip} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -146,15 +144,14 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartModalidad}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+          <div className="flex items-center justify-center py-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={stats.chartModalidad} cx="50%" cy="50%" innerRadius={26} outerRadius={42} dataKey="valor" paddingAngle={3} strokeWidth={0}>
                   {stats.chartModalidad.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip contentStyle={tooltip} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -187,15 +184,14 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartTiposContrato}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+          <div className="flex items-center justify-center py-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={stats.chartTiposContrato} cx="50%" cy="50%" innerRadius={26} outerRadius={42} dataKey="valor" paddingAngle={3} strokeWidth={0}>
                   {stats.chartTiposContrato.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip contentStyle={tooltip} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -220,16 +216,38 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartNacionalidad}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
-                  {stats.chartNacionalidad.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+          <div className="flex flex-col items-center justify-center pt-1">
+            <ResponsiveContainer width="100%" height={72}>
+              <PieChart>
+                {/* Track gris de fondo (0-30% como máximo visual) */}
+                <Pie
+                  data={[{ value: 100 }]}
+                  cx="50%" cy="100%"
+                  startAngle={180} endAngle={0}
+                  innerRadius={32} outerRadius={46}
+                  dataKey="value" strokeWidth={0}
+                >
+                  <Cell fill="rgba(255,255,255,0.06)" />
+                </Pie>
+                {/* Arco de valor actual (escala: 30% = arco completo) */}
+                <Pie
+                  data={[
+                    { value: Math.min((stats.pctExtranjeros / 30) * 100, 100) },
+                    { value: Math.max(0, 100 - Math.min((stats.pctExtranjeros / 30) * 100, 100)) },
+                  ]}
+                  cx="50%" cy="100%"
+                  startAngle={180} endAngle={0}
+                  innerRadius={32} outerRadius={46}
+                  dataKey="value" paddingAngle={0} strokeWidth={0}
+                >
+                  <Cell fill={stats.pctExtranjeros > 15 ? '#ef4444' : '#6366f1'} />
+                  <Cell fill="transparent" />
+                </Pie>
+              </PieChart>
             </ResponsiveContainer>
+            <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginTop: '-0.25rem' }}>
+              {stats.pctExtranjeros.toFixed(1)}% actual · límite 15%
+            </p>
           </div>
         )}
       </div>
@@ -249,12 +267,19 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartCentros}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} formatter={(v) => `$${Number(v || 0).toLocaleString('es-CL')}`} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ ...chartAxis, fontSize: 8 }} />
-                <Bar dataKey="valor" fill="#10b981" radius={[4,4,0,0]} maxBarSize={30} />
+          <div className="h-full w-full pt-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <BarChart data={stats.chartCentros} layout="vertical" margin={{ left: 0, right: 12, top: 4, bottom: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis
+                  type="category" dataKey="name" axisLine={false} tickLine={false} width={72}
+                  tick={{ fontSize: 8, fill: 'rgba(255,255,255,0.4)' }}
+                />
+                <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip}
+                  formatter={(v) => `$${Number(v || 0).toLocaleString('es-CL')}`}
+                />
+                <Bar dataKey="valor" fill="#10b981" radius={[0,4,4,0]} maxBarSize={11} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -284,15 +309,14 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartSalud}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+          <div className="flex items-center justify-center py-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={stats.chartSalud} cx="50%" cy="50%" innerRadius={26} outerRadius={42} dataKey="valor" paddingAngle={3} strokeWidth={0}>
                   {stats.chartSalud.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip contentStyle={tooltip} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         )}
@@ -363,15 +387,14 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             </div>
           </div>
         ) : (
-          <div className="h-full w-full pt-2">
-            <ResponsiveContainer width="100%" height={80}>
-              <BarChart data={stats.chartBancos}>
-                <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={chartAxis} />
-                <Bar dataKey="valor" radius={[4,4,0,0]} maxBarSize={40}>
+          <div className="flex items-center justify-center py-1">
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={stats.chartBancos} cx="50%" cy="50%" innerRadius={26} outerRadius={42} dataKey="valor" paddingAngle={3} strokeWidth={0}>
                   {stats.chartBancos.map((e, i) => <Cell key={i} fill={e.color} />)}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip contentStyle={tooltip} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
         )}
