@@ -1039,12 +1039,13 @@ export function useDashboard() {
       anexoContratoId?: number;
       liquidacionId?: number;
       vacacionId?: number;
+      finiquitoId?: number;
     }
   ) => {
     if (!selectedEmpleado) return;
     const key = tipoDocumento + String(
       opciones?.documentoLegalId ?? opciones?.anexoContratoId ??
-      opciones?.liquidacionId ?? opciones?.vacacionId ?? ''
+      opciones?.liquidacionId ?? opciones?.vacacionId ?? opciones?.finiquitoId ?? ''
     );
     setIsSendingFirma(prev => ({ ...prev, [key]: true }));
     try {
@@ -1056,6 +1057,7 @@ export function useDashboard() {
         anexo_contrato_id: opciones?.anexoContratoId ?? null,
         liquidacion_id: opciones?.liquidacionId ?? null,
         vacacion_id: opciones?.vacacionId ?? null,
+        finiquito_id: opciones?.finiquitoId ?? null,
       });
       showToast('Documento enviado a firma. El trabajador recibirá un email.', 'success');
     } catch (err: unknown) {

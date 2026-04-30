@@ -206,11 +206,12 @@ export default function EmpleadoPanel({
               CONTRATO: 'contratos', ANEXO_40H: 'contratos', ANEXO_CONTRATO: 'contratos',
               AMONESTACION: 'legal', DESPIDO: 'legal', CONSTANCIA: 'legal',
               LIQUIDACION: 'liquidaciones', VACACION: 'vacaciones',
+              FINIQUITO: 'finiquito',
             };
             const LABEL_POR_TIPO: Record<string, string> = {
               CONTRATO: 'Contrato', ANEXO_40H: 'Anexo 40H', ANEXO_CONTRATO: 'Anexo de Contrato',
               AMONESTACION: 'Amonestación', DESPIDO: 'Carta de Despido', CONSTANCIA: 'Constancia',
-              LIQUIDACION: 'Liquidación', VACACION: 'Vacación',
+              LIQUIDACION: 'Liquidación', VACACION: 'Vacación', FINIQUITO: 'Finiquito',
             };
             const rechazados = solicitudesFirma.filter(s => s.estado === 'RECHAZADO');
             if (rechazados.length === 0) return null;
@@ -410,6 +411,12 @@ export default function EmpleadoPanel({
                 guardarFiniquito={guardarFiniquito}
                 isSavingFiniquito={isSavingFiniquito}
                 descargarFiniquitoPDF={descargarFiniquitoPDF}
+                solicitudesFirma={solicitudesFirma}
+                isSendingFirma={isSendingFirma}
+                enviarAFirma={enviarAFirma}
+                cancelarFirma={cancelarFirma}
+                reenviarFirma={reenviarFirma}
+                onVerDetalleFirma={onVerDetalleFirma}
               />
             )}
           </div>

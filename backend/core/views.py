@@ -2026,6 +2026,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         anexo_id      = request.data.get('anexo_contrato_id')
         liquidacion_id = request.data.get('liquidacion_id')
         vacacion_id    = request.data.get('vacacion_id')
+        finiquito_id   = request.data.get('finiquito_id')
 
         tipos_validos = [t[0] for t in SolicitudFirma.TIPOS_DOCUMENTO]
         if tipo_doc not in tipos_validos:
@@ -2054,10 +2055,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         es_plan_semilla = _es_plan_semilla(request.user)
 
         try:
-            pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj = self._generar_pdf_firma(
+            pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj, finiquito_obj = self._generar_pdf_firma(
                 empleado, empresa, tipo_doc,
                 contrato_id, doc_legal_id, anexo_id,
-                liquidacion_id, vacacion_id, es_plan_semilla
+                liquidacion_id, vacacion_id, finiquito_id, es_plan_semilla
             )
         except Exception as e:
             return Response({'error': str(e)}, status=400)
@@ -2079,6 +2080,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 documento_legal=doc_legal_obj,
                 liquidacion=liquidacion_obj,
                 vacacion=vacacion_obj,
+                finiquito=finiquito_obj,
                 email_firmante=email_trabajador,
                 b2_key_temporal=key,
             )
@@ -2136,8 +2138,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 
     def _generar_pdf_firma(self, empleado, empresa, tipo_doc,
                            contrato_id, doc_legal_id, anexo_id,
-                           liquidacion_id, vacacion_id, es_plan_semilla):
-        """Genera el PDF a firmar y retorna (pdf_bytes, contrato, doc_legal, liquidacion, vacacion)."""
+                           liquidacion_id, vacacion_id, finiquito_id, es_plan_semilla):
+        """Genera el PDF a firmar y retorna (pdf_bytes, contrato, doc_legal, liquidacion, vacacion, finiquito)."""
         ciudad = str(
             getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago'
         ).strip().title()
@@ -2150,7 +2152,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 raise Exception('El trabajador no tiene contrato registrado.')
             ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('contrato_trabajo.html', ctx)
-            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None, None, None
+            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc == 'ANEXO_40H':
             try:
@@ -2161,7 +2163,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('anexo_40h.html', ctx)
-            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None
+            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc in ('AMONESTACION', 'DESPIDO', 'CONSTANCIA'):
             if doc_legal_id:
@@ -2181,7 +2183,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                    'fecha_actual': fecha_es, 'ciudad': ciudad,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('documento_legal.html', ctx)
-            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None
+            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
             if not anexo_id:
@@ -2197,7 +2199,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                    'empresa': empresa, 'fecha_actual': fecha_es, 'ciudad': ciudad,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('anexo_contrato.html', ctx)
-            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None, None, None
+            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc == 'LIQUIDACION':
             if not liquidacion_id:
@@ -2231,7 +2233,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 'es_plan_semilla': es_plan_semilla,
             }
             html = render_to_string('liquidacion.html', ctx)
-            return _html_a_pdf_bytes(html, f'Liquidacion_{liq.mes}_{liq.anio}_{empleado.rut}'), None, None, liq, None
+            return _html_a_pdf_bytes(html, f'Liquidacion_{liq.mes}_{liq.anio}_{empleado.rut}'), None, None, liq, None, None
 
         if tipo_doc == 'VACACION':
             if not vacacion_id:
@@ -2253,7 +2255,93 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 'es_plan_semilla': es_plan_semilla,
             }
             html = render_to_string('comprobante_vacaciones.html', ctx)
-            return _html_a_pdf_bytes(html, f'Vacacion_{empleado.rut}'), None, None, None, vac
+            return _html_a_pdf_bytes(html, f'Vacacion_{empleado.rut}'), None, None, None, vac, None
+
+        if tipo_doc == 'FINIQUITO':
+            if not finiquito_id:
+                raise Exception('Se requiere el ID del finiquito.')
+            try:
+                fin = Finiquito.objects.get(id=finiquito_id, empleado=empleado)
+            except Finiquito.DoesNotExist:
+                raise Exception('Finiquito no encontrado.')
+
+            def _fmt_fin(f):
+                if not f:
+                    return '—'
+                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
+
+            ciudad_fin = (getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
+            causal_label = fin.get_causal_articulo_display() if fin.causal_articulo else '—'
+            sueldo_prop = math.floor((fin.sueldo_base / 30) * fin.dias_trabajados_ultimo_mes)
+            html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page {{ size: letter; margin: 2cm 2.5cm; }}
+  body {{ font-family: Arial, sans-serif; font-size: 10pt; color: #111; line-height: 1.5; }}
+  h1 {{ font-size: 14pt; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }}
+  h2 {{ font-size: 10pt; text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }}
+  .seccion {{ margin-bottom: 16px; }}
+  .seccion-titulo {{ font-size: 9pt; font-weight: bold; text-transform: uppercase;
+                     letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
+                     padding-bottom: 3px; margin-bottom: 8px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
+  table td {{ padding: 4px 6px; vertical-align: top; }}
+  table td:last-child {{ text-align: right; font-weight: bold; }}
+  .total-row td {{ border-top: 2px solid #333; font-weight: bold; font-size: 11pt; padding-top: 8px; }}
+  .firma-bloque {{ margin-top: 60px; display: flex; justify-content: space-between; }}
+  .firma-item {{ text-align: center; width: 44%; }}
+  .firma-linea {{ border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 9pt; }}
+  p {{ margin: 4px 0; }}
+  .aviso {{ font-size: 8pt; color: #666; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }}
+</style>
+</head>
+<body>
+<h1>Finiquito de Contrato de Trabajo</h1>
+<h2>{ciudad_fin}, {_fmt_fin(fin.fecha_emision)}</h2>
+<div class="seccion">
+  <div class="seccion-titulo">Partes</div>
+  <p><strong>Empleador:</strong> {empresa.nombre_legal} — RUT {empresa.rut}</p>
+  <p><strong>Trabajador:</strong> {empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''} — RUT {empleado.rut}</p>
+  <p><strong>Cargo:</strong> {empleado.cargo or '—'} &nbsp;|&nbsp; <strong>Departamento:</strong> {empleado.departamento or '—'}</p>
+  <p><strong>Fecha de ingreso:</strong> {_fmt_fin(empleado.fecha_ingreso)} &nbsp;|&nbsp;
+     <strong>Fecha de término:</strong> {_fmt_fin(fin.fecha_termino)}</p>
+  <p><strong>Causal de término:</strong> {causal_label}</p>
+</div>
+<div class="seccion">
+  <div class="seccion-titulo">Liquidación Final</div>
+  <table>
+    <tr><td>Sueldo base proporcional ({fin.dias_trabajados_ultimo_mes} días)</td><td>${sueldo_prop:,.0f}</td></tr>
+    <tr><td>Gratificación proporcional</td><td>${fin.gratificacion_proporcional:,.0f}</td></tr>
+    <tr><td>Feriado proporcional</td><td>${fin.feriado_proporcional:,.0f}</td></tr>
+    {f'<tr><td>Indemnización por años de servicio</td><td>${fin.indemnizacion_anos_servicio:,.0f}</td></tr>' if fin.indemnizacion_anos_servicio else ''}
+    {f'<tr><td>Indemnización sustitutiva de aviso previo</td><td>${fin.indemnizacion_sustitutiva_aviso:,.0f}</td></tr>' if fin.indemnizacion_sustitutiva_aviso else ''}
+    {f'<tr><td>Otros haberes</td><td>${fin.otros_haberes:,.0f}</td></tr>' if fin.otros_haberes else ''}
+    <tr><td>Descuentos previsionales</td><td>-${fin.descuentos_prevision:,.0f}</td></tr>
+    {f'<tr><td>Otros descuentos</td><td>-${fin.otros_descuentos:,.0f}</td></tr>' if fin.otros_descuentos else ''}
+    <tr class="total-row"><td>TOTAL A PAGAR</td><td>${fin.total_a_pagar:,.0f}</td></tr>
+  </table>
+</div>
+<div class="seccion">
+  <div class="seccion-titulo">Declaración del Trabajador</div>
+  <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
+  y nada más tiene que reclamar al empleador, quedando ambas partes en paz y a finiquito.</p>
+  <p>Modalidad de suscripción: <strong>{fin.get_modalidad_display()}</strong></p>
+</div>
+<div class="firma-bloque">
+  <div class="firma-item">
+    <div class="firma-linea"><strong>{empresa.nombre_legal}</strong><br/>RUT {empresa.rut}<br/>Empleador</div>
+  </div>
+  <div class="firma-item">
+    <div class="firma-linea"><strong>{empleado.nombres} {empleado.apellido_paterno}</strong><br/>RUT {empleado.rut}<br/>Trabajador</div>
+  </div>
+</div>
+<p class="aviso">Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de Chile.
+  Generado por Jornada40 · {_fmt_fin(fin.fecha_emision)}.</p>
+</body>
+</html>"""
+            return _html_a_pdf_bytes(html, f'Finiquito_{empleado.rut}'), None, None, None, None, fin
 
         raise Exception(f'Tipo de documento no soportado: {tipo_doc}')
 
@@ -2267,6 +2355,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             'ANEXO_CONTRATO': 'Anexo de Contrato',
             'LIQUIDACION':    'Liquidación de Sueldo',
             'VACACION':       'Comprobante de Vacaciones',
+            'FINIQUITO':      'Finiquito de Término',
         }
         tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
         firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"
@@ -2601,6 +2690,7 @@ def firma_publica_info(request, token):
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
         'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     empleado = solicitud.empleado
     empresa  = solicitud.empresa
@@ -2749,6 +2839,8 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     tipo_label = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
     empresa_nombre = solicitud.empresa.nombre_legal
@@ -2821,6 +2913,8 @@ def _enviar_emails_firma_completada(
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     tipo_label        = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
     nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
@@ -2994,6 +3088,8 @@ def firma_publica_firmar(request, token):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     firmado_en  = timezone.now()
     ip_firmante = _ip_desde_request(request)
@@ -3069,6 +3165,7 @@ _TIPO_LABELS_PUBLICO = {
     'ANEXO_CONTRATO': 'Anexo de Contrato',
     'LIQUIDACION':    'Liquidación de Sueldo',
     'VACACION':       'Comprobante de Vacaciones',
+    'FINIQUITO':      'Finiquito de Término',
 }
 
 

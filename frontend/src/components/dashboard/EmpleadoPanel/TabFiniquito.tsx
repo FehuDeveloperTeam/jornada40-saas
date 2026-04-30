@@ -1,5 +1,7 @@
 import React from 'react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
+import type { SolicitudFirma } from '../../../types';
 
 const CAUSALES = [
   { value: '159_1',  label: 'Art. 159 N°1 — Mutuo acuerdo de las partes' },
@@ -62,6 +64,12 @@ type Props = {
   guardarFiniquito:     UseDashboardReturn['guardarFiniquito'];
   isSavingFiniquito:    UseDashboardReturn['isSavingFiniquito'];
   descargarFiniquitoPDF: UseDashboardReturn['descargarFiniquitoPDF'];
+  solicitudesFirma:    UseDashboardReturn['solicitudesFirma'];
+  isSendingFirma:      UseDashboardReturn['isSendingFirma'];
+  enviarAFirma:        UseDashboardReturn['enviarAFirma'];
+  cancelarFirma:       UseDashboardReturn['cancelarFirma'];
+  reenviarFirma:       UseDashboardReturn['reenviarFirma'];
+  onVerDetalleFirma:   (s: SolicitudFirma) => void;
 };
 
 export default function TabFiniquito({
@@ -70,6 +78,7 @@ export default function TabFiniquito({
   showFiniquitoForm, setShowFiniquitoForm,
   finiquitoData, setFiniquitoData,
   guardarFiniquito, isSavingFiniquito, descargarFiniquitoPDF,
+  solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma, onVerDetalleFirma,
 }: Props) {
   const set = (patch: Partial<UseDashboardReturn['finiquitoData']>) =>
     setFiniquitoData({ ...finiquitoData, ...patch });
@@ -170,18 +179,103 @@ export default function TabFiniquito({
                         {clp(fin.total_a_pagar)}
                       </td>
                       <td className="p-4">
-                        <button
-                          onClick={() => descargarFiniquitoPDF(fin.id)}
-                          className="text-sm font-semibold flex items-center gap-1 transition-colors"
-                          style={{ color: '#60a5fa' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
-                          onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}
-                        >
-                          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                          </svg>
-                          PDF
-                        </button>
+                        <div className="flex items-center justify-end gap-3 flex-wrap">
+                          {(() => {
+                            const solicitudActiva = solicitudesFirma
+                              .filter(s => s.tipo_documento === 'FINIQUITO' && s.finiquito === fin.id)
+                              .sort((a, b) => new Date(b.enviado_en).getTime() - new Date(a.enviado_en).getTime())[0];
+                            const sending = !!isSendingFirma[`FINIQUITO${fin.id}`];
+                            return (
+                              <>
+                                {(!solicitudActiva || solicitudActiva.estado === 'CANCELADO' || solicitudActiva.estado === 'EXPIRADO') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => enviarAFirma('FINIQUITO', { finiquitoId: fin.id })}
+                                    disabled={sending}
+                                    className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                    style={{ color: '#a5b4fc', opacity: sending ? 0.5 : 1 }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#c7d2fe')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#a5b4fc')}
+                                  >
+                                    {sending
+                                      ? <><div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />Enviando...</>
+                                      : <><Send className="w-3 h-3" />Firma</>}
+                                  </button>
+                                )}
+                                {solicitudActiva?.estado === 'PENDIENTE' && (
+                                  <>
+                                    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#fbbf24' }}>
+                                      <Clock className="w-3 h-3" />Pendiente
+                                    </span>
+                                    <button type="button" onClick={() => reenviarFirma(solicitudActiva.id)}
+                                      className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                                      <RotateCcw className="w-3 h-3" />
+                                    </button>
+                                    <button type="button" onClick={() => cancelarFirma(solicitudActiva.id)}
+                                      className="text-xs transition-colors" style={{ color: 'rgba(239,68,68,0.5)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(239,68,68,0.5)')}>
+                                      <XCircle className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
+                                {solicitudActiva?.estado === 'FIRMADO' && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#34d399' }}>
+                                      <CheckCircle className="w-3 h-3" />Firmado
+                                    </span>
+                                    <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
+                                      className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      <Eye className="w-3 h-3" />Ver
+                                    </button>
+                                  </div>
+                                )}
+                                {solicitudActiva?.estado === 'RECHAZADO' && (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#f87171' }}>
+                                      <XCircle className="w-3 h-3" />Rechazado
+                                    </span>
+                                    <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
+                                      className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      <Eye className="w-3 h-3" />Ver motivo
+                                    </button>
+                                    <button type="button"
+                                      onClick={() => enviarAFirma('FINIQUITO', { finiquitoId: fin.id })}
+                                      disabled={sending}
+                                      className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                      style={{ color: sending ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.4)', cursor: sending ? 'not-allowed' : 'pointer' }}
+                                      onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                                      onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}>
+                                      {sending
+                                        ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white/60 rounded-full animate-spin" />Enviando...</>
+                                        : <><RotateCcw className="w-3 h-3" />Re-enviar</>}
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                          <button
+                            onClick={() => descargarFiniquitoPDF(fin.id)}
+                            className="text-sm font-semibold flex items-center gap-1 transition-colors"
+                            style={{ color: '#60a5fa' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}
+                          >
+                            <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                            </svg>
+                            PDF
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

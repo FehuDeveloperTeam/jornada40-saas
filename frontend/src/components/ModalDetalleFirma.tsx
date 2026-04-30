@@ -18,6 +18,7 @@ const TIPO_LABELS: Record<string, string> = {
   ANEXO_CONTRATO: 'Anexo de Contrato',
   LIQUIDACION:    'Liquidación de Sueldo',
   VACACION:       'Comprobante de Vacaciones',
+  FINIQUITO:      'Finiquito de Término',
 };
 
 function formatFecha(iso: string | null): string {
