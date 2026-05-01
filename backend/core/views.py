@@ -2258,6 +2258,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def consolidado(self, request):
         anio_param = request.query_params.get('anio')
         mes_param  = request.query_params.get('mes')
+        formato    = request.query_params.get('formato', 'json')
 
         if not anio_param:
             return Response({'error': 'Se requiere el parámetro anio.'}, status=400)
@@ -2272,42 +2273,40 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             .filter(empleado__empresa__owner=request.user, anio=anio)
             .select_related('empleado', 'empleado__empresa', 'empleado__contrato_activo')
         )
-
         qs_periodo = base_qs.filter(mes=mes) if mes else base_qs
 
         if not qs_periodo.exists():
+            if formato == 'json':
+                return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
             return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
 
-        # Costo empleador por liquidación (SIS + Mutual + AFC empleador)
         def _costo_emp(liq):
             try:
                 tipo = liq.empleado.contrato_activo.tipo_contrato
                 tasa_afc = _TASA_AFC_EMP_INDEFINIDO if tipo == 'INDEFINIDO' else _TASA_AFC_EMP_PLAZO
             except Exception:
                 tasa_afc = _TASA_AFC_EMP_INDEFINIDO
-            imp = liq.total_imponible
-            return int(imp * (_TASA_SIS + _TASA_MUTUAL_AT + tasa_afc))
+            return int(liq.total_imponible * (_TASA_SIS + _TASA_MUTUAL_AT + tasa_afc))
 
-        # ── KPIs del período ──────────────────────────────────────────────────
-        masa_salarial      = 0
-        liquido_total      = 0
-        costo_empleador    = 0
-        empleados_ids      = set()
+        def clp(n):
+            if not n: return '$0'
+            return f'${int(n):,}'.replace(',', '.')
 
+        # ── Datos compartidos ─────────────────────────────────────────────────
         from collections import defaultdict
+        masa_salarial = liquido_total = costo_empleador = 0
+        empleados_ids = set()
         empresas_dict = defaultdict(lambda: {
             'id': None, 'nombre': '', 'rut': '',
             'trabajadores': 0, 'masa_salarial': 0,
             'liquido_total': 0, 'costo_empleador': 0,
         })
-
         for liq in qs_periodo:
             ce = _costo_emp(liq)
             masa_salarial   += liq.total_haberes
             liquido_total   += liq.sueldo_liquido
             costo_empleador += ce
             empleados_ids.add(liq.empleado_id)
-
             eid = liq.empleado.empresa_id
             emp = liq.empleado.empresa
             d = empresas_dict[eid]
@@ -2319,53 +2318,211 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             d['liquido_total'] += liq.sueldo_liquido
             d['costo_empleador'] += ce
 
-        empresas_list = sorted(
-            empresas_dict.values(),
-            key=lambda x: x['masa_salarial'],
-            reverse=True,
-        )
+        empresas_list = sorted(empresas_dict.values(), key=lambda x: x['masa_salarial'], reverse=True)
 
-        # ── Evolución mensual (todos los meses del año) ───────────────────────
         MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        MESES_LARGOS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                        'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
         evolucion = []
         for m in range(1, 13):
             qs_m = base_qs.filter(mes=m)
             if qs_m.exists():
-                ms = sum(l.total_haberes for l in qs_m)
-                lq = sum(l.sueldo_liquido for l in qs_m)
-                ce = sum(_costo_emp(l) for l in qs_m)
+                ms = sum(l.total_haberes   for l in qs_m)
+                lq = sum(l.sueldo_liquido  for l in qs_m)
+                ce = sum(_costo_emp(l)     for l in qs_m)
                 tw = qs_m.values('empleado_id').distinct().count()
             else:
                 ms = lq = ce = tw = 0
-            evolucion.append({
-                'mes': m,
-                'mes_nombre': MESES_CORTOS[m - 1],
-                'masa_salarial': ms,
-                'liquido_total': lq,
-                'costo_empleador': ce,
-                'trabajadores': tw,
+            evolucion.append({'mes': m, 'mes_nombre': MESES_CORTOS[m-1],
+                              'masa_salarial': ms, 'liquido_total': lq,
+                              'costo_empleador': ce, 'trabajadores': tw})
+
+        kpis = {
+            'masa_salarial':   masa_salarial,
+            'trabajadores':    len(empleados_ids),
+            'costo_empleador': costo_empleador,
+            'liquido_total':   liquido_total,
+        }
+        periodo_nombre = MESES_LARGOS[mes - 1] if mes else f'Año {anio}'
+        nombre_base = f'Consolidado_{periodo_nombre.replace(" ","_")}_{anio}'
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA JSON
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'json':
+            return Response({
+                'periodo': {'anio': anio, 'mes': mes, 'mes_nombre': MESES_LARGOS[mes-1] if mes else None},
+                'kpis': kpis,
+                'empresas': empresas_list,
+                'evolucion': evolucion,
             })
 
-        MESES_LARGOS = [
-            'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
-        ]
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA EXCEL
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'excel':
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from openpyxl.utils import get_column_letter
 
-        return Response({
-            'periodo': {
-                'anio': anio,
-                'mes': mes,
-                'mes_nombre': MESES_LARGOS[mes - 1] if mes else None,
-            },
-            'kpis': {
-                'masa_salarial':   masa_salarial,
-                'trabajadores':    len(empleados_ids),
-                'costo_empleador': costo_empleador,
-                'liquido_total':   liquido_total,
-            },
-            'empresas': empresas_list,
-            'evolucion': evolucion,
-        })
+            wb = Workbook()
+
+            # ── Hoja 1: Resumen ───────────────────────────────────────────────
+            ws = wb.active
+            ws.title = 'Resumen'
+
+            hdr_fill  = PatternFill('solid', fgColor='1E3A5F')
+            tot_fill  = PatternFill('solid', fgColor='FEF3C7')
+            kpi_fill  = PatternFill('solid', fgColor='0F2540')
+            thin = Side(style='thin', color='CCCCCC')
+            bord = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+            def _set(cell, val, bold=False, fill=None, align='left', color='000000'):
+                cell.value = val
+                cell.font  = Font(bold=bold, color=color, size=10)
+                cell.alignment = Alignment(horizontal=align, vertical='center', wrap_text=True)
+                if fill: cell.fill = fill
+                cell.border = bord
+
+            # Title
+            ws.merge_cells('A1:G1')
+            t = ws['A1']
+            t.value = f'Reporte Consolidado de Remuneraciones · {periodo_nombre} {anio}'
+            t.font  = Font(bold=True, size=13, color='FFFFFF')
+            t.fill  = PatternFill('solid', fgColor='0C1A35')
+            t.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 28
+
+            ws.merge_cells('A2:G2')
+            ws['A2'].value = f'Generado el {timezone.now().date().strftime("%d/%m/%Y")} · {len(empresas_list)} empresa(s) · {kpis["trabajadores"]} trabajadore(s)'
+            ws['A2'].font  = Font(size=9, color='888888')
+            ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[2].height = 16
+
+            # KPI row
+            kpi_labels = ['Masa salarial', 'Trabajadores', 'Costo empleador', 'Líquido a pagar']
+            kpi_vals   = [clp(kpis['masa_salarial']), str(kpis['trabajadores']),
+                          clp(kpis['costo_empleador']), clp(kpis['liquido_total'])]
+            kpi_cols   = [('A','B'), ('C','C'), ('D','E'), ('F','G')]
+            ws.row_dimensions[3].height = 14
+            ws.row_dimensions[4].height = 22
+            ws.row_dimensions[5].height = 22
+            ws.row_dimensions[6].height = 8
+            for (c1, c2), lbl, val in zip(kpi_cols, kpi_labels, kpi_vals):
+                ws.merge_cells(f'{c1}4:{c2}4')
+                ws.merge_cells(f'{c1}5:{c2}5')
+                lc = ws[f'{c1}4']
+                lc.value = lbl; lc.font = Font(bold=True, size=8, color='AAAAAA')
+                lc.fill = kpi_fill; lc.alignment = Alignment(horizontal='center', vertical='center')
+                vc = ws[f'{c1}5']
+                vc.value = val; vc.font = Font(bold=True, size=11, color='FFFFFF')
+                vc.fill = kpi_fill; vc.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Table header
+            cols_h = ['Empresa', 'RUT', 'Trabajadores', 'Masa Salarial', 'Costo Empleador', 'Líquido', '% del Total']
+            for ci, h in enumerate(cols_h, 1):
+                c = ws.cell(row=7, column=ci)
+                _set(c, h, bold=True, fill=hdr_fill, align='center', color='FFFFFF')
+            ws.row_dimensions[7].height = 20
+
+            for ri, emp in enumerate(empresas_list, 8):
+                pct = round(emp['masa_salarial'] / masa_salarial * 100, 1) if masa_salarial else 0
+                row_fill = PatternFill('solid', fgColor='F0F4F8') if ri % 2 == 0 else None
+                vals = [emp['nombre'], emp['rut'], emp['trabajadores'],
+                        clp(emp['masa_salarial']), clp(emp['costo_empleador']),
+                        clp(emp['liquido_total']), f'{pct}%']
+                aligns = ['left','center','center','right','right','right','center']
+                for ci, (v, a) in enumerate(zip(vals, aligns), 1):
+                    _set(ws.cell(row=ri, column=ci), v, fill=row_fill, align=a)
+                ws.row_dimensions[ri].height = 18
+
+            # Totals
+            tr = len(empresas_list) + 8
+            tot_vals = ['TOTAL CONSOLIDADO', '', kpis['trabajadores'],
+                        clp(kpis['masa_salarial']), clp(kpis['costo_empleador']),
+                        clp(kpis['liquido_total']), '100%']
+            for ci, v in enumerate(tot_vals, 1):
+                a = 'right' if ci >= 4 else ('center' if ci == 3 else 'left')
+                _set(ws.cell(row=tr, column=ci), v, bold=True, fill=tot_fill, align=a)
+            ws.row_dimensions[tr].height = 20
+
+            # Column widths
+            for ci, w in enumerate([38, 14, 13, 18, 18, 18, 12], 1):
+                ws.column_dimensions[get_column_letter(ci)].width = w
+            ws.freeze_panes = 'A8'
+
+            # ── Hoja 2: Evolución mensual ─────────────────────────────────────
+            ws2 = wb.create_sheet('Evolución mensual')
+            evo_headers = ['Mes', 'Masa Salarial', 'Líquido', 'Costo Empleador', 'Trabajadores']
+            for ci, h in enumerate(evo_headers, 1):
+                c = ws2.cell(row=1, column=ci)
+                _set(c, h, bold=True, fill=hdr_fill, align='center', color='FFFFFF')
+                ws2.row_dimensions[1].height = 20
+
+            for ri, ev in enumerate(evolucion, 2):
+                row_fill = PatternFill('solid', fgColor='F0F4F8') if ri % 2 == 0 else None
+                vals = [ev['mes_nombre'], clp(ev['masa_salarial']), clp(ev['liquido_total']),
+                        clp(ev['costo_empleador']), ev['trabajadores']]
+                aligns = ['center','right','right','right','center']
+                for ci, (v, a) in enumerate(zip(vals, aligns), 1):
+                    _set(ws2.cell(row=ri, column=ci), v, fill=row_fill, align=a)
+                ws2.row_dimensions[ri].height = 17
+
+            for ci, w in enumerate([14, 18, 18, 18, 14], 1):
+                ws2.column_dimensions[get_column_letter(ci)].width = w
+
+            ws.page_setup.orientation = 'landscape'
+            ws.page_setup.paperSize   = ws.PAPERSIZE_LETTER
+            ws2.page_setup.orientation = 'landscape'
+            ws2.page_setup.paperSize   = ws2.PAPERSIZE_LETTER
+
+            buf = io.BytesIO()
+            wb.save(buf); buf.seek(0)
+            response = HttpResponse(buf.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_base}.xlsx"'
+            return response
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA PDF
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'pdf':
+            for emp in empresas_list:
+                emp['pct'] = round(emp['masa_salarial'] / masa_salarial * 100, 1) if masa_salarial else 0
+                emp['masa_salarial_fmt']   = clp(emp['masa_salarial'])
+                emp['costo_empleador_fmt'] = clp(emp['costo_empleador'])
+                emp['liquido_total_fmt']   = clp(emp['liquido_total'])
+            for ev in evolucion:
+                ev['masa_salarial_fmt']   = clp(ev['masa_salarial'])
+                ev['liquido_total_fmt']   = clp(ev['liquido_total'])
+                ev['costo_empleador_fmt'] = clp(ev['costo_empleador'])
+
+            context = {
+                'periodo_nombre':  periodo_nombre,
+                'anio':            anio,
+                'mes':             mes,
+                'kpis':            kpis,
+                'kpis_fmt': {
+                    'masa_salarial':   clp(kpis['masa_salarial']),
+                    'costo_empleador': clp(kpis['costo_empleador']),
+                    'liquido_total':   clp(kpis['liquido_total']),
+                    'trabajadores':    kpis['trabajadores'],
+                },
+                'empresas':        empresas_list,
+                'evolucion':       evolucion,
+                'n_empresas':      len(empresas_list),
+                'fecha_emision':   timezone.now().date().strftime('%d/%m/%Y'),
+            }
+            template = get_template('consolidado_remuneraciones.html')
+            html = template.render(context)
+            response = HttpResponse(content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_base}.pdf"'
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar PDF'}, status=500)
+            return response
+
+        return Response({'error': 'Formato no válido. Use json, excel o pdf.'}, status=400)
 
 # ==========================================
 # PREVIRED EXPORT

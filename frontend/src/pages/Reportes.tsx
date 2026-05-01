@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import type { TooltipProps } from 'recharts';
-import { ArrowLeft, TrendingUp, Users, Wallet, BadgeDollarSign, AlertCircle, RefreshCcw, BarChart3 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, Users, Wallet, BadgeDollarSign, AlertCircle, BarChart3, Download } from 'lucide-react';
 import { useReportes } from '../hooks/useReportes';
+import ModalExportarConsolidado from '../components/dashboard/ModalExportarConsolidado';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -75,6 +77,7 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
 export default function Reportes() {
   const navigate = useNavigate();
   const { anio, setAnio, mes, setMes, data, loading, error } = useReportes();
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const now = new Date();
   const aniosDisponibles = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
@@ -109,8 +112,24 @@ export default function Reportes() {
           </div>
         </div>
 
-        {/* Period selector */}
-        <div className="flex items-center gap-2">
+        {/* Right: export button + period selector */}
+        <div className="flex items-center gap-3">
+          {data && (
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+              style={{
+                background: 'rgba(129,140,248,0.12)',
+                border: '1px solid rgba(129,140,248,0.3)',
+                color: '#818cf8',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.22)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.12)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.3)'; }}
+            >
+              <Download size={13} />
+              Exportar
+            </button>
+          )}
           <select
             value={mes ?? 0}
             onChange={e => setMes(Number(e.target.value) || null)}
@@ -413,6 +432,14 @@ export default function Reportes() {
           </>
         )}
       </div>
+
+      {showExportModal && (
+        <ModalExportarConsolidado
+          anioInicial={anio}
+          mesInicial={mes}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
     </div>
   );
 }
