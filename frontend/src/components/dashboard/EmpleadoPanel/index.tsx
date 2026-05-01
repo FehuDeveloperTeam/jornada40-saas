@@ -6,6 +6,7 @@ import TabLiquidaciones from './TabLiquidaciones';
 import TabLegal from './TabLegal';
 import TabVacaciones from './TabVacaciones';
 import TabFiniquito from './TabFiniquito';
+import TabHistorialSalarial from './TabHistorialSalarial';
 
 type Props = {
   setIsPanelOpen: UseDashboardReturn['setIsPanelOpen'];
@@ -253,6 +254,7 @@ export default function EmpleadoPanel({
                   { id: 'perfil', label: 'Datos Generales' },
                   { id: 'contratos', label: 'Contratos y Anexos' },
                   { id: 'liquidaciones', label: 'Liquidaciones' },
+                  { id: 'historial', label: 'Historial Salarial' },
                   { id: 'legal', label: 'Historial Legal' },
                   { id: 'vacaciones', label: 'Vacaciones' },
                   { id: 'finiquito', label: 'Finiquito' },
@@ -418,6 +420,9 @@ export default function EmpleadoPanel({
                 reenviarFirma={reenviarFirma}
                 onVerDetalleFirma={onVerDetalleFirma}
               />
+            )}
+            {activeTab === 'historial' && (
+              <TabHistorialSalarial liquidaciones={liquidaciones} />
             )}
           </div>
 

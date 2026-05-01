@@ -56,7 +56,7 @@ export function useDashboard() {
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedEmpleado, setSelectedEmpleado] = useState<Empleado | null>(null);
   const [isValidRut, setIsValidRut] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'legal' | 'vacaciones' | 'finiquito'>('perfil');
+  const [activeTab, setActiveTab] = useState<'perfil' | 'contratos' | 'liquidaciones' | 'historial' | 'legal' | 'vacaciones' | 'finiquito'>('perfil');
 
   // --- Formulario empleado ---
   const [formData, setFormData] = useState<Partial<Empleado>>({});
