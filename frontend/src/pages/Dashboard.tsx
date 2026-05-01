@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { useDashboard } from '../hooks/useDashboard';
 import StatsWidgets from '../components/dashboard/StatsWidgets';
 import EmpleadosTable from '../components/dashboard/EmpleadosTable';
 import ModalDescargaMasiva from '../components/dashboard/ModalDescargaMasiva';
 import ModalCargaMasiva from '../components/dashboard/ModalCargaMasiva';
+import ModalExportarPrevired from '../components/dashboard/ModalExportarPrevired';
 import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
 import ModalDetalleFirma from '../components/ModalDetalleFirma';
 import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
+  const [showPreviredModal, setShowPreviredModal] = useState(false);
+
   const {
     // Estado de datos
     empresa, empleados, loading,
@@ -123,15 +127,43 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-3xl p-7 mb-8 glass-card">
-          <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
-          <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
-            <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
-              RUT {empresa?.rut ? formatRut(empresa.rut) : '—'}
-            </span>
-            {empresa?.giro && (
-              <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
-                Giro: {empresa.giro}
-              </span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
+              <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
+                <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                  RUT {empresa?.rut ? formatRut(empresa.rut) : '—'}
+                </span>
+                {empresa?.giro && (
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+                    Giro: {empresa.giro}
+                  </span>
+                )}
+              </div>
+            </div>
+            {empresa && (
+              <button
+                onClick={() => setShowPreviredModal(true)}
+                className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                style={{
+                  background: 'rgba(37,99,235,0.12)',
+                  border: '1px solid rgba(37,99,235,0.3)',
+                  color: '#60a5fa',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(37,99,235,0.22)';
+                  e.currentTarget.style.borderColor = 'rgba(37,99,235,0.5)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(37,99,235,0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(37,99,235,0.3)';
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Exportar Previred
+              </button>
             )}
           </div>
         </div>
@@ -274,6 +306,14 @@ export default function Dashboard() {
         <ModalDetalleFirma
           solicitud={solicitudFirmaModal}
           onClose={() => setSolicitudFirmaModal(null)}
+        />
+      )}
+
+      {showPreviredModal && empresa && empresaActivaId && (
+        <ModalExportarPrevired
+          empresaId={empresaActivaId}
+          empresaNombre={empresa.nombre_legal}
+          onClose={() => setShowPreviredModal(false)}
         />
       )}
 

@@ -1735,6 +1735,217 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             print("===========================")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='exportar_previred')
+    def exportar_previred(self, request):
+        mes_param = request.query_params.get('mes')
+        anio_param = request.query_params.get('anio')
+        empresa_id = request.query_params.get('empresa')
+
+        if not mes_param or not anio_param:
+            return Response({'error': 'Se requieren los parámetros mes y anio.'}, status=400)
+        try:
+            mes = int(mes_param)
+            anio = int(anio_param)
+        except ValueError:
+            return Response({'error': 'Parámetros mes y anio deben ser numéricos.'}, status=400)
+
+        qs = Liquidacion.objects.filter(
+            empleado__empresa__owner=request.user,
+            mes=mes, anio=anio,
+        ).select_related('empleado', 'empleado__empresa')
+
+        if empresa_id:
+            qs = qs.filter(empleado__empresa_id=empresa_id)
+
+        if not qs.exists():
+            return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+
+        lineas = []
+        for liq in qs:
+            emp = liq.empleado
+            empresa = emp.empresa
+            contrato = Contrato.objects.filter(empleado=emp).first()
+
+            # ── Identificación trabajador ──────────────────────────────────
+            rut_num, rut_dv = _rut_partes(emp.rut)
+            apellido_m = emp.apellido_materno or ''
+            sexo_cod = '2' if emp.sexo == 'F' else '1'
+            fecha_nac = _fmt_fecha_previred(emp.fecha_nacimiento)
+            fecha_ing = _fmt_fecha_previred(emp.fecha_ingreso)
+            tipo_trab = '01'
+            nac_cod = '152'  # Chile
+
+            # ── Contrato ───────────────────────────────────────────────────
+            dias_trab = str(int(liq.dias_trabajados or 30))
+            tipo_ctto = _TIPO_CONTRATO_PREVIRED.get(
+                contrato.tipo_contrato if contrato else 'INDEFINIDO', '1'
+            )
+            es_indefinido = contrato.tipo_contrato == 'INDEFINIDO' if contrato else False
+            movimiento = '0'  # vigente
+            rut_emp_num, rut_emp_dv = _rut_partes(empresa.rut)
+
+            # ── AFP ────────────────────────────────────────────────────────
+            nombre_afp = (liq.afp_nombre or 'MODELO').upper()
+            cod_afp = _AFP_CODIGOS_PREVIRED.get(nombre_afp, '08')
+            renta_imp = int(liq.total_imponible or 0)
+            cotiz_afp = str(int(liq.afp_monto or 0))
+            sis = str(math.floor(renta_imp * _TASA_SIS))
+
+            # ── Salud ──────────────────────────────────────────────────────
+            sistema = (liq.salud_nombre or 'FONASA').upper()
+            if sistema == 'FONASA':
+                cod_salud = '00'
+            else:
+                cod_salud = _ISAPRE_CODIGOS_PREVIRED.get(sistema, '00')
+            cotiz_salud = str(int(liq.salud_monto or 0))
+            uf_isapre = str(float(liq.isapre_cotizacion_uf or 0))
+
+            # ── Mutual AT/EP ───────────────────────────────────────────────
+            cotiz_mutual = str(math.floor(renta_imp * _TASA_MUTUAL_AT))
+
+            # ── AFC Cesantía ───────────────────────────────────────────────
+            ind_afc = '1' if es_indefinido else '0'
+            cotiz_afc_trab = str(int(liq.seguro_cesantia or 0))
+            if es_indefinido:
+                cotiz_afc_emp = str(math.floor(renta_imp * _TASA_AFC_EMP_INDEFINIDO))
+            elif contrato and contrato.tipo_contrato == 'PLAZO_FIJO':
+                cotiz_afc_emp = str(math.floor(renta_imp * _TASA_AFC_EMP_PLAZO))
+            else:
+                cotiz_afc_emp = '0'
+            renta_imp_afc = str(renta_imp) if es_indefinido else '0'
+
+            # ── Reforma 2025 ───────────────────────────────────────────────
+            tipo_jornada_code = _TIPO_JORNADA_PREVIRED.get(
+                contrato.tipo_jornada if contrato else 'ORDINARIA', '1'
+            )
+            cotiz_expectativa = str(math.floor(renta_imp * _TASA_EXPECTATIVA_VIDA))
+
+            # ── Construir array de 105 campos (base cero) ──────────────────
+            campos = ['0'] * 105
+
+            # Trabajador / contrato (campos 1-17, índices 0-16)
+            campos[0]  = rut_num
+            campos[1]  = rut_dv
+            campos[2]  = emp.apellido_paterno
+            campos[3]  = apellido_m
+            campos[4]  = emp.nombres
+            campos[5]  = sexo_cod
+            campos[6]  = fecha_nac
+            campos[7]  = nac_cod
+            campos[8]  = tipo_trab
+            campos[9]  = fecha_ing
+            campos[10] = ''   # fecha término (activo)
+            campos[11] = ''   # causal término
+            campos[12] = dias_trab
+            campos[13] = tipo_ctto
+            campos[14] = movimiento
+            campos[15] = rut_emp_num
+            campos[16] = rut_emp_dv
+            # índices 17-23: padding → '0' (ya inicializados)
+
+            # AFP (campos 25-28, índices 24-27)
+            campos[24] = cod_afp
+            campos[25] = str(renta_imp)
+            campos[26] = cotiz_afp
+            campos[27] = sis
+            # índices 28-43: extras AFP → '0'
+
+            # Salud (campos 45-48, índices 44-47)
+            campos[44] = cod_salud
+            campos[45] = str(renta_imp)
+            campos[46] = cotiz_salud
+            campos[47] = uf_isapre
+            # índices 48-59: extras salud → '0'
+
+            # Mutual AT/EP (campos 61-63, índices 60-62)
+            campos[60] = _MUTUAL_DEFAULT
+            campos[61] = str(renta_imp)
+            campos[62] = cotiz_mutual
+            # índices 63-69: extras mutual → '0'
+
+            # AFC (campos 71-74, índices 70-73)
+            campos[70] = ind_afc
+            campos[71] = renta_imp_afc
+            campos[72] = cotiz_afc_trab
+            campos[73] = cotiz_afc_emp
+            # índices 74-84: extras AFC → '0'
+
+            # Reforma 2025 (campos 86-88, índices 85-87)
+            campos[85] = '0'               # RIMA
+            campos[86] = tipo_jornada_code # tipo jornada ley 40h
+            campos[87] = cotiz_expectativa # expectativa de vida 0.9%
+            # índices 88-104: extras → '0'
+
+            lineas.append(';'.join(campos))
+
+        meses_nombres = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+        ]
+        nombre_archivo = f'Previred_{meses_nombres[mes - 1]}_{anio}.txt'
+        contenido = '\n'.join(lineas)
+        response = HttpResponse(contenido, content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        return response
+
+# ==========================================
+# PREVIRED EXPORT
+# ==========================================
+
+_AFP_CODIGOS_PREVIRED = {
+    'CAPITAL': '03', 'CUPRUM': '04', 'HABITAT': '05',
+    'MODELO': '08', 'PLANVITAL': '06', 'PROVIDA': '07', 'UNO': '10', 'IPS': '00',
+}
+
+_ISAPRE_CODIGOS_PREVIRED = {
+    'BANMEDICA': '01', 'COLMENA': '02', 'CRUZ_BLANCA': '03',
+    'ESENCIAL': '04', 'VIDA_TRES': '05', 'SAN_LORENZO': '06',
+    'NUEVA_MASVIDA': '07', 'CONSALUD': '08',
+}
+
+_TIPO_CONTRATO_PREVIRED = {
+    'INDEFINIDO': '1', 'PLAZO_FIJO': '2', 'OBRA_FAENA': '3',
+}
+
+_TIPO_JORNADA_PREVIRED = {
+    'ORDINARIA': '1', 'TURNOS': '1', 'BISMANAL': '1',
+    'ART_22': '2', 'PARCIAL': '2', 'OTRO': '1',
+}
+
+_MUTUAL_DEFAULT = '01'  # ISL por defecto
+_TASA_MUTUAL_AT = 0.0093  # tasa base AT/EP empleador
+_TASA_AFC_EMP_INDEFINIDO = 0.024
+_TASA_AFC_EMP_PLAZO = 0.030
+_TASA_SIS = 0.0149
+_TASA_EXPECTATIVA_VIDA = 0.009  # Reforma 2025
+
+
+def _rut_partes(rut_str: str):
+    """Devuelve (numero_str, dv_str) desde un RUT como '12.345.678-9'."""
+    limpio = (rut_str or '').replace('.', '').replace(' ', '').upper()
+    if '-' in limpio:
+        num, dv = limpio.rsplit('-', 1)
+    elif len(limpio) > 1:
+        num, dv = limpio[:-1], limpio[-1]
+    else:
+        return '0', '0'
+    return num.lstrip('0') or '0', dv
+
+
+def _fmt_fecha_previred(f) -> str:
+    """Convierte fecha a DDMMAAAA o cadena vacía."""
+    if not f:
+        return ''
+    try:
+        if isinstance(f, str):
+            d = datetime.date.fromisoformat(f)
+        else:
+            d = f
+        return d.strftime('%d%m%Y')
+    except Exception:
+        return ''
+
+
 # ==========================================
 # FINIQUITO
 # ==========================================
