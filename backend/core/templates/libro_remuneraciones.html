@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Libro de Remuneraciones</title>
+  <style>
+    @page {
+      size: letter landscape;
+      margin: 0.8cm 0.8cm 1.2cm 0.8cm;
+      @frame footer_frame {
+        -pdf-frame-content: footer_content;
+        bottom: 0.3cm;
+        left: 0.8cm;
+        right: 0.8cm;
+        height: 0.8cm;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 6.5pt; color: #111; margin: 0; padding: 0; }
+
+    /* ── Cover header ─────────────────────────── */
+    .cover-header { width: 100%; margin-bottom: 4pt; }
+    .cover-title   { font-size: 9pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5pt; }
+    .cover-sub     { font-size: 7pt; color: #444; margin-top: 1pt; }
+    .cover-meta    { font-size: 6pt; color: #666; text-align: right; }
+    .cover-divider { border: none; border-top: 1.5pt solid #222; margin: 3pt 0; }
+
+    /* ── Main table ───────────────────────────── */
+    table.libro {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    table.libro thead tr th {
+      font-size: 6pt;
+      font-weight: bold;
+      text-align: center;
+      vertical-align: bottom;
+      background-color: #1e3a5f;
+      color: #fff;
+      padding: 2.5pt 1pt;
+      border: 0.5pt solid #0f2540;
+      line-height: 1.2;
+    }
+    table.libro tbody tr td {
+      padding: 1.5pt 1.5pt;
+      border: 0.4pt solid #ccc;
+      vertical-align: middle;
+      line-height: 1.15;
+      overflow: hidden;
+    }
+    table.libro tbody tr.par td   { background-color: #f0f4f8; }
+    table.libro tbody tr.impar td { background-color: #ffffff; }
+
+    /* Totals row */
+    table.libro tbody tr.totals-row td {
+      background-color: #fef3c7;
+      font-weight: bold;
+      border-top: 1pt solid #b45309;
+      border-bottom: 1pt solid #b45309;
+      padding: 2pt 1.5pt;
+    }
+
+    /* Alignment helpers */
+    .c  { text-align: center; }
+    .r  { text-align: right; }
+    .l  { text-align: left; }
+    .nb { font-weight: normal; }
+
+    /* Column widths — 21 columns, letter landscape ≈ 27.94 cm usable */
+    col.c-ficha   { width: 2.5%; }
+    col.c-rut     { width: 5.5%; }
+    col.c-nombre  { width: 10%; }
+    col.c-cargo   { width: 6%; }
+    col.c-dias    { width: 2.2%; }
+    col.c-money-sm { width: 4.4%; }   /* sueldo_base, gratif, otros_imp, no_imp, cotiz_afp, cotiz_salud, cesantia, imp_unico, anticipo, otros_desc */
+    col.c-total   { width: 4.8%; }    /* total_imp, total_hab, total_desc, sueldo_liq */
+    col.c-presta  { width: 3.5%; }    /* afp_nombre, salud_nombre */
+
+    /* Footer */
+    #footer_content {
+      font-size: 6pt;
+      color: #555;
+      width: 100%;
+    }
+    .footer-inner {
+      display: table;
+      width: 100%;
+      border-top: 0.5pt solid #aaa;
+      padding-top: 2pt;
+    }
+    .footer-left  { display: table-cell; text-align: left; }
+    .footer-right { display: table-cell; text-align: right; }
+
+    /* Grupo haberes / descuentos header */
+    th.group-hab  { background-color: #1a4971; }
+    th.group-desc { background-color: #4c1d24; }
+    th.group-base { background-color: #1e3a5f; }
+  </style>
+</head>
+<body>
+
+<!-- ══ Page footer ═══════════════════════════════════════════════════════════ -->
+<div id="footer_content">
+  <div class="footer-inner">
+    <span class="footer-left">
+      {{ empresa.nombre }} &nbsp;·&nbsp; RUT {{ empresa.rut }} &nbsp;·&nbsp; Emitido el {{ fecha_emision }}
+    </span>
+    <span class="footer-right">
+      Libro de Remuneraciones · {{ mes_nombre }} {{ anio }} &nbsp;·&nbsp; Pág. <pdf:pagenumber> de <pdf:pagecount>
+    </span>
+  </div>
+</div>
+
+<!-- ══ Cover header ═══════════════════════════════════════════════════════════ -->
+<div class="cover-header">
+  <table style="width:100%; border-collapse: collapse;">
+    <tr>
+      <td style="vertical-align:top;">
+        <div class="cover-title">Libro de Remuneraciones</div>
+        <div class="cover-sub">
+          Período: <strong>{{ mes_nombre }} {{ anio }}</strong> &nbsp;·&nbsp;
+          Empresa: <strong>{{ empresa.nombre }}</strong> &nbsp;·&nbsp;
+          RUT: {{ empresa.rut }}
+        </div>
+      </td>
+      <td style="vertical-align:top; text-align:right; width:30%;">
+        <div class="cover-meta">Trabajadores: {{ n_trabajadores }}</div>
+        <div class="cover-meta">Art. 62 Código del Trabajo</div>
+        <div class="cover-meta">Generado: {{ fecha_emision }}</div>
+      </td>
+    </tr>
+  </table>
+  <hr class="cover-divider">
+</div>
+
+<!-- ══ Libro table ════════════════════════════════════════════════════════════ -->
+<table class="libro">
+  <colgroup>
+    <col class="c-ficha">
+    <col class="c-rut">
+    <col class="c-nombre">
+    <col class="c-cargo">
+    <col class="c-dias">
+    <!-- HABERES IMPONIBLES: 4 cols -->
+    <col class="c-money-sm">
+    <col class="c-money-sm">
+    <col class="c-money-sm">
+    <col class="c-total">
+    <!-- HABERES NO IMPONIBLES + TOTAL HABERES: 2 cols -->
+    <col class="c-money-sm">
+    <col class="c-total">
+    <!-- DESCUENTOS: 7 cols -->
+    <col class="c-presta">
+    <col class="c-money-sm">
+    <col class="c-presta">
+    <col class="c-money-sm">
+    <col class="c-money-sm">
+    <col class="c-money-sm">
+    <col class="c-money-sm">
+    <col class="c-money-sm">
+    <col class="c-total">
+    <!-- LÍQUIDO -->
+    <col class="c-total">
+  </colgroup>
+
+  <thead>
+    <!-- Row 1: group labels -->
+    <tr>
+      <th rowspan="2" class="group-base">Ficha</th>
+      <th rowspan="2" class="group-base">RUT</th>
+      <th rowspan="2" class="group-base">Apellidos y Nombre</th>
+      <th rowspan="2" class="group-base">Cargo</th>
+      <th rowspan="2" class="group-base">Días</th>
+      <th colspan="4" class="group-hab">HABERES IMPONIBLES</th>
+      <th colspan="2" class="group-hab" style="background-color:#1e5a3a;">HABERES NO IMP.</th>
+      <th colspan="9" class="group-desc">DESCUENTOS</th>
+      <th rowspan="2" style="background-color:#14532d; color:#fff; font-size:6pt; font-weight:bold; text-align:center; vertical-align:bottom; border: 0.5pt solid #0f2540; padding:2.5pt 1pt; line-height:1.2;">LÍQUIDO A PAGAR</th>
+    </tr>
+    <!-- Row 2: column names -->
+    <tr>
+      <!-- Hab. imponibles -->
+      <th class="group-hab">Sueldo Base</th>
+      <th class="group-hab">Gratific.</th>
+      <th class="group-hab">Otros Imp.</th>
+      <th class="group-hab">Total Impon.</th>
+      <!-- No imponibles -->
+      <th style="background-color:#1e5a3a; color:#fff; font-size:6pt; font-weight:bold; text-align:center; vertical-align:bottom; border: 0.5pt solid #0f2540; padding:2.5pt 1pt; line-height:1.2;">No Impon.</th>
+      <th style="background-color:#1e5a3a; color:#fff; font-size:6pt; font-weight:bold; text-align:center; vertical-align:bottom; border: 0.5pt solid #0f2540; padding:2.5pt 1pt; line-height:1.2;">Total Hab.</th>
+      <!-- Descuentos -->
+      <th class="group-desc">AFP</th>
+      <th class="group-desc">Cotiz. AFP</th>
+      <th class="group-desc">Salud</th>
+      <th class="group-desc">Cotiz. Salud</th>
+      <th class="group-desc">Cesantía</th>
+      <th class="group-desc">Imp. Único</th>
+      <th class="group-desc">Anticipo</th>
+      <th class="group-desc">Otros Desc.</th>
+      <th class="group-desc">Total Desc.</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for f in filas %}
+    <tr class="{% if forloop.counter|divisibleby:2 %}par{% else %}impar{% endif %}">
+      <td class="c">{{ f.ficha }}</td>
+      <td class="c">{{ f.rut }}</td>
+      <td class="l">{{ f.nombre }}</td>
+      <td class="l">{{ f.cargo }}</td>
+      <td class="c">{{ f.dias }}</td>
+      <!-- Haberes imponibles -->
+      <td class="r">{{ f.sueldo_base_fmt }}</td>
+      <td class="r">{{ f.gratificacion_fmt }}</td>
+      <td class="r">{{ f.otros_imp_fmt }}</td>
+      <td class="r" style="font-weight:bold;">{{ f.total_imp_fmt }}</td>
+      <!-- No imponibles -->
+      <td class="r">{{ f.no_imp_fmt }}</td>
+      <td class="r" style="font-weight:bold;">{{ f.total_hab_fmt }}</td>
+      <!-- Descuentos -->
+      <td class="c" style="font-size:5.5pt;">{{ f.afp_nombre }}</td>
+      <td class="r">{{ f.cotiz_afp_fmt }}</td>
+      <td class="c" style="font-size:5.5pt;">{{ f.salud_nombre }}</td>
+      <td class="r">{{ f.cotiz_salud_fmt }}</td>
+      <td class="r">{{ f.cesantia_fmt }}</td>
+      <td class="r">{{ f.imp_unico_fmt }}</td>
+      <td class="r">{{ f.anticipo_fmt }}</td>
+      <td class="r">{{ f.otros_desc_fmt }}</td>
+      <td class="r" style="font-weight:bold;">{{ f.total_desc_fmt }}</td>
+      <!-- Líquido -->
+      <td class="r" style="font-weight:bold; color:#14532d;">{{ f.sueldo_liq_fmt }}</td>
+    </tr>
+    {% endfor %}
+
+    <!-- Totals row -->
+    <tr class="totals-row">
+      <td colspan="5" class="l">TOTALES &nbsp;({{ n_trabajadores }} trabajadores)</td>
+      <!-- Hab. imponibles -->
+      <td class="r">{{ totales_fmt.sueldo_base }}</td>
+      <td class="r">{{ totales_fmt.gratificacion }}</td>
+      <td class="r">{{ totales_fmt.otros_imp }}</td>
+      <td class="r">{{ totales_fmt.total_imponible }}</td>
+      <!-- No imponibles -->
+      <td class="r">{{ totales_fmt.no_imponibles }}</td>
+      <td class="r">{{ totales_fmt.total_haberes }}</td>
+      <!-- Descuentos -->
+      <td class="c">—</td>
+      <td class="r">{{ totales_fmt.cotiz_afp }}</td>
+      <td class="c">—</td>
+      <td class="r">{{ totales_fmt.cotiz_salud }}</td>
+      <td class="r">{{ totales_fmt.cesantia }}</td>
+      <td class="r">{{ totales_fmt.imp_unico }}</td>
+      <td class="r">{{ totales_fmt.anticipo }}</td>
+      <td class="r">{{ totales_fmt.otros_desc }}</td>
+      <td class="r">{{ totales_fmt.total_descuentos }}</td>
+      <!-- Líquido -->
+      <td class="r" style="color:#b45309;">{{ totales_fmt.sueldo_liquido }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ══ Signature block ═══════════════════════════════════════════════════════ -->
+<div style="margin-top: 18pt; width: 100%;">
+  <table style="width:100%; border-collapse:collapse;">
+    <tr>
+      <td style="width:40%; text-align:center; padding-top: 30pt; border-top: 0.5pt solid #333; font-size: 6.5pt;">
+        Representante Legal<br>
+        <span style="font-size:6pt; color:#555;">{{ empresa.nombre }}</span>
+      </td>
+      <td style="width:20%;"></td>
+      <td style="width:40%; text-align:center; padding-top: 30pt; border-top: 0.5pt solid #333; font-size: 6.5pt;">
+        Encargado de Remuneraciones<br>
+        <span style="font-size:6pt; color:#555;">Timbre y Firma</span>
+      </td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

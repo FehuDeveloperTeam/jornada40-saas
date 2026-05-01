@@ -1938,6 +1938,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         mes_param  = request.query_params.get('mes')
         anio_param = request.query_params.get('anio')
         empresa_id = request.query_params.get('empresa')
+        formato    = request.query_params.get('formato', 'excel')
 
         if not mes_param or not anio_param:
             return Response({'error': 'Se requieren los parámetros mes y anio.'}, status=400)
@@ -1965,39 +1966,146 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         ]
         mes_nombre = meses_nombres[mes - 1]
 
+        # ── Helper formato CLP para el PDF ────────────────────────────────────
+        def clp(n):
+            if not n:
+                return '$0'
+            return f'${int(n):,}'.replace(',', '.')
+
+        # ── Preparación de filas (compartido por Excel y PDF) ─────────────────
+        filas = []
+        totales = {k: 0 for k in [
+            'sueldo_base', 'gratificacion', 'otros_imp', 'total_imponible',
+            'no_imponibles', 'total_haberes', 'cotiz_afp', 'cotiz_salud',
+            'cesantia', 'imp_unico', 'anticipo', 'otros_desc',
+            'total_descuentos', 'sueldo_liquido',
+        ]}
+
+        for liq in qs:
+            emp = liq.empleado
+            det_imp = liq.detalle_haberes_imponibles or []
+            if not isinstance(det_imp, list): det_imp = []
+            det_hex = liq.detalle_horas_extras or []
+            if not isinstance(det_hex, list): det_hex = []
+            det_noi = liq.detalle_haberes_no_imponibles or []
+            if not isinstance(det_noi, list): det_noi = []
+            det_odc = liq.detalle_otros_descuentos or []
+            if not isinstance(det_odc, list): det_odc = []
+
+            otros_imp  = sum(int(d.get('valor', 0)) for d in det_imp if isinstance(d, dict))
+            otros_imp += sum(int(d.get('valor', 0)) for d in det_hex if isinstance(d, dict))
+            no_impon   = sum(int(d.get('valor', 0)) for d in det_noi if isinstance(d, dict))
+            otros_desc = sum(int(d.get('valor', 0)) for d in det_odc if isinstance(d, dict))
+
+            filas.append({
+                'ficha':        emp.ficha_numero or '',
+                'rut':          emp.rut,
+                'nombre':       f'{emp.apellido_paterno} {emp.apellido_materno or ""} {emp.nombres}'.strip(),
+                'cargo':        emp.cargo or '',
+                'dias':         liq.dias_trabajados,
+                'sueldo_base':  int(liq.sueldo_base),
+                'gratificacion':int(liq.gratificacion),
+                'otros_imp':    otros_imp,
+                'total_imp':    int(liq.total_imponible),
+                'no_imp':       no_impon,
+                'total_hab':    int(liq.total_haberes),
+                'afp_nombre':   liq.afp_nombre or '',
+                'cotiz_afp':    int(liq.afp_monto),
+                'salud_nombre': liq.salud_nombre or '',
+                'cotiz_salud':  int(liq.salud_monto),
+                'cesantia':     int(liq.seguro_cesantia),
+                'imp_unico':    int(liq.impuesto_unico or 0),
+                'anticipo':     int(liq.anticipo_quincena or 0),
+                'otros_desc':   otros_desc,
+                'total_desc':   int(liq.total_descuentos),
+                'sueldo_liq':   int(liq.sueldo_liquido),
+            })
+
+            totales['sueldo_base']      += int(liq.sueldo_base)
+            totales['gratificacion']    += int(liq.gratificacion)
+            totales['otros_imp']        += otros_imp
+            totales['total_imponible']  += int(liq.total_imponible)
+            totales['no_imponibles']    += no_impon
+            totales['total_haberes']    += int(liq.total_haberes)
+            totales['cotiz_afp']        += int(liq.afp_monto)
+            totales['cotiz_salud']      += int(liq.salud_monto)
+            totales['cesantia']         += int(liq.seguro_cesantia)
+            totales['imp_unico']        += int(liq.impuesto_unico or 0)
+            totales['anticipo']         += int(liq.anticipo_quincena or 0)
+            totales['otros_desc']       += otros_desc
+            totales['total_descuentos'] += int(liq.total_descuentos)
+            totales['sueldo_liquido']   += int(liq.sueldo_liquido)
+
+        nombre_base = f'LibroRemuneraciones_{mes_nombre}_{anio}_{empresa.rut}'
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA PDF
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'pdf':
+            # Pre-formatear montos para el template
+            for f in filas:
+                for k in ['sueldo_base','gratificacion','otros_imp','total_imp','no_imp',
+                          'total_hab','cotiz_afp','cotiz_salud','cesantia','imp_unico',
+                          'anticipo','otros_desc','total_desc','sueldo_liq']:
+                    f[f'{k}_fmt'] = clp(f[k])
+
+            totales_fmt = {k: clp(v) for k, v in totales.items()}
+
+            context = {
+                'empresa':      empresa,
+                'mes_nombre':   mes_nombre,
+                'anio':         anio,
+                'filas':        filas,
+                'totales':      totales,
+                'totales_fmt':  totales_fmt,
+                'fecha_emision': timezone.now().date().strftime('%d/%m/%Y'),
+                'n_trabajadores': len(filas),
+            }
+            template = get_template('libro_remuneraciones.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_base}.pdf"'
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar PDF'}, status=500)
+            return response
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA EXCEL (sin cambios respecto al paso 1)
+        # ══════════════════════════════════════════════════════════════════════
+
         # ── Estilos ───────────────────────────────────────────────────────────
         COLOR_HEADER   = '1E3A5F'
         COLOR_TOTALES  = 'F59E0B'
         COLOR_FILA_PAR = 'F1F5F9'
 
-        ft_titulo   = Font(name='Calibri', bold=True, size=14, color='1E3A5F')
-        ft_subtit   = Font(name='Calibri', bold=True, size=11, color='334155')
-        ft_header   = Font(name='Calibri', bold=True, size=9,  color='FFFFFF')
-        ft_dato     = Font(name='Calibri', size=9)
-        ft_total    = Font(name='Calibri', bold=True, size=9)
+        ft_titulo    = Font(name='Calibri', bold=True, size=14, color='1E3A5F')
+        ft_subtit    = Font(name='Calibri', bold=True, size=11, color='334155')
+        ft_header    = Font(name='Calibri', bold=True, size=9,  color='FFFFFF')
+        ft_dato      = Font(name='Calibri', size=9)
+        ft_total     = Font(name='Calibri', bold=True, size=9)
         ft_total_liq = Font(name='Calibri', bold=True, size=9, color='7C3AED')
 
         al_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
         al_left   = Alignment(horizontal='left',   vertical='center')
         al_right  = Alignment(horizontal='right',  vertical='center')
 
-        fill_header  = PatternFill('solid', fgColor=COLOR_HEADER)
-        fill_total   = PatternFill('solid', fgColor=COLOR_TOTALES)
-        fill_par     = PatternFill('solid', fgColor=COLOR_FILA_PAR)
+        fill_header = PatternFill('solid', fgColor=COLOR_HEADER)
+        fill_total  = PatternFill('solid', fgColor=COLOR_TOTALES)
+        fill_par    = PatternFill('solid', fgColor=COLOR_FILA_PAR)
 
-        thin = Side(style='thin', color='CBD5E1')
+        thin  = Side(style='thin', color='CBD5E1')
         borde = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         FMT_CLP  = '#,##0'
         FMT_TEXT = '@'
 
-        # ── Workbook ──────────────────────────────────────────────────────────
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = f'Libro {mes_nombre} {anio}'
         ws.sheet_view.showGridLines = False
 
-        # ── Columnas: anchos ──────────────────────────────────────────────────
         COLS = [
             ('N°',                    5),
             ('RUT',                  12),
@@ -2024,10 +2132,9 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         for i, (_, ancho) in enumerate(COLS, start=1):
             ws.column_dimensions[get_column_letter(i)].width = ancho
 
-        N_COLS = len(COLS)
+        N_COLS     = len(COLS)
         ultima_col = get_column_letter(N_COLS)
 
-        # ── Encabezado empresa ────────────────────────────────────────────────
         ws.row_dimensions[1].height = 22
         ws.row_dimensions[2].height = 18
         ws.row_dimensions[3].height = 16
@@ -2050,10 +2157,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         c.font      = Font(name='Calibri', size=10, color='475569')
         c.alignment = al_center
 
-        # fila separadora
         ws.row_dimensions[4].height = 6
 
-        # ── Fila de cabeceras ─────────────────────────────────────────────────
         ws.row_dimensions[5].height = 36
         for col_idx, (label, _) in enumerate(COLS, start=1):
             c = ws.cell(row=5, column=col_idx, value=label)
@@ -2062,58 +2167,31 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             c.alignment = al_center
             c.border    = borde
 
-        # ── Filas de datos ────────────────────────────────────────────────────
-        totales = {k: 0 for k in [
-            'sueldo_base', 'gratificacion', 'otros_imp', 'total_imponible',
-            'no_imponibles', 'total_haberes', 'cotiz_afp', 'cotiz_salud',
-            'cesantia', 'imp_unico', 'anticipo', 'otros_desc',
-            'total_descuentos', 'sueldo_liquido',
-        ]}
-
-        for fila_idx, liq in enumerate(qs, start=6):
-            emp = liq.empleado
+        for fila_idx, f in enumerate(filas, start=6):
             fill_fila = fill_par if fila_idx % 2 == 0 else None
-
-            det_imp = liq.detalle_haberes_imponibles or []
-            if not isinstance(det_imp, list): det_imp = []
-            det_hex = liq.detalle_horas_extras or []
-            if not isinstance(det_hex, list): det_hex = []
-            det_noi = liq.detalle_haberes_no_imponibles or []
-            if not isinstance(det_noi, list): det_noi = []
-            det_odc = liq.detalle_otros_descuentos or []
-            if not isinstance(det_odc, list): det_odc = []
-
-            otros_imp   = sum(int(d.get('valor', 0)) for d in det_imp if isinstance(d, dict))
-            otros_imp  += sum(int(d.get('valor', 0)) for d in det_hex if isinstance(d, dict))
-            no_impon    = sum(int(d.get('valor', 0)) for d in det_noi if isinstance(d, dict))
-            otros_desc  = sum(int(d.get('valor', 0)) for d in det_odc if isinstance(d, dict))
-
-            nombre_completo = f'{emp.apellido_paterno} {emp.apellido_materno or ""} {emp.nombres}'.strip()
-
             valores = [
-                (emp.ficha_numero or '',     FMT_TEXT, al_center),
-                (emp.rut,                    FMT_TEXT, al_left),
-                (nombre_completo,            FMT_TEXT, al_left),
-                (emp.cargo or '',            FMT_TEXT, al_left),
-                (liq.dias_trabajados,        FMT_TEXT, al_center),
-                (int(liq.sueldo_base),       FMT_CLP,  al_right),
-                (int(liq.gratificacion),     FMT_CLP,  al_right),
-                (otros_imp,                  FMT_CLP,  al_right),
-                (int(liq.total_imponible),   FMT_CLP,  al_right),
-                (no_impon,                   FMT_CLP,  al_right),
-                (int(liq.total_haberes),     FMT_CLP,  al_right),
-                (liq.afp_nombre or '',       FMT_TEXT, al_center),
-                (int(liq.afp_monto),         FMT_CLP,  al_right),
-                (liq.salud_nombre or '',     FMT_TEXT, al_center),
-                (int(liq.salud_monto),       FMT_CLP,  al_right),
-                (int(liq.seguro_cesantia),   FMT_CLP,  al_right),
-                (int(liq.impuesto_unico or 0), FMT_CLP, al_right),
-                (int(liq.anticipo_quincena or 0), FMT_CLP, al_right),
-                (otros_desc,                 FMT_CLP,  al_right),
-                (int(liq.total_descuentos),  FMT_CLP,  al_right),
-                (int(liq.sueldo_liquido),    FMT_CLP,  al_right),
+                (f['ficha'],         FMT_TEXT, al_center),
+                (f['rut'],           FMT_TEXT, al_left),
+                (f['nombre'],        FMT_TEXT, al_left),
+                (f['cargo'],         FMT_TEXT, al_left),
+                (f['dias'],          FMT_TEXT, al_center),
+                (f['sueldo_base'],   FMT_CLP,  al_right),
+                (f['gratificacion'], FMT_CLP,  al_right),
+                (f['otros_imp'],     FMT_CLP,  al_right),
+                (f['total_imp'],     FMT_CLP,  al_right),
+                (f['no_imp'],        FMT_CLP,  al_right),
+                (f['total_hab'],     FMT_CLP,  al_right),
+                (f['afp_nombre'],    FMT_TEXT, al_center),
+                (f['cotiz_afp'],     FMT_CLP,  al_right),
+                (f['salud_nombre'],  FMT_TEXT, al_center),
+                (f['cotiz_salud'],   FMT_CLP,  al_right),
+                (f['cesantia'],      FMT_CLP,  al_right),
+                (f['imp_unico'],     FMT_CLP,  al_right),
+                (f['anticipo'],      FMT_CLP,  al_right),
+                (f['otros_desc'],    FMT_CLP,  al_right),
+                (f['total_desc'],    FMT_CLP,  al_right),
+                (f['sueldo_liq'],    FMT_CLP,  al_right),
             ]
-
             ws.row_dimensions[fila_idx].height = 15
             for col_idx, (valor, fmt, alin) in enumerate(valores, start=1):
                 c = ws.cell(row=fila_idx, column=col_idx, value=valor)
@@ -2124,26 +2202,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 if fill_fila:
                     c.fill = fill_fila
 
-            # Acumular totales
-            totales['sueldo_base']      += int(liq.sueldo_base)
-            totales['gratificacion']    += int(liq.gratificacion)
-            totales['otros_imp']        += otros_imp
-            totales['total_imponible']  += int(liq.total_imponible)
-            totales['no_imponibles']    += no_impon
-            totales['total_haberes']    += int(liq.total_haberes)
-            totales['cotiz_afp']        += int(liq.afp_monto)
-            totales['cotiz_salud']      += int(liq.salud_monto)
-            totales['cesantia']         += int(liq.seguro_cesantia)
-            totales['imp_unico']        += int(liq.impuesto_unico or 0)
-            totales['anticipo']         += int(liq.anticipo_quincena or 0)
-            totales['otros_desc']       += otros_desc
-            totales['total_descuentos'] += int(liq.total_descuentos)
-            totales['sueldo_liquido']   += int(liq.sueldo_liquido)
-
-        # ── Fila de totales ───────────────────────────────────────────────────
-        fila_total = qs.count() + 6
+        fila_total = len(filas) + 6
         ws.row_dimensions[fila_total].height = 18
-
         vals_total = [
             ('', FMT_TEXT), ('', FMT_TEXT),
             ('TOTALES', FMT_TEXT), ('', FMT_TEXT), ('', FMT_TEXT),
@@ -2164,38 +2224,33 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             (totales['total_descuentos'], FMT_CLP),
             (totales['sueldo_liquido'],   FMT_CLP),
         ]
-
         for col_idx, (valor, fmt) in enumerate(vals_total, start=1):
             c = ws.cell(row=fila_total, column=col_idx, value=valor)
             c.number_format = fmt
-            c.fill   = fill_total
-            c.border = borde
+            c.fill      = fill_total
+            c.border    = borde
             c.alignment = al_right if fmt == FMT_CLP else al_center
             if col_idx == 3:
                 c.alignment = al_left
-            # El alcance líquido en morado para destacarlo
             c.font = ft_total_liq if col_idx == N_COLS else ft_total
 
-        # ── Configuración de página (landscape A3/A4) ─────────────────────────
-        ws.page_setup.orientation       = 'landscape'
-        ws.page_setup.paperSize         = ws.PAPERSIZE_LETTER  # Carta, estándar en Chile
-        ws.page_setup.fitToPage         = True
-        ws.page_setup.fitToWidth        = 1
-        ws.page_setup.fitToHeight       = 0
-        ws.print_title_rows             = '1:5'
-        ws.freeze_panes                 = 'A6'
+        ws.page_setup.orientation   = 'landscape'
+        ws.page_setup.paperSize     = ws.PAPERSIZE_LETTER
+        ws.page_setup.fitToPage     = True
+        ws.page_setup.fitToWidth    = 1
+        ws.page_setup.fitToHeight   = 0
+        ws.print_title_rows         = '1:5'
+        ws.freeze_panes             = 'A6'
 
-        # ── Serializar y responder ────────────────────────────────────────────
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
 
-        nombre_archivo = f'LibroRemuneraciones_{mes_nombre}_{anio}_{empresa.rut}.xlsx'
         response = HttpResponse(
             buf.read(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
-        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        response['Content-Disposition'] = f'attachment; filename="{nombre_base}.xlsx"'
         return response
 
 # ==========================================
