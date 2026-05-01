@@ -4,7 +4,7 @@ import axios from 'axios';
 import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import { useToast } from '../context/ToastContext';
-import { ShieldCheck, Settings, Trash2, RefreshCcw, Plus, LogOut, X, ArrowRight, Building2, PenLine } from 'lucide-react';
+import { ShieldCheck, Settings, Trash2, RefreshCcw, Plus, LogOut, X, ArrowRight, Building2, PenLine, BarChart3 } from 'lucide-react';
 import ModalFirmaEmpleador from '../components/ModalFirmaEmpleador';
 
 interface Empresa {
@@ -195,6 +195,15 @@ export default function LobbyEmpresas() {
             style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }}>
             <ShieldCheck size={14} /> Conexión Segura
           </div>
+
+          <button onClick={() => navigate('/reportes')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
+            style={{ background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.2)', color: '#818cf8' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.18)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.35)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.1)'; e.currentTarget.style.borderColor = 'rgba(129,140,248,0.2)'; }}>
+            <BarChart3 size={16} />
+            <span className="hidden sm:inline">Reportes</span>
+          </button>
 
           <button onClick={() => navigate('/suscripcion')}
             className="p-2.5 rounded-xl transition-all"
