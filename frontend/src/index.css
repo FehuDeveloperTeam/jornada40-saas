@@ -28,7 +28,80 @@
   --radius-4xl: 1.75rem;
 }
 
-/* Reset global */
+/* ============================================================
+   SISTEMA DE TOKENS DE TEMA
+   Tema oscuro activo por defecto.
+   El tema claro se activa con data-theme="light" en <html>.
+   ============================================================ */
+
+:root {
+  /* --- Fondos --- */
+  --c-bg-app:           #060f20;
+  --c-bg-card:          #0c1a35;
+  --c-bg-card-2:        rgba(255, 255, 255, 0.03);
+  --c-bg-input:         rgba(255, 255, 255, 0.06);
+  --c-bg-input-focus:   rgba(255, 255, 255, 0.09);
+  --c-bg-hover:         rgba(255, 255, 255, 0.04);
+  --c-bg-modal:         #0c1a35;
+  --c-overlay:          rgba(0, 0, 0, 0.75);
+
+  /* --- Texto --- */
+  --c-text-1:           #f8fafc;
+  --c-text-2:           rgba(255, 255, 255, 0.60);
+  --c-text-3:           rgba(255, 255, 255, 0.35);
+  --c-text-4:           rgba(255, 255, 255, 0.20);
+
+  /* --- Bordes --- */
+  --c-border:           rgba(255, 255, 255, 0.07);
+  --c-border-2:         rgba(255, 255, 255, 0.12);
+  --c-border-input:     rgba(255, 255, 255, 0.10);
+
+  /* --- Scrollbar --- */
+  --c-scroll-track:     #060f20;
+  --c-scroll-thumb:     rgba(255, 255, 255, 0.12);
+  --c-scroll-thumb-hover: rgba(255, 255, 255, 0.22);
+
+  /* --- Selección --- */
+  --c-selection-bg:     rgba(37, 99, 235, 0.35);
+  --c-selection-text:   #ffffff;
+}
+
+[data-theme="light"] {
+  /* --- Fondos --- */
+  --c-bg-app:           #f1f5f9;
+  --c-bg-card:          #ffffff;
+  --c-bg-card-2:        rgba(0, 0, 0, 0.025);
+  --c-bg-input:         rgba(0, 0, 0, 0.04);
+  --c-bg-input-focus:   #ffffff;
+  --c-bg-hover:         rgba(0, 0, 0, 0.03);
+  --c-bg-modal:         #ffffff;
+  --c-overlay:          rgba(0, 0, 0, 0.50);
+
+  /* --- Texto --- */
+  --c-text-1:           #0f172a;
+  --c-text-2:           #475569;
+  --c-text-3:           #94a3b8;
+  --c-text-4:           #cbd5e1;
+
+  /* --- Bordes --- */
+  --c-border:           #e2e8f0;
+  --c-border-2:         #cbd5e1;
+  --c-border-input:     #d1d5db;
+
+  /* --- Scrollbar --- */
+  --c-scroll-track:     #f1f5f9;
+  --c-scroll-thumb:     rgba(0, 0, 0, 0.15);
+  --c-scroll-thumb-hover: rgba(0, 0, 0, 0.25);
+
+  /* --- Selección --- */
+  --c-selection-bg:     rgba(37, 99, 235, 0.20);
+  --c-selection-text:   #0f172a;
+}
+
+/* ============================================================
+   RESET GLOBAL + TRANSICIÓN DE TEMA
+   ============================================================ */
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -41,34 +114,31 @@ html {
 
 body {
   margin: 0;
-  background-color: #060f20;
-  color: #f8fafc;
+  background-color: var(--c-bg-app);
+  color: var(--c-text-1);
   font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  transition: background-color 0.25s ease, color 0.2s ease;
 }
 
-/* Scrollbar dark */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #060f20;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.12);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.22);
-}
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: var(--c-scroll-track); }
+::-webkit-scrollbar-thumb  { background: var(--c-scroll-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-scroll-thumb-hover); }
 
-/* Selección */
+/* ============================================================
+   SELECCIÓN
+   ============================================================ */
 ::selection {
-  background: rgba(37, 99, 235, 0.35);
-  color: #fff;
+  background: var(--c-selection-bg);
+  color: var(--c-selection-text);
 }
 
-/* Animaciones globales */
+/* ============================================================
+   ANIMACIONES GLOBALES
+   ============================================================ */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -87,12 +157,11 @@ body {
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
 }
 
-.animate-fade-up   { animation: fadeUp 0.6s ease both; }
-.animate-fade-in   { animation: fadeIn 0.4s ease both; }
-.animate-float     { animation: float 4s ease-in-out infinite; }
+.animate-fade-up    { animation: fadeUp 0.6s ease both; }
+.animate-fade-in    { animation: fadeIn 0.4s ease both; }
+.animate-float      { animation: float 4s ease-in-out infinite; }
 .animate-pulse-ring { animation: pulse-ring 2.5s ease-in-out infinite; }
 
-/* Retrasos de animación */
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
 .delay-300 { animation-delay: 0.3s; }
@@ -100,32 +169,32 @@ body {
 .delay-500 { animation-delay: 0.5s; }
 .delay-600 { animation-delay: 0.6s; }
 
-/* Tarjeta glass reutilizable */
+/* ============================================================
+   COMPONENTES GLOBALES REUTILIZABLES (ya con tokens)
+   ============================================================ */
+
 .glass-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--c-bg-card-2);
+  border: 1px solid var(--c-border);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* Input dark reutilizable */
 .input-dark {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--c-bg-input);
+  border: 1px solid var(--c-border-input);
   border-radius: 0.75rem;
   padding: 0.875rem 1rem 0.875rem 2.75rem;
-  color: #f8fafc;
+  color: var(--c-text-1);
   font-family: 'Poppins', sans-serif;
   font-size: 0.9375rem;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   outline: none;
 }
-.input-dark::placeholder {
-  color: rgba(255, 255, 255, 0.25);
-}
+.input-dark::placeholder { color: var(--c-text-4); }
 .input-dark:focus {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--c-bg-input-focus);
   border-color: rgba(37, 99, 235, 0.6);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
@@ -134,7 +203,6 @@ body {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
-/* Botón primario reutilizable */
 .btn-primary {
   width: 100%;
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
@@ -163,17 +231,16 @@ body {
   transform: none;
 }
 
-/* Botón secundario (dark slate) */
 .btn-secondary {
   width: 100%;
-  background: rgba(255, 255, 255, 0.06);
-  color: #cbd5e1;
+  background: var(--c-bg-input);
+  color: var(--c-text-2);
   padding: 0.875rem 1.5rem;
   border-radius: 0.75rem;
   font-family: 'Poppins', sans-serif;
   font-weight: 600;
   font-size: 0.9375rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--c-border-input);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -182,6 +249,7 @@ body {
   gap: 0.5rem;
 }
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
+  background: var(--c-bg-input-focus);
+  color: var(--c-text-1);
 }
+
