@@ -4,6 +4,7 @@ import axios from 'axios';
 import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import { AlertCircle, Lock, User, ArrowRight, ChevronLeft, Eye, EyeOff } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Login() {
   const [rut, setRut] = useState<string>('');
@@ -27,7 +28,6 @@ export default function Login() {
     if (!isValidRut || password.length < 4) return;
     setLoading(true);
     setErrorMsg('');
-
     try {
       await client.post('/auth/login/', { username: rut, password });
       navigate('/empresas');
@@ -48,7 +48,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes de luz de fondo */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -64,20 +64,25 @@ export default function Login() {
       <div className="absolute top-0 left-0 w-full p-6 flex items-center justify-between z-20">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-sm font-medium transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.45)' }}
+          className="flex items-center gap-2 text-sm font-medium transition-colors"
+          style={{ color: 'var(--c-text-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
         >
-          <div className="w-8 h-8 rounded-full flex items-center justify-center transition-all group-hover:-translate-x-0.5"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+            style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)' }}>
             <ChevronLeft size={15} />
           </div>
-          <span className="group-hover:text-white transition-colors">Volver al Inicio</span>
+          <span>Volver al Inicio</span>
         </button>
 
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold tracking-wider uppercase"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.35)' }}>
-          <Lock size={12} className="text-emerald-400" />
-          Conexión Cifrada
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold tracking-wider uppercase"
+            style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)', color: 'var(--c-text-3)' }}>
+            <Lock size={12} className="text-emerald-400" />
+            Conexión Cifrada
+          </div>
         </div>
       </div>
 
@@ -91,10 +96,10 @@ export default function Login() {
               style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 8px 32px rgba(37,99,235,0.4)' }}>
               <img src="/favicon.svg" alt="Jornada40" className="w-full h-full object-contain p-1" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>
               Jornada<span style={{ color: '#60a5fa' }}>40</span>
             </h1>
-            <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="text-sm font-medium" style={{ color: 'var(--c-text-3)' }}>
               Accede al portal de administración laboral
             </p>
           </div>
@@ -105,12 +110,12 @@ export default function Login() {
 
               {/* RUT */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   RUT Corporativo
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <User size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <User size={17} style={{ color: 'var(--c-text-3)' }} />
                   </div>
                   <input
                     type="text"
@@ -129,12 +134,12 @@ export default function Login() {
 
               {/* Contraseña */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Contraseña
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <Lock size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <Lock size={17} style={{ color: 'var(--c-text-3)' }} />
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -148,9 +153,9 @@ export default function Login() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-3.5 flex items-center transition-colors"
-                    style={{ color: 'rgba(255,255,255,0.3)' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+                    style={{ color: 'var(--c-text-3)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
                   >
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
@@ -169,7 +174,7 @@ export default function Login() {
               {/* Olvidé contraseña */}
               <div className="flex justify-end">
                 <Link to="/forgot-password" className="text-xs font-semibold transition-colors hover:text-blue-400"
-                  style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  style={{ color: 'var(--c-text-3)' }}>
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
@@ -192,7 +197,7 @@ export default function Login() {
           </div>
 
           {/* Registro */}
-          <p className="text-center mt-6 text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <p className="text-center mt-6 text-sm" style={{ color: 'var(--c-text-3)' }}>
             ¿Sin cuenta?{' '}
             <Link to="/register" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
               Regístrate gratis

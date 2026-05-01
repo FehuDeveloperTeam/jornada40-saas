@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import client from '../api/client';
 import axios from 'axios';
 import { Lock, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function ResetPassword() {
   const { uid, token } = useParams<{ uid: string; token: string }>();
@@ -28,7 +29,6 @@ export default function ResetPassword() {
     }
     setLoading(true);
     setErrorMsg('');
-
     try {
       await client.post('/auth/password/reset/confirm/', {
         uid, token,
@@ -54,10 +54,10 @@ export default function ResetPassword() {
 
   if (!uid || !token) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#060f20' }}>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'var(--c-bg-app)' }}>
         <div className="rounded-3xl p-8 text-center glass-card max-w-sm w-full">
-          <h2 className="text-xl font-bold text-white mb-2">Enlace Inválido</h2>
-          <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>Faltan los parámetros de seguridad en la URL.</p>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Enlace Inválido</h2>
+          <p className="text-sm mb-6" style={{ color: 'var(--c-text-2)' }}>Faltan los parámetros de seguridad en la URL.</p>
           <Link to="/login" className="text-blue-400 text-sm font-semibold hover:text-blue-300">Volver al Login</Link>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -73,13 +73,18 @@ export default function ResetPassword() {
           style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
       </div>
 
+      {/* Theme toggle */}
+      <div className="absolute top-5 right-5 z-20">
+        <ThemeToggle />
+      </div>
+
       <div className="w-full max-w-[420px] relative z-10 animate-fade-up">
 
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>
             Nueva <span style={{ color: '#60a5fa' }}>Contraseña</span>
           </h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
             Ingresa tu nueva contraseña para acceder.
           </p>
         </div>
@@ -92,8 +97,8 @@ export default function ResetPassword() {
                 style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
                 <CheckCircle2 size={32} className="text-emerald-400" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">¡Contraseña Actualizada!</h3>
-              <p className="text-sm mb-8" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>¡Contraseña Actualizada!</h3>
+              <p className="text-sm mb-8" style={{ color: 'var(--c-text-2)' }}>
                 Tu clave ha sido cambiada con éxito.
               </p>
               <button onClick={() => navigate('/login')} className="btn-primary">
@@ -112,12 +117,12 @@ export default function ResetPassword() {
               )}
 
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Nueva Contraseña
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <Lock size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <Lock size={17} style={{ color: 'var(--c-text-3)' }} />
                   </div>
                   <input
                     type="password"
@@ -130,12 +135,12 @@ export default function ResetPassword() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Confirmar Contraseña
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <Lock size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <Lock size={17} style={{ color: 'var(--c-text-3)' }} />
                   </div>
                   <input
                     type="password"

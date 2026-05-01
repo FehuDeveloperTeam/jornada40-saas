@@ -5,6 +5,7 @@ import axios from 'axios';
 import client from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { Check, Zap, ArrowLeft, Building2, ArrowRight, User } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 const PLANES = [
   {
@@ -107,7 +108,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -118,15 +119,18 @@ export default function Register() {
       </div>
 
       {/* Top bar */}
-      <div className="absolute top-0 left-0 w-full p-6 z-20">
+      <div className="absolute top-0 left-0 w-full p-6 z-20 flex items-center justify-between">
         <button
           onClick={() => step === 1 ? navigate('/') : navigate('/login')}
-          className="flex items-center gap-2 text-sm font-medium transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.4)' }}
+          className="flex items-center gap-2 text-sm font-medium transition-colors"
+          style={{ color: 'var(--c-text-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
         >
-          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
-          <span className="group-hover:text-white transition-colors">Volver</span>
+          <ArrowLeft size={16} />
+          <span>Volver</span>
         </button>
+        <ThemeToggle />
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center py-20 px-4 relative z-10">
@@ -137,7 +141,7 @@ export default function Register() {
             style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 8px 32px rgba(37,99,235,0.35)' }}>
             <span className="text-white text-xl font-black">J</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-1">
+          <h1 className="text-3xl font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>
             Jornada<span style={{ color: '#60a5fa' }}>40</span>
           </h1>
 
@@ -145,20 +149,23 @@ export default function Register() {
           <div className="flex items-center justify-center gap-3 mt-5">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: step >= 1 ? '#2563eb' : 'rgba(255,255,255,0.08)', color: '#fff' }}>
+                style={{ background: step >= 1 ? '#2563eb' : 'var(--c-bg-input)', color: '#fff' }}>
                 {step > 1 ? <Check size={14} /> : '1'}
               </div>
-              <span className="text-xs font-medium" style={{ color: step >= 1 ? '#60a5fa' : 'rgba(255,255,255,0.35)' }}>
+              <span className="text-xs font-medium" style={{ color: step >= 1 ? '#60a5fa' : 'var(--c-text-3)' }}>
                 Tu cuenta
               </span>
             </div>
-            <div className="w-12 h-px" style={{ background: step >= 2 ? '#2563eb' : 'rgba(255,255,255,0.12)' }} />
+            <div className="w-12 h-px" style={{ background: step >= 2 ? '#2563eb' : 'var(--c-border-2)' }} />
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                style={{ background: step >= 2 ? '#2563eb' : 'rgba(255,255,255,0.08)', color: step >= 2 ? '#fff' : 'rgba(255,255,255,0.3)' }}>
+                style={{
+                  background: step >= 2 ? '#2563eb' : 'var(--c-bg-input)',
+                  color: step >= 2 ? '#fff' : 'var(--c-text-3)',
+                }}>
                 2
               </div>
-              <span className="text-xs font-medium" style={{ color: step >= 2 ? '#60a5fa' : 'rgba(255,255,255,0.35)' }}>
+              <span className="text-xs font-medium" style={{ color: step >= 2 ? '#60a5fa' : 'var(--c-text-3)' }}>
                 Elige tu plan
               </span>
             </div>
@@ -169,10 +176,11 @@ export default function Register() {
           /* ─── PASO 1: DATOS ─── */
           <div className="w-full max-w-2xl animate-fade-up">
             <div className="rounded-3xl p-8 glass-card">
-              <h2 className="text-xl font-bold text-white mb-6">Crea tu cuenta</h2>
+              <h2 className="text-xl font-bold mb-6" style={{ color: 'var(--c-text-1)' }}>Crea tu cuenta</h2>
 
               {/* Toggle tipo cliente */}
-              <div className="flex gap-2 mb-7 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex gap-2 mb-7 p-1 rounded-xl"
+                style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
                 {(['EMPRESA', 'PERSONA'] as const).map((tipo) => (
                   <button
                     key={tipo}
@@ -180,7 +188,7 @@ export default function Register() {
                     className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all"
                     style={{
                       background: tipoCliente === tipo ? 'rgba(37,99,235,0.7)' : 'transparent',
-                      color: tipoCliente === tipo ? '#fff' : 'rgba(255,255,255,0.4)',
+                      color: tipoCliente === tipo ? '#fff' : 'var(--c-text-3)',
                       border: tipoCliente === tipo ? '1px solid rgba(37,99,235,0.5)' : '1px solid transparent',
                     }}
                   >
@@ -194,12 +202,12 @@ export default function Register() {
 
                   {/* RUT */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       {tipoCliente === 'EMPRESA' ? 'RUT Empresa *' : 'RUT *'}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                        <Building2 size={15} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                        <Building2 size={15} style={{ color: 'var(--c-text-3)' }} />
                       </div>
                       <input type="text" name="rut" required value={formData.rut} onChange={handleInputChange}
                         placeholder="12.345.678-9"
@@ -207,15 +215,15 @@ export default function Register() {
                     </div>
                   </div>
 
-                  {/* RUT representante (solo empresa) */}
+                  {/* RUT representante */}
                   {tipoCliente === 'EMPRESA' && (
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                         RUT Representante Legal *
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                          <User size={15} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                          <User size={15} style={{ color: 'var(--c-text-3)' }} />
                         </div>
                         <input type="text" name="rut_representante" required value={formData.rut_representante} onChange={handleInputChange}
                           placeholder="12.345.678-9"
@@ -226,7 +234,7 @@ export default function Register() {
 
                   {/* Nombres / Razón Social */}
                   <div className={`space-y-1.5 ${tipoCliente === 'PERSONA' ? 'md:col-span-2' : ''}`}>
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       {tipoCliente === 'EMPRESA' ? 'Razón Social *' : 'Nombres *'}
                     </label>
                     <input type="text" name="nombres" required value={formData.nombres} onChange={handleInputChange}
@@ -235,7 +243,7 @@ export default function Register() {
 
                   {/* Apellido paterno / Nombre Fantasía */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       {tipoCliente === 'EMPRESA' ? 'Nombre Fantasía' : 'Apellido Paterno *'}
                     </label>
                     <input type="text" name="apellido_paterno" required={tipoCliente === 'PERSONA'}
@@ -245,7 +253,7 @@ export default function Register() {
 
                   {tipoCliente === 'PERSONA' && (
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                         Apellido Materno
                       </label>
                       <input type="text" name="apellido_materno" value={formData.apellido_materno} onChange={handleInputChange}
@@ -255,7 +263,7 @@ export default function Register() {
 
                   {/* Email */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       Correo Electrónico *
                     </label>
                     <input type="email" name="email" required value={formData.email} onChange={handleInputChange}
@@ -264,7 +272,7 @@ export default function Register() {
 
                   {/* Contraseña */}
                   <div className="md:col-span-2 space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       Contraseña *
                     </label>
                     <input type="password" name="password" required value={formData.password} onChange={handleInputChange}
@@ -276,7 +284,7 @@ export default function Register() {
                 <label className="flex items-start gap-3 cursor-pointer mt-2">
                   <input type="checkbox" required checked={aceptaTerminos} onChange={(e) => setAceptaTerminos(e.target.checked)}
                     className="mt-0.5 h-4 w-4 rounded accent-blue-500 cursor-pointer" />
-                  <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  <span className="text-sm" style={{ color: 'var(--c-text-3)' }}>
                     He leído y acepto los{' '}
                     <Link to="/terminos" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 font-semibold">
                       Términos y Condiciones
@@ -299,7 +307,7 @@ export default function Register() {
               </form>
             </div>
 
-            <p className="text-center mt-5 text-sm" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            <p className="text-center mt-5 text-sm" style={{ color: 'var(--c-text-3)' }}>
               ¿Ya tienes cuenta?{' '}
               <Link to="/login" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
                 Inicia sesión
@@ -311,29 +319,30 @@ export default function Register() {
           /* ─── PASO 2: SELECCIÓN DE PLAN ─── */
           <div className="w-full max-w-5xl animate-fade-up">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-white mb-2">¡Cuenta creada con éxito!</h2>
-              <p className="text-base" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <h2 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>¡Cuenta creada con éxito!</h2>
+              <p className="text-base" style={{ color: 'var(--c-text-2)' }}>
                 Elige el plan que mejor se adapte a tu empresa
               </p>
             </div>
 
             {/* Toggle mensual / anual */}
             <div className="flex justify-center mb-10">
-              <div className="flex p-1 rounded-full" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex p-1 rounded-full"
+                style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
                 {(['mensual', 'anual'] as const).map((ciclo) => (
                   <button
                     key={ciclo}
                     onClick={() => setBillingCycle(ciclo)}
                     className="px-6 py-2.5 rounded-full text-sm font-bold transition-all flex items-center gap-2"
                     style={{
-                      background: billingCycle === ciclo ? (ciclo === 'anual' ? '#2563eb' : 'rgba(255,255,255,0.1)') : 'transparent',
-                      color: billingCycle === ciclo ? '#fff' : 'rgba(255,255,255,0.4)',
+                      background: billingCycle === ciclo ? (ciclo === 'anual' ? '#2563eb' : 'var(--c-bg-input)') : 'transparent',
+                      color: billingCycle === ciclo ? '#fff' : 'var(--c-text-3)',
                     }}
                   >
                     {ciclo === 'mensual' ? 'Pago Mensual' : 'Pago Anual'}
                     {ciclo === 'anual' && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                        style={{ background: billingCycle === 'anual' ? 'rgba(52,211,153,0.2)' : 'rgba(52,211,153,0.12)', color: '#34d399' }}>
+                        style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399' }}>
                         Ahorra 20%
                       </span>
                     )}
@@ -347,8 +356,8 @@ export default function Register() {
               {PLANES.map((plan) => (
                 <div key={plan.id} className="relative rounded-3xl p-7 flex flex-col transition-transform hover:-translate-y-1"
                   style={{
-                    background: plan.destacado ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: plan.destacado ? '1px solid rgba(37,99,235,0.45)' : '1px solid rgba(255,255,255,0.08)',
+                    background: plan.destacado ? 'rgba(37,99,235,0.12)' : 'var(--c-bg-card)',
+                    border: plan.destacado ? '1px solid rgba(37,99,235,0.45)' : '1px solid var(--c-border)',
                     backdropFilter: 'blur(20px)',
                   }}>
 
@@ -361,24 +370,24 @@ export default function Register() {
                     </div>
                   )}
 
-                  <h3 className="text-xl font-bold text-white mt-2">{plan.nombre}</h3>
-                  <p className="text-sm mt-1.5 mb-5" style={{ color: 'rgba(255,255,255,0.45)' }}>{plan.descripcion}</p>
+                  <h3 className="text-xl font-bold mt-2" style={{ color: 'var(--c-text-1)' }}>{plan.nombre}</h3>
+                  <p className="text-sm mt-1.5 mb-5" style={{ color: 'var(--c-text-2)' }}>{plan.descripcion}</p>
 
                   <div className="mb-6">
                     {plan.precioMensual === 0 ? (
-                      <span className="text-4xl font-bold text-white">Gratis</span>
+                      <span className="text-4xl font-bold" style={{ color: 'var(--c-text-1)' }}>Gratis</span>
                     ) : (
                       <div>
                         {billingCycle === 'anual' && plan.precioAnualNormal && (
-                          <span className="text-sm line-through mb-1 block" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                          <span className="text-sm line-through mb-1 block" style={{ color: 'var(--c-text-3)' }}>
                             ${plan.precioAnualNormal.toLocaleString('es-CL')}
                           </span>
                         )}
                         <div className="flex items-baseline gap-1">
-                          <span className="text-4xl font-bold text-white">
+                          <span className="text-4xl font-bold" style={{ color: 'var(--c-text-1)' }}>
                             ${(billingCycle === 'mensual' ? plan.precioMensual : plan.precioAnual).toLocaleString('es-CL')}
                           </span>
-                          <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                          <span className="text-sm" style={{ color: 'var(--c-text-3)' }}>
                             /{billingCycle === 'mensual' ? 'mes' : 'año'}
                           </span>
                         </div>
@@ -389,20 +398,20 @@ export default function Register() {
                   <ul className="space-y-2.5 mb-7 flex-1">
                     <li className="flex items-start gap-2.5">
                       <Building2 size={16} className="text-blue-400 shrink-0 mt-0.5" />
-                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                        Hasta <strong className="text-white">{plan.empresas} {plan.empresas === 1 ? 'empresa' : 'empresas'}</strong>
+                      <span className="text-sm" style={{ color: 'var(--c-text-2)' }}>
+                        Hasta <strong style={{ color: 'var(--c-text-1)' }}>{plan.empresas} {plan.empresas === 1 ? 'empresa' : 'empresas'}</strong>
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
                       <Check size={16} className="text-blue-400 shrink-0 mt-0.5" />
-                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                        Hasta <strong className="text-white">{plan.trabajadores} trabajadores</strong>
+                      <span className="text-sm" style={{ color: 'var(--c-text-2)' }}>
+                        Hasta <strong style={{ color: 'var(--c-text-1)' }}>{plan.trabajadores} trabajadores</strong>
                       </span>
                     </li>
                     {plan.features.map((feat) => (
                       <li key={feat} className="flex items-start gap-2.5">
                         <Check size={16} className="text-blue-400 shrink-0 mt-0.5" />
-                        <span className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{feat}</span>
+                        <span className="text-sm" style={{ color: 'var(--c-text-2)' }}>{feat}</span>
                       </li>
                     ))}
                   </ul>

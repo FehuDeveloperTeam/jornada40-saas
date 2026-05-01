@@ -4,6 +4,7 @@ import axios from 'axios';
 import { ArrowLeft, User, CheckCircle2, AlertCircle, Send } from 'lucide-react';
 import client from '../api/client';
 import { formatRut } from '../utils/rutUtils';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function ForgotPassword() {
   const [rut, setRut] = useState('');
@@ -21,7 +22,6 @@ export default function ForgotPassword() {
     if (!rut) return;
     setStatus('loading');
     setErrorMessage('');
-
     try {
       const response = await client.post('/auth/recuperar-por-rut/', { rut });
       setHiddenEmail(response.data.correo_oculto);
@@ -37,7 +37,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -47,22 +47,29 @@ export default function ForgotPassword() {
           style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
       </div>
 
+      {/* Theme toggle */}
+      <div className="absolute top-5 right-5 z-20">
+        <ThemeToggle />
+      </div>
+
       <div className="w-full max-w-[420px] relative z-10 animate-fade-up">
 
         {/* Volver */}
         <button
           onClick={() => navigate('/login')}
-          className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.4)' }}
+          className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors"
+          style={{ color: 'var(--c-text-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
         >
-          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
-          <span className="group-hover:text-white transition-colors">Volver al Login</span>
+          <ArrowLeft size={16} />
+          <span>Volver al Login</span>
         </button>
 
         {/* Cabecera */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Recuperar Contraseña</h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Recuperar Contraseña</h1>
+          <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
             Ingresa tu RUT y enviaremos las instrucciones de recuperación a tu correo corporativo.
           </p>
         </div>
@@ -76,12 +83,12 @@ export default function ForgotPassword() {
                 style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
                 <CheckCircle2 size={32} className="text-emerald-400" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">¡Enlace Enviado!</h3>
-              <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>¡Enlace Enviado!</h3>
+              <p className="text-sm mb-2" style={{ color: 'var(--c-text-2)' }}>
                 Se envió un enlace de recuperación al correo:
               </p>
-              <p className="font-bold text-white mb-6">{hiddenEmail}</p>
-              <p className="text-xs mb-8" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="font-bold mb-6" style={{ color: 'var(--c-text-1)' }}>{hiddenEmail}</p>
+              <p className="text-xs mb-8" style={{ color: 'var(--c-text-3)' }}>
                 Si no lo ves en unos minutos, revisa tu carpeta de Spam.
               </p>
               <button onClick={() => navigate('/login')} className="btn-primary">
@@ -100,12 +107,12 @@ export default function ForgotPassword() {
               )}
 
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   RUT Corporativo
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <User size={17} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <User size={17} style={{ color: 'var(--c-text-3)' }} />
                   </div>
                   <input
                     type="text"
