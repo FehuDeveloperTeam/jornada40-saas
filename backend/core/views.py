@@ -2178,7 +2178,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         # ── Configuración de página (landscape A3/A4) ─────────────────────────
         ws.page_setup.orientation       = 'landscape'
-        ws.page_setup.paperSize         = ws.PAPERSIZE_A3
+        ws.page_setup.paperSize         = ws.PAPERSIZE_LETTER  # Carta, estándar en Chile
         ws.page_setup.fitToPage         = True
         ws.page_setup.fitToWidth        = 1
         ws.page_setup.fitToHeight       = 0
