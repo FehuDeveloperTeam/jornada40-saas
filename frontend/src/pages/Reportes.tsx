@@ -4,7 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
-import type { TooltipProps } from 'recharts';
+
 import { ArrowLeft, TrendingUp, Users, Wallet, BadgeDollarSign, AlertCircle, BarChart3, Download } from 'lucide-react';
 import { useReportes } from '../hooks/useReportes';
 import ModalExportarConsolidado from '../components/dashboard/ModalExportarConsolidado';
@@ -57,7 +57,18 @@ function KpiCard({ label, value, sub, icon, color, bg, border }: KpiCardProps) {
   );
 }
 
-function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
+interface TooltipEntry {
+  dataKey?: string | number;
+  name?: string;
+  color?: string;
+  value?: number;
+}
+
+function ChartTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string;
+}) {
   if (!active || !payload?.length) return null;
   return (
     <div
@@ -65,9 +76,9 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
       style={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)' }}
     >
       <p className="font-bold text-white mb-2">{label}</p>
-      {payload.map((p) => (
-        <p key={p.dataKey} style={{ color: p.color }} className="text-xs">
-          {p.name}: {clp(p.value as number)}
+      {payload.map((p, i) => (
+        <p key={p.dataKey ?? i} style={{ color: p.color }} className="text-xs">
+          {p.name}: {clp(p.value ?? 0)}
         </p>
       ))}
     </div>
