@@ -13,6 +13,7 @@ import Suscripcion from './pages/Suscripcion';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import FirmaPublica from './pages/FirmaPublica';
+import Reportes from './pages/Reportes';
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -83,13 +84,21 @@ export default function App() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/suscripcion" 
+        <Route
+          path="/suscripcion"
           element={
             <ProtectedRoute>
               <Suscripcion />
             </ProtectedRoute>
-          } 
+          }
+        />
+        <Route
+          path="/reportes"
+          element={
+            <ProtectedRoute>
+              <Reportes />
+            </ProtectedRoute>
+          }
         />
 
         <Route path="/" element={<Navigate to="/empresas" replace />} />

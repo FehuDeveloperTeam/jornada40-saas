@@ -1,13 +1,19 @@
+import { useState } from 'react';
 import { useDashboard } from '../hooks/useDashboard';
 import StatsWidgets from '../components/dashboard/StatsWidgets';
 import EmpleadosTable from '../components/dashboard/EmpleadosTable';
 import ModalDescargaMasiva from '../components/dashboard/ModalDescargaMasiva';
 import ModalCargaMasiva from '../components/dashboard/ModalCargaMasiva';
+import ModalExportarPrevired from '../components/dashboard/ModalExportarPrevired';
+import ModalLibroRemuneraciones from '../components/dashboard/ModalLibroRemuneraciones';
 import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
 import ModalDetalleFirma from '../components/ModalDetalleFirma';
 import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
+  const [showPreviredModal, setShowPreviredModal] = useState(false);
+  const [showLibroModal, setShowLibroModal] = useState(false);
+
   const {
     // Estado de datos
     empresa, empleados, loading,
@@ -84,6 +90,11 @@ export default function Dashboard() {
     showVacacionForm, setShowVacacionForm,
     vacacionData, setVacacionData,
     guardarVacacion, isSavingVacacion, descargarVacacionPDF,
+    // Finiquito
+    finiquitos,
+    showFiniquitoForm, setShowFiniquitoForm,
+    finiquitoData, setFiniquitoData,
+    guardarFiniquito, isSavingFiniquito, descargarFiniquitoPDF,
     // Firma electrónica
     solicitudesFirma, isSendingFirma,
     enviarAFirma, cancelarFirma, reenviarFirma,
@@ -118,15 +129,67 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-3xl p-7 mb-8 glass-card">
-          <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
-          <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
-            <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
-              RUT {empresa?.rut ? formatRut(empresa.rut) : '—'}
-            </span>
-            {empresa?.giro && (
-              <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
-                Giro: {empresa.giro}
-              </span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
+              <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
+                <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                  RUT {empresa?.rut ? formatRut(empresa.rut) : '—'}
+                </span>
+                {empresa?.giro && (
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+                    Giro: {empresa.giro}
+                  </span>
+                )}
+              </div>
+            </div>
+            {empresa && (
+              <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                <button
+                  onClick={() => setShowLibroModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    background: 'rgba(5,150,105,0.12)',
+                    border: '1px solid rgba(5,150,105,0.3)',
+                    color: '#34d399',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(5,150,105,0.22)';
+                    e.currentTarget.style.borderColor = 'rgba(5,150,105,0.5)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(5,150,105,0.12)';
+                    e.currentTarget.style.borderColor = 'rgba(5,150,105,0.3)';
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  </svg>
+                  Libro Remuneraciones
+                </button>
+                <button
+                  onClick={() => setShowPreviredModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    background: 'rgba(37,99,235,0.12)',
+                    border: '1px solid rgba(37,99,235,0.3)',
+                    color: '#60a5fa',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(37,99,235,0.22)';
+                    e.currentTarget.style.borderColor = 'rgba(37,99,235,0.5)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(37,99,235,0.12)';
+                    e.currentTarget.style.borderColor = 'rgba(37,99,235,0.3)';
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Exportar Previred
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -254,6 +317,14 @@ export default function Dashboard() {
           guardarVacacion={guardarVacacion}
           isSavingVacacion={isSavingVacacion}
           descargarVacacionPDF={descargarVacacionPDF}
+          finiquitos={finiquitos}
+          showFiniquitoForm={showFiniquitoForm}
+          setShowFiniquitoForm={setShowFiniquitoForm}
+          finiquitoData={finiquitoData}
+          setFiniquitoData={setFiniquitoData}
+          guardarFiniquito={guardarFiniquito}
+          isSavingFiniquito={isSavingFiniquito}
+          descargarFiniquitoPDF={descargarFiniquitoPDF}
         />
       )}
 
@@ -261,6 +332,22 @@ export default function Dashboard() {
         <ModalDetalleFirma
           solicitud={solicitudFirmaModal}
           onClose={() => setSolicitudFirmaModal(null)}
+        />
+      )}
+
+      {showLibroModal && empresa && empresaActivaId && (
+        <ModalLibroRemuneraciones
+          empresaId={empresaActivaId}
+          empresaNombre={empresa.nombre_legal}
+          onClose={() => setShowLibroModal(false)}
+        />
+      )}
+
+      {showPreviredModal && empresa && empresaActivaId && (
+        <ModalExportarPrevired
+          empresaId={empresaActivaId}
+          empresaNombre={empresa.nombre_legal}
+          onClose={() => setShowPreviredModal(false)}
         />
       )}
 

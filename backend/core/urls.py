@@ -7,7 +7,8 @@ from .views import (
     SolicitudFirmaViewSet, VacacionViewSet, mi_suscripcion, recuperar_password_por_rut,
     webhook_reveniu, crear_checkout_reveniu, perfil_usuario,
     firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
-    firma_publica_firmar,
+    firma_publica_firmar, firma_publica_documento, firma_publica_rechazar,
+    FiniquitoViewSet,
 )
 
 
@@ -21,6 +22,7 @@ router.register(r'liquidaciones', LiquidacionViewSet, basename='liquidacion')
 router.register(r'planes', PlanViewSet, basename='plan')
 router.register(r'firmas', SolicitudFirmaViewSet, basename='firma')
 router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
+router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -36,4 +38,6 @@ urlpatterns = [
     path('firma-publica/<uuid:token>/solicitar-otp/', firma_publica_solicitar_otp, name='firma_publica_solicitar_otp'),
     path('firma-publica/<uuid:token>/verificar-otp/', firma_publica_verificar_otp, name='firma_publica_verificar_otp'),
     path('firma-publica/<uuid:token>/firmar/', firma_publica_firmar, name='firma_publica_firmar'),
+    path('firma-publica/<uuid:token>/documento/', firma_publica_documento, name='firma_publica_documento'),
+    path('firma-publica/<uuid:token>/rechazar/', firma_publica_rechazar, name='firma_publica_rechazar'),
 ]

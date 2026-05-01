@@ -36,11 +36,14 @@ from num2words import num2words
 import pandas as pd
 import traceback
 import urllib.parse
-from django.db.models import Max, Sum
+from django.db.models import Max, Sum, Exists, OuterRef
 from django.core.files.base import ContentFile
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 
-from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer, FiniquitoSerializer
 from . import b2_client
 from django.core.mail import EmailMultiAlternatives
 import uuid as uuid_mod
@@ -633,7 +636,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Empleado.objects.filter(empresa__owner=self.request.user)
+        rechazos_qs = SolicitudFirma.objects.filter(
+            empleado=OuterRef('pk'),
+            estado='RECHAZADO',
+        )
+        return Empleado.objects.filter(empresa__owner=self.request.user).annotate(
+            tiene_rechazos_pendientes=Exists(rechazos_qs)
+        )
 
     def perform_create(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
@@ -839,6 +848,48 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             'cantidad_anexos_contrato': AnexoContrato.objects.filter(contrato=contrato).count() if contrato else 0,
         }
         return Response(data)
+
+    @action(detail=True, methods=['get'], url_path='historial_salarial')
+    def historial_salarial(self, request, pk=None):
+        empleado = self.get_object()
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+
+        liqs = list(
+            Liquidacion.objects.filter(empleado=empleado)
+            .order_by('anio', 'mes')
+            .values('mes', 'anio', 'sueldo_base', 'total_haberes', 'total_descuentos',
+                    'sueldo_liquido', 'dias_trabajados')
+        )
+
+        periodos = []
+        prev_liq = None
+        for liq in liqs:
+            delta_pct = None
+            if prev_liq is not None and prev_liq > 0:
+                delta_pct = round((liq['sueldo_liquido'] - prev_liq) / prev_liq * 100, 1)
+            periodos.append({**liq, 'delta_pct': delta_pct})
+            prev_liq = liq['sueldo_liquido']
+
+        liquidos = [p['sueldo_liquido'] for p in periodos]
+        promedio = round(sum(liquidos) / len(liquidos)) if liquidos else 0
+
+        # Tendencia: promedio últimos 3 meses vs los 3 anteriores
+        tendencia_3m = None
+        if len(liquidos) >= 6:
+            avg_rec = sum(liquidos[-3:]) / 3
+            avg_ant = sum(liquidos[-6:-3]) / 3
+            if avg_ant > 0:
+                tendencia_3m = round((avg_rec - avg_ant) / avg_ant * 100, 1)
+        elif len(liquidos) >= 2:
+            tendencia_3m = periodos[-1]['delta_pct']
+
+        return Response({
+            'contrato_sueldo_base': contrato.sueldo_base if contrato else None,
+            'contrato_tipo': contrato.tipo_contrato if contrato else None,
+            'promedio_liquido': promedio,
+            'tendencia_3m': tendencia_3m,
+            'periodos': periodos,
+        })
 
    # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
@@ -1729,6 +1780,1070 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             print("===========================")
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='exportar_previred')
+    def exportar_previred(self, request):
+        mes_param = request.query_params.get('mes')
+        anio_param = request.query_params.get('anio')
+        empresa_id = request.query_params.get('empresa')
+
+        if not mes_param or not anio_param:
+            return Response({'error': 'Se requieren los parámetros mes y anio.'}, status=400)
+        try:
+            mes = int(mes_param)
+            anio = int(anio_param)
+        except ValueError:
+            return Response({'error': 'Parámetros mes y anio deben ser numéricos.'}, status=400)
+
+        qs = Liquidacion.objects.filter(
+            empleado__empresa__owner=request.user,
+            mes=mes, anio=anio,
+        ).select_related('empleado', 'empleado__empresa')
+
+        if empresa_id:
+            qs = qs.filter(empleado__empresa_id=empresa_id)
+
+        if not qs.exists():
+            return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+
+        lineas = []
+        for liq in qs:
+            emp = liq.empleado
+            empresa = emp.empresa
+            contrato = Contrato.objects.filter(empleado=emp).first()
+
+            # ── Identificación trabajador ──────────────────────────────────
+            rut_num, rut_dv = _rut_partes(emp.rut)
+            apellido_m = emp.apellido_materno or ''
+            sexo_cod = '2' if emp.sexo == 'F' else '1'
+            fecha_nac = _fmt_fecha_previred(emp.fecha_nacimiento)
+            fecha_ing = _fmt_fecha_previred(emp.fecha_ingreso)
+            tipo_trab = '01'
+            nac_cod = '152'  # Chile
+
+            # ── Contrato ───────────────────────────────────────────────────
+            dias_trab = str(int(liq.dias_trabajados or 30))
+            tipo_ctto = _TIPO_CONTRATO_PREVIRED.get(
+                contrato.tipo_contrato if contrato else 'INDEFINIDO', '1'
+            )
+            es_indefinido = contrato.tipo_contrato == 'INDEFINIDO' if contrato else False
+            movimiento = '0'  # vigente
+            rut_emp_num, rut_emp_dv = _rut_partes(empresa.rut)
+
+            # ── AFP ────────────────────────────────────────────────────────
+            nombre_afp = (liq.afp_nombre or 'MODELO').upper()
+            cod_afp = _AFP_CODIGOS_PREVIRED.get(nombre_afp, '08')
+            renta_imp = int(liq.total_imponible or 0)
+            cotiz_afp = str(int(liq.afp_monto or 0))
+            sis = str(math.floor(renta_imp * _TASA_SIS))
+
+            # ── Salud ──────────────────────────────────────────────────────
+            sistema = (liq.salud_nombre or 'FONASA').upper()
+            if sistema == 'FONASA':
+                cod_salud = '00'
+            else:
+                cod_salud = _ISAPRE_CODIGOS_PREVIRED.get(sistema, '00')
+            cotiz_salud = str(int(liq.salud_monto or 0))
+            uf_isapre = str(float(liq.isapre_cotizacion_uf or 0))
+
+            # ── Mutual AT/EP ───────────────────────────────────────────────
+            cotiz_mutual = str(math.floor(renta_imp * _TASA_MUTUAL_AT))
+
+            # ── AFC Cesantía ───────────────────────────────────────────────
+            ind_afc = '1' if es_indefinido else '0'
+            cotiz_afc_trab = str(int(liq.seguro_cesantia or 0))
+            if es_indefinido:
+                cotiz_afc_emp = str(math.floor(renta_imp * _TASA_AFC_EMP_INDEFINIDO))
+            elif contrato and contrato.tipo_contrato == 'PLAZO_FIJO':
+                cotiz_afc_emp = str(math.floor(renta_imp * _TASA_AFC_EMP_PLAZO))
+            else:
+                cotiz_afc_emp = '0'
+            renta_imp_afc = str(renta_imp) if es_indefinido else '0'
+
+            # ── Reforma 2025 ───────────────────────────────────────────────
+            tipo_jornada_code = _TIPO_JORNADA_PREVIRED.get(
+                contrato.tipo_jornada if contrato else 'ORDINARIA', '1'
+            )
+            cotiz_expectativa = str(math.floor(renta_imp * _TASA_EXPECTATIVA_VIDA))
+
+            # ── Construir array de 105 campos (base cero) ──────────────────
+            campos = ['0'] * 105
+
+            # Trabajador / contrato (campos 1-17, índices 0-16)
+            campos[0]  = rut_num
+            campos[1]  = rut_dv
+            campos[2]  = emp.apellido_paterno
+            campos[3]  = apellido_m
+            campos[4]  = emp.nombres
+            campos[5]  = sexo_cod
+            campos[6]  = fecha_nac
+            campos[7]  = nac_cod
+            campos[8]  = tipo_trab
+            campos[9]  = fecha_ing
+            campos[10] = ''   # fecha término (activo)
+            campos[11] = ''   # causal término
+            campos[12] = dias_trab
+            campos[13] = tipo_ctto
+            campos[14] = movimiento
+            campos[15] = rut_emp_num
+            campos[16] = rut_emp_dv
+            # índices 17-23: padding → '0' (ya inicializados)
+
+            # AFP (campos 25-28, índices 24-27)
+            campos[24] = cod_afp
+            campos[25] = str(renta_imp)
+            campos[26] = cotiz_afp
+            campos[27] = sis
+            # índices 28-43: extras AFP → '0'
+
+            # Salud (campos 45-48, índices 44-47)
+            campos[44] = cod_salud
+            campos[45] = str(renta_imp)
+            campos[46] = cotiz_salud
+            campos[47] = uf_isapre
+            # índices 48-59: extras salud → '0'
+
+            # Mutual AT/EP (campos 61-63, índices 60-62)
+            campos[60] = _MUTUAL_DEFAULT
+            campos[61] = str(renta_imp)
+            campos[62] = cotiz_mutual
+            # índices 63-69: extras mutual → '0'
+
+            # AFC (campos 71-74, índices 70-73)
+            campos[70] = ind_afc
+            campos[71] = renta_imp_afc
+            campos[72] = cotiz_afc_trab
+            campos[73] = cotiz_afc_emp
+            # índices 74-84: extras AFC → '0'
+
+            # Reforma 2025 (campos 86-88, índices 85-87)
+            campos[85] = '0'               # RIMA
+            campos[86] = tipo_jornada_code # tipo jornada ley 40h
+            campos[87] = cotiz_expectativa # expectativa de vida 0.9%
+            # índices 88-104: extras → '0'
+
+            lineas.append(';'.join(campos))
+
+        meses_nombres = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+        ]
+        nombre_archivo = f'Previred_{meses_nombres[mes - 1]}_{anio}.txt'
+        contenido = '\n'.join(lineas)
+        response = HttpResponse(contenido, content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='libro_remuneraciones')
+    def libro_remuneraciones(self, request):
+        mes_param  = request.query_params.get('mes')
+        anio_param = request.query_params.get('anio')
+        empresa_id = request.query_params.get('empresa')
+        formato    = request.query_params.get('formato', 'excel')
+
+        if not mes_param or not anio_param:
+            return Response({'error': 'Se requieren los parámetros mes y anio.'}, status=400)
+        try:
+            mes  = int(mes_param)
+            anio = int(anio_param)
+        except ValueError:
+            return Response({'error': 'Parámetros mes y anio deben ser numéricos.'}, status=400)
+
+        qs = Liquidacion.objects.filter(
+            empleado__empresa__owner=request.user,
+            mes=mes, anio=anio,
+        ).select_related('empleado', 'empleado__empresa').order_by(
+            'empleado__ficha_numero', 'empleado__apellido_paterno'
+        )
+        if empresa_id:
+            qs = qs.filter(empleado__empresa_id=empresa_id)
+        if not qs.exists():
+            return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+
+        empresa = qs.first().empleado.empresa
+        meses_nombres = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+        ]
+        mes_nombre = meses_nombres[mes - 1]
+
+        # ── Helper formato CLP para el PDF ────────────────────────────────────
+        def clp(n):
+            if not n:
+                return '$0'
+            return f'${int(n):,}'.replace(',', '.')
+
+        # ── Preparación de filas (compartido por Excel y PDF) ─────────────────
+        filas = []
+        totales = {k: 0 for k in [
+            'sueldo_base', 'gratificacion', 'otros_imp', 'total_imponible',
+            'no_imponibles', 'total_haberes', 'cotiz_afp', 'cotiz_salud',
+            'cesantia', 'imp_unico', 'anticipo', 'otros_desc',
+            'total_descuentos', 'sueldo_liquido',
+        ]}
+
+        for liq in qs:
+            emp = liq.empleado
+            det_imp = liq.detalle_haberes_imponibles or []
+            if not isinstance(det_imp, list): det_imp = []
+            det_hex = liq.detalle_horas_extras or []
+            if not isinstance(det_hex, list): det_hex = []
+            det_noi = liq.detalle_haberes_no_imponibles or []
+            if not isinstance(det_noi, list): det_noi = []
+            det_odc = liq.detalle_otros_descuentos or []
+            if not isinstance(det_odc, list): det_odc = []
+
+            otros_imp  = sum(int(d.get('valor', 0)) for d in det_imp if isinstance(d, dict))
+            otros_imp += sum(int(d.get('valor', 0)) for d in det_hex if isinstance(d, dict))
+            no_impon   = sum(int(d.get('valor', 0)) for d in det_noi if isinstance(d, dict))
+            otros_desc = sum(int(d.get('valor', 0)) for d in det_odc if isinstance(d, dict))
+
+            filas.append({
+                'ficha':        emp.ficha_numero or '',
+                'rut':          emp.rut,
+                'nombre':       f'{emp.apellido_paterno} {emp.apellido_materno or ""} {emp.nombres}'.strip(),
+                'cargo':        emp.cargo or '',
+                'dias':         liq.dias_trabajados,
+                'sueldo_base':  int(liq.sueldo_base),
+                'gratificacion':int(liq.gratificacion),
+                'otros_imp':    otros_imp,
+                'total_imp':    int(liq.total_imponible),
+                'no_imp':       no_impon,
+                'total_hab':    int(liq.total_haberes),
+                'afp_nombre':   liq.afp_nombre or '',
+                'cotiz_afp':    int(liq.afp_monto),
+                'salud_nombre': liq.salud_nombre or '',
+                'cotiz_salud':  int(liq.salud_monto),
+                'cesantia':     int(liq.seguro_cesantia),
+                'imp_unico':    int(liq.impuesto_unico or 0),
+                'anticipo':     int(liq.anticipo_quincena or 0),
+                'otros_desc':   otros_desc,
+                'total_desc':   int(liq.total_descuentos),
+                'sueldo_liq':   int(liq.sueldo_liquido),
+            })
+
+            totales['sueldo_base']      += int(liq.sueldo_base)
+            totales['gratificacion']    += int(liq.gratificacion)
+            totales['otros_imp']        += otros_imp
+            totales['total_imponible']  += int(liq.total_imponible)
+            totales['no_imponibles']    += no_impon
+            totales['total_haberes']    += int(liq.total_haberes)
+            totales['cotiz_afp']        += int(liq.afp_monto)
+            totales['cotiz_salud']      += int(liq.salud_monto)
+            totales['cesantia']         += int(liq.seguro_cesantia)
+            totales['imp_unico']        += int(liq.impuesto_unico or 0)
+            totales['anticipo']         += int(liq.anticipo_quincena or 0)
+            totales['otros_desc']       += otros_desc
+            totales['total_descuentos'] += int(liq.total_descuentos)
+            totales['sueldo_liquido']   += int(liq.sueldo_liquido)
+
+        nombre_base = f'LibroRemuneraciones_{mes_nombre}_{anio}_{empresa.rut}'
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA PDF
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'pdf':
+            # Pre-formatear montos para el template
+            for f in filas:
+                for k in ['sueldo_base','gratificacion','otros_imp','total_imp','no_imp',
+                          'total_hab','cotiz_afp','cotiz_salud','cesantia','imp_unico',
+                          'anticipo','otros_desc','total_desc','sueldo_liq']:
+                    f[f'{k}_fmt'] = clp(f[k])
+
+            totales_fmt = {k: clp(v) for k, v in totales.items()}
+
+            context = {
+                'empresa':      empresa,
+                'mes_nombre':   mes_nombre,
+                'anio':         anio,
+                'filas':        filas,
+                'totales':      totales,
+                'totales_fmt':  totales_fmt,
+                'fecha_emision': timezone.now().date().strftime('%d/%m/%Y'),
+                'n_trabajadores': len(filas),
+            }
+            template = get_template('libro_remuneraciones.html')
+            html = template.render(context)
+
+            response = HttpResponse(content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_base}.pdf"'
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar PDF'}, status=500)
+            return response
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA EXCEL (sin cambios respecto al paso 1)
+        # ══════════════════════════════════════════════════════════════════════
+
+        # ── Estilos ───────────────────────────────────────────────────────────
+        COLOR_HEADER   = '1E3A5F'
+        COLOR_TOTALES  = 'F59E0B'
+        COLOR_FILA_PAR = 'F1F5F9'
+
+        ft_titulo    = Font(name='Calibri', bold=True, size=14, color='1E3A5F')
+        ft_subtit    = Font(name='Calibri', bold=True, size=11, color='334155')
+        ft_header    = Font(name='Calibri', bold=True, size=9,  color='FFFFFF')
+        ft_dato      = Font(name='Calibri', size=9)
+        ft_total     = Font(name='Calibri', bold=True, size=9)
+        ft_total_liq = Font(name='Calibri', bold=True, size=9, color='7C3AED')
+
+        al_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        al_left   = Alignment(horizontal='left',   vertical='center')
+        al_right  = Alignment(horizontal='right',  vertical='center')
+
+        fill_header = PatternFill('solid', fgColor=COLOR_HEADER)
+        fill_total  = PatternFill('solid', fgColor=COLOR_TOTALES)
+        fill_par    = PatternFill('solid', fgColor=COLOR_FILA_PAR)
+
+        thin  = Side(style='thin', color='CBD5E1')
+        borde = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        FMT_CLP  = '#,##0'
+        FMT_TEXT = '@'
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f'Libro {mes_nombre} {anio}'
+        ws.sheet_view.showGridLines = False
+
+        COLS = [
+            ('N°',                    5),
+            ('RUT',                  12),
+            ('Apellidos y Nombres',  28),
+            ('Cargo',                16),
+            ('Días\nTrab.',           7),
+            ('Sueldo\nBase',         12),
+            ('Gratif.',              11),
+            ('Otros Hab.\nImpon.',   12),
+            ('Total\nImponible',     13),
+            ('Hab. No\nImponibles',  13),
+            ('Total\nHaberes',       12),
+            ('AFP',                   9),
+            ('Cotiz.\nAFP',          11),
+            ('Salud',                 9),
+            ('Cotiz.\nSalud',        11),
+            ('Cesantía',             10),
+            ('Imp.\nÚnico',          10),
+            ('Anticipo',             10),
+            ('Otros\nDesc.',         10),
+            ('Total\nDescuentos',    13),
+            ('Alcance\nLíquido',     13),
+        ]
+        for i, (_, ancho) in enumerate(COLS, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = ancho
+
+        N_COLS     = len(COLS)
+        ultima_col = get_column_letter(N_COLS)
+
+        ws.row_dimensions[1].height = 22
+        ws.row_dimensions[2].height = 18
+        ws.row_dimensions[3].height = 16
+
+        ws.merge_cells(f'A1:{ultima_col}1')
+        c = ws['A1']
+        c.value     = empresa.nombre_legal.upper()
+        c.font      = ft_titulo
+        c.alignment = al_center
+
+        ws.merge_cells(f'A2:{ultima_col}2')
+        c = ws['A2']
+        c.value     = 'LIBRO DE REMUNERACIONES'
+        c.font      = ft_subtit
+        c.alignment = al_center
+
+        ws.merge_cells(f'A3:{ultima_col}3')
+        c = ws['A3']
+        c.value     = f'RUT: {empresa.rut}     Período: {mes_nombre} {anio}'
+        c.font      = Font(name='Calibri', size=10, color='475569')
+        c.alignment = al_center
+
+        ws.row_dimensions[4].height = 6
+
+        ws.row_dimensions[5].height = 36
+        for col_idx, (label, _) in enumerate(COLS, start=1):
+            c = ws.cell(row=5, column=col_idx, value=label)
+            c.font      = ft_header
+            c.fill      = fill_header
+            c.alignment = al_center
+            c.border    = borde
+
+        for fila_idx, f in enumerate(filas, start=6):
+            fill_fila = fill_par if fila_idx % 2 == 0 else None
+            valores = [
+                (f['ficha'],         FMT_TEXT, al_center),
+                (f['rut'],           FMT_TEXT, al_left),
+                (f['nombre'],        FMT_TEXT, al_left),
+                (f['cargo'],         FMT_TEXT, al_left),
+                (f['dias'],          FMT_TEXT, al_center),
+                (f['sueldo_base'],   FMT_CLP,  al_right),
+                (f['gratificacion'], FMT_CLP,  al_right),
+                (f['otros_imp'],     FMT_CLP,  al_right),
+                (f['total_imp'],     FMT_CLP,  al_right),
+                (f['no_imp'],        FMT_CLP,  al_right),
+                (f['total_hab'],     FMT_CLP,  al_right),
+                (f['afp_nombre'],    FMT_TEXT, al_center),
+                (f['cotiz_afp'],     FMT_CLP,  al_right),
+                (f['salud_nombre'],  FMT_TEXT, al_center),
+                (f['cotiz_salud'],   FMT_CLP,  al_right),
+                (f['cesantia'],      FMT_CLP,  al_right),
+                (f['imp_unico'],     FMT_CLP,  al_right),
+                (f['anticipo'],      FMT_CLP,  al_right),
+                (f['otros_desc'],    FMT_CLP,  al_right),
+                (f['total_desc'],    FMT_CLP,  al_right),
+                (f['sueldo_liq'],    FMT_CLP,  al_right),
+            ]
+            ws.row_dimensions[fila_idx].height = 15
+            for col_idx, (valor, fmt, alin) in enumerate(valores, start=1):
+                c = ws.cell(row=fila_idx, column=col_idx, value=valor)
+                c.number_format = fmt
+                c.font          = ft_dato
+                c.alignment     = alin
+                c.border        = borde
+                if fill_fila:
+                    c.fill = fill_fila
+
+        fila_total = len(filas) + 6
+        ws.row_dimensions[fila_total].height = 18
+        vals_total = [
+            ('', FMT_TEXT), ('', FMT_TEXT),
+            ('TOTALES', FMT_TEXT), ('', FMT_TEXT), ('', FMT_TEXT),
+            (totales['sueldo_base'],      FMT_CLP),
+            (totales['gratificacion'],    FMT_CLP),
+            (totales['otros_imp'],        FMT_CLP),
+            (totales['total_imponible'],  FMT_CLP),
+            (totales['no_imponibles'],    FMT_CLP),
+            (totales['total_haberes'],    FMT_CLP),
+            ('', FMT_TEXT),
+            (totales['cotiz_afp'],        FMT_CLP),
+            ('', FMT_TEXT),
+            (totales['cotiz_salud'],      FMT_CLP),
+            (totales['cesantia'],         FMT_CLP),
+            (totales['imp_unico'],        FMT_CLP),
+            (totales['anticipo'],         FMT_CLP),
+            (totales['otros_desc'],       FMT_CLP),
+            (totales['total_descuentos'], FMT_CLP),
+            (totales['sueldo_liquido'],   FMT_CLP),
+        ]
+        for col_idx, (valor, fmt) in enumerate(vals_total, start=1):
+            c = ws.cell(row=fila_total, column=col_idx, value=valor)
+            c.number_format = fmt
+            c.fill      = fill_total
+            c.border    = borde
+            c.alignment = al_right if fmt == FMT_CLP else al_center
+            if col_idx == 3:
+                c.alignment = al_left
+            c.font = ft_total_liq if col_idx == N_COLS else ft_total
+
+        ws.page_setup.orientation   = 'landscape'
+        ws.page_setup.paperSize     = ws.PAPERSIZE_LETTER
+        ws.page_setup.fitToPage     = True
+        ws.page_setup.fitToWidth    = 1
+        ws.page_setup.fitToHeight   = 0
+        ws.print_title_rows         = '1:5'
+        ws.freeze_panes             = 'A6'
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        response = HttpResponse(
+            buf.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{nombre_base}.xlsx"'
+        return response
+
+    # ──────────────────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='consolidado')
+    def consolidado(self, request):
+        anio_param = request.query_params.get('anio')
+        mes_param  = request.query_params.get('mes')
+        formato    = request.query_params.get('formato', 'json')
+
+        if not anio_param:
+            return Response({'error': 'Se requiere el parámetro anio.'}, status=400)
+        try:
+            anio = int(anio_param)
+            mes  = int(mes_param) if mes_param else None
+        except ValueError:
+            return Response({'error': 'Los parámetros anio y mes deben ser numéricos.'}, status=400)
+
+        base_qs = (
+            Liquidacion.objects
+            .filter(empleado__empresa__owner=request.user, anio=anio)
+            .select_related('empleado', 'empleado__empresa', 'empleado__contrato_activo')
+        )
+        qs_periodo = base_qs.filter(mes=mes) if mes else base_qs
+
+        if not qs_periodo.exists():
+            if formato == 'json':
+                return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+            return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+
+        def _costo_emp(liq):
+            try:
+                tipo = liq.empleado.contrato_activo.tipo_contrato
+                tasa_afc = _TASA_AFC_EMP_INDEFINIDO if tipo == 'INDEFINIDO' else _TASA_AFC_EMP_PLAZO
+            except Exception:
+                tasa_afc = _TASA_AFC_EMP_INDEFINIDO
+            return int(liq.total_imponible * (_TASA_SIS + _TASA_MUTUAL_AT + tasa_afc))
+
+        def clp(n):
+            if not n: return '$0'
+            return f'${int(n):,}'.replace(',', '.')
+
+        # ── Datos compartidos ─────────────────────────────────────────────────
+        from collections import defaultdict
+        masa_salarial = liquido_total = costo_empleador = 0
+        empleados_ids = set()
+        empresas_dict = defaultdict(lambda: {
+            'id': None, 'nombre': '', 'rut': '',
+            'trabajadores': 0, 'masa_salarial': 0,
+            'liquido_total': 0, 'costo_empleador': 0,
+        })
+        for liq in qs_periodo:
+            ce = _costo_emp(liq)
+            masa_salarial   += liq.total_haberes
+            liquido_total   += liq.sueldo_liquido
+            costo_empleador += ce
+            empleados_ids.add(liq.empleado_id)
+            eid = liq.empleado.empresa_id
+            emp = liq.empleado.empresa
+            d = empresas_dict[eid]
+            d['id']             = eid
+            d['nombre']         = emp.nombre_legal
+            d['rut']            = emp.rut
+            d['trabajadores']  += 1
+            d['masa_salarial'] += liq.total_haberes
+            d['liquido_total'] += liq.sueldo_liquido
+            d['costo_empleador'] += ce
+
+        empresas_list = sorted(empresas_dict.values(), key=lambda x: x['masa_salarial'], reverse=True)
+
+        MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        MESES_LARGOS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                        'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+        evolucion = []
+        for m in range(1, 13):
+            qs_m = base_qs.filter(mes=m)
+            if qs_m.exists():
+                ms = sum(l.total_haberes   for l in qs_m)
+                lq = sum(l.sueldo_liquido  for l in qs_m)
+                ce = sum(_costo_emp(l)     for l in qs_m)
+                tw = qs_m.values('empleado_id').distinct().count()
+            else:
+                ms = lq = ce = tw = 0
+            evolucion.append({'mes': m, 'mes_nombre': MESES_CORTOS[m-1],
+                              'masa_salarial': ms, 'liquido_total': lq,
+                              'costo_empleador': ce, 'trabajadores': tw})
+
+        kpis = {
+            'masa_salarial':   masa_salarial,
+            'trabajadores':    len(empleados_ids),
+            'costo_empleador': costo_empleador,
+            'liquido_total':   liquido_total,
+        }
+        periodo_nombre = MESES_LARGOS[mes - 1] if mes else f'Año {anio}'
+        nombre_base = f'Consolidado_{periodo_nombre.replace(" ","_")}_{anio}'
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA JSON
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'json':
+            return Response({
+                'periodo': {'anio': anio, 'mes': mes, 'mes_nombre': MESES_LARGOS[mes-1] if mes else None},
+                'kpis': kpis,
+                'empresas': empresas_list,
+                'evolucion': evolucion,
+            })
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA EXCEL
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'excel':
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from openpyxl.utils import get_column_letter
+
+            wb = Workbook()
+
+            # ── Hoja 1: Resumen ───────────────────────────────────────────────
+            ws = wb.active
+            ws.title = 'Resumen'
+
+            hdr_fill  = PatternFill('solid', fgColor='1E3A5F')
+            tot_fill  = PatternFill('solid', fgColor='FEF3C7')
+            kpi_fill  = PatternFill('solid', fgColor='0F2540')
+            thin = Side(style='thin', color='CCCCCC')
+            bord = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+            def _set(cell, val, bold=False, fill=None, align='left', color='000000'):
+                cell.value = val
+                cell.font  = Font(bold=bold, color=color, size=10)
+                cell.alignment = Alignment(horizontal=align, vertical='center', wrap_text=True)
+                if fill: cell.fill = fill
+                cell.border = bord
+
+            # Title
+            ws.merge_cells('A1:G1')
+            t = ws['A1']
+            t.value = f'Reporte Consolidado de Remuneraciones · {periodo_nombre} {anio}'
+            t.font  = Font(bold=True, size=13, color='FFFFFF')
+            t.fill  = PatternFill('solid', fgColor='0C1A35')
+            t.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 28
+
+            ws.merge_cells('A2:G2')
+            ws['A2'].value = f'Generado el {timezone.now().date().strftime("%d/%m/%Y")} · {len(empresas_list)} empresa(s) · {kpis["trabajadores"]} trabajadore(s)'
+            ws['A2'].font  = Font(size=9, color='888888')
+            ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[2].height = 16
+
+            # KPI row
+            kpi_labels = ['Masa salarial', 'Trabajadores', 'Costo empleador', 'Líquido a pagar']
+            kpi_vals   = [clp(kpis['masa_salarial']), str(kpis['trabajadores']),
+                          clp(kpis['costo_empleador']), clp(kpis['liquido_total'])]
+            kpi_cols   = [('A','B'), ('C','C'), ('D','E'), ('F','G')]
+            ws.row_dimensions[3].height = 14
+            ws.row_dimensions[4].height = 22
+            ws.row_dimensions[5].height = 22
+            ws.row_dimensions[6].height = 8
+            for (c1, c2), lbl, val in zip(kpi_cols, kpi_labels, kpi_vals):
+                ws.merge_cells(f'{c1}4:{c2}4')
+                ws.merge_cells(f'{c1}5:{c2}5')
+                lc = ws[f'{c1}4']
+                lc.value = lbl; lc.font = Font(bold=True, size=8, color='AAAAAA')
+                lc.fill = kpi_fill; lc.alignment = Alignment(horizontal='center', vertical='center')
+                vc = ws[f'{c1}5']
+                vc.value = val; vc.font = Font(bold=True, size=11, color='FFFFFF')
+                vc.fill = kpi_fill; vc.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Table header
+            cols_h = ['Empresa', 'RUT', 'Trabajadores', 'Masa Salarial', 'Costo Empleador', 'Líquido', '% del Total']
+            for ci, h in enumerate(cols_h, 1):
+                c = ws.cell(row=7, column=ci)
+                _set(c, h, bold=True, fill=hdr_fill, align='center', color='FFFFFF')
+            ws.row_dimensions[7].height = 20
+
+            for ri, emp in enumerate(empresas_list, 8):
+                pct = round(emp['masa_salarial'] / masa_salarial * 100, 1) if masa_salarial else 0
+                row_fill = PatternFill('solid', fgColor='F0F4F8') if ri % 2 == 0 else None
+                vals = [emp['nombre'], emp['rut'], emp['trabajadores'],
+                        clp(emp['masa_salarial']), clp(emp['costo_empleador']),
+                        clp(emp['liquido_total']), f'{pct}%']
+                aligns = ['left','center','center','right','right','right','center']
+                for ci, (v, a) in enumerate(zip(vals, aligns), 1):
+                    _set(ws.cell(row=ri, column=ci), v, fill=row_fill, align=a)
+                ws.row_dimensions[ri].height = 18
+
+            # Totals
+            tr = len(empresas_list) + 8
+            tot_vals = ['TOTAL CONSOLIDADO', '', kpis['trabajadores'],
+                        clp(kpis['masa_salarial']), clp(kpis['costo_empleador']),
+                        clp(kpis['liquido_total']), '100%']
+            for ci, v in enumerate(tot_vals, 1):
+                a = 'right' if ci >= 4 else ('center' if ci == 3 else 'left')
+                _set(ws.cell(row=tr, column=ci), v, bold=True, fill=tot_fill, align=a)
+            ws.row_dimensions[tr].height = 20
+
+            # Column widths
+            for ci, w in enumerate([38, 14, 13, 18, 18, 18, 12], 1):
+                ws.column_dimensions[get_column_letter(ci)].width = w
+            ws.freeze_panes = 'A8'
+
+            # ── Hoja 2: Evolución mensual ─────────────────────────────────────
+            ws2 = wb.create_sheet('Evolución mensual')
+            evo_headers = ['Mes', 'Masa Salarial', 'Líquido', 'Costo Empleador', 'Trabajadores']
+            for ci, h in enumerate(evo_headers, 1):
+                c = ws2.cell(row=1, column=ci)
+                _set(c, h, bold=True, fill=hdr_fill, align='center', color='FFFFFF')
+                ws2.row_dimensions[1].height = 20
+
+            for ri, ev in enumerate(evolucion, 2):
+                row_fill = PatternFill('solid', fgColor='F0F4F8') if ri % 2 == 0 else None
+                vals = [ev['mes_nombre'], clp(ev['masa_salarial']), clp(ev['liquido_total']),
+                        clp(ev['costo_empleador']), ev['trabajadores']]
+                aligns = ['center','right','right','right','center']
+                for ci, (v, a) in enumerate(zip(vals, aligns), 1):
+                    _set(ws2.cell(row=ri, column=ci), v, fill=row_fill, align=a)
+                ws2.row_dimensions[ri].height = 17
+
+            for ci, w in enumerate([14, 18, 18, 18, 14], 1):
+                ws2.column_dimensions[get_column_letter(ci)].width = w
+
+            ws.page_setup.orientation = 'landscape'
+            ws.page_setup.paperSize   = ws.PAPERSIZE_LETTER
+            ws2.page_setup.orientation = 'landscape'
+            ws2.page_setup.paperSize   = ws2.PAPERSIZE_LETTER
+
+            buf = io.BytesIO()
+            wb.save(buf); buf.seek(0)
+            response = HttpResponse(buf.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_base}.xlsx"'
+            return response
+
+        # ══════════════════════════════════════════════════════════════════════
+        # RAMA PDF
+        # ══════════════════════════════════════════════════════════════════════
+        if formato == 'pdf':
+            for emp in empresas_list:
+                emp['pct'] = round(emp['masa_salarial'] / masa_salarial * 100, 1) if masa_salarial else 0
+                emp['masa_salarial_fmt']   = clp(emp['masa_salarial'])
+                emp['costo_empleador_fmt'] = clp(emp['costo_empleador'])
+                emp['liquido_total_fmt']   = clp(emp['liquido_total'])
+            for ev in evolucion:
+                ev['masa_salarial_fmt']   = clp(ev['masa_salarial'])
+                ev['liquido_total_fmt']   = clp(ev['liquido_total'])
+                ev['costo_empleador_fmt'] = clp(ev['costo_empleador'])
+
+            context = {
+                'periodo_nombre':  periodo_nombre,
+                'anio':            anio,
+                'mes':             mes,
+                'kpis':            kpis,
+                'kpis_fmt': {
+                    'masa_salarial':   clp(kpis['masa_salarial']),
+                    'costo_empleador': clp(kpis['costo_empleador']),
+                    'liquido_total':   clp(kpis['liquido_total']),
+                    'trabajadores':    kpis['trabajadores'],
+                },
+                'empresas':        empresas_list,
+                'evolucion':       evolucion,
+                'n_empresas':      len(empresas_list),
+                'fecha_emision':   timezone.now().date().strftime('%d/%m/%Y'),
+            }
+            template = get_template('consolidado_remuneraciones.html')
+            html = template.render(context)
+            response = HttpResponse(content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{nombre_base}.pdf"'
+            pisa_status = pisa.CreatePDF(html, dest=response)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar PDF'}, status=500)
+            return response
+
+        return Response({'error': 'Formato no válido. Use json, excel o pdf.'}, status=400)
+
+# ==========================================
+# PREVIRED EXPORT
+# ==========================================
+
+_AFP_CODIGOS_PREVIRED = {
+    'CAPITAL': '03', 'CUPRUM': '04', 'HABITAT': '05',
+    'MODELO': '08', 'PLANVITAL': '06', 'PROVIDA': '07', 'UNO': '10', 'IPS': '00',
+}
+
+_ISAPRE_CODIGOS_PREVIRED = {
+    'BANMEDICA': '01', 'COLMENA': '02', 'CRUZ_BLANCA': '03',
+    'ESENCIAL': '04', 'VIDA_TRES': '05', 'SAN_LORENZO': '06',
+    'NUEVA_MASVIDA': '07', 'CONSALUD': '08',
+}
+
+_TIPO_CONTRATO_PREVIRED = {
+    'INDEFINIDO': '1', 'PLAZO_FIJO': '2', 'OBRA_FAENA': '3',
+}
+
+_TIPO_JORNADA_PREVIRED = {
+    'ORDINARIA': '1', 'TURNOS': '1', 'BISMANAL': '1',
+    'ART_22': '2', 'PARCIAL': '2', 'OTRO': '1',
+}
+
+_MUTUAL_DEFAULT = '01'  # ISL por defecto
+_TASA_MUTUAL_AT = 0.0093  # tasa base AT/EP empleador
+_TASA_AFC_EMP_INDEFINIDO = 0.024
+_TASA_AFC_EMP_PLAZO = 0.030
+_TASA_SIS = 0.0149
+_TASA_EXPECTATIVA_VIDA = 0.009  # Reforma 2025
+
+
+def _rut_partes(rut_str: str):
+    """Devuelve (numero_str, dv_str) desde un RUT como '12.345.678-9'."""
+    limpio = (rut_str or '').replace('.', '').replace(' ', '').upper()
+    if '-' in limpio:
+        num, dv = limpio.rsplit('-', 1)
+    elif len(limpio) > 1:
+        num, dv = limpio[:-1], limpio[-1]
+    else:
+        return '0', '0'
+    return num.lstrip('0') or '0', dv
+
+
+def _fmt_fecha_previred(f) -> str:
+    """Convierte fecha a DDMMAAAA o cadena vacía."""
+    if not f:
+        return ''
+    try:
+        if isinstance(f, str):
+            d = datetime.date.fromisoformat(f)
+        else:
+            d = f
+        return d.strftime('%d%m%Y')
+    except Exception:
+        return ''
+
+
+# ==========================================
+# FINIQUITO
+# ==========================================
+
+_TASAS_AFP = {
+    'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
+    'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049,
+}
+_VALOR_UF = 38000  # valor referencial
+
+# Causales que dan derecho a indemnización por años (Art. 161)
+_CAUSALES_CON_INDEMNIZACION = {'161_1', '161_2', '163bis'}
+
+
+def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, causal_articulo):
+    """Precalcula todos los montos del finiquito a partir de datos del empleado."""
+    contrato = Contrato.objects.filter(empleado=empleado).first()
+    sueldo_base = contrato.sueldo_base if contrato else empleado.sueldo_base
+
+    # Sueldo proporcional último mes
+    sueldo_proporcional = math.floor((sueldo_base / 30) * dias_trabajados_ultimo_mes)
+
+    # Gratificación proporcional (25% del sueldo proporcional, tope $200.000)
+    gratificacion = min(math.floor(sueldo_proporcional * 0.25), 200_000)
+
+    # Vacaciones adeudadas → feriado proporcional
+    saldo_vac = calcular_saldo_vacaciones(empleado)
+    dias_vac = saldo_vac['dias_disponibles']
+    feriado_prop = math.floor((sueldo_base / 30) * dias_vac)
+
+    # Indemnización por años de servicio (solo Art. 161 y 163bis)
+    anos = (fecha_termino - empleado.fecha_ingreso).days // 365 if empleado.fecha_ingreso else 0
+    if causal_articulo in _CAUSALES_CON_INDEMNIZACION:
+        indemnizacion_anos = sueldo_base * min(anos, 11)
+    else:
+        indemnizacion_anos = 0
+
+    # Descuentos previsionales sobre sueldo proporcional
+    nombre_afp = (empleado.afp or 'MODELO').upper()
+    tasa_afp = _TASAS_AFP.get(nombre_afp, 0.11)
+    afp_monto = math.floor(sueldo_proporcional * tasa_afp)
+
+    salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
+    if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf and float(empleado.plan_isapre_uf) > 0:
+        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * _VALOR_UF),
+                          math.floor(sueldo_proporcional * 0.07))
+    else:
+        salud_monto = math.floor(sueldo_proporcional * 0.07)
+
+    descuentos_prevision = afp_monto + salud_monto
+
+    total = (sueldo_proporcional + gratificacion + feriado_prop
+             + indemnizacion_anos - descuentos_prevision)
+
+    return {
+        'sueldo_base':                  sueldo_base,
+        'dias_trabajados_ultimo_mes':   dias_trabajados_ultimo_mes,
+        'gratificacion_proporcional':   gratificacion,
+        'feriado_proporcional':         feriado_prop,
+        'indemnizacion_anos_servicio':  indemnizacion_anos,
+        'indemnizacion_sustitutiva_aviso': 0,
+        'otros_haberes':                0,
+        'otros_descuentos':             0,
+        'descuentos_prevision':         descuentos_prevision,
+        'total_a_pagar':                max(total, 0),
+    }
+
+
+class FiniquitoViewSet(viewsets.ModelViewSet):
+    serializer_class = FiniquitoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Finiquito.objects.filter(
+            empleado__empresa__owner=self.request.user
+        ).order_by('-fecha_emision')
+        empleado_id = self.request.query_params.get('empleado')
+        if empleado_id:
+            qs = qs.filter(empleado_id=empleado_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        empleado_id = data.get('empleado')
+
+        try:
+            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            fecha_termino = datetime.date.fromisoformat(str(data.get('fecha_termino', '')))
+        except (ValueError, TypeError):
+            return Response({'error': 'Fecha de término inválida.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        dias = int(data.get('dias_trabajados_ultimo_mes', 30))
+        causal = str(data.get('causal_articulo', ''))
+
+        montos = _calcular_finiquito(empleado, fecha_termino, dias, causal)
+
+        # Los montos pueden ser sobreescritos si el usuario los envía explícitamente
+        for campo in montos:
+            if campo in data and data[campo] is not None:
+                montos[campo] = int(data[campo])
+
+        # Recalcular total si algún monto fue sobreescrito
+        montos['total_a_pagar'] = max(
+            montos['sueldo_base'] // 30 * montos['dias_trabajados_ultimo_mes']
+            + montos['gratificacion_proporcional']
+            + montos['feriado_proporcional']
+            + montos['indemnizacion_anos_servicio']
+            + montos['indemnizacion_sustitutiva_aviso']
+            + montos['otros_haberes']
+            - montos['otros_descuentos']
+            - montos['descuentos_prevision'],
+            0,
+        )
+
+        finiquito = Finiquito.objects.create(
+            empleado=empleado,
+            documento_legal_id=data.get('documento_legal') or None,
+            causal_articulo=causal,
+            fecha_termino=fecha_termino,
+            fecha_emision=datetime.date.fromisoformat(
+                str(data.get('fecha_emision', datetime.date.today().isoformat()))
+            ),
+            modalidad=data.get('modalidad', 'PRESENCIAL'),
+            **montos,
+        )
+
+        serializer = self.get_serializer(finiquito)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='generar_pdf')
+    def generar_pdf(self, request, pk=None):
+        try:
+            finiquito = self.get_object()
+            empleado  = finiquito.empleado
+            empresa   = empleado.empresa
+
+            def _fmt(f):
+                if not f:
+                    return '—'
+                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
+
+            ciudad = (getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
+            causal_label = finiquito.get_causal_articulo_display() if finiquito.causal_articulo else '—'
+
+            sueldo_prop = math.floor(
+                (finiquito.sueldo_base / 30) * finiquito.dias_trabajados_ultimo_mes
+            )
+
+            html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page {{ size: letter; margin: 2cm 2.5cm; }}
+  body {{ font-family: Arial, sans-serif; font-size: 10pt; color: #111; line-height: 1.5; }}
+  h1 {{ font-size: 14pt; text-align: center; text-transform: uppercase;
+        letter-spacing: 2px; margin-bottom: 4px; }}
+  h2 {{ font-size: 10pt; text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }}
+  .seccion {{ margin-bottom: 16px; }}
+  .seccion-titulo {{ font-size: 9pt; font-weight: bold; text-transform: uppercase;
+                     letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
+                     padding-bottom: 3px; margin-bottom: 8px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
+  table td {{ padding: 4px 6px; vertical-align: top; }}
+  table td:last-child {{ text-align: right; font-weight: bold; }}
+  .total-row td {{ border-top: 2px solid #333; font-weight: bold; font-size: 11pt;
+                   padding-top: 8px; }}
+  .firma-bloque {{ margin-top: 60px; display: flex; justify-content: space-between; }}
+  .firma-item {{ text-align: center; width: 44%; }}
+  .firma-linea {{ border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 9pt; }}
+  p {{ margin: 4px 0; }}
+  .aviso {{ font-size: 8pt; color: #666; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }}
+</style>
+</head>
+<body>
+
+<h1>Finiquito de Contrato de Trabajo</h1>
+<h2>{ciudad}, {_fmt(finiquito.fecha_emision)}</h2>
+
+<div class="seccion">
+  <div class="seccion-titulo">Partes</div>
+  <p><strong>Empleador:</strong> {empresa.nombre_legal} — RUT {empresa.rut}</p>
+  <p><strong>Trabajador:</strong> {empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''} — RUT {empleado.rut}</p>
+  <p><strong>Cargo:</strong> {empleado.cargo or '—'} &nbsp;|&nbsp; <strong>Departamento:</strong> {empleado.departamento or '—'}</p>
+  <p><strong>Fecha de ingreso:</strong> {_fmt(empleado.fecha_ingreso)} &nbsp;|&nbsp;
+     <strong>Fecha de término:</strong> {_fmt(finiquito.fecha_termino)}</p>
+  <p><strong>Causal de término:</strong> {causal_label}</p>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Liquidación Final</div>
+  <table>
+    <tr><td>Sueldo base proporcional ({finiquito.dias_trabajados_ultimo_mes} días)</td>
+        <td>${sueldo_prop:,.0f}</td></tr>
+    <tr><td>Gratificación proporcional</td>
+        <td>${finiquito.gratificacion_proporcional:,.0f}</td></tr>
+    <tr><td>Feriado proporcional ({(finiquito.feriado_proporcional * 30 // finiquito.sueldo_base) if finiquito.sueldo_base else 0} días aprox.)</td>
+        <td>${finiquito.feriado_proporcional:,.0f}</td></tr>
+    {f'<tr><td>Indemnización por años de servicio (Art. 163)</td><td>${finiquito.indemnizacion_anos_servicio:,.0f}</td></tr>' if finiquito.indemnizacion_anos_servicio else ''}
+    {f'<tr><td>Indemnización sustitutiva de aviso previo</td><td>${finiquito.indemnizacion_sustitutiva_aviso:,.0f}</td></tr>' if finiquito.indemnizacion_sustitutiva_aviso else ''}
+    {f'<tr><td>Otros haberes</td><td>${finiquito.otros_haberes:,.0f}</td></tr>' if finiquito.otros_haberes else ''}
+    <tr><td>Descuentos previsionales (AFP + Salud)</td>
+        <td>-${finiquito.descuentos_prevision:,.0f}</td></tr>
+    {f'<tr><td>Otros descuentos</td><td>-${finiquito.otros_descuentos:,.0f}</td></tr>' if finiquito.otros_descuentos else ''}
+    <tr class="total-row">
+      <td>TOTAL A PAGAR</td>
+      <td>${finiquito.total_a_pagar:,.0f}</td>
+    </tr>
+  </table>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">Declaración del Trabajador</div>
+  <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
+  y nada más tiene que reclamar al empleador por concepto alguno derivado de la relación laboral
+  que los vinculó, quedando ambas partes en paz y a finiquito.</p>
+  <p>Modalidad de suscripción del finiquito: <strong>{finiquito.get_modalidad_display()}</strong></p>
+</div>
+
+<div class="firma-bloque">
+  <div class="firma-item">
+    <div class="firma-linea">
+      <strong>{empresa.nombre_legal}</strong><br/>RUT {empresa.rut}<br/>Empleador
+    </div>
+  </div>
+  <div class="firma-item">
+    <div class="firma-linea">
+      <strong>{empleado.nombres} {empleado.apellido_paterno}</strong><br/>RUT {empleado.rut}<br/>Trabajador
+    </div>
+  </div>
+</div>
+
+<p class="aviso">
+  Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de la República de Chile.
+  Generado por Jornada40 · {_fmt(finiquito.fecha_emision)}.
+</p>
+
+</body>
+</html>"""
+
+            buffer = io.BytesIO()
+            pisa_status = pisa.CreatePDF(html, dest=buffer)
+            if pisa_status.err:
+                return Response({'error': 'Error al generar el PDF.'}, status=500)
+
+            buffer.seek(0)
+            response = HttpResponse(buffer.read(), content_type='application/pdf')
+            response['Content-Disposition'] = (
+                f'attachment; filename="finiquito_{empleado.rut}_{finiquito.fecha_termino}.pdf"'
+            )
+            return response
+
+        except Finiquito.DoesNotExist:
+            return Response({'error': 'Finiquito no encontrado.'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
 # ==========================================
 # FIRMA ELECTRÓNICA
 # ==========================================
@@ -1758,6 +2873,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         anexo_id      = request.data.get('anexo_contrato_id')
         liquidacion_id = request.data.get('liquidacion_id')
         vacacion_id    = request.data.get('vacacion_id')
+        finiquito_id   = request.data.get('finiquito_id')
 
         tipos_validos = [t[0] for t in SolicitudFirma.TIPOS_DOCUMENTO]
         if tipo_doc not in tipos_validos:
@@ -1786,10 +2902,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         es_plan_semilla = _es_plan_semilla(request.user)
 
         try:
-            pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj = self._generar_pdf_firma(
+            pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj, finiquito_obj = self._generar_pdf_firma(
                 empleado, empresa, tipo_doc,
                 contrato_id, doc_legal_id, anexo_id,
-                liquidacion_id, vacacion_id, es_plan_semilla
+                liquidacion_id, vacacion_id, finiquito_id, es_plan_semilla
             )
         except Exception as e:
             return Response({'error': str(e)}, status=400)
@@ -1811,6 +2927,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 documento_legal=doc_legal_obj,
                 liquidacion=liquidacion_obj,
                 vacacion=vacacion_obj,
+                finiquito=finiquito_obj,
                 email_firmante=email_trabajador,
                 b2_key_temporal=key,
             )
@@ -1868,8 +2985,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 
     def _generar_pdf_firma(self, empleado, empresa, tipo_doc,
                            contrato_id, doc_legal_id, anexo_id,
-                           liquidacion_id, vacacion_id, es_plan_semilla):
-        """Genera el PDF a firmar y retorna (pdf_bytes, contrato, doc_legal, liquidacion, vacacion)."""
+                           liquidacion_id, vacacion_id, finiquito_id, es_plan_semilla):
+        """Genera el PDF a firmar y retorna (pdf_bytes, contrato, doc_legal, liquidacion, vacacion, finiquito)."""
         ciudad = str(
             getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago'
         ).strip().title()
@@ -1882,7 +2999,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 raise Exception('El trabajador no tiene contrato registrado.')
             ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('contrato_trabajo.html', ctx)
-            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None, None, None
+            return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc == 'ANEXO_40H':
             try:
@@ -1893,7 +3010,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('anexo_40h.html', ctx)
-            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None
+            return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc in ('AMONESTACION', 'DESPIDO', 'CONSTANCIA'):
             if doc_legal_id:
@@ -1913,7 +3030,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                    'fecha_actual': fecha_es, 'ciudad': ciudad,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('documento_legal.html', ctx)
-            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None
+            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
             if not anexo_id:
@@ -1929,7 +3046,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                    'empresa': empresa, 'fecha_actual': fecha_es, 'ciudad': ciudad,
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('anexo_contrato.html', ctx)
-            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None, None, None
+            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc == 'LIQUIDACION':
             if not liquidacion_id:
@@ -1963,7 +3080,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 'es_plan_semilla': es_plan_semilla,
             }
             html = render_to_string('liquidacion.html', ctx)
-            return _html_a_pdf_bytes(html, f'Liquidacion_{liq.mes}_{liq.anio}_{empleado.rut}'), None, None, liq, None
+            return _html_a_pdf_bytes(html, f'Liquidacion_{liq.mes}_{liq.anio}_{empleado.rut}'), None, None, liq, None, None
 
         if tipo_doc == 'VACACION':
             if not vacacion_id:
@@ -1985,7 +3102,93 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 'es_plan_semilla': es_plan_semilla,
             }
             html = render_to_string('comprobante_vacaciones.html', ctx)
-            return _html_a_pdf_bytes(html, f'Vacacion_{empleado.rut}'), None, None, None, vac
+            return _html_a_pdf_bytes(html, f'Vacacion_{empleado.rut}'), None, None, None, vac, None
+
+        if tipo_doc == 'FINIQUITO':
+            if not finiquito_id:
+                raise Exception('Se requiere el ID del finiquito.')
+            try:
+                fin = Finiquito.objects.get(id=finiquito_id, empleado=empleado)
+            except Finiquito.DoesNotExist:
+                raise Exception('Finiquito no encontrado.')
+
+            def _fmt_fin(f):
+                if not f:
+                    return '—'
+                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
+
+            ciudad_fin = (getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
+            causal_label = fin.get_causal_articulo_display() if fin.causal_articulo else '—'
+            sueldo_prop = math.floor((fin.sueldo_base / 30) * fin.dias_trabajados_ultimo_mes)
+            html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page {{ size: letter; margin: 2cm 2.5cm; }}
+  body {{ font-family: Arial, sans-serif; font-size: 10pt; color: #111; line-height: 1.5; }}
+  h1 {{ font-size: 14pt; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }}
+  h2 {{ font-size: 10pt; text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }}
+  .seccion {{ margin-bottom: 16px; }}
+  .seccion-titulo {{ font-size: 9pt; font-weight: bold; text-transform: uppercase;
+                     letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
+                     padding-bottom: 3px; margin-bottom: 8px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
+  table td {{ padding: 4px 6px; vertical-align: top; }}
+  table td:last-child {{ text-align: right; font-weight: bold; }}
+  .total-row td {{ border-top: 2px solid #333; font-weight: bold; font-size: 11pt; padding-top: 8px; }}
+  .firma-bloque {{ margin-top: 60px; display: flex; justify-content: space-between; }}
+  .firma-item {{ text-align: center; width: 44%; }}
+  .firma-linea {{ border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 9pt; }}
+  p {{ margin: 4px 0; }}
+  .aviso {{ font-size: 8pt; color: #666; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }}
+</style>
+</head>
+<body>
+<h1>Finiquito de Contrato de Trabajo</h1>
+<h2>{ciudad_fin}, {_fmt_fin(fin.fecha_emision)}</h2>
+<div class="seccion">
+  <div class="seccion-titulo">Partes</div>
+  <p><strong>Empleador:</strong> {empresa.nombre_legal} — RUT {empresa.rut}</p>
+  <p><strong>Trabajador:</strong> {empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''} — RUT {empleado.rut}</p>
+  <p><strong>Cargo:</strong> {empleado.cargo or '—'} &nbsp;|&nbsp; <strong>Departamento:</strong> {empleado.departamento or '—'}</p>
+  <p><strong>Fecha de ingreso:</strong> {_fmt_fin(empleado.fecha_ingreso)} &nbsp;|&nbsp;
+     <strong>Fecha de término:</strong> {_fmt_fin(fin.fecha_termino)}</p>
+  <p><strong>Causal de término:</strong> {causal_label}</p>
+</div>
+<div class="seccion">
+  <div class="seccion-titulo">Liquidación Final</div>
+  <table>
+    <tr><td>Sueldo base proporcional ({fin.dias_trabajados_ultimo_mes} días)</td><td>${sueldo_prop:,.0f}</td></tr>
+    <tr><td>Gratificación proporcional</td><td>${fin.gratificacion_proporcional:,.0f}</td></tr>
+    <tr><td>Feriado proporcional</td><td>${fin.feriado_proporcional:,.0f}</td></tr>
+    {f'<tr><td>Indemnización por años de servicio</td><td>${fin.indemnizacion_anos_servicio:,.0f}</td></tr>' if fin.indemnizacion_anos_servicio else ''}
+    {f'<tr><td>Indemnización sustitutiva de aviso previo</td><td>${fin.indemnizacion_sustitutiva_aviso:,.0f}</td></tr>' if fin.indemnizacion_sustitutiva_aviso else ''}
+    {f'<tr><td>Otros haberes</td><td>${fin.otros_haberes:,.0f}</td></tr>' if fin.otros_haberes else ''}
+    <tr><td>Descuentos previsionales</td><td>-${fin.descuentos_prevision:,.0f}</td></tr>
+    {f'<tr><td>Otros descuentos</td><td>-${fin.otros_descuentos:,.0f}</td></tr>' if fin.otros_descuentos else ''}
+    <tr class="total-row"><td>TOTAL A PAGAR</td><td>${fin.total_a_pagar:,.0f}</td></tr>
+  </table>
+</div>
+<div class="seccion">
+  <div class="seccion-titulo">Declaración del Trabajador</div>
+  <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
+  y nada más tiene que reclamar al empleador, quedando ambas partes en paz y a finiquito.</p>
+  <p>Modalidad de suscripción: <strong>{fin.get_modalidad_display()}</strong></p>
+</div>
+<div class="firma-bloque">
+  <div class="firma-item">
+    <div class="firma-linea"><strong>{empresa.nombre_legal}</strong><br/>RUT {empresa.rut}<br/>Empleador</div>
+  </div>
+  <div class="firma-item">
+    <div class="firma-linea"><strong>{empleado.nombres} {empleado.apellido_paterno}</strong><br/>RUT {empleado.rut}<br/>Trabajador</div>
+  </div>
+</div>
+<p class="aviso">Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de Chile.
+  Generado por Jornada40 · {_fmt_fin(fin.fecha_emision)}.</p>
+</body>
+</html>"""
+            return _html_a_pdf_bytes(html, f'Finiquito_{empleado.rut}'), None, None, None, None, fin
 
         raise Exception(f'Tipo de documento no soportado: {tipo_doc}')
 
@@ -1999,6 +3202,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             'ANEXO_CONTRATO': 'Anexo de Contrato',
             'LIQUIDACION':    'Liquidación de Sueldo',
             'VACACION':       'Comprobante de Vacaciones',
+            'FINIQUITO':      'Finiquito de Término',
         }
         tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
         firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"
@@ -2332,6 +3536,8 @@ def firma_publica_info(request, token):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     empleado = solicitud.empleado
     empresa  = solicitud.empresa
@@ -2480,6 +3686,8 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     tipo_label = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
     empresa_nombre = solicitud.empresa.nombre_legal
@@ -2552,6 +3760,8 @@ def _enviar_emails_firma_completada(
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     tipo_label        = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
     nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
@@ -2725,6 +3935,8 @@ def firma_publica_firmar(request, token):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
+        'FINIQUITO': 'Finiquito de Término',
     }
     firmado_en  = timezone.now()
     ip_firmante = _ip_desde_request(request)
@@ -2785,3 +3997,174 @@ def firma_publica_firmar(request, token):
         pass
 
     return Response({'firmado': True, 'firmado_en': firmado_en.isoformat()})
+
+
+# ============================================================
+# FASE 9 — Previsualización y rechazo por parte del trabajador
+# ============================================================
+
+_TIPO_LABELS_PUBLICO = {
+    'CONTRATO':       'Contrato Laboral',
+    'ANEXO_40H':      'Anexo Ley 40 Horas',
+    'AMONESTACION':   'Carta de Amonestación',
+    'DESPIDO':        'Carta de Despido',
+    'CONSTANCIA':     'Constancia Laboral',
+    'ANEXO_CONTRATO': 'Anexo de Contrato',
+    'LIQUIDACION':    'Liquidación de Sueldo',
+    'VACACION':       'Comprobante de Vacaciones',
+    'FINIQUITO':      'Finiquito de Término',
+}
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def firma_publica_documento(request, token):
+    """
+    Retorna el PDF del documento para que el trabajador lo revise antes de firmar.
+    Solo requiere el token — ver el documento no constituye firma ni compromiso.
+    Si la solicitud ya fue firmada, retorna el PDF firmado con certificado.
+    """
+    try:
+        solicitud = SolicitudFirma.objects.select_related('empleado').get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return HttpResponse(status=404)
+
+    if solicitud.estado in ('CANCELADO', 'EXPIRADO'):
+        return HttpResponse(status=410)
+
+    # Elegir qué versión del PDF servir
+    if solicitud.estado == 'FIRMADO' and solicitud.b2_key_firmado:
+        b2_key = solicitud.b2_key_firmado
+    elif solicitud.b2_key_temporal:
+        b2_key = solicitud.b2_key_temporal
+    else:
+        return HttpResponse(status=404)
+
+    try:
+        pdf_bytes = b2_client.descargar_documento(b2_key)
+    except Exception as exc:
+        return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
+
+    tipo_label = _TIPO_LABELS_PUBLICO.get(solicitud.tipo_documento, solicitud.tipo_documento)
+    apellido   = solicitud.empleado.apellido_paterno.replace(' ', '_')
+    filename   = f"{tipo_label.replace(' ', '_')}_{apellido}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    response['Content-Length']      = len(pdf_bytes)
+    return response
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def firma_publica_rechazar(request, token):
+    """
+    El trabajador rechaza el documento tras verificar su identidad con OTP.
+    Requiere sesion_token válido. Cambia estado a RECHAZADO y notifica al empleador.
+    """
+    sesion_token = str(request.data.get('sesion_token', '')).strip()
+    motivo       = str(request.data.get('motivo', '')).strip()
+
+    if not sesion_token:
+        return Response({'error': 'Sesión inválida. Vuelve a verificar tu identidad.'}, status=400)
+
+    try:
+        solicitud = SolicitudFirma.objects.select_related(
+            'empleado', 'empresa', 'empresa__owner'
+        ).get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud no encontrada.'}, status=404)
+
+    if solicitud.estado != 'PENDIENTE':
+        return Response(
+            {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
+            status=400,
+        )
+
+    if timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+    if (not solicitud.sesion_token_trabajador
+            or str(solicitud.sesion_token_trabajador) != sesion_token):
+        return Response(
+            {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
+            status=403,
+        )
+
+    solicitud.estado = 'RECHAZADO'
+    solicitud.motivo_rechazo = motivo
+    solicitud.save(update_fields=['estado', 'motivo_rechazo', 'actualizado_en'])
+
+    try:
+        _notificar_rechazo_empleador(solicitud, motivo)
+    except Exception:
+        pass  # el rechazo ya fue registrado; el email es no-crítico
+
+    return Response({'rechazado': True})
+
+
+def _notificar_rechazo_empleador(solicitud: SolicitudFirma, motivo: str):
+    """Envía un email al empleador informando que el trabajador rechazó el documento."""
+    tipo_label      = _TIPO_LABELS_PUBLICO.get(solicitud.tipo_documento, solicitud.tipo_documento)
+    empleado        = solicitud.empleado
+    empresa         = solicitud.empresa
+    nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
+    email_empleador = empresa.owner.email
+    if not email_empleador:
+        return
+
+    motivo_bloque = (
+        f"<div style='background:#fff3cd;border-left:4px solid #f59e0b;padding:12px 16px;"
+        f"border-radius:6px;margin:20px 0;'>"
+        f"<p style='margin:0;font-size:13px;color:#92400e;font-weight:600;'>Motivo indicado</p>"
+        f"<p style='margin:4px 0 0;font-size:14px;color:#374151;'>{motivo}</p></div>"
+        if motivo else ""
+    )
+    motivo_texto = f"\n\nMotivo indicado por el trabajador: {motivo}" if motivo else ""
+
+    texto_plano = (
+        f"El trabajador {nombre_trabajador} rechazó la firma del documento «{tipo_label}».\n"
+        f"Empresa: {empresa.nombre_legal}{motivo_texto}\n\n"
+        f"Revisa el documento y comunícate con el trabajador para resolver el inconveniente.\n\n"
+        f"Jornada40 — Sistema de Gestión Laboral"
+    )
+    html_body = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#7f1d1d,#991b1b);padding:32px 40px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Documento Rechazado</h1>
+      <p style="color:rgba(255,255,255,0.7);margin:6px 0 0;font-size:14px;">{empresa.nombre_legal}</p>
+    </div>
+    <div style="padding:32px 40px;">
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 16px;">
+        El trabajador <strong>{nombre_trabajador}</strong> rechazó la firma del siguiente documento:
+      </p>
+      <div style="background:#fef2f2;border-left:4px solid #ef4444;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+        <p style="margin:0;font-weight:700;color:#991b1b;font-size:15px;">{tipo_label}</p>
+        <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">{empresa.nombre_legal}</p>
+      </div>
+      {motivo_bloque}
+      <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">
+        Comunícate con el trabajador para revisar el documento y volver a enviarlo una vez corregido.
+      </p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+      <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+        Firma Electrónica Simple · Ley N° 19.799 · Jornada40
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    msg = EmailMultiAlternatives(
+        subject=f"Documento rechazado: {nombre_trabajador} rechazó «{tipo_label}»",
+        body=texto_plano,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[email_empleador],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send()

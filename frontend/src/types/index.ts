@@ -133,6 +133,7 @@ export interface Empleado {
     activo: boolean;
     creado_en: string;
     contrato_activo?: Contrato | null;
+    tiene_rechazos_pendientes?: boolean;
 }
 
 export interface DocumentosDisponibles {
@@ -243,6 +244,29 @@ export interface Liquidacion {
     fecha_emision: string;
 }
 
+export interface Finiquito {
+    id: number;
+    empleado: number;
+    documento_legal: number | null;
+    causal_articulo: string;
+    causal_articulo_label: string;
+    fecha_termino: string;
+    fecha_emision: string;
+    sueldo_base: number;
+    dias_trabajados_ultimo_mes: number;
+    gratificacion_proporcional: number;
+    feriado_proporcional: number;
+    indemnizacion_anos_servicio: number;
+    indemnizacion_sustitutiva_aviso: number;
+    otros_haberes: number;
+    otros_descuentos: number;
+    descuentos_prevision: number;
+    total_a_pagar: number;
+    modalidad: 'PRESENCIAL' | 'ELECTRONICO';
+    archivo_pdf: string | null;
+    creado_en: string;
+}
+
 export interface SolicitudFirma {
     id: number;
     empleado: number;
@@ -251,7 +275,8 @@ export interface SolicitudFirma {
     documento_legal: number | null;
     liquidacion: number | null;
     vacacion: number | null;
-    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION' | 'VACACION';
+    finiquito: number | null;
+    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION' | 'VACACION' | 'FINIQUITO';
     token: string;
     estado: 'PENDIENTE' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;
@@ -259,6 +284,7 @@ export interface SolicitudFirma {
     enviado_en: string;
     firmado_en: string | null;
     expira_en: string;
+    motivo_rechazo: string;
     empleado_nombre: string;
     empresa_nombre: string;
 }

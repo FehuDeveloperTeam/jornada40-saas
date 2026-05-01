@@ -16,6 +16,9 @@ const TIPO_LABELS: Record<string, string> = {
   DESPIDO:        'Carta de Despido',
   CONSTANCIA:     'Constancia Laboral',
   ANEXO_CONTRATO: 'Anexo de Contrato',
+  LIQUIDACION:    'Liquidación de Sueldo',
+  VACACION:       'Comprobante de Vacaciones',
+  FINIQUITO:      'Finiquito de Término',
 };
 
 function formatFecha(iso: string | null): string {
@@ -248,6 +251,33 @@ export default function ModalDetalleFirma({ solicitud, onClose }: Props) {
               <p className="text-center text-xs mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
                 El enlace expira en 5 minutos · Se abrirá en una nueva pestaña
               </p>
+            </div>
+          )}
+
+          {/* Rechazo — solo si está RECHAZADO */}
+          {solicitud.estado === 'RECHAZADO' && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <XCircle size={13} style={{ color: '#f87171' }} />
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  Motivo del Rechazo
+                </p>
+              </div>
+              <div
+                className="rounded-2xl p-4 space-y-3"
+                style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}
+              >
+                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  {solicitud.motivo_rechazo.trim()
+                    ? solicitud.motivo_rechazo.trim()
+                    : <span style={{ color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>El trabajador no indicó un motivo.</span>
+                  }
+                </p>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  El trabajador rechazó este documento desde la página de firma electrónica.
+                  Revisa el contenido, corrígelo si corresponde y re-envíalo.
+                </p>
+              </div>
             </div>
           )}
 

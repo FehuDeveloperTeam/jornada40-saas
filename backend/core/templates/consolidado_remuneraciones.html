@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reporte Consolidado</title>
+  <style>
+    @page {
+      size: letter landscape;
+      margin: 0.8cm 0.8cm 1.1cm 0.8cm;
+      @frame footer_frame {
+        -pdf-frame-content: footer_content;
+        bottom: 0.3cm; left: 0.8cm; right: 0.8cm; height: 0.7cm;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { font-family: Helvetica, Arial, sans-serif; font-size: 7.5pt; color: #111; margin: 0; padding: 0; }
+
+    /* ── Header ─── */
+    .page-header { width: 100%; margin-bottom: 6pt; }
+    .page-title  { font-size: 11pt; font-weight: bold; color: #0f2540; letter-spacing: 0.3pt; }
+    .page-sub    { font-size: 7pt; color: #555; margin-top: 1pt; }
+    .divider     { border: none; border-top: 1.5pt solid #1e3a5f; margin: 3pt 0; }
+
+    /* ── KPI boxes ─── */
+    .kpi-row { width: 100%; margin-bottom: 6pt; }
+    .kpi-row table { width: 100%; border-collapse: separate; border-spacing: 4pt; }
+    .kpi-box {
+      text-align: center; padding: 5pt 4pt;
+      background: #0c1a35; color: #fff;
+      border-radius: 4pt;
+    }
+    .kpi-label { font-size: 6pt; color: #aaa; text-transform: uppercase; letter-spacing: 0.5pt; }
+    .kpi-value { font-size: 10pt; font-weight: bold; color: #fff; margin-top: 2pt; }
+
+    /* ── Section title ─── */
+    .section-title {
+      font-size: 7pt; font-weight: bold; text-transform: uppercase;
+      letter-spacing: 0.5pt; color: #1e3a5f;
+      border-bottom: 0.8pt solid #1e3a5f;
+      padding-bottom: 2pt; margin-bottom: 4pt; margin-top: 6pt;
+    }
+
+    /* ── Tables ─── */
+    table.data { width: 100%; border-collapse: collapse; }
+    table.data thead th {
+      background: #1e3a5f; color: #fff;
+      font-size: 6.5pt; font-weight: bold;
+      text-align: center; vertical-align: bottom;
+      padding: 2.5pt 2pt; border: 0.4pt solid #0f2540;
+    }
+    table.data tbody td {
+      font-size: 7pt; padding: 2pt 2.5pt;
+      border: 0.4pt solid #ddd; vertical-align: middle;
+    }
+    tr.par  td { background: #f0f4f8; }
+    tr.impar td { background: #fff; }
+    tr.total-row td {
+      background: #fef3c7; font-weight: bold;
+      border-top: 0.8pt solid #b45309;
+      border-bottom: 0.8pt solid #b45309;
+      padding: 2.5pt 2.5pt;
+    }
+    .r { text-align: right; }
+    .c { text-align: center; }
+    .l { text-align: left; }
+
+    /* ── Evolution table (compact, 2-col layout) ─── */
+    table.evo { width: 100%; border-collapse: collapse; font-size: 7pt; }
+    table.evo th {
+      background: #1e3a5f; color: #fff;
+      font-size: 6.5pt; font-weight: bold;
+      text-align: center; padding: 2pt;
+      border: 0.4pt solid #0f2540;
+    }
+    table.evo td { padding: 1.5pt 2pt; border: 0.4pt solid #ddd; }
+
+    /* ── Footer ─── */
+    #footer_content { font-size: 6pt; color: #666; width: 100%; }
+    .footer-inner { display: table; width: 100%; border-top: 0.5pt solid #aaa; padding-top: 1.5pt; }
+    .fl { display: table-cell; text-align: left; }
+    .fr { display: table-cell; text-align: right; }
+  </style>
+</head>
+<body>
+
+<div id="footer_content">
+  <div class="footer-inner">
+    <span class="fl">Reporte Consolidado de Remuneraciones · {{ periodo_nombre }} {{ anio }} · Emitido el {{ fecha_emision }}</span>
+    <span class="fr">Pág. <pdf:pagenumber> de <pdf:pagecount></span>
+  </div>
+</div>
+
+<!-- ══ Header ═══════════════════════════════════════════════════════════ -->
+<div class="page-header">
+  <table style="width:100%; border-collapse:collapse;">
+    <tr>
+      <td>
+        <div class="page-title">Reporte Consolidado de Remuneraciones</div>
+        <div class="page-sub">Período: <strong>{{ periodo_nombre }} {{ anio }}</strong> &nbsp;·&nbsp; {{ n_empresas }} empresa{% if n_empresas != 1 %}s{% endif %} &nbsp;·&nbsp; {{ kpis.trabajadores }} trabajadore{% if kpis.trabajadores != 1 %}s{% endif %}</div>
+      </td>
+      <td style="text-align:right; width:25%; font-size:6.5pt; color:#666;">
+        Generado: {{ fecha_emision }}
+      </td>
+    </tr>
+  </table>
+  <hr class="divider">
+</div>
+
+<!-- ══ KPI boxes ═════════════════════════════════════════════════════════ -->
+<div class="kpi-row">
+  <table>
+    <tr>
+      <td width="25%">
+        <div class="kpi-box">
+          <div class="kpi-label">Masa Salarial</div>
+          <div class="kpi-value">{{ kpis_fmt.masa_salarial }}</div>
+        </div>
+      </td>
+      <td width="25%">
+        <div class="kpi-box" style="background:#0e4030;">
+          <div class="kpi-label">Trabajadores</div>
+          <div class="kpi-value">{{ kpis_fmt.trabajadores }}</div>
+        </div>
+      </td>
+      <td width="25%">
+        <div class="kpi-box" style="background:#5c2600;">
+          <div class="kpi-label">Costo Empleador</div>
+          <div class="kpi-value">{{ kpis_fmt.costo_empleador }}</div>
+        </div>
+      </td>
+      <td width="25%">
+        <div class="kpi-box" style="background:#2d1b5e;">
+          <div class="kpi-label">Líquido a Pagar</div>
+          <div class="kpi-value">{{ kpis_fmt.liquido_total }}</div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══ Empresa table ═════════════════════════════════════════════════════ -->
+<div class="section-title">Desglose por empresa</div>
+<table class="data">
+  <thead>
+    <tr>
+      <th class="l" style="width:32%;">Empresa</th>
+      <th style="width:12%;">RUT</th>
+      <th style="width:8%;">Trabaj.</th>
+      <th style="width:16%;">Masa Salarial</th>
+      <th style="width:16%;">Costo Empleador</th>
+      <th style="width:12%;">Líquido</th>
+      <th style="width:6%;">%</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for emp in empresas %}
+    <tr class="{% if forloop.counter|divisibleby:2 %}par{% else %}impar{% endif %}">
+      <td class="l">{{ emp.nombre }}</td>
+      <td class="c">{{ emp.rut }}</td>
+      <td class="c">{{ emp.trabajadores }}</td>
+      <td class="r">{{ emp.masa_salarial_fmt }}</td>
+      <td class="r">{{ emp.costo_empleador_fmt }}</td>
+      <td class="r" style="font-weight:bold; color:#14532d;">{{ emp.liquido_total_fmt }}</td>
+      <td class="c">{{ emp.pct }}%</td>
+    </tr>
+    {% endfor %}
+    <tr class="total-row">
+      <td class="l" colspan="2">TOTAL CONSOLIDADO</td>
+      <td class="c">{{ kpis.trabajadores }}</td>
+      <td class="r">{{ kpis_fmt.masa_salarial }}</td>
+      <td class="r">{{ kpis_fmt.costo_empleador }}</td>
+      <td class="r" style="color:#b45309;">{{ kpis_fmt.liquido_total }}</td>
+      <td class="c">100%</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ══ Evolución mensual ═════════════════════════════════════════════════ -->
+<div class="section-title" style="margin-top:8pt;">Evolución mensual {{ anio }}</div>
+<table class="evo">
+  <thead>
+    <tr>
+      <th>Mes</th>
+      <th>Masa Salarial</th>
+      <th>Líquido</th>
+      <th>Costo Empleador</th>
+      <th>Trabaj.</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ev in evolucion %}
+    <tr class="{% if forloop.counter|divisibleby:2 %}par{% else %}impar{% endif %}">
+      <td class="c">{{ ev.mes_nombre }}</td>
+      <td class="r">{{ ev.masa_salarial_fmt }}</td>
+      <td class="r">{{ ev.liquido_total_fmt }}</td>
+      <td class="r">{{ ev.costo_empleador_fmt }}</td>
+      <td class="c">{% if ev.trabajadores %}{{ ev.trabajadores }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div style="margin-top:5pt; font-size:5.5pt; color:#999;">
+  Costo empleador estimado: SIS 1.49% + Mutual AT/EP 0.93% + AFC empleador 2.4% (indefinido) / 3.0% (plazo fijo/obra).
+</div>
+
+</body>
+</html>

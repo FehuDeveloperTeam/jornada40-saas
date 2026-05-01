@@ -329,6 +329,57 @@ class Liquidacion(models.Model):
     def __str__(self):
         return f"Liquidación {self.mes}/{self.anio} - {self.empleado.rut}"
 
+# ==========================================
+# 6. FINIQUITO
+# ==========================================
+class Finiquito(models.Model):
+    CAUSAL_ARTICULO_CHOICES = DocumentoLegal.CAUSAL_ARTICULO_CHOICES
+
+    MODALIDAD_CHOICES = [
+        ('PRESENCIAL',  'Presencial ante ministro de fe'),
+        ('ELECTRONICO', 'Electrónico (voluntario para el trabajador)'),
+    ]
+
+    empleado         = models.ForeignKey(Empleado,       on_delete=models.CASCADE, related_name='finiquitos')
+    documento_legal  = models.ForeignKey(DocumentoLegal, on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='finiquitos')
+
+    causal_articulo  = models.CharField(max_length=20, choices=CAUSAL_ARTICULO_CHOICES, blank=True, default='')
+    fecha_termino    = models.DateField()
+    fecha_emision    = models.DateField()
+
+    # ── Haberes del último mes (pro-rata) ────────────────────────────────────
+    sueldo_base               = models.IntegerField(default=0)
+    dias_trabajados_ultimo_mes = models.IntegerField(default=30)
+    gratificacion_proporcional = models.IntegerField(default=0)
+
+    # ── Compensaciones por término ───────────────────────────────────────────
+    feriado_proporcional           = models.IntegerField(default=0)   # vacaciones adeudadas
+    indemnizacion_anos_servicio    = models.IntegerField(default=0)   # Art. 163 — 1 mes por año
+    indemnizacion_sustitutiva_aviso = models.IntegerField(default=0)  # aviso previo no dado
+
+    # ── Otros ───────────────────────────────────────────────────────────────
+    otros_haberes  = models.IntegerField(default=0)
+    otros_descuentos = models.IntegerField(default=0)
+
+    # ── Descuentos previsionales del último período ─────────────────────────
+    descuentos_prevision = models.IntegerField(default=0)
+
+    # ── Total calculado ──────────────────────────────────────────────────────
+    total_a_pagar = models.IntegerField(default=0)
+
+    modalidad  = models.CharField(max_length=15, choices=MODALIDAD_CHOICES, default='PRESENCIAL')
+    archivo_pdf = models.FileField(upload_to='finiquitos/', null=True, blank=True)
+
+    creado_en     = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-fecha_emision']
+
+    def __str__(self):
+        return f"Finiquito {self.empleado.rut} — {self.fecha_termino}"
+
 class Suscripcion(models.Model):
     ESTADOS_SUSCRIPCION = [
         ('TRIAL', 'Período de Prueba'),
@@ -380,6 +431,7 @@ class SolicitudFirma(models.Model):
         ('ANEXO_CONTRATO',  'Anexo de Contrato'),
         ('LIQUIDACION',     'Liquidación de Sueldo'),
         ('VACACION',        'Comprobante de Vacaciones'),
+        ('FINIQUITO',       'Finiquito de Término'),
     ]
 
     empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
@@ -388,6 +440,7 @@ class SolicitudFirma(models.Model):
     documento_legal  = models.ForeignKey('DocumentoLegal', on_delete=models.SET_NULL,  null=True, blank=True)
     liquidacion      = models.ForeignKey('Liquidacion',   on_delete=models.SET_NULL,   null=True, blank=True)
     vacacion         = models.ForeignKey('VacacionEmpleado', on_delete=models.SET_NULL, null=True, blank=True)
+    finiquito        = models.ForeignKey('Finiquito',     on_delete=models.SET_NULL,   null=True, blank=True)
 
     tipo_documento   = models.CharField(max_length=20, choices=TIPOS_DOCUMENTO)
     token            = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -405,6 +458,7 @@ class SolicitudFirma(models.Model):
     enviado_en       = models.DateTimeField(auto_now_add=True)
     firmado_en       = models.DateTimeField(null=True, blank=True)
     expira_en        = models.DateTimeField()
+    motivo_rechazo   = models.TextField(blank=True, default='')
 
     creado_en        = models.DateTimeField(auto_now_add=True)
     actualizado_en   = models.DateTimeField(auto_now=True)
