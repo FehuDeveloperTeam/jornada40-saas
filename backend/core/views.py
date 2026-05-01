@@ -38,6 +38,9 @@ import traceback
 import urllib.parse
 from django.db.models import Max, Sum, Exists, OuterRef
 from django.core.files.base import ContentFile
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 
 from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito
 from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer, FiniquitoSerializer
@@ -1927,6 +1930,271 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         nombre_archivo = f'Previred_{meses_nombres[mes - 1]}_{anio}.txt'
         contenido = '\n'.join(lineas)
         response = HttpResponse(contenido, content_type='text/plain; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='libro_remuneraciones')
+    def libro_remuneraciones(self, request):
+        mes_param  = request.query_params.get('mes')
+        anio_param = request.query_params.get('anio')
+        empresa_id = request.query_params.get('empresa')
+
+        if not mes_param or not anio_param:
+            return Response({'error': 'Se requieren los parámetros mes y anio.'}, status=400)
+        try:
+            mes  = int(mes_param)
+            anio = int(anio_param)
+        except ValueError:
+            return Response({'error': 'Parámetros mes y anio deben ser numéricos.'}, status=400)
+
+        qs = Liquidacion.objects.filter(
+            empleado__empresa__owner=request.user,
+            mes=mes, anio=anio,
+        ).select_related('empleado', 'empleado__empresa').order_by(
+            'empleado__ficha_numero', 'empleado__apellido_paterno'
+        )
+        if empresa_id:
+            qs = qs.filter(empleado__empresa_id=empresa_id)
+        if not qs.exists():
+            return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+
+        empresa = qs.first().empleado.empresa
+        meses_nombres = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+        ]
+        mes_nombre = meses_nombres[mes - 1]
+
+        # ── Estilos ───────────────────────────────────────────────────────────
+        COLOR_HEADER   = '1E3A5F'
+        COLOR_TOTALES  = 'F59E0B'
+        COLOR_FILA_PAR = 'F1F5F9'
+
+        ft_titulo   = Font(name='Calibri', bold=True, size=14, color='1E3A5F')
+        ft_subtit   = Font(name='Calibri', bold=True, size=11, color='334155')
+        ft_header   = Font(name='Calibri', bold=True, size=9,  color='FFFFFF')
+        ft_dato     = Font(name='Calibri', size=9)
+        ft_total    = Font(name='Calibri', bold=True, size=9)
+        ft_total_liq = Font(name='Calibri', bold=True, size=9, color='7C3AED')
+
+        al_center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        al_left   = Alignment(horizontal='left',   vertical='center')
+        al_right  = Alignment(horizontal='right',  vertical='center')
+
+        fill_header  = PatternFill('solid', fgColor=COLOR_HEADER)
+        fill_total   = PatternFill('solid', fgColor=COLOR_TOTALES)
+        fill_par     = PatternFill('solid', fgColor=COLOR_FILA_PAR)
+
+        thin = Side(style='thin', color='CBD5E1')
+        borde = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        FMT_CLP  = '#,##0'
+        FMT_TEXT = '@'
+
+        # ── Workbook ──────────────────────────────────────────────────────────
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f'Libro {mes_nombre} {anio}'
+        ws.sheet_view.showGridLines = False
+
+        # ── Columnas: anchos ──────────────────────────────────────────────────
+        COLS = [
+            ('N°',                    5),
+            ('RUT',                  12),
+            ('Apellidos y Nombres',  28),
+            ('Cargo',                16),
+            ('Días\nTrab.',           7),
+            ('Sueldo\nBase',         12),
+            ('Gratif.',              11),
+            ('Otros Hab.\nImpon.',   12),
+            ('Total\nImponible',     13),
+            ('Hab. No\nImponibles',  13),
+            ('Total\nHaberes',       12),
+            ('AFP',                   9),
+            ('Cotiz.\nAFP',          11),
+            ('Salud',                 9),
+            ('Cotiz.\nSalud',        11),
+            ('Cesantía',             10),
+            ('Imp.\nÚnico',          10),
+            ('Anticipo',             10),
+            ('Otros\nDesc.',         10),
+            ('Total\nDescuentos',    13),
+            ('Alcance\nLíquido',     13),
+        ]
+        for i, (_, ancho) in enumerate(COLS, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = ancho
+
+        N_COLS = len(COLS)
+        ultima_col = get_column_letter(N_COLS)
+
+        # ── Encabezado empresa ────────────────────────────────────────────────
+        ws.row_dimensions[1].height = 22
+        ws.row_dimensions[2].height = 18
+        ws.row_dimensions[3].height = 16
+
+        ws.merge_cells(f'A1:{ultima_col}1')
+        c = ws['A1']
+        c.value     = empresa.nombre_legal.upper()
+        c.font      = ft_titulo
+        c.alignment = al_center
+
+        ws.merge_cells(f'A2:{ultima_col}2')
+        c = ws['A2']
+        c.value     = 'LIBRO DE REMUNERACIONES'
+        c.font      = ft_subtit
+        c.alignment = al_center
+
+        ws.merge_cells(f'A3:{ultima_col}3')
+        c = ws['A3']
+        c.value     = f'RUT: {empresa.rut}     Período: {mes_nombre} {anio}'
+        c.font      = Font(name='Calibri', size=10, color='475569')
+        c.alignment = al_center
+
+        # fila separadora
+        ws.row_dimensions[4].height = 6
+
+        # ── Fila de cabeceras ─────────────────────────────────────────────────
+        ws.row_dimensions[5].height = 36
+        for col_idx, (label, _) in enumerate(COLS, start=1):
+            c = ws.cell(row=5, column=col_idx, value=label)
+            c.font      = ft_header
+            c.fill      = fill_header
+            c.alignment = al_center
+            c.border    = borde
+
+        # ── Filas de datos ────────────────────────────────────────────────────
+        totales = {k: 0 for k in [
+            'sueldo_base', 'gratificacion', 'otros_imp', 'total_imponible',
+            'no_imponibles', 'total_haberes', 'cotiz_afp', 'cotiz_salud',
+            'cesantia', 'imp_unico', 'anticipo', 'otros_desc',
+            'total_descuentos', 'sueldo_liquido',
+        ]}
+
+        for fila_idx, liq in enumerate(qs, start=6):
+            emp = liq.empleado
+            fill_fila = fill_par if fila_idx % 2 == 0 else None
+
+            det_imp = liq.detalle_haberes_imponibles or []
+            if not isinstance(det_imp, list): det_imp = []
+            det_hex = liq.detalle_horas_extras or []
+            if not isinstance(det_hex, list): det_hex = []
+            det_noi = liq.detalle_haberes_no_imponibles or []
+            if not isinstance(det_noi, list): det_noi = []
+            det_odc = liq.detalle_otros_descuentos or []
+            if not isinstance(det_odc, list): det_odc = []
+
+            otros_imp   = sum(int(d.get('valor', 0)) for d in det_imp if isinstance(d, dict))
+            otros_imp  += sum(int(d.get('valor', 0)) for d in det_hex if isinstance(d, dict))
+            no_impon    = sum(int(d.get('valor', 0)) for d in det_noi if isinstance(d, dict))
+            otros_desc  = sum(int(d.get('valor', 0)) for d in det_odc if isinstance(d, dict))
+
+            nombre_completo = f'{emp.apellido_paterno} {emp.apellido_materno or ""} {emp.nombres}'.strip()
+
+            valores = [
+                (emp.ficha_numero or '',     FMT_TEXT, al_center),
+                (emp.rut,                    FMT_TEXT, al_left),
+                (nombre_completo,            FMT_TEXT, al_left),
+                (emp.cargo or '',            FMT_TEXT, al_left),
+                (liq.dias_trabajados,        FMT_TEXT, al_center),
+                (int(liq.sueldo_base),       FMT_CLP,  al_right),
+                (int(liq.gratificacion),     FMT_CLP,  al_right),
+                (otros_imp,                  FMT_CLP,  al_right),
+                (int(liq.total_imponible),   FMT_CLP,  al_right),
+                (no_impon,                   FMT_CLP,  al_right),
+                (int(liq.total_haberes),     FMT_CLP,  al_right),
+                (liq.afp_nombre or '',       FMT_TEXT, al_center),
+                (int(liq.afp_monto),         FMT_CLP,  al_right),
+                (liq.salud_nombre or '',     FMT_TEXT, al_center),
+                (int(liq.salud_monto),       FMT_CLP,  al_right),
+                (int(liq.seguro_cesantia),   FMT_CLP,  al_right),
+                (int(liq.impuesto_unico or 0), FMT_CLP, al_right),
+                (int(liq.anticipo_quincena or 0), FMT_CLP, al_right),
+                (otros_desc,                 FMT_CLP,  al_right),
+                (int(liq.total_descuentos),  FMT_CLP,  al_right),
+                (int(liq.sueldo_liquido),    FMT_CLP,  al_right),
+            ]
+
+            ws.row_dimensions[fila_idx].height = 15
+            for col_idx, (valor, fmt, alin) in enumerate(valores, start=1):
+                c = ws.cell(row=fila_idx, column=col_idx, value=valor)
+                c.number_format = fmt
+                c.font          = ft_dato
+                c.alignment     = alin
+                c.border        = borde
+                if fill_fila:
+                    c.fill = fill_fila
+
+            # Acumular totales
+            totales['sueldo_base']      += int(liq.sueldo_base)
+            totales['gratificacion']    += int(liq.gratificacion)
+            totales['otros_imp']        += otros_imp
+            totales['total_imponible']  += int(liq.total_imponible)
+            totales['no_imponibles']    += no_impon
+            totales['total_haberes']    += int(liq.total_haberes)
+            totales['cotiz_afp']        += int(liq.afp_monto)
+            totales['cotiz_salud']      += int(liq.salud_monto)
+            totales['cesantia']         += int(liq.seguro_cesantia)
+            totales['imp_unico']        += int(liq.impuesto_unico or 0)
+            totales['anticipo']         += int(liq.anticipo_quincena or 0)
+            totales['otros_desc']       += otros_desc
+            totales['total_descuentos'] += int(liq.total_descuentos)
+            totales['sueldo_liquido']   += int(liq.sueldo_liquido)
+
+        # ── Fila de totales ───────────────────────────────────────────────────
+        fila_total = qs.count() + 6
+        ws.row_dimensions[fila_total].height = 18
+
+        vals_total = [
+            ('', FMT_TEXT), ('', FMT_TEXT),
+            ('TOTALES', FMT_TEXT), ('', FMT_TEXT), ('', FMT_TEXT),
+            (totales['sueldo_base'],      FMT_CLP),
+            (totales['gratificacion'],    FMT_CLP),
+            (totales['otros_imp'],        FMT_CLP),
+            (totales['total_imponible'],  FMT_CLP),
+            (totales['no_imponibles'],    FMT_CLP),
+            (totales['total_haberes'],    FMT_CLP),
+            ('', FMT_TEXT),
+            (totales['cotiz_afp'],        FMT_CLP),
+            ('', FMT_TEXT),
+            (totales['cotiz_salud'],      FMT_CLP),
+            (totales['cesantia'],         FMT_CLP),
+            (totales['imp_unico'],        FMT_CLP),
+            (totales['anticipo'],         FMT_CLP),
+            (totales['otros_desc'],       FMT_CLP),
+            (totales['total_descuentos'], FMT_CLP),
+            (totales['sueldo_liquido'],   FMT_CLP),
+        ]
+
+        for col_idx, (valor, fmt) in enumerate(vals_total, start=1):
+            c = ws.cell(row=fila_total, column=col_idx, value=valor)
+            c.number_format = fmt
+            c.fill   = fill_total
+            c.border = borde
+            c.alignment = al_right if fmt == FMT_CLP else al_center
+            if col_idx == 3:
+                c.alignment = al_left
+            # El alcance líquido en morado para destacarlo
+            c.font = ft_total_liq if col_idx == N_COLS else ft_total
+
+        # ── Configuración de página (landscape A3/A4) ─────────────────────────
+        ws.page_setup.orientation       = 'landscape'
+        ws.page_setup.paperSize         = ws.PAPERSIZE_A3
+        ws.page_setup.fitToPage         = True
+        ws.page_setup.fitToWidth        = 1
+        ws.page_setup.fitToHeight       = 0
+        ws.print_title_rows             = '1:5'
+        ws.freeze_panes                 = 'A6'
+
+        # ── Serializar y responder ────────────────────────────────────────────
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        nombre_archivo = f'LibroRemuneraciones_{mes_nombre}_{anio}_{empresa.rut}.xlsx'
+        response = HttpResponse(
+            buf.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
         response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
         return response
 
