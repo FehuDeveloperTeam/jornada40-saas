@@ -2253,6 +2253,120 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{nombre_base}.xlsx"'
         return response
 
+    # ──────────────────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='consolidado')
+    def consolidado(self, request):
+        anio_param = request.query_params.get('anio')
+        mes_param  = request.query_params.get('mes')
+
+        if not anio_param:
+            return Response({'error': 'Se requiere el parámetro anio.'}, status=400)
+        try:
+            anio = int(anio_param)
+            mes  = int(mes_param) if mes_param else None
+        except ValueError:
+            return Response({'error': 'Los parámetros anio y mes deben ser numéricos.'}, status=400)
+
+        base_qs = (
+            Liquidacion.objects
+            .filter(empleado__empresa__owner=request.user, anio=anio)
+            .select_related('empleado', 'empleado__empresa', 'empleado__contrato_activo')
+        )
+
+        qs_periodo = base_qs.filter(mes=mes) if mes else base_qs
+
+        if not qs_periodo.exists():
+            return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
+
+        # Costo empleador por liquidación (SIS + Mutual + AFC empleador)
+        def _costo_emp(liq):
+            try:
+                tipo = liq.empleado.contrato_activo.tipo_contrato
+                tasa_afc = _TASA_AFC_EMP_INDEFINIDO if tipo == 'INDEFINIDO' else _TASA_AFC_EMP_PLAZO
+            except Exception:
+                tasa_afc = _TASA_AFC_EMP_INDEFINIDO
+            imp = liq.total_imponible
+            return int(imp * (_TASA_SIS + _TASA_MUTUAL_AT + tasa_afc))
+
+        # ── KPIs del período ──────────────────────────────────────────────────
+        masa_salarial      = 0
+        liquido_total      = 0
+        costo_empleador    = 0
+        empleados_ids      = set()
+
+        from collections import defaultdict
+        empresas_dict = defaultdict(lambda: {
+            'id': None, 'nombre': '', 'rut': '',
+            'trabajadores': 0, 'masa_salarial': 0,
+            'liquido_total': 0, 'costo_empleador': 0,
+        })
+
+        for liq in qs_periodo:
+            ce = _costo_emp(liq)
+            masa_salarial   += liq.total_haberes
+            liquido_total   += liq.sueldo_liquido
+            costo_empleador += ce
+            empleados_ids.add(liq.empleado_id)
+
+            eid = liq.empleado.empresa_id
+            emp = liq.empleado.empresa
+            d = empresas_dict[eid]
+            d['id']             = eid
+            d['nombre']         = emp.nombre_legal
+            d['rut']            = emp.rut
+            d['trabajadores']  += 1
+            d['masa_salarial'] += liq.total_haberes
+            d['liquido_total'] += liq.sueldo_liquido
+            d['costo_empleador'] += ce
+
+        empresas_list = sorted(
+            empresas_dict.values(),
+            key=lambda x: x['masa_salarial'],
+            reverse=True,
+        )
+
+        # ── Evolución mensual (todos los meses del año) ───────────────────────
+        MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        evolucion = []
+        for m in range(1, 13):
+            qs_m = base_qs.filter(mes=m)
+            if qs_m.exists():
+                ms = sum(l.total_haberes for l in qs_m)
+                lq = sum(l.sueldo_liquido for l in qs_m)
+                ce = sum(_costo_emp(l) for l in qs_m)
+                tw = qs_m.values('empleado_id').distinct().count()
+            else:
+                ms = lq = ce = tw = 0
+            evolucion.append({
+                'mes': m,
+                'mes_nombre': MESES_CORTOS[m - 1],
+                'masa_salarial': ms,
+                'liquido_total': lq,
+                'costo_empleador': ce,
+                'trabajadores': tw,
+            })
+
+        MESES_LARGOS = [
+            'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+        ]
+
+        return Response({
+            'periodo': {
+                'anio': anio,
+                'mes': mes,
+                'mes_nombre': MESES_LARGOS[mes - 1] if mes else None,
+            },
+            'kpis': {
+                'masa_salarial':   masa_salarial,
+                'trabajadores':    len(empleados_ids),
+                'costo_empleador': costo_empleador,
+                'liquido_total':   liquido_total,
+            },
+            'empresas': empresas_list,
+            'evolucion': evolucion,
+        })
+
 # ==========================================
 # PREVIRED EXPORT
 # ==========================================
