@@ -8,6 +8,7 @@ import ModalExportarPrevired from '../components/dashboard/ModalExportarPrevired
 import ModalLibroRemuneraciones from '../components/dashboard/ModalLibroRemuneraciones';
 import EmpleadoPanel from '../components/dashboard/EmpleadoPanel';
 import ModalDetalleFirma from '../components/ModalDetalleFirma';
+import ThemeToggle from '../components/ThemeToggle';
 import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
@@ -106,24 +107,27 @@ export default function Dashboard() {
 
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
       <div className="w-12 h-12 border-2 rounded-full animate-spin"
-        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#2563eb' }} />
+        style={{ borderColor: 'var(--c-border)', borderTopColor: '#2563eb' }} />
     </div>
   );
 
   return (
-    <div className="p-6 md:p-10 min-h-screen font-sans flex" style={{ background: '#060f20' }} onClick={() => setOpenFilterDropdown(null)}>
+    <div className="p-6 md:p-10 min-h-screen font-sans flex" style={{ background: 'var(--c-bg-app)' }} onClick={() => setOpenFilterDropdown(null)}>
       <div className={`max-w-7xl mx-auto w-full min-w-0 transition-all duration-300 ${isPanelOpen ? 'md:mr-[900px]' : ''}`}>
 
         <div className="flex justify-between items-center mb-8">
           <button onClick={volverAlLobby}
-            className="flex items-center gap-2 text-sm font-medium transition-colors group"
-            style={{ color: 'rgba(255,255,255,0.4)' }}>
-            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
-            <span className="group-hover:text-white transition-colors">Cambiar de Empresa</span>
+            className="flex items-center gap-2 text-sm font-medium transition-colors"
+            style={{ color: 'var(--c-text-3)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
+            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 transition-transform"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+            <span>Cambiar de Empresa</span>
           </button>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <img src="/favicon.svg" alt="Jornada40" className="w-8 h-8 rounded-lg" />
           </div>
         </div>
@@ -131,13 +135,13 @@ export default function Dashboard() {
         <div className="rounded-3xl p-7 mb-8 glass-card">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-white tracking-tight">{empresa?.nombre_legal}</h1>
+              <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--c-text-1)' }}>{empresa?.nombre_legal}</h1>
               <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
-                <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'var(--c-bg-input)', color: 'var(--c-text-3)', whiteSpace: 'nowrap' }}>
                   RUT {empresa?.rut ? formatRut(empresa.rut) : '—'}
                 </span>
                 {empresa?.giro && (
-                  <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}>
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold" style={{ background: 'var(--c-bg-input)', color: 'var(--c-text-3)' }}>
                     Giro: {empresa.giro}
                   </span>
                 )}

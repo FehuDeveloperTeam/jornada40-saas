@@ -6,6 +6,7 @@ import { formatRut, validateRut } from '../utils/rutUtils';
 import { useToast } from '../context/ToastContext';
 import { ShieldCheck, Settings, Trash2, RefreshCcw, Plus, LogOut, X, ArrowRight, Building2, PenLine, BarChart3 } from 'lucide-react';
 import ModalFirmaEmpleador from '../components/ModalFirmaEmpleador';
+import ThemeToggle from '../components/ThemeToggle';
 
 interface Empresa {
   id: number;
@@ -154,14 +155,14 @@ export default function LobbyEmpresas() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
       <div className="w-10 h-10 border-2 rounded-full animate-spin"
-        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#2563eb' }} />
+        style={{ borderColor: 'var(--c-border)', borderTopColor: '#2563eb' }} />
     </div>
   );
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -175,17 +176,19 @@ export default function LobbyEmpresas() {
 
       {/* Top bar */}
       <div className="relative z-20 w-full px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{ borderBottom: '1px solid var(--c-border)' }}>
 
         <div className="flex items-center gap-3">
           <button onClick={cerrarSesion}
-            className="flex items-center gap-2 text-sm font-medium transition-colors group"
-            style={{ color: 'rgba(255,255,255,0.4)' }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center transition-all group-hover:-translate-x-0.5"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            className="flex items-center gap-2 text-sm font-medium transition-colors"
+            style={{ color: 'var(--c-text-3)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center transition-all"
+              style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)' }}>
               <LogOut size={14} />
             </div>
-            <span className="group-hover:text-white transition-colors">Cerrar Sesión</span>
+            <span>Cerrar Sesión</span>
           </button>
           <img src="/favicon.svg" alt="Jornada40" className="w-7 h-7 rounded-lg hidden sm:block" />
         </div>
@@ -205,19 +208,21 @@ export default function LobbyEmpresas() {
             <span className="hidden sm:inline">Reportes</span>
           </button>
 
+          <ThemeToggle />
+
           <button onClick={() => navigate('/suscripcion')}
             className="p-2.5 rounded-xl transition-all"
             title="Configuración de Cuenta"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>
+            style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)', color: 'var(--c-text-3)' }}>
             <Settings size={18} />
           </button>
 
           <button onClick={() => setMostrarInactivas(!mostrarInactivas)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
             style={{
-              background: mostrarInactivas ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-              border: mostrarInactivas ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(255,255,255,0.08)',
-              color: mostrarInactivas ? '#f87171' : 'rgba(255,255,255,0.5)',
+              background: mostrarInactivas ? 'rgba(239,68,68,0.15)' : 'var(--c-bg-input)',
+              border: mostrarInactivas ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--c-border-input)',
+              color: mostrarInactivas ? '#f87171' : 'var(--c-text-3)',
             }}>
             <Trash2 size={16} />
             <span className="hidden sm:inline">{mostrarInactivas ? 'Ocultar Papelera' : 'Ver Papelera'}</span>
@@ -239,8 +244,8 @@ export default function LobbyEmpresas() {
             style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 4px 20px rgba(37,99,235,0.35)' }}>
             <Building2 size={22} className="text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Tus Empresas</h1>
-          <p className="text-base" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Tus Empresas</h1>
+          <p className="text-base" style={{ color: 'var(--c-text-3)' }}>
             Selecciona un espacio de trabajo para administrar su personal.
           </p>
         </div>
@@ -249,10 +254,10 @@ export default function LobbyEmpresas() {
         {empresas.length === 0 ? (
           <div className="rounded-3xl p-14 text-center glass-card">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <Building2 size={28} style={{ color: 'rgba(255,255,255,0.3)' }} />
+              style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)' }}>
+              <Building2 size={28} style={{ color: 'var(--c-text-4)' }} />
             </div>
-            <p className="text-base font-medium mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="text-base font-medium mb-4" style={{ color: 'var(--c-text-3)' }}>
               No tienes empresas {mostrarInactivas ? 'inactivas' : 'registradas aún'}.
             </p>
             {!mostrarInactivas && (
@@ -269,8 +274,8 @@ export default function LobbyEmpresas() {
                 onClick={() => empresa.activo !== false && seleccionarEmpresa(empresa.id)}
                 className="group relative rounded-3xl p-7 transition-all duration-200"
                 style={{
-                  background: empresa.activo === false ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.04)',
-                  border: empresa.activo === false ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(255,255,255,0.08)',
+                  background: empresa.activo === false ? 'rgba(239,68,68,0.05)' : 'var(--c-bg-card-2)',
+                  border: empresa.activo === false ? '1px solid rgba(239,68,68,0.2)' : '1px solid var(--c-border)',
                   backdropFilter: 'blur(20px)',
                   cursor: empresa.activo === false ? 'default' : 'pointer',
                   opacity: empresa.activo === false ? 0.7 : 1,
@@ -284,7 +289,7 @@ export default function LobbyEmpresas() {
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = '';
-                  e.currentTarget.style.borderColor = empresa.activo === false ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)';
+                  e.currentTarget.style.borderColor = empresa.activo === false ? 'rgba(239,68,68,0.2)' : 'var(--c-border)';
                   e.currentTarget.style.boxShadow = '';
                 }}>
 
@@ -299,7 +304,7 @@ export default function LobbyEmpresas() {
                     </button>
                     <button onClick={(e) => abrirModalEditar(e, empresa)}
                       className="p-2 rounded-xl transition-all"
-                      style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+                      style={{ background: 'var(--c-bg-input)', color: 'var(--c-text-3)' }}
                       title="Editar datos">
                       <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                         <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
@@ -330,14 +335,14 @@ export default function LobbyEmpresas() {
                   {empresa.nombre_legal.charAt(0).toUpperCase()}
                 </div>
 
-                <h2 className="text-base font-bold text-white mb-1 truncate">{empresa.nombre_legal}</h2>
+                <h2 className="text-base font-bold mb-1 truncate" style={{ color: 'var(--c-text-1)' }}>{empresa.nombre_legal}</h2>
                 {empresa.alias && (
-                  <p className="text-xs font-medium mb-3 truncate" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  <p className="text-xs font-medium mb-3 truncate" style={{ color: 'var(--c-text-3)' }}>
                     "{empresa.alias}"
                   </p>
                 )}
                 <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-lg mt-1"
-                  style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)' }}>
+                  style={{ background: 'var(--c-bg-input)', color: 'var(--c-text-3)' }}>
                   {empresa.rut}
                 </span>
 
@@ -359,7 +364,7 @@ export default function LobbyEmpresas() {
                 )}
 
                 <div className="mt-6 pt-5 flex justify-between items-center"
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  style={{ borderTop: '1px solid var(--c-border)' }}>
                   {empresa.activo === false ? (
                     <button onClick={(e) => { e.stopPropagation(); reactivarEmpresa(empresa.id); }}
                       className="w-full flex justify-center items-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
@@ -368,10 +373,10 @@ export default function LobbyEmpresas() {
                     </button>
                   ) : (
                     <>
-                      <span className="text-sm font-medium transition-colors" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      <span className="text-sm font-medium transition-colors" style={{ color: 'var(--c-text-4)' }}>
                         Abrir Dashboard
                       </span>
-                      <ArrowRight size={16} style={{ color: 'rgba(255,255,255,0.3)' }} />
+                      <ArrowRight size={16} style={{ color: 'var(--c-text-4)' }} />
                     </>
                   )}
                 </div>
@@ -384,24 +389,24 @@ export default function LobbyEmpresas() {
       {/* Modal Crear / Editar */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.7)' }}
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'var(--c-overlay)' }}
             onClick={() => setIsModalOpen(false)} />
 
           <div className="relative rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-up"
-            style={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
+            style={{ background: 'var(--c-bg-modal)', border: '1px solid var(--c-border-2)', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
 
             <div className="flex justify-between items-start mb-7">
               <div>
-                <h2 className="text-xl font-bold text-white">
+                <h2 className="text-xl font-bold" style={{ color: 'var(--c-text-1)' }}>
                   {empresaEditando ? 'Editar Empresa' : 'Registrar Empresa'}
                 </h2>
-                <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <p className="text-sm mt-1" style={{ color: 'var(--c-text-3)' }}>
                   Completa los datos legales para los contratos.
                 </p>
               </div>
               <button onClick={() => setIsModalOpen(false)}
                 className="p-2 rounded-xl transition-all"
-                style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)' }}>
+                style={{ background: 'var(--c-bg-input)', color: 'var(--c-text-3)' }}>
                 <X size={18} />
               </button>
             </div>
@@ -410,61 +415,61 @@ export default function LobbyEmpresas() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 <div className="md:col-span-2 space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Razón Social *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Razón Social *</label>
                   <input type="text" name="nombre_legal" required value={formData.nombre_legal} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>RUT Empresa *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>RUT Empresa *</label>
                   <input type="text" name="rut" required value={formData.rut} onChange={handleChange}
                     className={`input-dark ${formData.rut!.length > 5 && !isValidRut ? 'error' : ''}`} style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Representante Legal *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Representante Legal *</label>
                   <input type="text" name="representante_legal" required value={formData.representante_legal || ''} onChange={handleChange}
                     placeholder="Nombre Completo" className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>RUT Representante *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>RUT Representante *</label>
                   <input type="text" name="rut_representante" required value={formData.rut_representante || ''} onChange={handleChange}
                     placeholder="12.345.678-9"
                     className={`input-dark ${!isValidRutRep && formData.rut_representante ? 'error' : ''}`} style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Nombre Fantasía</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Nombre Fantasía</label>
                   <input type="text" name="alias" value={formData.alias} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="md:col-span-2 space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Giro Comercial</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Giro Comercial</label>
                   <input type="text" name="giro" value={formData.giro} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="md:col-span-2 space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Dirección Completa</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Dirección Completa</label>
                   <input type="text" name="direccion" value={formData.direccion} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Comuna</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Comuna</label>
                   <input type="text" name="comuna" value={formData.comuna} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Ciudad</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Ciudad</label>
                   <input type="text" name="ciudad" value={formData.ciudad} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
 
                 <div className="md:col-span-2 space-y-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Sucursal / Casa Matriz</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>Sucursal / Casa Matriz</label>
                   <input type="text" name="sucursal" value={formData.sucursal} onChange={handleChange} className="input-dark" style={{ paddingLeft: '1rem' }} />
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-5 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex gap-3 pt-5 mt-2" style={{ borderTop: '1px solid var(--c-border)' }}>
                 <button type="button" onClick={() => setIsModalOpen(false)}
                   className="flex-1 btn-secondary">
                   Cancelar
