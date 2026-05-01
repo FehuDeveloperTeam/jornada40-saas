@@ -1,13 +1,27 @@
+import { useState, useEffect } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer, Legend, ReferenceLine,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Minus, DollarSign, Award, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, DollarSign, BarChart2, Activity } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
+import client from '../../../api/client';
+
+// ─── Tipos ──────────────────────────────────────────────────────────────────
 
 type Props = {
   liquidaciones: UseDashboardReturn['liquidaciones'];
+  empleadoId: number | null;
 };
+
+interface HistorialStats {
+  contrato_sueldo_base: number | null;
+  contrato_tipo: string | null;
+  promedio_liquido: number;
+  tendencia_3m: number | null;
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -20,18 +34,12 @@ const clpShort = (n: number): string => {
   return clp(n);
 };
 
-// ─── Tooltip personalizado ──────────────────────────────────────────────────
+// ─── Tooltip personalizado ───────────────────────────────────────────────────
 
-interface TooltipPayload {
-  color: string;
-  name: string;
-  value: number;
-}
+interface TooltipPayload { color: string; name: string; value: number; }
 
 function CustomTooltip({ active, payload, label }: {
-  active?: boolean;
-  payload?: TooltipPayload[];
-  label?: string;
+  active?: boolean; payload?: TooltipPayload[]; label?: string;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -53,9 +61,36 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-// ─── Componente principal ───────────────────────────────────────────────────
+// ─── Delta badge ─────────────────────────────────────────────────────────────
 
-export default function TabHistorialSalarial({ liquidaciones }: Props) {
+function DeltaBadge({ pct }: { pct: number | null }) {
+  if (pct === null) return <span style={{ color: 'rgba(255,255,255,0.3)' }}>—</span>;
+  if (pct === 0) return (
+    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#94a3b8' }}>
+      <Minus size={11} /> 0%
+    </span>
+  );
+  const pos = pct > 0;
+  return (
+    <span className="flex items-center gap-1 text-xs font-bold" style={{ color: pos ? '#34d399' : '#f87171' }}>
+      {pos ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+      {pos ? '+' : ''}{pct}%
+    </span>
+  );
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
+
+export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Props) {
+  const [stats, setStats] = useState<HistorialStats | null>(null);
+
+  useEffect(() => {
+    if (!empleadoId) return;
+    client.get(`/empleados/${empleadoId}/historial_salarial/`)
+      .then(res => setStats(res.data))
+      .catch(() => {});
+  }, [empleadoId]);
+
   if (!liquidaciones.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-6">
@@ -75,7 +110,7 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
     );
   }
 
-  // Ordenar ascendente por año+mes
+  // Ordenar ascendente
   const ordenadas = [...liquidaciones].sort((a, b) =>
     a.anio !== b.anio ? a.anio - b.anio : a.mes - b.mes
   );
@@ -99,37 +134,26 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
   // KPIs
   const ultima = ordenadas[ordenadas.length - 1];
   const penultima = ordenadas.length >= 2 ? ordenadas[ordenadas.length - 2] : null;
-  const variacion = penultima
+  const variacionUlt = penultima
     ? Math.round(((ultima.sueldo_liquido - penultima.sueldo_liquido) / penultima.sueldo_liquido) * 100 * 10) / 10
     : null;
   const maxLiquido = Math.max(...ordenadas.map(l => l.sueldo_liquido));
   const minLiquido = Math.min(...ordenadas.map(l => l.sueldo_liquido));
 
-  const DeltaBadge = ({ pct }: { pct: number | null }) => {
-    if (pct === null) return <span style={{ color: 'rgba(255,255,255,0.3)' }}>—</span>;
-    if (pct === 0) return (
-      <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#94a3b8' }}>
-        <Minus size={11} /> 0%
-      </span>
-    );
-    const pos = pct > 0;
-    return (
-      <span
-        className="flex items-center gap-1 text-xs font-bold"
-        style={{ color: pos ? '#34d399' : '#f87171' }}
-      >
-        {pos ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-        {pos ? '+' : ''}{pct}%
-      </span>
-    );
-  };
+  // Promedio: preferir valor del servidor, fallback cliente
+  const promedio = stats?.promedio_liquido
+    ?? Math.round(ordenadas.reduce((s, l) => s + l.sueldo_liquido, 0) / ordenadas.length);
+
+  // Tendencia: preferir valor del servidor, fallback delta último mes
+  const tendencia = stats !== null ? stats.tendencia_3m : variacionUlt;
 
   return (
     <div className="space-y-5 p-1">
 
       {/* ── KPI cards ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
-        {/* Líquido actual */}
+
+        {/* Último líquido */}
         <div
           className="rounded-2xl p-4 flex flex-col gap-1"
           style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}
@@ -141,41 +165,77 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
             </span>
           </div>
           <p className="text-lg font-extrabold text-white leading-none">{clpShort(ultima.sueldo_liquido)}</p>
-          <div className="mt-1"><DeltaBadge pct={variacion} /></div>
+          <div className="mt-1"><DeltaBadge pct={variacionUlt} /></div>
         </div>
 
-        {/* Máximo histórico */}
+        {/* Promedio histórico */}
         <div
           className="rounded-2xl p-4 flex flex-col gap-1"
-          style={{ background: 'rgba(52,211,153,0.07)', border: '1px solid rgba(52,211,153,0.18)' }}
+          style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)' }}
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <Award size={12} style={{ color: '#34d399' }} />
+            <BarChart2 size={12} style={{ color: '#c084fc' }} />
             <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              Máximo
+              Promedio
             </span>
           </div>
-          <p className="text-lg font-extrabold text-white leading-none">{clpShort(maxLiquido)}</p>
-          <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>histórico</p>
-        </div>
-
-        {/* Períodos */}
-        <div
-          className="rounded-2xl p-4 flex flex-col gap-1"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-        >
-          <div className="flex items-center gap-1.5 mb-1">
-            <Activity size={12} style={{ color: 'rgba(255,255,255,0.35)' }} />
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              Períodos
-            </span>
-          </div>
-          <p className="text-lg font-extrabold text-white leading-none">{ordenadas.length}</p>
+          <p className="text-lg font-extrabold text-white leading-none">{clpShort(promedio)}</p>
           <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            liquidaciones
+            {ordenadas.length} período{ordenadas.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        {/* Tendencia 3M */}
+        <div
+          className="rounded-2xl p-4 flex flex-col gap-1"
+          style={{
+            background: tendencia === null ? 'rgba(255,255,255,0.04)'
+              : tendencia >= 0 ? 'rgba(52,211,153,0.07)' : 'rgba(239,68,68,0.07)',
+            border: tendencia === null ? '1px solid rgba(255,255,255,0.08)'
+              : tendencia >= 0 ? '1px solid rgba(52,211,153,0.18)' : '1px solid rgba(239,68,68,0.18)',
+          }}
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            {tendencia === null || tendencia === 0
+              ? <Minus size={12} style={{ color: 'rgba(255,255,255,0.35)' }} />
+              : tendencia > 0
+                ? <TrendingUp size={12} style={{ color: '#34d399' }} />
+                : <TrendingDown size={12} style={{ color: '#f87171' }} />
+            }
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              Tendencia 3M
+            </span>
+          </div>
+          {tendencia !== null ? (
+            <p
+              className="text-lg font-extrabold leading-none"
+              style={{ color: tendencia >= 0 ? '#34d399' : '#f87171' }}
+            >
+              {tendencia > 0 ? '+' : ''}{tendencia}%
+            </p>
+          ) : (
+            <p className="text-lg font-extrabold leading-none" style={{ color: 'rgba(255,255,255,0.25)' }}>—</p>
+          )}
+          <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            {stats !== null ? 'vs 3 meses ant.' : 'vs mes anterior'}
           </p>
         </div>
       </div>
+
+      {/* ── Sueldo contractual (si disponible) ────────────────────── */}
+      {stats?.contrato_sueldo_base != null && (
+        <div
+          className="flex items-center justify-between px-4 py-2.5 rounded-xl text-xs"
+          style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.18)' }}
+        >
+          <span className="font-bold uppercase tracking-wider" style={{ color: 'rgba(251,191,36,0.7)' }}>
+            Sueldo base contractual
+          </span>
+          <span className="font-extrabold" style={{ color: '#fbbf24' }}>
+            {clp(stats.contrato_sueldo_base)}
+          </span>
+        </div>
+      )}
 
       {/* ── Gráfico ───────────────────────────────────────────────── */}
       <div
@@ -188,15 +248,15 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="gradBase" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="hgBase" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.25} />
                 <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="gradHaberes" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="hgHaberes" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor="#a855f7" stopOpacity={0.2} />
                 <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="gradLiquido" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="hgLiquido" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor="#34d399" stopOpacity={0.25} />
                 <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
               </linearGradient>
@@ -217,34 +277,40 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
               width={52}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', paddingTop: 8 }}
-            />
+            <Legend wrapperStyle={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', paddingTop: 8 }} />
+
+            {/* Línea de referencia: sueldo base contractual */}
+            {stats?.contrato_sueldo_base != null && (
+              <ReferenceLine
+                y={stats.contrato_sueldo_base}
+                stroke="#fbbf24"
+                strokeDasharray="4 3"
+                strokeWidth={1.5}
+                label={{
+                  value: `Base: ${clpShort(stats.contrato_sueldo_base)}`,
+                  position: 'insideTopRight',
+                  fontSize: 9,
+                  fill: '#fbbf24',
+                }}
+              />
+            )}
+
             <Area
-              type="monotone"
-              dataKey="Sueldo base"
-              stroke="#2563eb"
-              strokeWidth={1.5}
-              fill="url(#gradBase)"
-              dot={false}
+              type="monotone" dataKey="Sueldo base"
+              stroke="#2563eb" strokeWidth={1.5}
+              fill="url(#hgBase)" dot={false}
               activeDot={{ r: 4, fill: '#2563eb' }}
             />
             <Area
-              type="monotone"
-              dataKey="Total haberes"
-              stroke="#a855f7"
-              strokeWidth={1.5}
-              fill="url(#gradHaberes)"
-              dot={false}
+              type="monotone" dataKey="Total haberes"
+              stroke="#a855f7" strokeWidth={1.5}
+              fill="url(#hgHaberes)" dot={false}
               activeDot={{ r: 4, fill: '#a855f7' }}
             />
             <Area
-              type="monotone"
-              dataKey="Sueldo líquido"
-              stroke="#34d399"
-              strokeWidth={2}
-              fill="url(#gradLiquido)"
-              dot={false}
+              type="monotone" dataKey="Sueldo líquido"
+              stroke="#34d399" strokeWidth={2}
+              fill="url(#hgLiquido)" dot={false}
               activeDot={{ r: 4, fill: '#34d399' }}
             />
           </AreaChart>
@@ -282,9 +348,7 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
                     background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
                   }}
                 >
-                  <td className="px-3 py-2.5 font-bold text-white whitespace-nowrap">
-                    {row.periodo}
-                  </td>
+                  <td className="px-3 py-2.5 font-bold text-white whitespace-nowrap">{row.periodo}</td>
                   <td className="px-3 py-2.5 tabular-nums" style={{ color: 'rgba(255,255,255,0.6)' }}>
                     {clp(row['Sueldo base'])}
                   </td>
@@ -299,9 +363,7 @@ export default function TabHistorialSalarial({ liquidaciones }: Props) {
                     {isMax && <span className="ml-1 text-[10px]" style={{ color: '#34d399' }}>↑ máx</span>}
                     {isMin && <span className="ml-1 text-[10px]" style={{ color: '#f87171' }}>↓ mín</span>}
                   </td>
-                  <td className="px-3 py-2.5">
-                    <DeltaBadge pct={row.delta} />
-                  </td>
+                  <td className="px-3 py-2.5"><DeltaBadge pct={row.delta} /></td>
                 </tr>
               );
             })}

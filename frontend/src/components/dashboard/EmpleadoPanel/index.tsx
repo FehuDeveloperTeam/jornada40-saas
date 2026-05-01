@@ -422,7 +422,10 @@ export default function EmpleadoPanel({
               />
             )}
             {activeTab === 'historial' && (
-              <TabHistorialSalarial liquidaciones={liquidaciones} />
+              <TabHistorialSalarial
+                liquidaciones={liquidaciones}
+                empleadoId={selectedEmpleado?.id ?? null}
+              />
             )}
           </div>
 

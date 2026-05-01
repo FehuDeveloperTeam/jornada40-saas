@@ -846,6 +846,48 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         }
         return Response(data)
 
+    @action(detail=True, methods=['get'], url_path='historial_salarial')
+    def historial_salarial(self, request, pk=None):
+        empleado = self.get_object()
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+
+        liqs = list(
+            Liquidacion.objects.filter(empleado=empleado)
+            .order_by('anio', 'mes')
+            .values('mes', 'anio', 'sueldo_base', 'total_haberes', 'total_descuentos',
+                    'sueldo_liquido', 'dias_trabajados')
+        )
+
+        periodos = []
+        prev_liq = None
+        for liq in liqs:
+            delta_pct = None
+            if prev_liq is not None and prev_liq > 0:
+                delta_pct = round((liq['sueldo_liquido'] - prev_liq) / prev_liq * 100, 1)
+            periodos.append({**liq, 'delta_pct': delta_pct})
+            prev_liq = liq['sueldo_liquido']
+
+        liquidos = [p['sueldo_liquido'] for p in periodos]
+        promedio = round(sum(liquidos) / len(liquidos)) if liquidos else 0
+
+        # Tendencia: promedio últimos 3 meses vs los 3 anteriores
+        tendencia_3m = None
+        if len(liquidos) >= 6:
+            avg_rec = sum(liquidos[-3:]) / 3
+            avg_ant = sum(liquidos[-6:-3]) / 3
+            if avg_ant > 0:
+                tendencia_3m = round((avg_rec - avg_ant) / avg_ant * 100, 1)
+        elif len(liquidos) >= 2:
+            tendencia_3m = periodos[-1]['delta_pct']
+
+        return Response({
+            'contrato_sueldo_base': contrato.sueldo_base if contrato else None,
+            'contrato_tipo': contrato.tipo_contrato if contrato else None,
+            'promedio_liquido': promedio,
+            'tendencia_3m': tendencia_3m,
+            'periodos': periodos,
+        })
+
    # ====================================================
     # MOTOR DOCUMENTAL PERSISTENTE (CON PLANTILLAS REALES)
     # ====================================================
