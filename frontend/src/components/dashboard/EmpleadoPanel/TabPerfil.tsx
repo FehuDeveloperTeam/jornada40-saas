@@ -14,11 +14,11 @@ type Props = {
 
 const inp: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.625rem',
   padding: '0.625rem 0.75rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontSize: '0.875rem',
   outline: 'none',
 };
@@ -31,7 +31,7 @@ const lbl: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.07em',
-  color: 'rgba(255,255,255,0.4)',
+  color: 'var(--c-text-3)',
   marginBottom: '0.25rem',
 };
 
@@ -40,8 +40,8 @@ const sectionTitle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
-  color: 'rgba(255,255,255,0.3)',
-  borderBottom: '1px solid rgba(255,255,255,0.07)',
+  color: 'var(--c-text-3)',
+  borderBottom: '1px solid var(--c-border)',
   paddingBottom: '0.5rem',
   marginBottom: '0',
 };
@@ -65,8 +65,8 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                 ['Dirección', selectedEmpleado.direccion?.toLowerCase()],
               ].map(([label, value]) => (
                 <div key={label} className="flex flex-col gap-0.5">
-                  <dt className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</dt>
-                  <dd className="font-semibold capitalize" style={{ color: '#f8fafc' }}>{value || '-'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--c-text-3)' }}>{label}</dt>
+                  <dd className="font-semibold capitalize" style={{ color: 'var(--c-text-1)' }}>{value || '-'}</dd>
                 </div>
               ))}
             </dl>
@@ -91,8 +91,8 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                 ['N° Cuenta', selectedEmpleado.numero_cuenta],
               ].map(([label, value]) => (
                 <div key={label} className="flex flex-col gap-0.5">
-                  <dt className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</dt>
-                  <dd className="font-semibold" style={{ color: '#f8fafc' }}>{value || '-'}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--c-text-3)' }}>{label}</dt>
+                  <dd className="font-semibold" style={{ color: 'var(--c-text-1)' }}>{value || '-'}</dd>
                 </div>
               ))}
             </dl>
@@ -109,9 +109,9 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                 setPanelMode('edit');
               }}
               className="px-4 py-2 text-sm font-semibold rounded-lg flex items-center gap-2 transition-colors"
-              style={{ color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              style={{ color: 'var(--c-text-2)', background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input-focus)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-bg-input)')}
             >
               <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
               Editar Ficha
@@ -126,7 +126,7 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               <div className="col-span-2">
                 <label style={lbl}>RUT *</label>
                 <input type="text" name="rut" required value={formData.rut || ''} onChange={handleInputChange} placeholder="12.345.678-9"
-                       style={{ ...inp, border: (!isValidRut && formData.rut) ? '1px solid rgba(239,68,68,0.6)' : '1px solid rgba(255,255,255,0.1)', background: (!isValidRut && formData.rut) ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.06)' }} />
+                       style={{ ...inp, border: (!isValidRut && formData.rut) ? '1px solid rgba(239,68,68,0.6)' : '1px solid var(--c-border-input)', background: (!isValidRut && formData.rut) ? 'rgba(239,68,68,0.08)' : 'var(--c-bg-input)' }} />
               </div>
               <div className="col-span-2">
                 <label style={lbl}>Nombres *</label>
@@ -146,7 +146,7 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               </div>
               <div>
                 <label style={lbl}>F. Nacimiento</label>
-                <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento || ''} onChange={handleInputChange} style={{ ...inp, colorScheme: 'dark' }} />
+                <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento || ''} onChange={handleInputChange} style={{ ...inp }} />
               </div>
               <div>
                 <label style={lbl}>Estado Civil</label>
@@ -155,17 +155,17 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               <div>
                 <label style={lbl}>Sexo</label>
                 <select name="sexo" value={formData.sexo || ''} onChange={handleInputChange} style={sel}>
-                  <option value="" style={{ background: '#0c1a35' }}>Sin especificar</option>
-                  <option value="M" style={{ background: '#0c1a35' }}>Masculino</option>
-                  <option value="F" style={{ background: '#0c1a35' }}>Femenino</option>
-                  <option value="O" style={{ background: '#0c1a35' }}>Otro</option>
+                  <option value="" style={{ background: 'var(--c-bg-modal)' }}>Sin especificar</option>
+                  <option value="M" style={{ background: 'var(--c-bg-modal)' }}>Masculino</option>
+                  <option value="F" style={{ background: 'var(--c-bg-modal)' }}>Femenino</option>
+                  <option value="O" style={{ background: 'var(--c-bg-modal)' }}>Otro</option>
                 </select>
               </div>
               <div>
                 <label style={lbl}>Teléfono</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>+56</span>
+                    <span className="text-sm font-medium" style={{ color: 'var(--c-text-3)' }}>+56</span>
                   </div>
                   <input type="text" name="numero_telefono" value={formData.numero_telefono || ''} onChange={handleInputChange} placeholder="912345678"
                     style={{ ...inp, paddingLeft: '2.75rem' }} />
@@ -183,16 +183,16 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                 </div>
               </div>
             </div>
-            <div className="pt-4 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-              <h5 className="text-xs font-bold mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>Datos Bancarios para Pago</h5>
+            <div className="pt-4 mt-2" style={{ borderTop: '1px solid var(--c-border)' }}>
+              <h5 className="text-xs font-bold mb-3" style={{ color: 'var(--c-text-2)' }}>Datos Bancarios para Pago</h5>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label style={lbl}>Forma de Pago</label>
                   <select name="forma_pago" value={formData.forma_pago || 'TRANSFERENCIA'} onChange={handleInputChange} style={sel}>
-                    <option value="TRANSFERENCIA" style={{ background: '#0c1a35' }}>Transferencia</option>
-                    <option value="DEPOSITO" style={{ background: '#0c1a35' }}>Depósito</option>
-                    <option value="CHEQUE" style={{ background: '#0c1a35' }}>Cheque</option>
-                    <option value="EFECTIVO" style={{ background: '#0c1a35' }}>Efectivo</option>
+                    <option value="TRANSFERENCIA" style={{ background: 'var(--c-bg-modal)' }}>Transferencia</option>
+                    <option value="DEPOSITO" style={{ background: 'var(--c-bg-modal)' }}>Depósito</option>
+                    <option value="CHEQUE" style={{ background: 'var(--c-bg-modal)' }}>Cheque</option>
+                    <option value="EFECTIVO" style={{ background: 'var(--c-bg-modal)' }}>Efectivo</option>
                   </select>
                 </div>
                 {formData.forma_pago !== 'EFECTIVO' && formData.forma_pago !== 'CHEQUE' && (
@@ -204,10 +204,10 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                     <div>
                       <label style={lbl}>Tipo de Cuenta</label>
                       <select name="tipo_cuenta" value={formData.tipo_cuenta || ''} onChange={handleInputChange} style={sel}>
-                        <option value="" style={{ background: '#0c1a35' }}>Seleccione...</option>
-                        <option value="Cuenta Corriente" style={{ background: '#0c1a35' }}>Cuenta Corriente</option>
-                        <option value="Cuenta Vista / RUT" style={{ background: '#0c1a35' }}>Cuenta Vista / RUT</option>
-                        <option value="Cuenta de Ahorro" style={{ background: '#0c1a35' }}>Cuenta de Ahorro</option>
+                        <option value="" style={{ background: 'var(--c-bg-modal)' }}>Seleccione...</option>
+                        <option value="Cuenta Corriente" style={{ background: 'var(--c-bg-modal)' }}>Cuenta Corriente</option>
+                        <option value="Cuenta Vista / RUT" style={{ background: 'var(--c-bg-modal)' }}>Cuenta Vista / RUT</option>
+                        <option value="Cuenta de Ahorro" style={{ background: 'var(--c-bg-modal)' }}>Cuenta de Ahorro</option>
                       </select>
                     </div>
                     <div>
@@ -237,7 +237,7 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               </div>
               <div>
                 <label style={lbl}>Fecha Ingreso *</label>
-                <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso || ''} onChange={handleInputChange} style={{ ...inp, colorScheme: 'dark' }} />
+                <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso || ''} onChange={handleInputChange} style={{ ...inp }} />
               </div>
               <div>
                 <label style={lbl}>Sueldo Base ($)</label>
@@ -250,9 +250,9 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               <div>
                 <label style={lbl}>Modalidad</label>
                 <select name="modalidad" value={formData.modalidad || 'PRESENCIAL'} onChange={handleInputChange} style={sel}>
-                  <option value="PRESENCIAL" style={{ background: '#0c1a35' }}>PRESENCIAL</option>
-                  <option value="REMOTO" style={{ background: '#0c1a35' }}>REMOTO</option>
-                  <option value="HIBRIDO" style={{ background: '#0c1a35' }}>HÍBRIDO</option>
+                  <option value="PRESENCIAL" style={{ background: 'var(--c-bg-modal)' }}>PRESENCIAL</option>
+                  <option value="REMOTO" style={{ background: 'var(--c-bg-modal)' }}>REMOTO</option>
+                  <option value="HIBRIDO" style={{ background: 'var(--c-bg-modal)' }}>HÍBRIDO</option>
                 </select>
               </div>
               <div>
@@ -262,9 +262,9 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
               <div>
                 <label style={lbl}>Sistema de Salud</label>
                 <select name="sistema_salud" value={formData.sistema_salud || ''} onChange={handleInputChange} style={sel}>
-                  <option value="" style={{ background: '#0c1a35' }}>Seleccione...</option>
-                  <option value="FONASA" style={{ background: '#0c1a35' }}>FONASA</option>
-                  <option value="ISAPRE" style={{ background: '#0c1a35' }}>ISAPRE</option>
+                  <option value="" style={{ background: 'var(--c-bg-modal)' }}>Seleccione...</option>
+                  <option value="FONASA" style={{ background: 'var(--c-bg-modal)' }}>FONASA</option>
+                  <option value="ISAPRE" style={{ background: 'var(--c-bg-modal)' }}>ISAPRE</option>
                 </select>
               </div>
               {formData.sistema_salud === 'ISAPRE' && (
@@ -281,14 +281,14 @@ export default function TabPerfil({ panelMode, selectedEmpleado, formData, isVal
                 <label style={lbl}>Ficha N°</label>
                 <input type="text" name="ficha_numero" value={formData.ficha_numero || ''} onChange={handleInputChange} style={inp} />
               </div>
-              <div className="col-span-2 flex items-center justify-between mt-4 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="col-span-2 flex items-center justify-between mt-4 p-4 rounded-xl" style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)' }}>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: '#f8fafc' }}>Estado del Trabajador</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>Desactivar para marcar como desvinculado</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>Estado del Trabajador</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-3)' }}>Desactivar para marcar como desvinculado</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" name="activo" checked={formData.activo} onChange={handleInputChange} className="sr-only peer" />
-                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" style={{ background: 'rgba(255,255,255,0.15)' }}></div>
+                  <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600" style={{ background: 'var(--c-border-2)' }}></div>
                 </label>
               </div>
             </div>

@@ -35,11 +35,11 @@ const clp = (n: number) =>
 
 const inp: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.625rem',
   padding: '0.625rem 0.75rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontSize: '0.875rem',
   outline: 'none',
 };
@@ -50,7 +50,7 @@ const lbl: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.07em',
-  color: 'rgba(255,255,255,0.4)',
+  color: 'var(--c-text-3)',
   marginBottom: '0.25rem',
 };
 
@@ -119,10 +119,10 @@ export default function TabFiniquito({
         <div className="space-y-6">
 
           {/* ENCABEZADO HISTORIAL */}
-          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
             <div>
-              <h3 className="text-lg font-bold text-white">Historial de Finiquitos</h3>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Historial de Finiquitos</h3>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--c-text-3)' }}>
                 Documentos de término de relación laboral del trabajador.
               </p>
             </div>
@@ -141,19 +141,19 @@ export default function TabFiniquito({
           </div>
 
           {finiquitos.length === 0 ? (
-            <div className="text-center py-16 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <div className="text-center py-16 rounded-2xl" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+              <p className="font-medium" style={{ color: 'var(--c-text-3)' }}>
                 No hay finiquitos registrados para {selectedEmpleado?.nombres}.
               </p>
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <tr style={{ borderBottom: '1px solid var(--c-border-2)' }}>
                     {['Causal', 'Fecha término', 'Fecha emisión', 'Total a pagar', ''].map(h => (
                       <th key={h} className="p-4 text-xs font-semibold uppercase"
-                        style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.03)' }}>
+                        style={{ color: 'var(--c-text-3)', background: 'var(--c-bg-card-2)' }}>
                         {h}
                       </th>
                     ))}
@@ -163,16 +163,16 @@ export default function TabFiniquito({
                   {finiquitos.map(fin => (
                     <tr key={fin.id}
                       className="transition-colors"
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                      style={{ borderBottom: '1px solid var(--c-border)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-hover)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <td className="p-4 text-sm text-white font-medium" style={{ maxWidth: '220px' }}>
+                      <td className="p-4 text-sm font-medium" style={{ color: 'var(--c-text-1)', maxWidth: '220px' }}>
                         <span className="line-clamp-2">{fin.causal_articulo_label || fin.causal_articulo}</span>
                       </td>
-                      <td className="p-4 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                      <td className="p-4 text-sm" style={{ color: 'var(--c-text-2)' }}>
                         {fin.fecha_termino}
                       </td>
-                      <td className="p-4 text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      <td className="p-4 text-sm" style={{ color: 'var(--c-text-2)' }}>
                         {fin.fecha_emision}
                       </td>
                       <td className="p-4 text-sm font-bold" style={{ color: '#34d399' }}>
@@ -208,9 +208,9 @@ export default function TabFiniquito({
                                       <Clock className="w-3 h-3" />Pendiente
                                     </span>
                                     <button type="button" onClick={() => reenviarFirma(solicitudActiva.id)}
-                                      className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
-                                      onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
-                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                                      className="text-xs transition-colors" style={{ color: 'var(--c-text-3)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                       <RotateCcw className="w-3 h-3" />
                                     </button>
                                     <button type="button" onClick={() => cancelarFirma(solicitudActiva.id)}
@@ -228,9 +228,9 @@ export default function TabFiniquito({
                                     </span>
                                     <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
                                       className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      style={{ color: 'var(--c-text-3)' }}
                                       onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
-                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                       <Eye className="w-3 h-3" />Ver
                                     </button>
                                   </div>
@@ -242,18 +242,18 @@ export default function TabFiniquito({
                                     </span>
                                     <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
                                       className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      style={{ color: 'var(--c-text-3)' }}
                                       onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
-                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                       <Eye className="w-3 h-3" />Ver motivo
                                     </button>
                                     <button type="button"
                                       onClick={() => enviarAFirma('FINIQUITO', { finiquitoId: fin.id })}
                                       disabled={sending}
                                       className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                      style={{ color: sending ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.4)', cursor: sending ? 'not-allowed' : 'pointer' }}
-                                      onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                                      onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}>
+                                      style={{ color: sending ? 'var(--c-text-4)' : 'var(--c-text-3)', cursor: sending ? 'not-allowed' : 'pointer' }}
+                                      onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'var(--c-text-2)'; }}
+                                      onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'var(--c-text-3)'; }}>
                                       {sending
                                         ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white/60 rounded-full animate-spin" />Enviando...</>
                                         : <><RotateCcw className="w-3 h-3" />Re-enviar</>}
@@ -291,17 +291,17 @@ export default function TabFiniquito({
           onSubmit={guardarFiniquito}
           className="space-y-6"
         >
-          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <h3 className="text-lg font-bold text-white">Nuevo Finiquito</h3>
+          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
+            <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Nuevo Finiquito</h3>
             <button type="button" onClick={() => setShowFiniquitoForm(false)}
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>✕</button>
+              style={{ color: 'var(--c-text-3)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>✕</button>
           </div>
 
           {/* SECCIÓN: Causal y fechas */}
-          <div className="p-6 rounded-2xl space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <h4 className="text-sm font-bold text-white mb-2">Datos del término</h4>
+          <div className="p-6 rounded-2xl space-y-4" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Datos del término</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label style={lbl}>Causal de término</label>
@@ -311,9 +311,9 @@ export default function TabFiniquito({
                   onChange={e => set({ causal_articulo: e.target.value })}
                   style={{ ...inp, cursor: 'pointer' }}
                 >
-                  <option value="" style={{ background: '#0c1a35' }}>— Seleccionar causal —</option>
+                  <option value="" style={{ background: 'var(--c-bg-modal)' }}>— Seleccionar causal —</option>
                   {CAUSALES.map(c => (
-                    <option key={c.value} value={c.value} style={{ background: '#0c1a35' }}>{c.label}</option>
+                    <option key={c.value} value={c.value} style={{ background: 'var(--c-bg-modal)' }}>{c.label}</option>
                   ))}
                 </select>
                 {tieneIndemnizacion && (
@@ -330,7 +330,7 @@ export default function TabFiniquito({
                   required
                   value={finiquitoData.fecha_termino ?? ''}
                   onChange={e => set({ fecha_termino: e.target.value })}
-                  style={{ ...inp, colorScheme: 'dark' }}
+                  style={{ ...inp }}
                 />
               </div>
               <div>
@@ -340,7 +340,7 @@ export default function TabFiniquito({
                   required
                   value={finiquitoData.fecha_emision ?? ''}
                   onChange={e => set({ fecha_emision: e.target.value })}
-                  style={{ ...inp, colorScheme: 'dark' }}
+                  style={{ ...inp }}
                 />
               </div>
 
@@ -351,8 +351,8 @@ export default function TabFiniquito({
                   onChange={e => set({ modalidad: e.target.value as 'PRESENCIAL' | 'ELECTRONICO' })}
                   style={{ ...inp, cursor: 'pointer' }}
                 >
-                  <option value="PRESENCIAL"  style={{ background: '#0c1a35' }}>Presencial ante ministro de fe</option>
-                  <option value="ELECTRONICO" style={{ background: '#0c1a35' }}>Electrónico (voluntario)</option>
+                  <option value="PRESENCIAL"  style={{ background: 'var(--c-bg-modal)' }}>Presencial ante ministro de fe</option>
+                  <option value="ELECTRONICO" style={{ background: 'var(--c-bg-modal)' }}>Electrónico (voluntario)</option>
                 </select>
               </div>
               <div>
@@ -371,8 +371,8 @@ export default function TabFiniquito({
           </div>
 
           {/* SECCIÓN: Haberes */}
-          <div className="p-6 rounded-2xl space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <h4 className="text-sm font-bold text-white mb-2">Haberes</h4>
+          <div className="p-6 rounded-2xl space-y-4" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Haberes</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label style={lbl}>Sueldo base mensual ($)</label>
@@ -384,7 +384,7 @@ export default function TabFiniquito({
                   onChange={e => set({ sueldo_base: Number(e.target.value) })}
                   style={inp}
                 />
-                <p className="mt-1 text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                <p className="mt-1 text-xs" style={{ color: 'var(--c-text-3)' }}>
                   Proporcional: {clp(Math.round((finiquitoData.sueldo_base ?? 0) * (finiquitoData.dias_trabajados_ultimo_mes ?? 30) / 30))}
                 </p>
               </div>
@@ -419,7 +419,7 @@ export default function TabFiniquito({
                   style={{ ...inp, opacity: tieneIndemnizacion ? 1 : 0.4 }}
                 />
                 {!tieneIndemnizacion && (
-                  <p className="mt-1 text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Solo para Art. 161 y 163 bis</p>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--c-text-3)' }}>Solo para Art. 161 y 163 bis</p>
                 )}
               </div>
               <div>
@@ -446,8 +446,8 @@ export default function TabFiniquito({
           </div>
 
           {/* SECCIÓN: Descuentos */}
-          <div className="p-6 rounded-2xl space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <h4 className="text-sm font-bold text-white mb-2">Descuentos</h4>
+          <div className="p-6 rounded-2xl space-y-4" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+            <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Descuentos</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label style={lbl}>Otros descuentos ($)</label>
@@ -475,14 +475,14 @@ export default function TabFiniquito({
           {/* TOTAL PREVIEW */}
           <div className="p-5 rounded-2xl flex items-center justify-between"
             style={{ background: totalPreview >= 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${totalPreview >= 0 ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}` }}>
-            <span className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>Total estimado a pagar</span>
+            <span className="text-sm font-semibold" style={{ color: 'var(--c-text-2)' }}>Total estimado a pagar</span>
             <span className="text-2xl font-bold" style={{ color: totalPreview >= 0 ? '#34d399' : '#f87171' }}>
               {clp(totalPreview)}
             </span>
           </div>
 
           {isSavingFiniquito && (
-            <p className="text-sm text-right" style={{ color: 'rgba(255,255,255,0.4)' }}>Generando finiquito...</p>
+            <p className="text-sm text-right" style={{ color: 'var(--c-text-3)' }}>Generando finiquito...</p>
           )}
         </form>
       )}

@@ -45,16 +45,16 @@ function CustomTooltip({ active, payload, label }: {
   return (
     <div
       className="rounded-xl p-3 shadow-xl text-xs space-y-1.5"
-      style={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.12)' }}
+      style={{ background: 'var(--c-bg-modal)', border: '1px solid var(--c-border-2)' }}
     >
-      <p className="font-bold text-white mb-2">{label}</p>
+      <p className="font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>{label}</p>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          <span className="flex items-center gap-1.5" style={{ color: 'var(--c-text-2)' }}>
             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
             {p.name}
           </span>
-          <span className="font-bold text-white">{clp(p.value)}</span>
+          <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>{clp(p.value)}</span>
         </div>
       ))}
     </div>
@@ -64,7 +64,7 @@ function CustomTooltip({ active, payload, label }: {
 // ─── Delta badge ─────────────────────────────────────────────────────────────
 
 function DeltaBadge({ pct }: { pct: number | null }) {
-  if (pct === null) return <span style={{ color: 'rgba(255,255,255,0.3)' }}>—</span>;
+  if (pct === null) return <span style={{ color: 'var(--c-text-3)' }}>—</span>;
   if (pct === 0) return (
     <span className="flex items-center gap-1 text-xs font-bold" style={{ color: '#94a3b8' }}>
       <Minus size={11} /> 0%
@@ -96,14 +96,14 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
       <div className="flex flex-col items-center justify-center py-16 text-center px-6">
         <div
           className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-          style={{ background: 'rgba(255,255,255,0.05)' }}
+          style={{ background: 'var(--c-bg-input)' }}
         >
-          <Activity size={20} style={{ color: 'rgba(255,255,255,0.25)' }} />
+          <Activity size={20} style={{ color: 'var(--c-text-4)' }} />
         </div>
-        <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        <p className="text-sm font-medium" style={{ color: 'var(--c-text-3)' }}>
           Sin liquidaciones registradas
         </p>
-        <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
+        <p className="text-xs mt-1" style={{ color: 'var(--c-text-4)' }}>
           El historial salarial se construye a partir de las liquidaciones generadas.
         </p>
       </div>
@@ -160,11 +160,11 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
         >
           <div className="flex items-center gap-1.5 mb-1">
             <DollarSign size={12} style={{ color: '#60a5fa' }} />
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
               Último líquido
             </span>
           </div>
-          <p className="text-lg font-extrabold text-white leading-none">{clpShort(ultima.sueldo_liquido)}</p>
+          <p className="text-lg font-extrabold leading-none" style={{ color: 'var(--c-text-1)' }}>{clpShort(ultima.sueldo_liquido)}</p>
           <div className="mt-1"><DeltaBadge pct={variacionUlt} /></div>
         </div>
 
@@ -175,12 +175,12 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
         >
           <div className="flex items-center gap-1.5 mb-1">
             <BarChart2 size={12} style={{ color: '#c084fc' }} />
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
               Promedio
             </span>
           </div>
-          <p className="text-lg font-extrabold text-white leading-none">{clpShort(promedio)}</p>
-          <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <p className="text-lg font-extrabold leading-none" style={{ color: 'var(--c-text-1)' }}>{clpShort(promedio)}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--c-text-3)' }}>
             {ordenadas.length} período{ordenadas.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -189,20 +189,20 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
         <div
           className="rounded-2xl p-4 flex flex-col gap-1"
           style={{
-            background: tendencia === null ? 'rgba(255,255,255,0.04)'
+            background: tendencia === null ? 'var(--c-bg-card-2)'
               : tendencia >= 0 ? 'rgba(52,211,153,0.07)' : 'rgba(239,68,68,0.07)',
-            border: tendencia === null ? '1px solid rgba(255,255,255,0.08)'
+            border: tendencia === null ? '1px solid var(--c-border)'
               : tendencia >= 0 ? '1px solid rgba(52,211,153,0.18)' : '1px solid rgba(239,68,68,0.18)',
           }}
         >
           <div className="flex items-center gap-1.5 mb-1">
             {tendencia === null || tendencia === 0
-              ? <Minus size={12} style={{ color: 'rgba(255,255,255,0.35)' }} />
+              ? <Minus size={12} style={{ color: 'var(--c-text-3)' }} />
               : tendencia > 0
                 ? <TrendingUp size={12} style={{ color: '#34d399' }} />
                 : <TrendingDown size={12} style={{ color: '#f87171' }} />
             }
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
               Tendencia 3M
             </span>
           </div>
@@ -214,9 +214,9 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
               {tendencia > 0 ? '+' : ''}{tendencia}%
             </p>
           ) : (
-            <p className="text-lg font-extrabold leading-none" style={{ color: 'rgba(255,255,255,0.25)' }}>—</p>
+            <p className="text-lg font-extrabold leading-none" style={{ color: 'var(--c-text-4)' }}>—</p>
           )}
-          <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <p className="text-xs mt-1" style={{ color: 'var(--c-text-3)' }}>
             {stats !== null ? 'vs 3 meses ant.' : 'vs mes anterior'}
           </p>
         </div>
@@ -240,9 +240,9 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
       {/* ── Gráfico ───────────────────────────────────────────────── */}
       <div
         className="rounded-2xl p-4"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}
+        style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}
       >
-        <p className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: 'rgba(255,255,255,0.3)' }}>
+        <p className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--c-text-3)' }}>
           Evolución salarial
         </p>
         <ResponsiveContainer width="100%" height={200}>
@@ -261,6 +261,7 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
                 <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
               </linearGradient>
             </defs>
+            {/* Recharts SVG attributes (stroke/fill/tick) deferred to Fase 8 */}
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis
               dataKey="periodo"
@@ -279,7 +280,6 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
             <Tooltip content={<CustomTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', paddingTop: 8 }} />
 
-            {/* Línea de referencia: sueldo base contractual */}
             {stats?.contrato_sueldo_base != null && (
               <ReferenceLine
                 y={stats.contrato_sueldo_base}
@@ -320,16 +320,16 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
       {/* ── Tabla detallada ───────────────────────────────────────── */}
       <div
         className="rounded-2xl overflow-hidden"
-        style={{ border: '1px solid rgba(255,255,255,0.07)' }}
+        style={{ border: '1px solid var(--c-border)' }}
       >
         <table className="w-full text-xs">
           <thead>
-            <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <tr style={{ background: 'var(--c-bg-hover)', borderBottom: '1px solid var(--c-border)' }}>
               {['Período', 'Sueldo base', 'Total haberes', 'Descuentos', 'Líquido', 'Var.'].map(h => (
                 <th
                   key={h}
                   className="px-3 py-2.5 text-left font-bold uppercase tracking-wider"
-                  style={{ color: 'rgba(255,255,255,0.3)' }}
+                  style={{ color: 'var(--c-text-3)' }}
                 >
                   {h}
                 </th>
@@ -344,21 +344,21 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
                 <tr
                   key={i}
                   style={{
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                    borderBottom: '1px solid var(--c-border)',
+                    background: i % 2 === 0 ? 'transparent' : 'var(--c-bg-hover)',
                   }}
                 >
-                  <td className="px-3 py-2.5 font-bold text-white whitespace-nowrap">{row.periodo}</td>
-                  <td className="px-3 py-2.5 tabular-nums" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  <td className="px-3 py-2.5 font-bold whitespace-nowrap" style={{ color: 'var(--c-text-1)' }}>{row.periodo}</td>
+                  <td className="px-3 py-2.5 tabular-nums" style={{ color: 'var(--c-text-2)' }}>
                     {clp(row['Sueldo base'])}
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  <td className="px-3 py-2.5 tabular-nums" style={{ color: 'var(--c-text-2)' }}>
                     {clp(row['Total haberes'])}
                   </td>
                   <td className="px-3 py-2.5 tabular-nums" style={{ color: '#f87171' }}>
                     -{clp(row.raw.total_descuentos)}
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums font-bold" style={{ color: isMax ? '#34d399' : isMin ? '#f87171' : '#fff' }}>
+                  <td className="px-3 py-2.5 tabular-nums font-bold" style={{ color: isMax ? '#34d399' : isMin ? '#f87171' : 'var(--c-text-1)' }}>
                     {clp(row['Sueldo líquido'])}
                     {isMax && <span className="ml-1 text-[10px]" style={{ color: '#34d399' }}>↑ máx</span>}
                     {isMin && <span className="ml-1 text-[10px]" style={{ color: '#f87171' }}>↓ mín</span>}

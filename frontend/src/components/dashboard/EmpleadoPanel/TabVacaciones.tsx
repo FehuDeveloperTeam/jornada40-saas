@@ -40,11 +40,11 @@ const ESTADO_STYLE: Record<string, React.CSSProperties> = {
 
 const inp: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.625rem',
   padding: '0.625rem 0.75rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontSize: '0.875rem',
   outline: 'none',
 };
@@ -55,7 +55,7 @@ const lbl: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.07em',
-  color: 'rgba(255,255,255,0.4)',
+  color: 'var(--c-text-3)',
   marginBottom: '0.25rem',
 };
 
@@ -127,9 +127,9 @@ export default function TabVacaciones({
                 {
                   label: 'Días usados',
                   value: saldoVacaciones.dias_usados,
-                  color: 'rgba(255,255,255,0.6)',
-                  bg: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: 'var(--c-text-2)',
+                  bg: 'var(--c-bg-card-2)',
+                  border: '1px solid var(--c-border)',
                 },
                 {
                   label: 'Años de servicio',
@@ -141,27 +141,27 @@ export default function TabVacaciones({
               ].map(card => (
                 <div key={card.label} className="p-4 rounded-2xl text-center" style={{ background: card.bg, border: card.border }}>
                   <p className="text-3xl font-bold" style={{ color: card.color }}>{card.value}</p>
-                  <p className="text-xs mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>{card.label}</p>
+                  <p className="text-xs mt-1 font-medium" style={{ color: 'var(--c-text-3)' }}>{card.label}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="p-4 rounded-2xl text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Cargando saldo de vacaciones...</p>
+            <div className="p-4 rounded-2xl text-center" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+              <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>Cargando saldo de vacaciones...</p>
             </div>
           )}
 
           {saldoVacaciones && saldoVacaciones.dias_progresivos > 0 && (
-            <p className="text-xs px-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <p className="text-xs px-1" style={{ color: 'var(--c-text-3)' }}>
               Incluye <strong style={{ color: '#a78bfa' }}>{saldoVacaciones.dias_progresivos} día{saldoVacaciones.dias_progresivos > 1 ? 's' : ''} de feriado progresivo</strong> (Art. 68 — {saldoVacaciones.anos_servicio} años de servicio).
             </p>
           )}
 
           {/* HISTORIAL */}
-          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
             <div>
-              <h3 className="text-lg font-bold text-white">Historial de Vacaciones</h3>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Historial de Vacaciones</h3>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--c-text-3)' }}>
                 Feriados legales, progresivos y permisos sin goce de sueldo.
               </p>
             </div>
@@ -182,19 +182,19 @@ export default function TabVacaciones({
           </div>
 
           {vacaciones.length === 0 ? (
-            <div className="text-center py-16 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <div className="text-center py-16 rounded-2xl" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+              <p className="font-medium" style={{ color: 'var(--c-text-3)' }}>
                 No hay vacaciones registradas para {selectedEmpleado?.nombres}.
               </p>
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <tr style={{ borderBottom: '1px solid var(--c-border-2)' }}>
                     {['Período', 'Días hábiles', 'Tipo', 'Estado', ''].map(h => (
                       <th key={h} className="p-4 text-xs font-semibold uppercase"
-                        style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.03)' }}>
+                        style={{ color: 'var(--c-text-3)', background: 'var(--c-bg-card-2)' }}>
                         {h}
                       </th>
                     ))}
@@ -204,16 +204,16 @@ export default function TabVacaciones({
                   {vacaciones.map(vac => (
                     <tr key={vac.id}
                       className="transition-colors"
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                      style={{ borderBottom: '1px solid var(--c-border)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-hover)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <td className="p-4 text-sm text-white font-medium">
+                      <td className="p-4 text-sm font-medium" style={{ color: 'var(--c-text-1)' }}>
                         {vac.fecha_inicio} → {vac.fecha_fin}
                       </td>
                       <td className="p-4 text-sm font-bold" style={{ color: '#60a5fa' }}>
                         {vac.dias_habiles}d
                       </td>
-                      <td className="p-4 text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      <td className="p-4 text-sm" style={{ color: 'var(--c-text-2)' }}>
                         {TIPO_LABEL[vac.tipo] ?? vac.tipo}
                       </td>
                       <td className="p-4">
@@ -252,9 +252,9 @@ export default function TabVacaciones({
                                       <Clock className="w-3 h-3" />Pendiente
                                     </span>
                                     <button type="button" onClick={() => reenviarFirma(solicitudActiva.id)}
-                                      className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
-                                      onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
-                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                                      className="text-xs transition-colors" style={{ color: 'var(--c-text-3)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                       <RotateCcw className="w-3 h-3" />
                                     </button>
                                     <button type="button" onClick={() => cancelarFirma(solicitudActiva.id)}
@@ -272,9 +272,9 @@ export default function TabVacaciones({
                                     </span>
                                     <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
                                       className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      style={{ color: 'var(--c-text-3)' }}
                                       onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
-                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                       <Eye className="w-3 h-3" />Ver
                                     </button>
                                   </div>
@@ -286,18 +286,18 @@ export default function TabVacaciones({
                                     </span>
                                     <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
                                       className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                      style={{ color: 'rgba(255,255,255,0.4)' }}
+                                      style={{ color: 'var(--c-text-3)' }}
                                       onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
-                                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                       <Eye className="w-3 h-3" />Ver motivo
                                     </button>
                                     <button type="button"
                                       onClick={() => enviarAFirma('VACACION', { vacacionId: vac.id })}
                                       disabled={sending}
                                       className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                      style={{ color: sending ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.4)', cursor: sending ? 'not-allowed' : 'pointer' }}
-                                      onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                                      onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}>
+                                      style={{ color: sending ? 'var(--c-text-4)' : 'var(--c-text-3)', cursor: sending ? 'not-allowed' : 'pointer' }}
+                                      onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'var(--c-text-2)'; }}
+                                      onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'var(--c-text-3)'; }}>
                                       {sending
                                         ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white/60 rounded-full animate-spin" />Enviando...</>
                                         : <><RotateCcw className="w-3 h-3" />Re-enviar</>}
@@ -334,14 +334,14 @@ export default function TabVacaciones({
           id="vacacionForm"
           onSubmit={guardarVacacion}
           className="p-8 rounded-2xl space-y-6"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}
         >
-          <div className="flex justify-between items-center pb-4 mb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <h3 className="text-lg font-bold text-white">Registrar Vacación o Permiso</h3>
+          <div className="flex justify-between items-center pb-4 mb-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
+            <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Registrar Vacación o Permiso</h3>
             <button type="button" onClick={() => setShowVacacionForm(false)}
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>✕</button>
+              style={{ color: 'var(--c-text-3)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>✕</button>
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -354,9 +354,9 @@ export default function TabVacaciones({
                 onChange={e => set({ tipo: e.target.value as 'VACACION_LEGAL' | 'VACACION_PROGRESIVA' | 'PERMISO_SIN_GOCE' })}
                 style={{ ...inp, cursor: 'pointer' }}
               >
-                <option value="VACACION_LEGAL"      style={{ background: '#0c1a35' }}>Vacación Legal (Art. 67)</option>
-                <option value="VACACION_PROGRESIVA"  style={{ background: '#0c1a35' }}>Feriado Progresivo (Art. 68)</option>
-                <option value="PERMISO_SIN_GOCE"     style={{ background: '#0c1a35' }}>Permiso Sin Goce de Sueldo</option>
+                <option value="VACACION_LEGAL"      style={{ background: 'var(--c-bg-modal)' }}>Vacación Legal (Art. 67)</option>
+                <option value="VACACION_PROGRESIVA"  style={{ background: 'var(--c-bg-modal)' }}>Feriado Progresivo (Art. 68)</option>
+                <option value="PERMISO_SIN_GOCE"     style={{ background: 'var(--c-bg-modal)' }}>Permiso Sin Goce de Sueldo</option>
               </select>
             </div>
 
@@ -368,7 +368,7 @@ export default function TabVacaciones({
                 required
                 value={vacacionData.fecha_inicio ?? ''}
                 onChange={e => set({ fecha_inicio: e.target.value })}
-                style={{ ...inp, colorScheme: 'dark' }}
+                style={{ ...inp }}
               />
             </div>
             <div>
@@ -379,7 +379,7 @@ export default function TabVacaciones({
                 value={vacacionData.fecha_fin ?? ''}
                 min={vacacionData.fecha_inicio ?? ''}
                 onChange={e => set({ fecha_fin: e.target.value })}
-                style={{ ...inp, colorScheme: 'dark' }}
+                style={{ ...inp }}
               />
             </div>
 
@@ -393,7 +393,7 @@ export default function TabVacaciones({
                   <p className="text-sm font-semibold" style={{ color: excedeSaldo ? '#fca5a5' : '#93c5fd' }}>
                     Período seleccionado: <strong>{diasPreview} día{diasPreview !== 1 ? 's' : ''} hábil{diasPreview !== 1 ? 'es' : ''}</strong>
                     {saldoVacaciones && vacacionData.tipo !== 'PERMISO_SIN_GOCE' && (
-                      <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 400 }}>
+                      <span style={{ color: 'var(--c-text-3)', fontWeight: 400 }}>
                         {' '}(saldo disponible: {saldoVacaciones.dias_disponibles}d)
                       </span>
                     )}
@@ -415,9 +415,9 @@ export default function TabVacaciones({
                 onChange={e => set({ estado: e.target.value as 'APROBADO' | 'PENDIENTE' | 'RECHAZADO' })}
                 style={{ ...inp, cursor: 'pointer' }}
               >
-                <option value="APROBADO"  style={{ background: '#0c1a35' }}>Aprobado</option>
-                <option value="PENDIENTE" style={{ background: '#0c1a35' }}>Pendiente de aprobación</option>
-                <option value="RECHAZADO" style={{ background: '#0c1a35' }}>Rechazado</option>
+                <option value="APROBADO"  style={{ background: 'var(--c-bg-modal)' }}>Aprobado</option>
+                <option value="PENDIENTE" style={{ background: 'var(--c-bg-modal)' }}>Pendiente de aprobación</option>
+                <option value="RECHAZADO" style={{ background: 'var(--c-bg-modal)' }}>Rechazado</option>
               </select>
             </div>
 
@@ -435,7 +435,7 @@ export default function TabVacaciones({
           </div>
 
           {isSavingVacacion && (
-            <p className="text-sm text-right" style={{ color: 'rgba(255,255,255,0.4)' }}>Registrando vacación...</p>
+            <p className="text-sm text-right" style={{ color: 'var(--c-text-3)' }}>Registrando vacación...</p>
           )}
         </form>
       )}

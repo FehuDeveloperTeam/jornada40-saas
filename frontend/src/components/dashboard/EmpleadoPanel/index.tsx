@@ -152,15 +152,16 @@ export default function EmpleadoPanel({
   return (
     <div className="fixed inset-0 z-40 overflow-hidden">
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 backdrop-blur-sm transition-opacity"
+        style={{ background: 'var(--c-overlay)' }}
         onClick={(e) => { e.stopPropagation(); setIsPanelOpen(false); }}
       />
 
       <div className="absolute inset-y-0 right-0 max-w-4xl w-full flex shadow-2xl">
-        <div className="h-full w-full flex flex-col" style={{ background: '#0c1a35', borderLeft: '1px solid rgba(255,255,255,0.08)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="h-full w-full flex flex-col" style={{ background: 'var(--c-bg-modal)', borderLeft: '1px solid var(--c-border)' }} onClick={(e) => e.stopPropagation()}>
 
           {/* HEADER */}
-          <div className="px-6 py-5 flex items-start justify-between gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="px-6 py-5 flex items-start justify-between gap-3" style={{ borderBottom: '1px solid var(--c-border)' }}>
             <div className="flex items-center gap-3 min-w-0">
               {panelMode !== 'create' && selectedEmpleado ? (
                 <div className="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-lg font-bold text-white"
@@ -174,14 +175,14 @@ export default function EmpleadoPanel({
                 </div>
               )}
               <div className="min-w-0">
-                <h2 className="text-lg font-bold text-white tracking-tight truncate">
+                <h2 className="text-lg font-bold tracking-tight truncate" style={{ color: 'var(--c-text-1)' }}>
                   {panelMode === 'create' ? 'Nuevo Trabajador' : `${selectedEmpleado?.nombres} ${selectedEmpleado?.apellido_paterno}`}
                 </h2>
                 {panelMode !== 'create' && selectedEmpleado && (
                   <div className="flex flex-wrap items-center gap-2 mt-1">
-                    <span className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{selectedEmpleado.cargo}</span>
-                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>•</span>
-                    <span className="font-mono text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{selectedEmpleado.rut}</span>
+                    <span className="text-sm" style={{ color: 'var(--c-text-2)' }}>{selectedEmpleado.cargo}</span>
+                    <span style={{ color: 'var(--c-text-4)' }}>•</span>
+                    <span className="font-mono text-sm" style={{ color: 'var(--c-text-3)' }}>{selectedEmpleado.rut}</span>
                     <span className="px-2 py-0.5 rounded-md text-xs font-bold tracking-wide"
                       style={selectedEmpleado.activo
                         ? { background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }
@@ -194,7 +195,7 @@ export default function EmpleadoPanel({
             </div>
             <button onClick={() => setIsPanelOpen(false)}
               className="p-2 rounded-lg transition-colors shrink-0"
-              style={{ color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.04)' }}>
+              style={{ color: 'var(--c-text-3)', background: 'var(--c-bg-input)' }}>
               <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
@@ -248,7 +249,7 @@ export default function EmpleadoPanel({
 
           {/* TABS NAV */}
           {panelMode !== 'create' && (
-            <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ borderBottom: '1px solid var(--c-border)' }}>
               <nav className="flex gap-0 overflow-x-auto px-4">
                 {[
                   { id: 'perfil', label: 'Datos Generales' },
@@ -266,7 +267,7 @@ export default function EmpleadoPanel({
                     className="py-3.5 px-4 text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0"
                     style={{
                       borderBottom: activeTab === tab.id ? '2px solid #2563eb' : '2px solid transparent',
-                      color: activeTab === tab.id ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+                      color: activeTab === tab.id ? '#60a5fa' : 'var(--c-text-3)',
                     }}
                   >
                     {tab.label}
@@ -277,7 +278,7 @@ export default function EmpleadoPanel({
           )}
 
           {/* BODY */}
-          <div className="flex-1 overflow-y-auto p-7" style={{ background: '#0c1a35' }}>
+          <div className="flex-1 overflow-y-auto p-7" style={{ background: 'var(--c-bg-modal)' }}>
             {activeTab === 'perfil' && (
               <TabPerfil
                 panelMode={panelMode}
@@ -431,14 +432,14 @@ export default function EmpleadoPanel({
 
           {/* FOOTER */}
           {!(panelMode === 'view' && activeTab === 'perfil') && (
-            <div className="px-8 py-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: '#0c1a35' }}>
+            <div className="px-8 py-4 flex justify-between items-center" style={{ borderTop: '1px solid var(--c-border)', background: 'var(--c-bg-modal)' }}>
               <div className="flex w-full justify-end gap-3">
                 {(!showDocumentoForm || activeTab !== 'legal') && (
                   <button type="button" onClick={() => setIsPanelOpen(false)}
                     className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
-                    style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                    style={{ color: 'var(--c-text-2)', background: 'var(--c-bg-input)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input-focus)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-bg-input)')}>
                     Cerrar
                   </button>
                 )}
@@ -462,9 +463,9 @@ export default function EmpleadoPanel({
                   <>
                     <button type="button" onClick={() => setShowVacacionForm(false)}
                       className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
-                      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      style={{ color: 'var(--c-text-2)', background: 'var(--c-bg-input)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input-focus)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-bg-input)')}>
                       Volver al Historial
                     </button>
                     <button
@@ -481,9 +482,9 @@ export default function EmpleadoPanel({
                   <>
                     <button type="button" onClick={() => setShowDocumentoForm(false)}
                       className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
-                      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      style={{ color: 'var(--c-text-2)', background: 'var(--c-bg-input)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input-focus)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-bg-input)')}>
                       Volver al Historial
                     </button>
                     <button
@@ -500,9 +501,9 @@ export default function EmpleadoPanel({
                   <>
                     <button type="button" onClick={() => setShowFiniquitoForm(false)}
                       className="px-6 py-2.5 text-sm font-semibold rounded-xl transition-colors"
-                      style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+                      style={{ color: 'var(--c-text-2)', background: 'var(--c-bg-input)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input-focus)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-bg-input)')}>
                       Volver al Historial
                     </button>
                     <button

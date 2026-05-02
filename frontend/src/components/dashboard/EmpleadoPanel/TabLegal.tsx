@@ -73,11 +73,11 @@ const tipoDocToFirma: Record<string, SolicitudFirma['tipo_documento']> = {
 
 const inp: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.625rem',
   padding: '0.625rem 0.75rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontSize: '0.875rem',
   outline: 'none',
 };
@@ -88,7 +88,7 @@ const lbl: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.07em',
-  color: 'rgba(255,255,255,0.4)',
+  color: 'var(--c-text-3)',
   marginBottom: '0.25rem',
 };
 
@@ -127,11 +127,11 @@ function DespidoFields({
             }}
             style={{ ...inp, border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer' }}
           >
-            <option value="" style={{ background: '#0c1a35' }}>— Seleccione la causal —</option>
+            <option value="" style={{ background: 'var(--c-bg-modal)' }}>— Seleccione la causal —</option>
             {CAUSALES.map(g => (
               <optgroup key={g.group} label={g.group}>
                 {g.options.map(o => (
-                  <option key={o.value} value={o.value} style={{ background: '#0c1a35' }}>{o.label}</option>
+                  <option key={o.value} value={o.value} style={{ background: 'var(--c-bg-modal)' }}>{o.label}</option>
                 ))}
               </optgroup>
             ))}
@@ -139,7 +139,7 @@ function DespidoFields({
         </div>
 
         {causalInfo && (
-          <div className="p-3 rounded-lg text-sm" style={{ background: 'rgba(0,0,0,0.25)', color: 'rgba(255,255,255,0.6)', fontStyle: 'italic' }}>
+          <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--c-bg-input)', color: 'var(--c-text-2)', fontStyle: 'italic' }}>
             {causalInfo.descripcion}
           </div>
         )}
@@ -152,7 +152,7 @@ function DespidoFields({
           type="date"
           value={documentoData.fecha_ultimo_dia || ''}
           onChange={(e) => set({ fecha_ultimo_dia: e.target.value || undefined })}
-          style={{ ...inp, colorScheme: 'dark' }}
+          style={{ ...inp }}
         />
       </div>
 
@@ -165,9 +165,9 @@ function DespidoFields({
             onChange={(e) => set({ aviso_previo_dias: e.target.value === '' ? undefined : Number(e.target.value) })}
             style={{ ...inp, cursor: 'pointer' }}
           >
-            <option value="" style={{ background: '#0c1a35' }}>— Seleccione —</option>
-            <option value="30" style={{ background: '#0c1a35' }}>30 días de aviso previo (Art. 161)</option>
-            <option value="0" style={{ background: '#0c1a35' }}>Pago sustitutivo del mes de aviso (Art. 162 inc. 2°)</option>
+            <option value="" style={{ background: 'var(--c-bg-modal)' }}>— Seleccione —</option>
+            <option value="30" style={{ background: 'var(--c-bg-modal)' }}>30 días de aviso previo (Art. 161)</option>
+            <option value="0" style={{ background: 'var(--c-bg-modal)' }}>Pago sustitutivo del mes de aviso (Art. 162 inc. 2°)</option>
           </select>
         </div>
       )}
@@ -204,7 +204,7 @@ function DespidoFields({
       <div className="col-span-2">
         <label style={lbl}>Estado de Cotizaciones Previsionales</label>
         <div className="space-y-2">
-          <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer" style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border)' }}>
             <input
               type="radio"
               name="cotizaciones"
@@ -214,7 +214,7 @@ function DespidoFields({
             />
             <span className="text-sm font-medium" style={{ color: '#86efac' }}>Cotizaciones al día (Art. 162 inc. 5°)</span>
           </label>
-          <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer" style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border)' }}>
             <input
               type="radio"
               name="cotizaciones"
@@ -243,14 +243,14 @@ function DespidoFields({
           onChange={(e) => set({ modalidad_finiquito: (e.target.value || undefined) as 'PRESENCIAL' | 'ELECTRONICO' | undefined })}
           style={{ ...inp, cursor: 'pointer' }}
         >
-          <option value="" style={{ background: '#0c1a35' }}>— Seleccione —</option>
-          <option value="PRESENCIAL" style={{ background: '#0c1a35' }}>Presencial ante ministro de fe</option>
-          <option value="ELECTRONICO" style={{ background: '#0c1a35' }}>Electrónico (voluntario para el trabajador)</option>
+          <option value="" style={{ background: 'var(--c-bg-modal)' }}>— Seleccione —</option>
+          <option value="PRESENCIAL" style={{ background: 'var(--c-bg-modal)' }}>Presencial ante ministro de fe</option>
+          <option value="ELECTRONICO" style={{ background: 'var(--c-bg-modal)' }}>Electrónico (voluntario para el trabajador)</option>
         </select>
       </div>
 
       {/* Copia Inspección del Trabajo */}
-      <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border)' }}>
         <input
           type="checkbox"
           id="copia_inspeccion"
@@ -258,7 +258,7 @@ function DespidoFields({
           onChange={(e) => set({ copia_inspeccion_trabajo: e.target.checked })}
           className="w-5 h-5 text-blue-600"
         />
-        <label htmlFor="copia_inspeccion" className="text-sm font-semibold cursor-pointer" style={{ color: 'rgba(255,255,255,0.7)' }}>
+        <label htmlFor="copia_inspeccion" className="text-sm font-semibold cursor-pointer" style={{ color: 'var(--c-text-2)' }}>
           Enviar copia a la Inspección del Trabajo (Art. 162)
         </label>
       </div>
@@ -276,10 +276,10 @@ export default function TabLegal({
     <div className="max-w-4xl mx-auto">
       {!showDocumentoForm ? (
         <div className="space-y-6">
-          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
             <div>
-              <h3 className="text-lg font-bold text-white">Historial de Documentos</h3>
-              <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>Cartas de amonestación, despidos y constancias.</p>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Historial de Documentos</h3>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--c-text-3)' }}>Cartas de amonestación, despidos y constancias.</p>
             </div>
             <button
               onClick={() => {
@@ -309,17 +309,17 @@ export default function TabLegal({
           </div>
 
           {documentosLegales.length === 0 ? (
-            <div className="text-center py-16 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>No hay documentos legales registrados para este trabajador.</p>
+            <div className="text-center py-16 rounded-2xl" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+              <p className="font-medium" style={{ color: 'var(--c-text-3)' }}>No hay documentos legales registrados para este trabajador.</p>
             </div>
           ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <th className="p-4 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.03)' }}>Fecha</th>
-                    <th className="p-4 text-xs font-semibold uppercase" style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.03)' }}>Tipo Documento</th>
-                    <th className="p-4 text-xs font-semibold uppercase text-right" style={{ color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.03)' }}>Acciones</th>
+                  <tr style={{ borderBottom: '1px solid var(--c-border-2)' }}>
+                    <th className="p-4 text-xs font-semibold uppercase" style={{ color: 'var(--c-text-3)', background: 'var(--c-bg-card-2)' }}>Fecha</th>
+                    <th className="p-4 text-xs font-semibold uppercase" style={{ color: 'var(--c-text-3)', background: 'var(--c-bg-card-2)' }}>Tipo Documento</th>
+                    <th className="p-4 text-xs font-semibold uppercase text-right" style={{ color: 'var(--c-text-3)', background: 'var(--c-bg-card-2)' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -332,10 +332,10 @@ export default function TabLegal({
                       : undefined;
                     const sending = !!isSendingFirma[`${firmaKey}${doc.id}`];
                     return (
-                      <tr key={doc.id} className="transition-colors" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+                      <tr key={doc.id} className="transition-colors" style={{ borderBottom: '1px solid var(--c-border)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-hover)')}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                        <td className="p-4 text-sm font-medium text-white">{doc.fecha_emision}</td>
+                        <td className="p-4 text-sm font-medium" style={{ color: 'var(--c-text-1)' }}>{doc.fecha_emision}</td>
                         <td className="p-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                             doc.tipo === 'DESPIDO'
@@ -370,9 +370,9 @@ export default function TabLegal({
                                   <Clock className="w-3 h-3" />Pendiente
                                 </span>
                                 <button type="button" onClick={() => reenviarFirma(solicitudActiva.id)}
-                                  className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
-                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                                  className="text-xs transition-colors" style={{ color: 'var(--c-text-3)' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                   <RotateCcw className="w-3 h-3" />
                                 </button>
                                 <button type="button" onClick={() => cancelarFirma(solicitudActiva.id)}
@@ -390,9 +390,9 @@ export default function TabLegal({
                                 </span>
                                 <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
                                   className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                  style={{ color: 'rgba(255,255,255,0.4)' }}
+                                  style={{ color: 'var(--c-text-3)' }}
                                   onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
-                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                   <Eye className="w-3 h-3" />Ver
                                 </button>
                               </div>
@@ -404,18 +404,18 @@ export default function TabLegal({
                                 </span>
                                 <button type="button" onClick={() => onVerDetalleFirma(solicitudActiva)}
                                   className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                  style={{ color: 'rgba(255,255,255,0.4)' }}
+                                  style={{ color: 'var(--c-text-3)' }}
                                   onMouseEnter={e => (e.currentTarget.style.color = '#60a5fa')}
-                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
                                   <Eye className="w-3 h-3" />Ver motivo
                                 </button>
                                 <button type="button"
                                   onClick={() => enviarAFirma(firmaKey!, { documentoLegalId: doc.id })}
                                   disabled={sending}
                                   className="text-xs font-semibold flex items-center gap-1 transition-colors"
-                                  style={{ color: sending ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.4)', cursor: sending ? 'not-allowed' : 'pointer' }}
-                                  onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                                  onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}>
+                                  style={{ color: sending ? 'var(--c-text-4)' : 'var(--c-text-3)', cursor: sending ? 'not-allowed' : 'pointer' }}
+                                  onMouseEnter={e => { if (!sending) e.currentTarget.style.color = 'var(--c-text-2)'; }}
+                                  onMouseLeave={e => { if (!sending) e.currentTarget.style.color = 'var(--c-text-3)'; }}>
                                   {sending
                                     ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white/60 rounded-full animate-spin" />Enviando...</>
                                     : <><RotateCcw className="w-3 h-3" />Re-enviar</>}
@@ -443,12 +443,12 @@ export default function TabLegal({
           )}
         </div>
       ) : (
-        <form id="documentoForm" onSubmit={guardarDocumentoLegal} className="p-8 rounded-2xl space-y-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="flex justify-between items-center pb-4 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <h3 className="text-lg font-bold text-white">Redactar Documento Legal</h3>
-            <button type="button" onClick={() => setShowDocumentoForm(false)} style={{ color: 'rgba(255,255,255,0.4)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.8)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>✕</button>
+        <form id="documentoForm" onSubmit={guardarDocumentoLegal} className="p-8 rounded-2xl space-y-6" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
+          <div className="flex justify-between items-center pb-4 mb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
+            <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Redactar Documento Legal</h3>
+            <button type="button" onClick={() => setShowDocumentoForm(false)} style={{ color: 'var(--c-text-3)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>✕</button>
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -460,9 +460,9 @@ export default function TabLegal({
                 onChange={(e) => setDocumentoData({...documentoData, tipo: e.target.value as 'AMONESTACION' | 'DESPIDO' | 'MUTUO_ACUERDO' | 'CONSTANCIA'})}
                 style={{ ...inp, cursor: 'pointer' }}
               >
-                <option value="AMONESTACION" style={{ background: '#0c1a35' }}>Carta de Amonestación</option>
-                <option value="DESPIDO" style={{ background: '#0c1a35' }}>Carta de Despido (Término de Contrato)</option>
-                <option value="CONSTANCIA" style={{ background: '#0c1a35' }}>Constancia Laboral</option>
+                <option value="AMONESTACION" style={{ background: 'var(--c-bg-modal)' }}>Carta de Amonestación</option>
+                <option value="DESPIDO" style={{ background: 'var(--c-bg-modal)' }}>Carta de Despido (Término de Contrato)</option>
+                <option value="CONSTANCIA" style={{ background: 'var(--c-bg-modal)' }}>Constancia Laboral</option>
               </select>
             </div>
             <div>
@@ -472,7 +472,7 @@ export default function TabLegal({
                 required
                 value={documentoData.fecha_emision}
                 onChange={(e) => setDocumentoData({...documentoData, fecha_emision: e.target.value})}
-                style={{ ...inp, colorScheme: 'dark' }}
+                style={{ ...inp }}
               />
             </div>
 
@@ -494,7 +494,7 @@ export default function TabLegal({
           </div>
 
           {isSavingDocumento && (
-            <p className="text-sm text-right" style={{ color: 'rgba(255,255,255,0.4)' }}>Generando documento...</p>
+            <p className="text-sm text-right" style={{ color: 'var(--c-text-3)' }}>Generando documento...</p>
           )}
         </form>
       )}
