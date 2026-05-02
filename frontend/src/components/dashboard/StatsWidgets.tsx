@@ -10,8 +10,8 @@ type Props = {
 };
 
 const widgetStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.08)',
+  background: 'var(--c-bg-card-2)',
+  border: '1px solid var(--c-border)',
   backdropFilter: 'blur(20px)',
   borderRadius: '1rem',
   padding: '1.5rem',
@@ -27,10 +27,10 @@ const flipBtnStyle: React.CSSProperties = {
   top: '1rem',
   right: '1rem',
   padding: '0.375rem',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.08)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.5rem',
-  color: 'rgba(255,255,255,0.35)',
+  color: 'var(--c-text-3)',
   cursor: 'pointer',
   zIndex: 10,
   display: 'flex',
@@ -38,9 +38,9 @@ const flipBtnStyle: React.CSSProperties = {
   justifyContent: 'center',
 };
 
-const labelStyle: React.CSSProperties = { fontSize: '0.8125rem', fontWeight: 700, color: 'rgba(255,255,255,0.45)', marginBottom: '0.25rem' };
-const valueStyle: React.CSSProperties = { fontSize: '1.5rem', fontWeight: 800, color: '#fff' };
-const subStyle:  React.CSSProperties = { fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.35)', marginTop: '0.25rem' };
+const labelStyle: React.CSSProperties = { fontSize: '0.8125rem', fontWeight: 700, color: 'var(--c-text-3)', marginBottom: '0.25rem' };
+const valueStyle: React.CSSProperties = { fontSize: '1.5rem', fontWeight: 800, color: 'var(--c-text-1)' };
+const subStyle:  React.CSSProperties = { fontSize: '0.75rem', fontWeight: 600, color: 'var(--c-text-3)', marginTop: '0.25rem' };
 
 const iconBox = (color: string) => ({
   width: '3rem', height: '3rem', borderRadius: '0.75rem', flexShrink: 0,
@@ -49,7 +49,7 @@ const iconBox = (color: string) => ({
 } as React.CSSProperties);
 
 export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Props) {
-  const tooltip = { background: '#0c1a35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', color: '#fff' };
+  const tooltip = { background: 'var(--c-bg-modal)', border: '1px solid var(--c-border-2)', borderRadius: '0.5rem', color: 'var(--c-text-1)' };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
@@ -96,7 +96,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
                 <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.mujeres} <span style={subStyle}>Muj.</span></span>
                 <span style={{ ...valueStyle, fontSize: '1rem' }}>{stats.hombres} <span style={subStyle}>Hom.</span></span>
               </div>
-              <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'var(--c-border)' }}>
                 <div style={{ width: `${stats.total > 0 ? (stats.mujeres / stats.total) * 100 : 0}%`, background: '#c084fc' }} className="h-full" />
                 <div style={{ width: `${stats.total > 0 ? (stats.hombres / stats.total) * 100 : 0}%`, background: '#60a5fa' }} className="h-full" />
               </div>
@@ -116,7 +116,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
         )}
       </div>
 
-      {/* ── 3. Modalidad (corregido: Presencial / Remoto / Híbrido) ── */}
+      {/* ── 3. Modalidad ── */}
       <div style={widgetStyle}>
         <button onClick={() => toggleWidget('w_modalidad')} style={flipBtnStyle}>
           {flippedWidgets['w_modalidad'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
@@ -197,7 +197,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
       </div>
 
       {/* ── 5. Cuota Extranjería ──────────────────────────── */}
-      <div style={{ ...widgetStyle, borderColor: stats.pctExtranjeros > 15 ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.08)' }}>
+      <div style={{ ...widgetStyle, borderColor: stats.pctExtranjeros > 15 ? 'rgba(245,158,11,0.3)' : 'var(--c-border)' }}>
         <button onClick={() => toggleWidget('w2')} style={flipBtnStyle}>
           {flippedWidgets['w2'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
         </button>
@@ -209,7 +209,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
             <div>
               <p style={labelStyle}>Cuota Extranjería</p>
               <h4 style={valueStyle}>{stats.extranjeros} <span style={subStyle}>extranjeros</span></h4>
-              <p style={{ ...subStyle, color: stats.pctExtranjeros > 15 ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
+              <p style={{ ...subStyle, color: stats.pctExtranjeros > 15 ? '#f87171' : 'var(--c-text-3)' }}>
                 {stats.pctExtranjeros.toFixed(1)}% (Límite 15%)
               </p>
             </div>
@@ -218,7 +218,6 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
           <div className="flex flex-col items-center justify-center pt-1">
             <ResponsiveContainer width="100%" height={72}>
               <PieChart>
-                {/* Track gris de fondo (0-30% como máximo visual) */}
                 <Pie
                   data={[{ value: 100 }]}
                   cx="50%" cy="100%"
@@ -228,7 +227,6 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
                 >
                   <Cell fill="rgba(255,255,255,0.06)" />
                 </Pie>
-                {/* Arco de valor actual (escala: 30% = arco completo) */}
                 <Pie
                   data={[
                     { value: Math.min((stats.pctExtranjeros / 30) * 100, 100) },
@@ -244,7 +242,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginTop: '-0.25rem' }}>
+            <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--c-text-3)', marginTop: '-0.25rem' }}>
               {stats.pctExtranjeros.toFixed(1)}% actual · límite 15%
             </p>
           </div>
@@ -300,7 +298,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
                 <span style={{ ...valueStyle, fontSize: '1rem', color: '#34d399' }}>{stats.isapre} <span style={subStyle}>ISAPRE</span></span>
               </div>
               {(stats.fonasa + stats.isapre) > 0 && (
-                <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <div className="w-full h-1.5 rounded-full overflow-hidden flex mt-2" style={{ background: 'var(--c-border)' }}>
                   <div style={{ width: `${(stats.fonasa / (stats.fonasa + stats.isapre)) * 100}%`, background: '#3b82f6' }} className="h-full" />
                   <div style={{ width: `${(stats.isapre / (stats.fonasa + stats.isapre)) * 100}%`, background: '#10b981' }} className="h-full" />
                 </div>
@@ -324,7 +322,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
       {/* ── 8. Contratos por Vencer ───────────────────────── */}
       <div style={{
         ...widgetStyle,
-        borderColor: stats.contratosVencen.length > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)',
+        borderColor: stats.contratosVencen.length > 0 ? 'rgba(239,68,68,0.3)' : 'var(--c-border)',
       }}>
         <button onClick={() => toggleWidget('w_vencen')} style={flipBtnStyle}>
           {flippedWidgets['w_vencen'] ? <Undo2 size={14} /> : <BarChart2 size={14} />}
@@ -345,19 +343,19 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
         ) : (
           <div className="w-full">
             {stats.contratosVencen.length === 0 ? (
-              <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--c-text-3)', textAlign: 'center' }}>
                 No hay contratos próximos a vencer
               </p>
             ) : (
               <div className="space-y-2">
                 {stats.contratosVencen.slice(0, 4).map((c, i) => (
                   <div key={i} className="flex justify-between items-center">
-                    <span style={{ fontSize: '0.775rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                    <span style={{ fontSize: '0.775rem', color: 'var(--c-text-2)', fontWeight: 600 }}>
                       {c.nombre}
                     </span>
                     <span style={{
                       fontSize: '0.7rem', fontWeight: 700,
-                      color: c.diasRestantes <= 7 ? '#f87171' : c.diasRestantes <= 15 ? '#fbbf24' : 'rgba(255,255,255,0.4)',
+                      color: c.diasRestantes <= 7 ? '#f87171' : c.diasRestantes <= 15 ? '#fbbf24' : 'var(--c-text-3)',
                       background: c.diasRestantes <= 7 ? 'rgba(239,68,68,0.12)' : c.diasRestantes <= 15 ? 'rgba(251,191,36,0.1)' : 'transparent',
                       padding: '0.15rem 0.5rem', borderRadius: '1rem',
                     }}>
