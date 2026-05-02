@@ -133,7 +133,7 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-3xl p-7 mb-8 glass-card">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--c-text-1)' }}>{empresa?.nombre_legal}</h1>
               <div className="flex gap-3 mt-3 text-sm font-medium flex-wrap">
@@ -148,7 +148,7 @@ export default function Dashboard() {
               </div>
             </div>
             {empresa && (
-              <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              <div className="flex items-center gap-2 flex-wrap sm:shrink-0 sm:justify-end">
                 <button
                   onClick={() => setShowLibroModal(true)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all"
