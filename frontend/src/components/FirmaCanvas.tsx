@@ -96,7 +96,7 @@ export default function FirmaCanvas({ onChange, width = 480, height = 160, disab
 
   return (
     <div className="space-y-2">
-      <div className="relative rounded-xl overflow-hidden" style={{ border: '2px solid rgba(255,255,255,0.15)', background: '#fff' }}>
+      <div className="relative rounded-xl overflow-hidden" style={{ border: '2px solid var(--c-border-2)', background: '#fff' }}>
         <canvas
           ref={canvasRef}
           width={width}

@@ -28,11 +28,11 @@ const TABS = [
 
 const inputDark = {
   width: '100%',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.75rem',
   padding: '0.875rem 1rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontFamily: 'Poppins, sans-serif',
   fontSize: '0.9375rem',
   outline: 'none',
@@ -94,17 +94,17 @@ export default function Suscripcion() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
       <div className="w-10 h-10 border-2 rounded-full animate-spin"
-        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#2563eb' }} />
+        style={{ borderColor: 'var(--c-border-input)', borderTopColor: '#2563eb' }} />
     </div>
   );
 
   if (errorCarga) return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--c-bg-app)' }}>
       <div className="text-center space-y-4">
-        <p className="text-white font-semibold text-lg">No se pudo cargar la información de tu cuenta.</p>
-        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Verifica tu conexión e intenta nuevamente.</p>
+        <p className="font-semibold text-lg" style={{ color: 'var(--c-text-1)' }}>No se pudo cargar la información de tu cuenta.</p>
+        <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>Verifica tu conexión e intenta nuevamente.</p>
         <button onClick={() => window.location.reload()} className="btn-primary" style={{ width: 'auto', display: 'inline-flex' }}>
           Reintentar
         </button>
@@ -120,7 +120,7 @@ export default function Suscripcion() {
   const esPyme = miSuscripcion?.plan?.nombre?.toUpperCase().includes('PYME');
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -133,14 +133,14 @@ export default function Suscripcion() {
         {/* Volver */}
         <button onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-medium mb-10 transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.4)' }}>
+          style={{ color: 'var(--c-text-3)' }}>
           <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
           <span className="group-hover:text-white transition-colors">Volver al Dashboard</span>
         </button>
 
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-white mb-2">Configuración de Cuenta</h1>
-          <p className="text-base" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Configuración de Cuenta</h1>
+          <p className="text-base" style={{ color: 'var(--c-text-3)' }}>
             Administra tus datos personales y plan de suscripción.
           </p>
         </div>
@@ -153,9 +153,9 @@ export default function Suscripcion() {
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all"
                 style={{
-                  background: activeTab === tab.id ? 'rgba(37,99,235,0.2)' : 'rgba(255,255,255,0.03)',
-                  border: activeTab === tab.id ? '1px solid rgba(37,99,235,0.35)' : '1px solid rgba(255,255,255,0.05)',
-                  color: activeTab === tab.id ? '#60a5fa' : 'rgba(255,255,255,0.4)',
+                  background: activeTab === tab.id ? 'rgba(37,99,235,0.2)' : 'var(--c-bg-card-2)',
+                  border: activeTab === tab.id ? '1px solid rgba(37,99,235,0.35)' : '1px solid var(--c-border)',
+                  color: activeTab === tab.id ? '#60a5fa' : 'var(--c-text-3)',
                 }}>
                 <tab.icon size={16} />
                 {tab.label}
@@ -169,7 +169,7 @@ export default function Suscripcion() {
             {/* Tab: Cuenta */}
             {activeTab === 'cuenta' && (
               <div className="space-y-7">
-                <h2 className="text-xl font-bold text-white pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <h2 className="text-xl font-bold pb-4" style={{ color: 'var(--c-text-1)', borderBottom: '1px solid var(--c-border)' }}>
                   Información del Perfil
                 </h2>
 
@@ -180,7 +180,7 @@ export default function Suscripcion() {
                     { label: 'Apellido Materno', key: 'apellido_materno' as const },
                   ].map(({ label, key }) => (
                     <div key={key} className="space-y-1.5">
-                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                         {label}
                       </label>
                       <input type="text" value={userData[key]}
@@ -192,7 +192,7 @@ export default function Suscripcion() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       Correo Electrónico
                     </label>
                     <input type="email" value={userData.email}
@@ -200,7 +200,7 @@ export default function Suscripcion() {
                       style={inputDark} />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                       RUT
                     </label>
                     <input type="text" value={userData.rut} disabled
@@ -208,7 +208,7 @@ export default function Suscripcion() {
                   </div>
                 </div>
 
-                <div className="pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="pt-4" style={{ borderTop: '1px solid var(--c-border)' }}>
                   <button onClick={handleActualizarPerfil} className="btn-primary" style={{ width: 'auto', display: 'inline-flex' }}>
                     Guardar Cambios
                   </button>
@@ -224,10 +224,10 @@ export default function Suscripcion() {
                 <div className="rounded-2xl p-6" style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-3)' }}>
                         Plan Actual
                       </p>
-                      <h3 className="text-2xl font-bold text-white">{miSuscripcion?.plan?.nombre?.toUpperCase() || '…'}</h3>
+                      <h3 className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>{miSuscripcion?.plan?.nombre?.toUpperCase() || '…'}</h3>
                     </div>
                     <span className="px-4 py-1.5 rounded-full text-xs font-bold"
                       style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
@@ -236,12 +236,12 @@ export default function Suscripcion() {
                   </div>
 
                   <div className="mb-2 flex justify-between text-sm font-medium">
-                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>Uso de Trabajadores</span>
-                    <span className="text-white font-bold">
+                    <span style={{ color: 'var(--c-text-2)' }}>Uso de Trabajadores</span>
+                    <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>
                       {miSuscripcion?.trabajadores_actuales || 0} / {miSuscripcion?.plan?.limite_trabajadores || 0}
                     </span>
                   </div>
-                  <div className="w-full rounded-full h-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                  <div className="w-full rounded-full h-2" style={{ background: 'var(--c-border)' }}>
                     <div className="h-2 rounded-full transition-all duration-700"
                       style={{
                         width: `${porcentajeUso}%`,
@@ -257,12 +257,12 @@ export default function Suscripcion() {
                       style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
                       <Check size={28} className="text-emerald-400" />
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">¡Tienes el plan máximo!</h3>
-                    <p style={{ color: 'rgba(255,255,255,0.45)' }}>Disfrutas de todas las herramientas premium de Jornada40.</p>
+                    <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>¡Tienes el plan máximo!</h3>
+                    <p style={{ color: 'var(--c-text-3)' }}>Disfrutas de todas las herramientas premium de Jornada40.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <h2 className="text-base font-bold text-white">Mejorar Plan</h2>
+                    <h2 className="text-base font-bold" style={{ color: 'var(--c-text-1)' }}>Mejorar Plan</h2>
 
                     {!esPyme && (
                       <div className="rounded-2xl p-6 relative transition-all"
@@ -275,9 +275,9 @@ export default function Suscripcion() {
                         </div>
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
                           <div>
-                            <h3 className="text-lg font-bold text-white mb-1">Plan PYME</h3>
-                            <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
-                            <p className="text-2xl font-bold text-white">$29.990 <span className="text-sm font-normal" style={{ color: 'rgba(255,255,255,0.4)' }}>/ mes</span></p>
+                            <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Plan PYME</h3>
+                            <p className="text-sm mb-2" style={{ color: 'var(--c-text-3)' }}>Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
+                            <p className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>$29.990 <span className="text-sm font-normal" style={{ color: 'var(--c-text-3)' }}>/ mes</span></p>
                           </div>
                           <button onClick={() => handleMejorarPlan(2, 'mensual')} disabled={procesandoPago} className="btn-primary"
                             style={{ width: 'auto', display: 'inline-flex' }}>
@@ -287,12 +287,12 @@ export default function Suscripcion() {
                       </div>
                     )}
 
-                    <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="rounded-2xl p-6" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
                         <div>
-                          <h3 className="text-lg font-bold text-white mb-1">Plan Corporativo</h3>
-                          <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Hasta 200 trabajadores. Cargas masivas y soporte prioritario.</p>
-                          <p className="text-2xl font-bold text-white">$69.990 <span className="text-sm font-normal" style={{ color: 'rgba(255,255,255,0.4)' }}>/ mes</span></p>
+                          <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Plan Corporativo</h3>
+                          <p className="text-sm mb-2" style={{ color: 'var(--c-text-3)' }}>Hasta 200 trabajadores. Cargas masivas y soporte prioritario.</p>
+                          <p className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>$69.990 <span className="text-sm font-normal" style={{ color: 'var(--c-text-3)' }}>/ mes</span></p>
                         </div>
                         <button onClick={() => handleMejorarPlan(3, 'mensual')} disabled={procesandoPago} className="btn-secondary"
                           style={{ width: 'auto', display: 'inline-flex' }}>
@@ -308,7 +308,7 @@ export default function Suscripcion() {
             {/* Tab: Seguridad */}
             {activeTab === 'seguridad' && (
               <div className="space-y-7">
-                <h2 className="text-xl font-bold text-white pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <h2 className="text-xl font-bold pb-4" style={{ color: 'var(--c-text-1)', borderBottom: '1px solid var(--c-border)' }}>
                   Cambiar Contraseña
                 </h2>
                 <div className="space-y-4">
@@ -318,14 +318,14 @@ export default function Suscripcion() {
                     { label: 'Repetir Nueva Contraseña', placeholder: 'Mínimo 8 caracteres' },
                   ].map(({ label, placeholder }) => (
                     <div key={label} className="space-y-1.5">
-                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                         {label}
                       </label>
                       <input type="password" placeholder={placeholder} style={inputDark} />
                     </div>
                   ))}
                 </div>
-                <div className="pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="pt-4" style={{ borderTop: '1px solid var(--c-border)' }}>
                   <button className="btn-primary" style={{ width: 'auto', display: 'inline-flex' }}>
                     Actualizar Contraseña
                   </button>

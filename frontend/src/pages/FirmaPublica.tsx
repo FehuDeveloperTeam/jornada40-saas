@@ -48,8 +48,6 @@ function formatFecha(iso: string): string {
   }
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout compartido — definido fuera del componente para evitar remounts
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +55,7 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="min-h-screen flex flex-col relative overflow-hidden"
-      style={{ background: '#060f20' }}
+      style={{ background: 'var(--c-bg-app)' }}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
@@ -78,16 +76,16 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
           >
             <img src="/favicon.svg" alt="Jornada40" className="w-full h-full object-contain p-1" />
           </div>
-          <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>
+          <span className="text-sm font-bold" style={{ color: 'var(--c-text-2)' }}>
             Jornada<span style={{ color: '#60a5fa' }}>40</span>
           </span>
         </div>
         <div
           className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase"
           style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: 'rgba(255,255,255,0.35)',
+            background: 'var(--c-bg-card-2)',
+            border: '1px solid var(--c-border)',
+            color: 'var(--c-text-3)',
           }}
         >
           <Shield size={11} className="text-emerald-400" />
@@ -100,7 +98,7 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="relative z-10 text-center py-4 px-6">
-        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+        <p className="text-xs" style={{ color: 'var(--c-text-4)' }}>
           Firma Electrónica Simple · Ley N° 19.799 · República de Chile · Jornada40
         </p>
       </div>
@@ -119,7 +117,7 @@ export default function FirmaPublica() {
   const [otpDigits, setOtpDigits]   = useState<string[]>(['', '', '', '', '', '']);
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError]     = useState('');
-  const [cooldown, setCooldown]     = useState(0);         // segundos restantes para reenviar
+  const [cooldown, setCooldown]     = useState(0);
   const [sesionToken, setSesionToken] = useState('');
   const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
   const [firmaLoading, setFirmaLoading] = useState(false);
@@ -155,7 +153,6 @@ export default function FirmaPublica() {
       if (data.estado === 'CANCELADO') { setStep('terminal_cancelado');   return; }
       if (data.estado === 'RECHAZADO') { setStep('rechazado_ok');         return; }
 
-      // Si ya completó OTP en esta sesión del navegador, saltar directo a firmar
       const storedToken = sessionStorage.getItem(`firma_sesion_${token}`);
       if (storedToken) {
         setSesionToken(storedToken);
@@ -182,12 +179,10 @@ export default function FirmaPublica() {
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
       setStep('verificar_otp');
-      // Foco al primer input tras render
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const msg = err.response?.data?.error ?? 'Error al enviar el código.';
-        // Extraer segundos del mensaje de rate-limit para arrancar el countdown
         const match = msg.match(/(\d+) segundo/);
         if (match) setCooldown(parseInt(match[1], 10));
         setOtpError(msg);
@@ -306,10 +301,10 @@ export default function FirmaPublica() {
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#060f20' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
         <div style={{
           width: 48, height: 48,
-          border: '3px solid rgba(255,255,255,0.08)',
+          border: '3px solid var(--c-border)',
           borderTopColor: '#2563eb',
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
@@ -332,8 +327,8 @@ export default function FirmaPublica() {
             >
               <AlertCircle size={32} style={{ color: '#f87171' }} />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Enlace Inválido</h2>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Enlace Inválido</h2>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
               Este enlace de firma no existe o no es válido. Verifica que hayas copiado
               correctamente la URL recibida en tu correo.
             </p>
@@ -357,21 +352,21 @@ export default function FirmaPublica() {
             >
               <Clock size={32} style={{ color: '#fbbf24' }} />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Enlace Expirado</h2>
-            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Enlace Expirado</h2>
+            <p className="text-sm mb-6" style={{ color: 'var(--c-text-3)' }}>
               Este enlace de firma ya no está disponible porque superó el plazo de validez.
               Contacta a tu empleador para que te envíe un nuevo enlace.
             </p>
             {info && (
               <div
                 className="rounded-xl px-4 py-3 text-left"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}
               >
-                <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-3)' }}>
                   Documento
                 </p>
-                <p className="text-sm font-semibold text-white">{info.tipo_documento_label}</p>
-                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{info.empresa_nombre}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.tipo_documento_label}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--c-text-3)' }}>{info.empresa_nombre}</p>
               </div>
             )}
           </div>
@@ -394,8 +389,8 @@ export default function FirmaPublica() {
             >
               <XCircle size={32} style={{ color: '#f87171' }} />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Solicitud Cancelada</h2>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Solicitud Cancelada</h2>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
               Esta solicitud de firma fue cancelada por el empleador. Comunícate con tu
               empresa para obtener un nuevo enlace si corresponde.
             </p>
@@ -423,8 +418,8 @@ export default function FirmaPublica() {
             >
               <CheckCircle2 size={32} style={{ color: '#34d399' }} />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">¡Documento Firmado!</h2>
-            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>¡Documento Firmado!</h2>
+            <p className="text-sm mb-6" style={{ color: 'var(--c-text-2)' }}>
               La firma electrónica simple fue registrada exitosamente. Una copia del
               documento firmado fue enviada a tu correo electrónico.
             </p>
@@ -436,8 +431,8 @@ export default function FirmaPublica() {
                 <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(52,211,153,0.6)' }}>
                   Documento firmado
                 </p>
-                <p className="text-sm font-semibold text-white">{info.tipo_documento_label}</p>
-                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{info.empresa_nombre}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.tipo_documento_label}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--c-text-3)' }}>{info.empresa_nombre}</p>
               </div>
             )}
           </div>
@@ -465,8 +460,8 @@ export default function FirmaPublica() {
             >
               <FileText size={26} style={{ color: '#60a5fa' }} />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">Solicitud de Firma</h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Solicitud de Firma</h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
               Revisa los datos y continúa para verificar tu identidad
             </p>
           </div>
@@ -480,12 +475,12 @@ export default function FirmaPublica() {
                 <FileText size={16} style={{ color: '#60a5fa' }} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Documento</p>
-                <p className="text-base font-semibold text-white">{info.tipo_documento_label}</p>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>Documento</p>
+                <p className="text-base font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.tipo_documento_label}</p>
               </div>
             </div>
 
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-px" style={{ background: 'var(--c-border)' }} />
 
             <div className="flex items-start gap-3">
               <div
@@ -495,12 +490,12 @@ export default function FirmaPublica() {
                 <Building2 size={16} style={{ color: '#a78bfa' }} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Empresa</p>
-                <p className="text-sm font-semibold text-white">{info.empresa_nombre}</p>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>Empresa</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.empresa_nombre}</p>
               </div>
             </div>
 
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-px" style={{ background: 'var(--c-border)' }} />
 
             <div className="flex items-start gap-3">
               <div
@@ -510,30 +505,30 @@ export default function FirmaPublica() {
                 <User size={16} style={{ color: '#34d399' }} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Trabajador</p>
-                <p className="text-sm font-semibold text-white">{info.trabajador_nombre}</p>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>Trabajador</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.trabajador_nombre}</p>
               </div>
             </div>
 
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-px" style={{ background: 'var(--c-border)' }} />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <Mail size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: 'var(--c-bg-input)' }}>
+                  <Mail size={14} style={{ color: 'var(--c-text-3)' }} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Código OTP a</p>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>Código OTP a</p>
                   <p className="text-xs font-semibold" style={{ color: '#93c5fd' }}>{info.email_firmante_enmascarado}</p>
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <Calendar size={14} style={{ color: 'rgba(255,255,255,0.4)' }} />
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: 'var(--c-bg-input)' }}>
+                  <Calendar size={14} style={{ color: 'var(--c-text-3)' }} />
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>Válido hasta</p>
-                  <p className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>{formatFecha(info.expira_en)}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>Válido hasta</p>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--c-text-2)' }}>{formatFecha(info.expira_en)}</p>
                 </div>
               </div>
             </div>
@@ -544,7 +539,7 @@ export default function FirmaPublica() {
             style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}
           >
             <Shield size={15} className="shrink-0 mt-0.5" style={{ color: '#60a5fa' }} />
-            <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--c-text-3)' }}>
               Para firmar, verificaremos tu identidad enviando un código de 6 dígitos
               al correo registrado. Este proceso cumple con la Ley N° 19.799.
             </p>
@@ -553,18 +548,18 @@ export default function FirmaPublica() {
           <button
             className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold transition-all"
             style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'rgba(255,255,255,0.6)',
+              background: 'var(--c-bg-card-2)',
+              border: '1px solid var(--c-border-input)',
+              color: 'var(--c-text-2)',
             }}
             onClick={abrirPDF}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.09)';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.9)';
+              e.currentTarget.style.background = 'var(--c-bg-input)';
+              e.currentTarget.style.color = 'var(--c-text-1)';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.6)';
+              e.currentTarget.style.background = 'var(--c-bg-card-2)';
+              e.currentTarget.style.color = 'var(--c-text-2)';
             }}
           >
             <Eye size={15} />
@@ -581,7 +576,7 @@ export default function FirmaPublica() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // STEP: solicitar_otp  (7.2)
+  // STEP: solicitar_otp
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === 'solicitar_otp' && info) {
     return (
@@ -600,8 +595,8 @@ export default function FirmaPublica() {
             >
               <Mail size={26} style={{ color: '#60a5fa' }} />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">Verificar Identidad</h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Verificar Identidad</h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
               Enviaremos un código de 6 dígitos a tu correo para confirmar tu identidad
             </p>
           </div>
@@ -617,7 +612,7 @@ export default function FirmaPublica() {
                 <Mail size={18} style={{ color: '#60a5fa' }} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Código se enviará a
                 </p>
                 <p className="text-base font-semibold" style={{ color: '#93c5fd' }}>
@@ -626,12 +621,12 @@ export default function FirmaPublica() {
               </div>
             </div>
 
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-px" style={{ background: 'var(--c-border)' }} />
 
             <div className="flex items-start gap-2.5">
-              <Clock size={14} className="shrink-0 mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }} />
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                El código es válido por <strong style={{ color: 'rgba(255,255,255,0.6)' }}>10 minutos</strong> y
+              <Clock size={14} className="shrink-0 mt-0.5" style={{ color: 'var(--c-text-3)' }} />
+              <p className="text-xs" style={{ color: 'var(--c-text-3)' }}>
+                El código es válido por <strong style={{ color: 'var(--c-text-2)' }}>10 minutos</strong> y
                 solo puede usarse una vez.
               </p>
             </div>
@@ -676,10 +671,10 @@ export default function FirmaPublica() {
           {/* Volver */}
           <button
             className="w-full text-sm font-medium transition-colors"
-            style={{ color: 'rgba(255,255,255,0.3)' }}
+            style={{ color: 'var(--c-text-3)' }}
             onClick={() => { setOtpError(''); setStep('info'); }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.3)')}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
           >
             ← Volver
           </button>
@@ -690,7 +685,7 @@ export default function FirmaPublica() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // STEP: verificar_otp  (7.2)
+  // STEP: verificar_otp
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === 'verificar_otp' && info) {
     const codigoCompleto = otpDigits.join('').length === 6 && otpDigits.every(d => d !== '');
@@ -711,8 +706,8 @@ export default function FirmaPublica() {
             >
               <KeyRound size={26} style={{ color: '#60a5fa' }} />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">Ingresa el Código</h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Ingresa el Código</h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
               Enviamos un código a{' '}
               <span style={{ color: '#93c5fd' }}>{info.email_firmante_enmascarado}</span>
             </p>
@@ -742,10 +737,10 @@ export default function FirmaPublica() {
                     fontSize: '1.5rem',
                     fontWeight: 700,
                     fontFamily: 'monospace',
-                    background: digit ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.05)',
-                    border: `2px solid ${digit ? 'rgba(37,99,235,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                    background: digit ? 'rgba(37,99,235,0.15)' : 'var(--c-bg-card-2)',
+                    border: `2px solid ${digit ? 'rgba(37,99,235,0.5)' : 'var(--c-border-input)'}`,
                     borderRadius: '0.75rem',
-                    color: '#f8fafc',
+                    color: 'var(--c-text-1)',
                     outline: 'none',
                     transition: 'all 0.15s ease',
                     caretColor: '#2563eb',
@@ -755,15 +750,14 @@ export default function FirmaPublica() {
                     e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.2)';
                   }}
                   onBlur={e => {
-                    e.currentTarget.style.borderColor = digit ? 'rgba(37,99,235,0.5)' : 'rgba(255,255,255,0.1)';
+                    e.currentTarget.style.borderColor = digit ? 'rgba(37,99,235,0.5)' : 'var(--c-border-input)';
                     e.currentTarget.style.boxShadow = 'none';
                   }}
                 />
               ))}
             </div>
 
-            {/* Separador visual entre grupos 3+3 */}
-            <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.2)', marginTop: -12 }}>
+            <p className="text-center text-xs" style={{ color: 'var(--c-text-4)', marginTop: -12 }}>
               Ingresa los 6 dígitos del código recibido
             </p>
 
@@ -802,7 +796,7 @@ export default function FirmaPublica() {
           {/* Reenviar código */}
           <div className="text-center">
             {cooldown > 0 ? (
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <p className="text-xs" style={{ color: 'var(--c-text-3)' }}>
                 Puedes solicitar un nuevo código en{' '}
                 <span style={{ color: '#60a5fa', fontWeight: 600 }}>{cooldown}s</span>
               </p>
@@ -827,7 +821,7 @@ export default function FirmaPublica() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // STEP: firmar  (7.3)
+  // STEP: firmar
   // ─────────────────────────────────────────────────────────────────────────────
   if (step === 'firmar' && info) {
     return (
@@ -846,8 +840,8 @@ export default function FirmaPublica() {
             >
               <Pen size={26} style={{ color: '#60a5fa' }} />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">Firmar Documento</h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Firmar Documento</h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>
               Revisa el documento y dibuja tu firma para completar el proceso
             </p>
           </div>
@@ -869,18 +863,18 @@ export default function FirmaPublica() {
               <button
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'rgba(255,255,255,0.55)',
+                  background: 'var(--c-bg-card-2)',
+                  border: '1px solid var(--c-border-input)',
+                  color: 'var(--c-text-2)',
                 }}
                 onClick={abrirPDF}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.09)';
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
+                  e.currentTarget.style.background = 'var(--c-bg-input)';
+                  e.currentTarget.style.color = 'var(--c-text-1)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
+                  e.currentTarget.style.background = 'var(--c-bg-card-2)';
+                  e.currentTarget.style.color = 'var(--c-text-2)';
                 }}
               >
                 <Eye size={13} />
@@ -888,27 +882,27 @@ export default function FirmaPublica() {
               </button>
             </div>
 
-            <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-px" style={{ background: 'var(--c-border)' }} />
 
             {/* Datos del doc */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>
                   Documento
                 </p>
-                <p className="text-sm font-semibold text-white">{info.tipo_documento_label}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.tipo_documento_label}</p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>
                   Empresa
                 </p>
-                <p className="text-sm font-semibold text-white">{info.empresa_nombre}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.empresa_nombre}</p>
               </div>
               <div className="col-span-2">
-                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-3)' }}>
                   Firmante
                 </p>
-                <p className="text-sm font-semibold text-white">{info.trabajador_nombre}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.trabajador_nombre}</p>
               </div>
             </div>
           </div>
@@ -917,7 +911,7 @@ export default function FirmaPublica() {
           <div className="rounded-3xl p-5 glass-card space-y-3">
             <div className="flex items-center gap-2 mb-1">
               <Pen size={14} style={{ color: '#60a5fa' }} />
-              <p className="text-sm font-bold text-white">Tu Firma</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--c-text-1)' }}>Tu Firma</p>
               {firmaDataUrl && (
                 <span
                   className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full"
@@ -933,7 +927,7 @@ export default function FirmaPublica() {
               height={160}
               disabled={firmaLoading}
             />
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            <p className="text-xs" style={{ color: 'var(--c-text-4)' }}>
               Usa el mouse o tu dedo (en móvil) para dibujar tu firma en el recuadro blanco.
             </p>
           </div>
@@ -944,8 +938,8 @@ export default function FirmaPublica() {
             style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}
           >
             <Shield size={14} className="shrink-0 mt-0.5" style={{ color: '#60a5fa' }} />
-            <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              Al presionar <strong style={{ color: 'rgba(255,255,255,0.7)' }}>«Firmar Documento»</strong>, declaras
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--c-text-3)' }}>
+              Al presionar <strong style={{ color: 'var(--c-text-2)' }}>«Firmar Documento»</strong>, declaras
               haber leído y aceptado el contenido del documento indicado. Esta acción
               constituye tu firma electrónica simple conforme a la Ley N° 19.799.
             </p>
@@ -985,14 +979,14 @@ export default function FirmaPublica() {
           </button>
 
           {!firmaDataUrl && (
-            <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            <p className="text-center text-xs" style={{ color: 'var(--c-text-4)' }}>
               Dibuja tu firma para habilitar el botón
             </p>
           )}
 
           {/* ── Rechazo ── */}
           {!rechazandoMode ? (
-            <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.22)' }}>
+            <p className="text-center text-xs" style={{ color: 'var(--c-text-4)' }}>
               ¿No estás de acuerdo con este documento?{' '}
               <button
                 className="underline transition-colors"
@@ -1012,8 +1006,8 @@ export default function FirmaPublica() {
               <div className="flex items-start gap-3">
                 <XCircle size={18} className="shrink-0 mt-0.5" style={{ color: '#f87171' }} />
                 <div>
-                  <p className="text-sm font-bold text-white">¿Rechazar este documento?</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  <p className="text-sm font-bold" style={{ color: 'var(--c-text-1)' }}>¿Rechazar este documento?</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-3)' }}>
                     Tu empleador será notificado para revisarlo y corregirlo si corresponde.
                   </p>
                 </div>
@@ -1027,9 +1021,9 @@ export default function FirmaPublica() {
                 disabled={rechazarLoading}
                 className="w-full rounded-xl px-4 py-3 text-sm resize-none"
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
+                  background: 'var(--c-bg-card-2)',
                   border: '1px solid rgba(239,68,68,0.25)',
-                  color: 'rgba(255,255,255,0.85)',
+                  color: 'var(--c-text-1)',
                   outline: 'none',
                 }}
               />
@@ -1048,9 +1042,9 @@ export default function FirmaPublica() {
                 <button
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
                   style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'rgba(255,255,255,0.55)',
+                    background: 'var(--c-bg-card-2)',
+                    border: '1px solid var(--c-border-input)',
+                    color: 'var(--c-text-2)',
                   }}
                   onClick={() => { setRechazandoMode(false); setRechazarMotivo(''); setRechazarError(''); }}
                   disabled={rechazarLoading}
@@ -1105,8 +1099,8 @@ export default function FirmaPublica() {
             >
               <XCircle size={32} style={{ color: '#f87171' }} />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Documento Rechazado</h2>
-            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Documento Rechazado</h2>
+            <p className="text-sm mb-6" style={{ color: 'var(--c-text-3)' }}>
               Tu rechazo fue registrado. Tu empleador fue notificado para
               revisar el documento y corregirlo si corresponde.
             </p>
@@ -1118,8 +1112,8 @@ export default function FirmaPublica() {
                 <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'rgba(248,113,113,0.6)' }}>
                   Documento rechazado
                 </p>
-                <p className="text-sm font-semibold text-white">{info.tipo_documento_label}</p>
-                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{info.empresa_nombre}</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text-1)' }}>{info.tipo_documento_label}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--c-text-3)' }}>{info.empresa_nombre}</p>
               </div>
             )}
           </div>

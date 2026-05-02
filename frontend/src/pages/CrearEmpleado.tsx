@@ -6,11 +6,11 @@ import { ArrowLeft, Save, AlertCircle, UserPlus } from 'lucide-react';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.75rem',
   padding: '0.875rem 1rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontFamily: 'Poppins, sans-serif',
   fontSize: '0.9375rem',
   outline: 'none',
@@ -55,7 +55,7 @@ export default function CrearEmpleado() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden" style={{ background: '#060f20' }}>
+    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbes */}
       <div className="pointer-events-none absolute inset-0">
@@ -68,7 +68,7 @@ export default function CrearEmpleado() {
         {/* Volver */}
         <button onClick={() => navigate('/dashboard')}
           className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.4)' }}>
+          style={{ color: 'var(--c-text-3)' }}>
           <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
           <span className="group-hover:text-white transition-colors">Volver al Dashboard</span>
         </button>
@@ -80,8 +80,8 @@ export default function CrearEmpleado() {
             <UserPlus size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Nuevo Colaborador</h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Completa los datos básicos del trabajador</p>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>Nuevo Colaborador</h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>Completa los datos básicos del trabajador</p>
           </div>
         </div>
 
@@ -100,13 +100,13 @@ export default function CrearEmpleado() {
 
             {/* Empresa */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                 Empresa
               </label>
               <select name="empresa" value={formData.empresa} onChange={handleChange} required
                 style={{ ...inputStyle, cursor: 'pointer' }}>
                 {empresas.map(emp => (
-                  <option key={emp.id} value={emp.id} style={{ background: '#0c1a35' }}>
+                  <option key={emp.id} value={emp.id} style={{ background: 'var(--c-bg-modal)' }}>
                     {emp.nombre_legal}
                   </option>
                 ))}
@@ -115,13 +115,13 @@ export default function CrearEmpleado() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Nombres
                 </label>
                 <input type="text" name="nombres" required value={formData.nombres} onChange={handleChange} style={inputStyle} />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Apellidos
                 </label>
                 <input type="text" name="apellidos" required value={formData.apellidos} onChange={handleChange} style={inputStyle} />
@@ -130,22 +130,22 @@ export default function CrearEmpleado() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   RUT
                 </label>
                 <input type="text" name="rut" placeholder="12.345.678-9" required value={formData.rut} onChange={handleChange} style={inputStyle} />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                   Fecha de Ingreso
                 </label>
                 <input type="date" name="fecha_ingreso" required value={formData.fecha_ingreso} onChange={handleChange}
-                  style={{ ...inputStyle, colorScheme: 'dark' }} />
+                  style={inputStyle} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--c-text-3)' }}>
                 Cargo
               </label>
               <input type="text" name="cargo" placeholder="Ej: Desarrollador Full Stack" required

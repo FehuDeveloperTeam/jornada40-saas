@@ -13,11 +13,11 @@ type Props = {
 
 const inp: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'var(--c-bg-input)',
+  border: '1px solid var(--c-border-input)',
   borderRadius: '0.625rem',
   padding: '0.625rem 0.75rem',
-  color: '#f8fafc',
+  color: 'var(--c-text-1)',
   fontSize: '0.875rem',
   outline: 'none',
 };
@@ -28,7 +28,7 @@ const lbl: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.07em',
-  color: 'rgba(255,255,255,0.4)',
+  color: 'var(--c-text-3)',
   marginBottom: '0.25rem',
 };
 
@@ -62,21 +62,21 @@ export default function ModalFirmaEmpleador({ empresaId, empresaNombre, firmaAct
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}>
+      style={{ background: 'var(--c-overlay)', backdropFilter: 'blur(6px)' }}>
       <div className="w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col"
-        style={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: 'var(--c-bg-modal)', border: '1px solid var(--c-border)' }}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-7 py-5 flex justify-between items-start"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)' }}>
+          style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-bg-card-2)' }}>
           <div>
-            <h3 className="text-lg font-bold text-white">Firma del Representante Legal</h3>
-            <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{empresaNombre}</p>
+            <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>Firma del Representante Legal</h3>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--c-text-3)' }}>{empresaNombre}</p>
           </div>
-          <button onClick={onClose} style={{ color: 'rgba(255,255,255,0.4)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
+          <button onClick={onClose} style={{ color: 'var(--c-text-3)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -86,10 +86,10 @@ export default function ModalFirmaEmpleador({ empresaId, empresaNombre, firmaAct
           {/* Aviso legal */}
           <div className="flex gap-3 p-4 rounded-xl" style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}>
             <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#60a5fa' }} />
-            <p className="text-xs leading-relaxed" style={{ color: 'rgba(148,163,184,0.9)' }}>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--c-text-2)' }}>
               Esta firma quedará asociada a la empresa y se estampará automáticamente en todos los
               documentos laborales una vez que el trabajador firme. Válida como Firma Electrónica
-              Simple bajo <strong className="text-white">Ley 19.799</strong>.
+              Simple bajo <strong style={{ color: 'var(--c-text-1)' }}>Ley 19.799</strong>.
             </p>
           </div>
 
@@ -143,10 +143,10 @@ export default function ModalFirmaEmpleador({ empresaId, empresaNombre, firmaAct
 
         {/* Footer */}
         <div className="px-7 py-4 flex justify-end gap-3"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>
+          style={{ borderTop: '1px solid var(--c-border)', background: 'var(--c-bg-card-2)' }}>
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-xl font-semibold transition-colors"
-            style={{ color: 'rgba(255,255,255,0.5)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+            style={{ color: 'var(--c-text-2)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             Cancelar
           </button>
@@ -155,7 +155,7 @@ export default function ModalFirmaEmpleador({ empresaId, empresaNombre, firmaAct
             disabled={!puedeGuardar || guardando}
             className="px-6 py-2 text-sm font-bold text-white rounded-xl transition-all"
             style={{
-              background: puedeGuardar && !guardando ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'rgba(255,255,255,0.08)',
+              background: puedeGuardar && !guardando ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'var(--c-border-input)',
               opacity: !puedeGuardar || guardando ? 0.5 : 1,
               cursor: !puedeGuardar || guardando ? 'not-allowed' : 'pointer',
             }}>
