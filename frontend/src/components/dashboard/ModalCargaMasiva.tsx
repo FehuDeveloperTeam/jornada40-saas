@@ -16,20 +16,20 @@ export default function ModalCargaMasiva({
 }: Props) {
   return (
     <div className="fixed inset-0 backdrop-blur-sm flex justify-center items-center p-4 z-[100]"
-      style={{ background: 'rgba(0,0,0,0.7)' }}>
+      style={{ background: 'var(--c-overlay)' }}>
       <div className="rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        style={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: 'var(--c-bg-modal)', border: '1px solid var(--c-border)' }}
         onClick={(e) => e.stopPropagation()}>
 
-        <div className="p-6 flex justify-between items-center" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)' }}>
+        <div className="p-6 flex justify-between items-center" style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-bg-card-2)' }}>
           <div>
-            <h3 className="text-xl font-extrabold text-white">Carga Masiva de Trabajadores</h3>
-            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Sube tu Excel o descarga la plantilla base.</p>
+            <h3 className="text-xl font-extrabold" style={{ color: 'var(--c-text-1)' }}>Carga Masiva de Trabajadores</h3>
+            <p className="text-sm mt-1" style={{ color: 'var(--c-text-3)' }}>Sube tu Excel o descarga la plantilla base.</p>
           </div>
           <button
             onClick={() => { setIsUploadModalOpen(false); setUploadResult(null); }}
             className="p-2 rounded-full transition-colors"
-            style={{ color: 'rgba(255,255,255,0.4)' }}
+            style={{ color: 'var(--c-text-3)' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             <X className="w-6 h-6" />
@@ -41,18 +41,18 @@ export default function ModalCargaMasiva({
           {!uploadResult && (
             <div className="space-y-6">
               <div className="border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center text-center relative transition-colors"
-                style={{ borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}
+                style={{ borderColor: 'var(--c-border-2)', background: 'var(--c-bg-card-2)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(37,99,235,0.6)'; (e.currentTarget as HTMLDivElement).style.background = 'rgba(37,99,235,0.05)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)'; }}>
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--c-border-2)'; (e.currentTarget as HTMLDivElement).style.background = 'var(--c-bg-card-2)'; }}>
                 {isUploading ? (
-                  <div className="w-12 h-12 border-2 rounded-full animate-spin mb-4" style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#2563eb' }} />
+                  <div className="w-12 h-12 border-2 rounded-full animate-spin mb-4" style={{ borderColor: 'var(--c-border-input)', borderTopColor: '#2563eb' }} />
                 ) : (
                   <UploadCloud className="w-16 h-16 mb-4" style={{ color: '#60a5fa' }} />
                 )}
-                <h4 className="text-lg font-bold text-white mb-2">
+                <h4 className="text-lg font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>
                   {isUploading ? 'Procesando archivo...' : 'Sube tu archivo Excel'}
                 </h4>
-                <p className="text-sm mb-6 max-w-md" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <p className="text-sm mb-6 max-w-md" style={{ color: 'var(--c-text-3)' }}>
                   Asegúrate de que las columnas coincidan exactamente con la plantilla oficial.
                 </p>
 
@@ -91,12 +91,12 @@ export default function ModalCargaMasiva({
           {uploadResult && (
             <div className="space-y-6">
 
-              <div className="rounded-2xl p-6 flex items-center gap-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-2xl p-6 flex items-center gap-4" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
                 <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.2)' }}>
                   <CheckCircle2 className="w-6 h-6" style={{ color: '#34d399' }} />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-white font-bold text-lg">Carga Finalizada</h4>
+                  <h4 className="font-bold text-lg" style={{ color: 'var(--c-text-1)' }}>Carga Finalizada</h4>
                   <div className="flex gap-4 mt-1">
                     <p className="text-sm" style={{ color: '#34d399' }}>
                       <span className="font-bold">{uploadResult.agregados}</span> Nuevos
@@ -122,7 +122,7 @@ export default function ModalCargaMasiva({
 
               {(uploadResult?.errores?.length || 0) > 0 && (
                 <div>
-                  <h5 className="font-bold text-white mb-3 flex items-center gap-2">
+                  <h5 className="font-bold mb-3 flex items-center gap-2" style={{ color: 'var(--c-text-1)' }}>
                     <X className="w-5 h-5" style={{ color: '#f87171' }} /> Errores detectados ({uploadResult?.errores?.length})
                   </h5>
                   <div className="rounded-xl max-h-48 overflow-y-auto p-4 space-y-2" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
@@ -138,9 +138,9 @@ export default function ModalCargaMasiva({
               <button
                 onClick={() => { setIsUploadModalOpen(false); setUploadResult(null); }}
                 className="w-full py-4 text-white font-bold rounded-xl transition-colors"
-                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)' }}
+                style={{ background: 'var(--c-border-input)', border: '1px solid var(--c-border-2)' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}>
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-border-input)')}>
                 Aceptar y Cerrar
               </button>
             </div>

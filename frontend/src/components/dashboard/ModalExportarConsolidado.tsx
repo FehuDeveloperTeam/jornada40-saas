@@ -68,18 +68,18 @@ export default function ModalExportarConsolidado({ anioInicial, mesInicial, onCl
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+      style={{ background: 'var(--c-overlay)', backdropFilter: 'blur(6px)' }}
       onClick={onClose}
     >
       <div
         className="w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
-        style={{ background: '#0c1a35', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: 'var(--c-bg-modal)', border: '1px solid var(--c-border)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div
           className="px-7 py-5 flex items-center justify-between shrink-0"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)' }}
+          style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-bg-card-2)' }}
         >
           <div className="flex items-center gap-3">
             <div
@@ -89,17 +89,17 @@ export default function ModalExportarConsolidado({ anioInicial, mesInicial, onCl
               <BarChart3 size={16} style={{ color: '#818cf8' }} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Exportar Consolidado</h3>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <h3 className="text-base font-bold" style={{ color: 'var(--c-text-1)' }}>Exportar Consolidado</h3>
+              <p className="text-xs" style={{ color: 'var(--c-text-3)' }}>
                 Todas las empresas del período
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{ color: 'rgba(255,255,255,0.4)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
+            style={{ color: 'var(--c-text-3)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-1)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
           >
             <X size={20} />
           </button>
@@ -107,10 +107,10 @@ export default function ModalExportarConsolidado({ anioInicial, mesInicial, onCl
 
         {/* Body */}
         <div className="p-7 space-y-5">
-          <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-2)' }}>
             Genera el reporte con KPIs, desglose por empresa y evolución mensual.
             Selecciona{' '}
-            <strong style={{ color: 'rgba(255,255,255,0.7)' }}>Año completo</strong>{' '}
+            <strong style={{ color: 'var(--c-text-1)' }}>Año completo</strong>{' '}
             para incluir los 12 meses.
           </p>
 
@@ -118,34 +118,34 @@ export default function ModalExportarConsolidado({ anioInicial, mesInicial, onCl
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold uppercase tracking-wider block mb-2"
-                style={{ color: 'rgba(255,255,255,0.35)' }}>
+                style={{ color: 'var(--c-text-3)' }}>
                 Mes
               </label>
               <select
                 value={mes}
                 onChange={e => { setMes(Number(e.target.value)); onChangePeriodo(); }}
-                className="w-full rounded-xl px-3 py-2.5 text-sm font-medium text-white appearance-none"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', outline: 'none' }}
+                className="w-full rounded-xl px-3 py-2.5 text-sm font-medium appearance-none"
+                style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)', color: 'var(--c-text-1)', outline: 'none' }}
               >
-                <option value={0} style={{ background: '#0c1a35' }}>Año completo</option>
+                <option value={0} style={{ background: 'var(--c-bg-modal)' }}>Año completo</option>
                 {MESES.map((nombre, i) => (
-                  <option key={i + 1} value={i + 1} style={{ background: '#0c1a35' }}>{nombre}</option>
+                  <option key={i + 1} value={i + 1} style={{ background: 'var(--c-bg-modal)' }}>{nombre}</option>
                 ))}
               </select>
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-wider block mb-2"
-                style={{ color: 'rgba(255,255,255,0.35)' }}>
+                style={{ color: 'var(--c-text-3)' }}>
                 Año
               </label>
               <select
                 value={anio}
                 onChange={e => { setAnio(Number(e.target.value)); onChangePeriodo(); }}
-                className="w-full rounded-xl px-3 py-2.5 text-sm font-medium text-white appearance-none"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', outline: 'none' }}
+                className="w-full rounded-xl px-3 py-2.5 text-sm font-medium appearance-none"
+                style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)', color: 'var(--c-text-1)', outline: 'none' }}
               >
                 {aniosDisponibles.map(a => (
-                  <option key={a} value={a} style={{ background: '#0c1a35' }}>{a}</option>
+                  <option key={a} value={a} style={{ background: 'var(--c-bg-modal)' }}>{a}</option>
                 ))}
               </select>
             </div>
@@ -159,7 +159,7 @@ export default function ModalExportarConsolidado({ anioInicial, mesInicial, onCl
             <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#818cf8' }}>
               Contenido del reporte
             </p>
-            <ul className="text-xs space-y-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <ul className="text-xs space-y-1" style={{ color: 'var(--c-text-2)' }}>
               <li>· KPIs: masa salarial, trabajadores, costo empleador, líquido</li>
               <li>· Desglose por empresa con % del total</li>
               <li>· Evolución mensual de los 12 meses del año</li>
@@ -228,7 +228,7 @@ export default function ModalExportarConsolidado({ anioInicial, mesInicial, onCl
             </button>
           </div>
 
-          <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          <p className="text-center text-xs" style={{ color: 'var(--c-text-4)' }}>
             Excel: 2 hojas (Resumen + Evolución) · PDF: carta horizontal
           </p>
         </div>
