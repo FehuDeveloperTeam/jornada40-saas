@@ -289,16 +289,16 @@ export default function Reportes() {
                       <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
                   <XAxis
                     dataKey="mes_nombre"
-                    tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }}
+                    tick={{ fill: 'var(--c-text-3)', fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
                     tickFormatter={v => clpCompacto(v as number)}
-                    tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }}
+                    tick={{ fill: 'var(--c-text-3)', fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                     width={60}

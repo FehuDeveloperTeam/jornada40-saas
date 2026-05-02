@@ -261,24 +261,23 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
                 <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
               </linearGradient>
             </defs>
-            {/* Recharts SVG attributes (stroke/fill/tick) deferred to Fase 8 */}
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
             <XAxis
               dataKey="periodo"
-              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }}
+              tick={{ fill: 'var(--c-text-3)', fontSize: 10 }}
               tickLine={false}
-              axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+              axisLine={{ stroke: 'var(--c-border)' }}
               interval="preserveStartEnd"
             />
             <YAxis
               tickFormatter={clpShort}
-              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }}
+              tick={{ fill: 'var(--c-text-3)', fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               width={52}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', paddingTop: 8 }} />
+            <Legend wrapperStyle={{ fontSize: 11, color: 'var(--c-text-3)', paddingTop: 8 }} />
 
             {stats?.contrato_sueldo_base != null && (
               <ReferenceLine

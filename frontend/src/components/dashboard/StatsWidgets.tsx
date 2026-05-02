@@ -225,7 +225,7 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
                   innerRadius={32} outerRadius={46}
                   dataKey="value" strokeWidth={0}
                 >
-                  <Cell fill="rgba(255,255,255,0.06)" />
+                  <Cell fill="var(--c-bg-input)" />
                 </Pie>
                 <Pie
                   data={[
@@ -270,10 +270,10 @@ export default function StatsWidgets({ stats, flippedWidgets, toggleWidget }: Pr
                 <XAxis type="number" hide />
                 <YAxis
                   type="category" dataKey="name" axisLine={false} tickLine={false} width={72}
-                  tick={{ fontSize: 8, fill: 'rgba(255,255,255,0.4)' }}
+                  tick={{ fontSize: 8, fill: 'var(--c-text-3)' }}
                 />
                 <Tooltip
-                  cursor={{ fill: 'rgba(255,255,255,0.03)' }} contentStyle={tooltip}
+                  cursor={{ fill: 'var(--c-bg-card-2)' }} contentStyle={tooltip}
                   formatter={(v) => `$${Number(v || 0).toLocaleString('es-CL')}`}
                 />
                 <Bar dataKey="valor" fill="#10b981" radius={[0,4,4,0]} maxBarSize={11} />
