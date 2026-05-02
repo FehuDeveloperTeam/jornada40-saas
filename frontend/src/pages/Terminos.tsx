@@ -13,7 +13,7 @@ export default function Terminos() {
   };
 
   return (
-    <div className="min-h-screen py-12 px-4" style={{ background: '#060f20' }}>
+    <div className="min-h-screen py-12 px-4" style={{ background: 'var(--c-bg-app)' }}>
 
       {/* Orbe sutil */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -26,7 +26,7 @@ export default function Terminos() {
         {/* Botón volver */}
         <button onClick={handleVolver}
           className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors group"
-          style={{ color: 'rgba(255,255,255,0.4)' }}>
+          style={{ color: 'var(--c-text-3)' }}>
           <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
           <span className="group-hover:text-white transition-colors">Volver</span>
         </button>
@@ -39,11 +39,11 @@ export default function Terminos() {
               style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 6px 24px rgba(37,99,235,0.35)' }}>
               <span className="text-white text-xl font-black">J</span>
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Términos y Condiciones de Uso</h1>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Última actualización: Marzo de 2026</p>
+            <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Términos y Condiciones de Uso</h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>Última actualización: Marzo de 2026</p>
           </div>
 
-          <div className="space-y-8 text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          <div className="space-y-8 text-sm leading-relaxed" style={{ color: 'var(--c-text-2)' }}>
 
             {[
               {
@@ -85,8 +85,8 @@ export default function Terminos() {
               },
             ].map((seccion) => (
               <section key={seccion.titulo}>
-                <h2 className="text-base font-bold text-white mb-3"
-                  style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                <h2 className="text-base font-bold mb-3"
+                  style={{ borderBottom: '1px solid var(--c-border)', paddingBottom: '0.5rem', color: 'var(--c-text-1)' }}>
                   {seccion.titulo}
                 </h2>
                 {seccion.contenido && <p>{seccion.contenido}</p>}

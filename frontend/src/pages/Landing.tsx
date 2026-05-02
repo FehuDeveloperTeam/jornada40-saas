@@ -80,20 +80,22 @@ const STATS = [
 
 export default function Landing() {
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#060f20', color: '#f8fafc' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--c-bg-app)', color: 'var(--c-text-1)' }}>
 
       {/* NAVBAR */}
-      <nav className="sticky top-0 z-50" style={{ background: 'rgba(6,15,32,0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <nav className="sticky top-0 z-50" style={{ background: 'var(--c-bg-navbar)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--c-border)' }}>
         <div className="flex justify-between items-center py-4 px-6 max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-2.5">
             <img src="/favicon.svg" alt="Jornada40" className="w-7 h-7 rounded-lg" />
-            <span className="text-xl font-bold tracking-tight text-white">Jornada<span style={{ color: '#60a5fa' }}>40</span></span>
+            <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--c-text-1)' }}>
+              Jornada<span style={{ color: '#60a5fa' }}>40</span>
+            </span>
           </div>
           <div className="flex gap-3 items-center">
             <Link to="/login" className="px-4 py-2 text-sm font-semibold transition-colors"
-              style={{ color: 'rgba(255,255,255,0.5)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}>
+              style={{ color: 'var(--c-text-2)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--c-text-1)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--c-text-2)')}>
               Iniciar Sesión
             </Link>
             <Link to="/register"
@@ -117,7 +119,7 @@ export default function Landing() {
             style={{ background: 'radial-gradient(circle, #10b981 0%, transparent 70%)' }} />
           {/* Grid sutil */}
           <div className="absolute inset-0 opacity-5"
-            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+            style={{ backgroundImage: 'linear-gradient(var(--c-grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--c-grid-line) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
         </div>
 
         <div className="max-w-4xl mx-auto relative z-10">
@@ -126,7 +128,8 @@ export default function Landing() {
             Plataforma RRHH para Pymes Chilenas
           </span>
 
-          <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight leading-tight mb-6 animate-fade-up delay-100">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tight leading-tight mb-6 animate-fade-up delay-100"
+            style={{ color: 'var(--c-text-1)' }}>
             Gestión laboral completa<br />
             <span style={{ background: 'linear-gradient(135deg, #60a5fa, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               para cumplir la Ley de 40 Horas
@@ -134,7 +137,7 @@ export default function Landing() {
           </h1>
 
           <p className="text-lg max-w-2xl mx-auto leading-relaxed mb-10 animate-fade-up delay-200"
-            style={{ color: 'rgba(255,255,255,0.5)' }}>
+            style={{ color: 'var(--c-text-2)' }}>
             Crea contratos, liquida sueldos y genera documentos legales para todos tus trabajadores desde un solo lugar. Simple, rápido y 100% en línea.
           </p>
 
@@ -146,19 +149,19 @@ export default function Landing() {
             </Link>
             <a href="#como-funciona"
               className="inline-flex items-center gap-2 px-8 py-4 text-base font-bold rounded-xl transition-all"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
+              style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)', color: 'var(--c-text-2)' }}>
               ¿Cómo funciona?
             </a>
           </div>
 
-          <p className="mt-6 text-sm animate-fade-up delay-400" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <p className="mt-6 text-sm animate-fade-up delay-400" style={{ color: 'var(--c-text-4)' }}>
             Plan Semilla: 1 empresa, hasta 3 trabajadores — gratis de por vida.
           </p>
         </div>
       </section>
 
       {/* STATS */}
-      <section className="py-12 px-6" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <section className="py-12 px-6" style={{ borderTop: '1px solid var(--c-border)', borderBottom: '1px solid var(--c-border)' }}>
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
           {STATS.map((stat) => (
             <div key={stat.label} className="text-center">
@@ -166,8 +169,8 @@ export default function Landing() {
                 style={{ background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(37,99,235,0.2)' }}>
                 <stat.icon size={18} style={{ color: '#60a5fa' }} />
               </div>
-              <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
-              <div className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.4)' }}>{stat.label}</div>
+              <div className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>{stat.value}</div>
+              <div className="text-xs font-medium" style={{ color: 'var(--c-text-3)' }}>{stat.label}</div>
             </div>
           ))}
         </div>
@@ -177,10 +180,10 @@ export default function Landing() {
       <section className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-white mb-3">
+            <h2 className="text-3xl font-bold mb-3" style={{ color: 'var(--c-text-1)' }}>
               Todo lo que necesitas para gestionar tu personal
             </h2>
-            <p className="text-lg" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="text-lg" style={{ color: 'var(--c-text-3)' }}>
               Un sistema diseñado para que cumplir la ley no sea un problema.
             </p>
           </div>
@@ -191,8 +194,8 @@ export default function Landing() {
                   style={{ background: `${f.color}20`, border: `1px solid ${f.color}30` }}>
                   <f.icon size={20} style={{ color: f.color }} />
                 </div>
-                <h3 className="font-bold text-base text-white">{f.titulo}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>{f.descripcion}</p>
+                <h3 className="font-bold text-base" style={{ color: 'var(--c-text-1)' }}>{f.titulo}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-3)' }}>{f.descripcion}</p>
               </div>
             ))}
           </div>
@@ -200,11 +203,11 @@ export default function Landing() {
       </section>
 
       {/* CÓMO FUNCIONA */}
-      <section id="como-funciona" className="py-24 px-6" style={{ background: 'rgba(255,255,255,0.02)' }}>
+      <section id="como-funciona" className="py-24 px-6" style={{ background: 'var(--c-bg-card-2)' }}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-white mb-3">¿Cómo funciona?</h2>
-            <p className="text-lg" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <h2 className="text-3xl font-bold mb-3" style={{ color: 'var(--c-text-1)' }}>¿Cómo funciona?</h2>
+            <p className="text-lg" style={{ color: 'var(--c-text-3)' }}>
               En tres pasos tienes tu empresa lista para operar.
             </p>
           </div>
@@ -212,13 +215,13 @@ export default function Landing() {
             {PASOS.map((paso, i) => (
               <div key={paso.numero} className="rounded-2xl p-7 flex flex-col gap-4 glass-card relative overflow-hidden">
                 <div className="absolute top-4 right-4 text-6xl font-black leading-none select-none"
-                  style={{ color: 'rgba(255,255,255,0.04)' }}>{paso.numero}</div>
+                  style={{ color: 'var(--c-bg-card-2)' }}>{paso.numero}</div>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white relative z-10"
                   style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
                   {i + 1}
                 </div>
-                <h3 className="font-bold text-base text-white leading-snug">{paso.titulo}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>{paso.descripcion}</p>
+                <h3 className="font-bold text-base leading-snug" style={{ color: 'var(--c-text-1)' }}>{paso.titulo}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-3)' }}>{paso.descripcion}</p>
               </div>
             ))}
           </div>
@@ -229,10 +232,10 @@ export default function Landing() {
       <section className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-white mb-3">
+            <h2 className="text-3xl font-bold mb-3" style={{ color: 'var(--c-text-1)' }}>
               Planes para cada etapa de tu empresa
             </h2>
-            <p className="text-lg" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="text-lg" style={{ color: 'var(--c-text-3)' }}>
               Comienza gratis y escala cuando lo necesites.
             </p>
           </div>
@@ -240,8 +243,8 @@ export default function Landing() {
             {PLANES_PREVIEW.map((plan) => (
               <div key={plan.nombre} className="relative rounded-3xl p-7 flex flex-col transition-transform hover:-translate-y-1"
                 style={{
-                  background: plan.destacado ? 'rgba(37,99,235,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: plan.destacado ? '1px solid rgba(37,99,235,0.45)' : '1px solid rgba(255,255,255,0.08)',
+                  background: plan.destacado ? 'rgba(37,99,235,0.12)' : 'var(--c-bg-card-2)',
+                  border: plan.destacado ? '1px solid rgba(37,99,235,0.45)' : '1px solid var(--c-border)',
                   backdropFilter: 'blur(20px)',
                 }}>
 
@@ -254,23 +257,23 @@ export default function Landing() {
                   </div>
                 )}
 
-                <h3 className="text-xl font-bold text-white mt-2 mb-1">{plan.nombre}</h3>
-                <p className="text-sm mb-5" style={{ color: 'rgba(255,255,255,0.45)' }}>{plan.descripcion}</p>
+                <h3 className="text-xl font-bold mt-2 mb-1" style={{ color: 'var(--c-text-1)' }}>{plan.nombre}</h3>
+                <p className="text-sm mb-5" style={{ color: 'var(--c-text-3)' }}>{plan.descripcion}</p>
 
                 <div className="mb-6">
                   {plan.precio === 0 ? (
-                    <span className="text-4xl font-bold text-white">Gratis</span>
+                    <span className="text-4xl font-bold" style={{ color: 'var(--c-text-1)' }}>Gratis</span>
                   ) : (
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold text-white">${plan.precio.toLocaleString('es-CL')}</span>
-                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>/mes</span>
+                      <span className="text-4xl font-bold" style={{ color: 'var(--c-text-1)' }}>${plan.precio.toLocaleString('es-CL')}</span>
+                      <span className="text-sm" style={{ color: 'var(--c-text-3)' }}>/mes</span>
                     </div>
                   )}
                 </div>
 
                 <ul className="space-y-2.5 flex-1 mb-7">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2.5 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                    <li key={f} className="flex items-center gap-2.5 text-sm" style={{ color: 'var(--c-text-2)' }}>
                       <Check size={14} className="text-blue-400 shrink-0" />
                       {f}
                     </li>
@@ -289,14 +292,14 @@ export default function Landing() {
       </section>
 
       {/* CTA FINAL */}
-      <section className="py-24 px-6 relative overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)' }}>
+      <section className="py-24 px-6 relative overflow-hidden" style={{ background: 'var(--c-bg-card-2)' }}>
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full opacity-15"
             style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
         </div>
         <div className="max-w-2xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl font-bold text-white mb-4">¿Listo para poner tu empresa al día?</h2>
-          <p className="text-lg mb-10" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <h2 className="text-4xl font-bold mb-4" style={{ color: 'var(--c-text-1)' }}>¿Listo para poner tu empresa al día?</h2>
+          <p className="text-lg mb-10" style={{ color: 'var(--c-text-3)' }}>
             Únete a las empresas que ya gestionan su personal con Jornada40.
           </p>
           <Link to="/register"
@@ -308,13 +311,13 @@ export default function Landing() {
       </section>
 
       {/* FOOTER */}
-      <footer className="py-8 px-6" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <footer className="py-8 px-6" style={{ borderTop: '1px solid var(--c-border)' }}>
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4 text-sm">
-          <span className="font-bold text-white text-base">
+          <span className="font-bold text-base" style={{ color: 'var(--c-text-1)' }}>
             Jornada<span style={{ color: '#60a5fa' }}>40</span>
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.3)' }}>© 2025 Jornada40. Todos los derechos reservados.</span>
-          <Link to="/terminos" className="transition-colors hover:text-white" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <span style={{ color: 'var(--c-text-3)' }}>© 2025 Jornada40. Todos los derechos reservados.</span>
+          <Link to="/terminos" className="transition-colors hover:text-white" style={{ color: 'var(--c-text-3)' }}>
             Términos y Condiciones
           </Link>
         </div>
