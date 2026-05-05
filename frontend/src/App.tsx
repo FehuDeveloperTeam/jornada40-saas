@@ -37,8 +37,8 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   // Mientras le preguntamos al backend, mostramos una pantalla de carga
   if (isAuthenticated === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-4 border-black border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
+        <div className="w-12 h-12 rounded-full animate-spin" style={{ border: '3px solid var(--c-border-2)', borderTopColor: '#2563eb' }} />
       </div>
     );
   }

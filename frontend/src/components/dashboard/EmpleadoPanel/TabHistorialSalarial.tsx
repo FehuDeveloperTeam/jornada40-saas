@@ -86,9 +86,11 @@ export default function TabHistorialSalarial({ liquidaciones, empleadoId }: Prop
 
   useEffect(() => {
     if (!empleadoId) return;
-    client.get(`/empleados/${empleadoId}/historial_salarial/`)
+    const controller = new AbortController();
+    client.get(`/empleados/${empleadoId}/historial_salarial/`, { signal: controller.signal })
       .then(res => setStats(res.data))
       .catch(() => {});
+    return () => controller.abort();
   }, [empleadoId]);
 
   if (!liquidaciones.length) {
