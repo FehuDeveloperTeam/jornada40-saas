@@ -68,7 +68,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'contrato_activo',
             'tiene_rechazos_pendientes',
         ]
-        read_only_fields = ('id', 'ficha_numero', 'activo', 'creado_en', 'contrato_activo',
+        read_only_fields = ('id', 'ficha_numero', 'creado_en', 'contrato_activo',
                             'tiene_rechazos_pendientes')
 
 
