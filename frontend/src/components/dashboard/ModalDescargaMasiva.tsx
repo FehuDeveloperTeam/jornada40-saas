@@ -161,7 +161,7 @@ export default function ModalDescargaMasiva({
               {paso === 1 ? 'Paso 1 de 2 — Selecciona los trabajadores' : 'Paso 2 de 2 — Elige qué documentos incluir'}
             </p>
           </div>
-          <button onClick={() => setIsModalMasivoOpen(false)} className="p-1 rounded-lg transition-colors" style={{ color:'var(--c-text-3)' }} onMouseEnter={e=>(e.currentTarget.style.background='rgba(255,255,255,0.08)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
+          <button onClick={() => setIsModalMasivoOpen(false)} className="p-1 rounded-lg transition-colors" style={{ color:'var(--c-text-3)' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--c-bg-hover-2)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
             <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
@@ -207,7 +207,7 @@ export default function ModalDescargaMasiva({
                 {selectedEmpleadosIds.length} seleccionado{selectedEmpleadosIds.length !== 1 ? 's' : ''}
               </span>
               <div className="flex gap-3">
-                <button onClick={() => setIsModalMasivoOpen(false)} className="px-4 py-2 text-sm rounded-lg transition-colors" style={{ color:'var(--c-text-2)' }} onMouseEnter={e=>(e.currentTarget.style.background='rgba(255,255,255,0.08)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
+                <button onClick={() => setIsModalMasivoOpen(false)} className="px-4 py-2 text-sm rounded-lg transition-colors" style={{ color:'var(--c-text-2)' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--c-bg-hover-2)')} onMouseLeave={e=>(e.currentTarget.style.background='transparent')}>
                   Cancelar
                 </button>
                 <button onClick={irAlPaso2} disabled={selectedEmpleadosIds.length === 0 || loadingDocs} className="px-5 py-2 text-sm text-white rounded-lg font-semibold flex items-center gap-2 transition-colors" style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)', opacity:(selectedEmpleadosIds.length===0||loadingDocs)?0.5:1 }}>

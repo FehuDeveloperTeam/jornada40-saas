@@ -7,28 +7,27 @@ interface Props {
 
 export default function ThemeToggle({ className = '' }: Props) {
   const { theme, toggleTheme } = useTheme();
-  const isDark = theme === 'dark';
 
   return (
     <button
       onClick={toggleTheme}
-      title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
       className={`relative p-2 rounded-xl transition-all ${className}`}
       style={{
-        background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-        border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-        color: isDark ? 'rgba(255,255,255,0.6)' : '#64748b',
+        background: 'var(--c-bg-input)',
+        border: '1px solid var(--c-border-2)',
+        color: 'var(--c-text-2)',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-        e.currentTarget.style.color = isDark ? '#fff' : '#0f172a';
+        e.currentTarget.style.background = 'var(--c-bg-input-focus)';
+        e.currentTarget.style.color = 'var(--c-text-1)';
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-        e.currentTarget.style.color = isDark ? 'rgba(255,255,255,0.6)' : '#64748b';
+        e.currentTarget.style.background = 'var(--c-bg-input)';
+        e.currentTarget.style.color = 'var(--c-text-2)';
       }}
     >
-      {isDark ? <Sun size={16} /> : <Moon size={16} />}
+      {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   );
 }

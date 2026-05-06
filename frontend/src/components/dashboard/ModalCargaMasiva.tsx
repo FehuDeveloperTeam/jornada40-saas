@@ -30,7 +30,7 @@ export default function ModalCargaMasiva({
             onClick={() => { setIsUploadModalOpen(false); setUploadResult(null); }}
             className="p-2 rounded-full transition-colors"
             style={{ color: 'var(--c-text-3)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-hover-2)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             <X className="w-6 h-6" />
           </button>
@@ -139,7 +139,7 @@ export default function ModalCargaMasiva({
                 onClick={() => { setIsUploadModalOpen(false); setUploadResult(null); }}
                 className="w-full py-4 text-white font-bold rounded-xl transition-colors"
                 style={{ background: 'var(--c-border-input)', border: '1px solid var(--c-border-2)' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-hover-3)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'var(--c-border-input)')}>
                 Aceptar y Cerrar
               </button>
