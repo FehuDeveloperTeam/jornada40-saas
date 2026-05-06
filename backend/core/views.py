@@ -33,6 +33,10 @@ import math
 import random
 import string
 from num2words import num2words
+import logging
+from html import escape as _esc
+
+logger = logging.getLogger(__name__)
 import pandas as pd
 import traceback
 import urllib.parse
@@ -705,6 +709,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             if hasattr(archivo_excel, 'size') and archivo_excel.size > MAX_EXCEL_MB * 1024 * 1024:
                 return Response({'error': f'El archivo no puede superar {MAX_EXCEL_MB} MB.'}, status=400)
 
+            MIME_EXCEL = {
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel',
+            }
+            if hasattr(archivo_excel, 'content_type') and archivo_excel.content_type not in MIME_EXCEL:
+                return Response({'error': 'Solo se aceptan archivos Excel (.xlsx o .xls).'}, status=400)
+
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             cliente = getattr(request.user, 'perfil_cliente', None)
             limite_trabajadores = cliente.plan.limite_trabajadores if (cliente and cliente.plan) else 1000
@@ -1223,8 +1234,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             return response
 
         except Exception:
-            import traceback
-            print(traceback.format_exc())
+            logger.exception('Error al generar ZIP de expedientes')
             return Response({'error': 'Error al generar el ZIP. Inténtalo de nuevo.'}, status=500)
         
 
@@ -1774,10 +1784,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return response
 
         except Exception as e:
-            import traceback
-            print("=== ERROR GENERANDO PDF ===")
-            print(traceback.format_exc())
-            print("===========================")
+            logger.exception('Error al generar PDF de liquidación')
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'], url_path='exportar_previred')
@@ -2734,6 +2741,18 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
                 (finiquito.sueldo_base / 30) * finiquito.dias_trabajados_ultimo_mes
             )
 
+            # Escapar campos de texto para prevenir inyección HTML/CSS en el PDF
+            _ciudad      = _esc(ciudad)
+            _causal      = _esc(causal_label)
+            _nom_legal   = _esc(empresa.nombre_legal or '')
+            _rut_emp     = _esc(empresa.rut or '')
+            _trab_nombre = _esc(f"{empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''}")
+            _trab_firma  = _esc(f"{empleado.nombres} {empleado.apellido_paterno}")
+            _rut_trab    = _esc(empleado.rut or '')
+            _cargo       = _esc(empleado.cargo or '—')
+            _depto       = _esc(empleado.departamento or '—')
+            _modalidad   = _esc(finiquito.get_modalidad_display())
+
             html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2763,16 +2782,16 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
 <body>
 
 <h1>Finiquito de Contrato de Trabajo</h1>
-<h2>{ciudad}, {_fmt(finiquito.fecha_emision)}</h2>
+<h2>{_ciudad}, {_fmt(finiquito.fecha_emision)}</h2>
 
 <div class="seccion">
   <div class="seccion-titulo">Partes</div>
-  <p><strong>Empleador:</strong> {empresa.nombre_legal} — RUT {empresa.rut}</p>
-  <p><strong>Trabajador:</strong> {empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''} — RUT {empleado.rut}</p>
-  <p><strong>Cargo:</strong> {empleado.cargo or '—'} &nbsp;|&nbsp; <strong>Departamento:</strong> {empleado.departamento or '—'}</p>
+  <p><strong>Empleador:</strong> {_nom_legal} — RUT {_rut_emp}</p>
+  <p><strong>Trabajador:</strong> {_trab_nombre} — RUT {_rut_trab}</p>
+  <p><strong>Cargo:</strong> {_cargo} &nbsp;|&nbsp; <strong>Departamento:</strong> {_depto}</p>
   <p><strong>Fecha de ingreso:</strong> {_fmt(empleado.fecha_ingreso)} &nbsp;|&nbsp;
      <strong>Fecha de término:</strong> {_fmt(finiquito.fecha_termino)}</p>
-  <p><strong>Causal de término:</strong> {causal_label}</p>
+  <p><strong>Causal de término:</strong> {_causal}</p>
 </div>
 
 <div class="seccion">
@@ -2802,18 +2821,18 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
   <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
   y nada más tiene que reclamar al empleador por concepto alguno derivado de la relación laboral
   que los vinculó, quedando ambas partes en paz y a finiquito.</p>
-  <p>Modalidad de suscripción del finiquito: <strong>{finiquito.get_modalidad_display()}</strong></p>
+  <p>Modalidad de suscripción del finiquito: <strong>{_modalidad}</strong></p>
 </div>
 
 <div class="firma-bloque">
   <div class="firma-item">
     <div class="firma-linea">
-      <strong>{empresa.nombre_legal}</strong><br/>RUT {empresa.rut}<br/>Empleador
+      <strong>{_nom_legal}</strong><br/>RUT {_rut_emp}<br/>Empleador
     </div>
   </div>
   <div class="firma-item">
     <div class="firma-linea">
-      <strong>{empleado.nombres} {empleado.apellido_paterno}</strong><br/>RUT {empleado.rut}<br/>Trabajador
+      <strong>{_trab_firma}</strong><br/>RUT {_rut_trab}<br/>Trabajador
     </div>
   </div>
 </div>
@@ -3120,6 +3139,16 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             ciudad_fin = (getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
             causal_label = fin.get_causal_articulo_display() if fin.causal_articulo else '—'
             sueldo_prop = math.floor((fin.sueldo_base / 30) * fin.dias_trabajados_ultimo_mes)
+            _f_ciudad     = _esc(ciudad_fin)
+            _f_causal     = _esc(causal_label)
+            _f_nom_legal  = _esc(empresa.nombre_legal or '')
+            _f_rut_emp    = _esc(empresa.rut or '')
+            _f_trab_nomb  = _esc(f"{empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''}")
+            _f_trab_firma = _esc(f"{empleado.nombres} {empleado.apellido_paterno}")
+            _f_rut_trab   = _esc(empleado.rut or '')
+            _f_cargo      = _esc(empleado.cargo or '—')
+            _f_depto      = _esc(empleado.departamento or '—')
+            _f_modalidad  = _esc(fin.get_modalidad_display())
             html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3146,15 +3175,15 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 </head>
 <body>
 <h1>Finiquito de Contrato de Trabajo</h1>
-<h2>{ciudad_fin}, {_fmt_fin(fin.fecha_emision)}</h2>
+<h2>{_f_ciudad}, {_fmt_fin(fin.fecha_emision)}</h2>
 <div class="seccion">
   <div class="seccion-titulo">Partes</div>
-  <p><strong>Empleador:</strong> {empresa.nombre_legal} — RUT {empresa.rut}</p>
-  <p><strong>Trabajador:</strong> {empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''} — RUT {empleado.rut}</p>
-  <p><strong>Cargo:</strong> {empleado.cargo or '—'} &nbsp;|&nbsp; <strong>Departamento:</strong> {empleado.departamento or '—'}</p>
+  <p><strong>Empleador:</strong> {_f_nom_legal} — RUT {_f_rut_emp}</p>
+  <p><strong>Trabajador:</strong> {_f_trab_nomb} — RUT {_f_rut_trab}</p>
+  <p><strong>Cargo:</strong> {_f_cargo} &nbsp;|&nbsp; <strong>Departamento:</strong> {_f_depto}</p>
   <p><strong>Fecha de ingreso:</strong> {_fmt_fin(empleado.fecha_ingreso)} &nbsp;|&nbsp;
      <strong>Fecha de término:</strong> {_fmt_fin(fin.fecha_termino)}</p>
-  <p><strong>Causal de término:</strong> {causal_label}</p>
+  <p><strong>Causal de término:</strong> {_f_causal}</p>
 </div>
 <div class="seccion">
   <div class="seccion-titulo">Liquidación Final</div>
@@ -3174,14 +3203,14 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
   <div class="seccion-titulo">Declaración del Trabajador</div>
   <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
   y nada más tiene que reclamar al empleador, quedando ambas partes en paz y a finiquito.</p>
-  <p>Modalidad de suscripción: <strong>{fin.get_modalidad_display()}</strong></p>
+  <p>Modalidad de suscripción: <strong>{_f_modalidad}</strong></p>
 </div>
 <div class="firma-bloque">
   <div class="firma-item">
-    <div class="firma-linea"><strong>{empresa.nombre_legal}</strong><br/>RUT {empresa.rut}<br/>Empleador</div>
+    <div class="firma-linea"><strong>{_f_nom_legal}</strong><br/>RUT {_f_rut_emp}<br/>Empleador</div>
   </div>
   <div class="firma-item">
-    <div class="firma-linea"><strong>{empleado.nombres} {empleado.apellido_paterno}</strong><br/>RUT {empleado.rut}<br/>Trabajador</div>
+    <div class="firma-linea"><strong>{_f_trab_firma}</strong><br/>RUT {_f_rut_trab}<br/>Trabajador</div>
   </div>
 </div>
 <p class="aviso">Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de Chile.
@@ -3415,7 +3444,7 @@ def recuperar_password_por_rut(request):
 
     # 2. VERIFICAMOS SI EL CLIENTE TIENE CORREO
     if not cliente.correo:
-        return Response({'error': 'Este cliente no tiene un correo configurado en el sistema.'}, status=400)
+        return Response({'error': 'Si el RUT es válido, enviaremos un correo.'}, status=404)
 
     try:
         # 3. BUSCAMOS AL USUARIO DE DJANGO ASOCIADO A ESE RUT
