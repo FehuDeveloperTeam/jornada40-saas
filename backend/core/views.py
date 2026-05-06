@@ -963,7 +963,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato, 'es_plan_semilla': es_plan_semilla}
+            context = _ctx_contrato(contrato, es_plan_semilla)
             html_string = render_to_string('anexo_40h.html', context)
             pdf_bytes = self._html_a_pdf(html_string, f'Anexo_40h_{empleado.rut}')
             contrato.archivo_anexo_40h.save(f"Anexo_40h_{empleado.rut}.pdf", ContentFile(pdf_bytes))
@@ -986,10 +986,20 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
             except Exception:
                 liquido_palabras = str(liquidacion.sueldo_liquido)
-
+            contrato_liq = Contrato.objects.filter(empleado=empleado).first()
+            meses_liq = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+            det_no_imp = liquidacion.detalle_haberes_no_imponibles
+            if not isinstance(det_no_imp, list): det_no_imp = []
+            det_otros = liquidacion.detalle_otros_descuentos
+            if not isinstance(det_otros, list): det_otros = []
             context = {
                 'empleado': empleado, 'empresa': empresa,
-                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
+                'liquidacion': liquidacion, 'contrato': contrato_liq,
+                'mes_nombre': meses_liq[liquidacion.mes - 1].upper(),
+                'liquido_palabras': liquido_palabras,
+                'total_no_imponible': sum(int(i.get('valor', 0)) for i in det_no_imp if isinstance(i, dict)),
+                'total_ley': (liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0) + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0),
+                'total_otros_dsctos': (liquidacion.anticipo_quincena or 0) + sum(int(i.get('valor', 0)) for i in det_otros if isinstance(i, dict)),
                 'es_plan_semilla': es_plan_semilla,
             }
             html_string = render_to_string('liquidacion.html', context)
@@ -1018,10 +1028,20 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 liquido_palabras = num2words(liquidacion.sueldo_liquido, lang='es')
             except Exception:
                 liquido_palabras = str(liquidacion.sueldo_liquido)
-
+            contrato_liq = Contrato.objects.filter(empleado=empleado).first()
+            meses_liq = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+            det_no_imp = liquidacion.detalle_haberes_no_imponibles
+            if not isinstance(det_no_imp, list): det_no_imp = []
+            det_otros = liquidacion.detalle_otros_descuentos
+            if not isinstance(det_otros, list): det_otros = []
             context = {
                 'empleado': empleado, 'empresa': empresa,
-                'liquidacion': liquidacion, 'liquido_palabras': liquido_palabras,
+                'liquidacion': liquidacion, 'contrato': contrato_liq,
+                'mes_nombre': meses_liq[liquidacion.mes - 1].upper(),
+                'liquido_palabras': liquido_palabras,
+                'total_no_imponible': sum(int(i.get('valor', 0)) for i in det_no_imp if isinstance(i, dict)),
+                'total_ley': (liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0) + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0),
+                'total_otros_dsctos': (liquidacion.anticipo_quincena or 0) + sum(int(i.get('valor', 0)) for i in det_otros if isinstance(i, dict)),
                 'es_plan_semilla': es_plan_semilla,
             }
             html_string = render_to_string('liquidacion.html', context)
@@ -1044,9 +1064,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-            context = {'empleado': empleado, 'empresa': empresa, 'documento': doc_legal, 'es_plan_semilla': es_plan_semilla}
-            html_string = render_to_string('documento_legal.html', context)
-            pdf_bytes = self._html_a_pdf(html_string, f'Amonestacion_{empleado.rut}')
+            pdf_bytes = self._pdf_para_documento_legal(doc_legal, es_plan_semilla)
             doc_legal.archivo_pdf.save(f"Amonestacion_{empleado.rut}.pdf", ContentFile(pdf_bytes))
             return pdf_bytes
 
@@ -1291,22 +1309,22 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                             contrato = ContratoVirtual()
                             contrato.sueldo_base = s_base
 
-                    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-                    hoy = datetime.date.today()
-                    fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-                    
-                    comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
-                    comuna_empl = getattr(empleado, 'comuna', '') or ''
-                    ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-
+                    meses_zip = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+                    hoy_zip = datetime.date.today()
+                    fecha_zip = f"{hoy_zip.day:02d} de {meses_zip[hoy_zip.month - 1]} de {hoy_zip.year}"
+                    ciudad_zip = str(
+                        getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or
+                        getattr(empleado, 'comuna', '') or 'Santiago'
+                    ).strip().title()
                     context = {
                         'contrato': contrato,
                         'empleado': empleado,
                         'empresa': empresa,
-                        'fecha_actual': fecha_espanol,
-                        'ciudad': ciudad_segura
+                        'fecha_actual': fecha_zip,
+                        'ciudad': ciudad_zip,
+                        'es_plan_semilla': _es_plan_semilla(request.user),
                     }
-                    
+
                     template = get_template('anexo_40h.html')
                     html = template.render(context)
                     
@@ -3029,12 +3047,11 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                             if contrato_id else Contrato.objects.get(empleado=empleado))
             except Contrato.DoesNotExist:
                 raise Exception('El trabajador no tiene contrato registrado.')
-            ctx = {'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
-                   'es_plan_semilla': es_plan_semilla}
+            ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('anexo_40h.html', ctx)
             return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None, None
 
-        if tipo_doc in ('AMONESTACION', 'DESPIDO', 'CONSTANCIA'):
+        if tipo_doc in ('AMONESTACION', 'CONSTANCIA'):
             if doc_legal_id:
                 try:
                     doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
@@ -3053,6 +3070,21 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                    'es_plan_semilla': es_plan_semilla}
             html = render_to_string('documento_legal.html', ctx)
             return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None, None
+
+        if tipo_doc == 'DESPIDO':
+            if doc_legal_id:
+                try:
+                    doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
+                except DocumentoLegal.DoesNotExist:
+                    raise Exception('Documento legal no encontrado.')
+            else:
+                doc = DocumentoLegal.objects.filter(
+                    empleado=empleado, tipo='DESPIDO'
+                ).order_by('-fecha_emision').first()
+                if not doc:
+                    raise Exception('No se encontró carta de despido.')
+            pdf_bytes = self._pdf_para_documento_legal(doc, es_plan_semilla)
+            return pdf_bytes, None, doc, None, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
             if not anexo_id:
