@@ -580,6 +580,8 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             return Response({'error': 'La imagen de firma es requerida.'}, status=status.HTTP_400_BAD_REQUEST)
         if not firma_imagen.startswith('data:image/'):
             return Response({'error': 'Formato de imagen inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(firma_imagen) > 500_000:
+            return Response({'error': 'La imagen de firma es demasiado grande.'}, status=status.HTTP_400_BAD_REQUEST)
 
         empresa.firma_imagen          = firma_imagen
         empresa.firma_firmante_nombre = nombre
@@ -3916,6 +3918,10 @@ def firma_publica_firmar(request, token):
         return Response({'error': 'Sesión inválida. Vuelve a verificar tu identidad.'}, status=400)
     if not firma_trabajador:
         return Response({'error': 'Debes dibujar tu firma antes de continuar.'}, status=400)
+    if not firma_trabajador.startswith('data:image/'):
+        return Response({'error': 'Formato de firma inválido.'}, status=400)
+    if len(firma_trabajador) > 500_000:
+        return Response({'error': 'La imagen de firma es demasiado grande.'}, status=400)
 
     try:
         solicitud = SolicitudFirma.objects.select_related(
@@ -4142,11 +4148,12 @@ def _notificar_rechazo_empleador(solicitud: SolicitudFirma, motivo: str):
     if not email_empleador:
         return
 
+    _motivo_seg = _esc(motivo) if motivo else ''
     motivo_bloque = (
         f"<div style='background:#fff3cd;border-left:4px solid #f59e0b;padding:12px 16px;"
         f"border-radius:6px;margin:20px 0;'>"
         f"<p style='margin:0;font-size:13px;color:#92400e;font-weight:600;'>Motivo indicado</p>"
-        f"<p style='margin:4px 0 0;font-size:14px;color:#374151;'>{motivo}</p></div>"
+        f"<p style='margin:4px 0 0;font-size:14px;color:#374151;'>{_motivo_seg}</p></div>"
         if motivo else ""
     )
     motivo_texto = f"\n\nMotivo indicado por el trabajador: {motivo}" if motivo else ""
