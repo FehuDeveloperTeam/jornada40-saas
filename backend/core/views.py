@@ -33,6 +33,7 @@ import math
 import random
 import string
 from num2words import num2words
+import hmac
 import logging
 from html import escape as _esc
 
@@ -3378,8 +3379,6 @@ def crear_checkout_reveniu(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
-    import hmac
-
     webhook_secret = config('REVENIU_WEBHOOK_SECRET', default=None)
 
     # Secret obligatorio. Sin él, rechazamos todo (fail closed).
@@ -3388,7 +3387,6 @@ def webhook_reveniu(request):
 
     token_recibido = request.headers.get('X-Webhook-Token', '')
 
-    # Comparación en tiempo constante para evitar timing attacks.
     if not hmac.compare_digest(token_recibido, webhook_secret):
         return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
