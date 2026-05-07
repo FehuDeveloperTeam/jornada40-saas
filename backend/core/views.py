@@ -3430,34 +3430,30 @@ def mi_suscripcion(request):
 @permission_classes([IsAuthenticated])
 def crear_checkout_reveniu(request):
     plan_id = str(request.data.get('plan_id'))
-    ciclo = request.data.get('ciclo', 'mensual') # 'mensual' o 'anual'
+    ciclo = request.data.get('ciclo', 'mensual')  # 'mensual' o 'anual'
 
     try:
         plan = Plan.objects.get(id=plan_id)
         cliente = getattr(request.user, 'perfil_cliente', None)
 
-        # Mapeo de planes 
-        links_reveniu = {
-            '2_mensual': 'https://app.reveniu.com/checkout-custom-link/QSMYRGkfHJRKBMLEZv5GIjzp1bDi4SUk',
-            '2_anual': 'https://app.reveniu.com/checkout-custom-link/Z5vFclG2XxwsAmK97pdqZtDlodg8Z8AI',
-            '3_mensual': 'https://app.reveniu.com/checkout-custom-link/79QUEzlLLxyvHpMLDPRF7Hh5f8I6PMBU',
-            '3_anual': 'https://app.reveniu.com/checkout-custom-link/qT6wMve3nlJ5HzpWZyHBcF2ym9K7BTZy',
-        }
-
-        llave = f"{plan.id}_{ciclo}"
-        link_base = links_reveniu.get(llave)
+        nombre_plan = plan.nombre.upper()
+        ciclo_upper = ciclo.upper()
+        env_key = f'REVENIU_LINK_{nombre_plan}_{ciclo_upper}'
+        link_base = config(env_key, default=None)
 
         if not link_base:
-            return Response({'error': 'Link de pago no configurado para este plan.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': f'Link de pago no configurado para este plan ({env_key} no definido).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        nombre_completo = f"{request.user.first_name} {request.user.last_name}".strip()
-        
-        nombre_url = urllib.parse.quote(nombre_completo)
-
+        nombre_url = urllib.parse.quote(f"{request.user.first_name} {request.user.last_name}".strip())
         url_pago = f"{link_base}?email={request.user.email}&name={nombre_url}&custom_reference={cliente.id}_{plan.id}"
 
         return Response({'url': url_pago}, status=status.HTTP_200_OK)
 
+    except Plan.DoesNotExist:
+        return Response({'error': 'Plan no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
