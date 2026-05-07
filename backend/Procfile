@@ -1,1 +1,19 @@
-web: python manage.py migrate && python manage.py shell -c "from django.contrib.auth.models import User; u, _ = User.objects.get_or_create(username='admin', defaults={'email':'admin@admin.com'}); u.set_password('Lam.192122'); u.is_superuser=True; u.is_staff=True; u.save()" && gunicorn config.wsgi:application
+web: python manage.py migrate && python manage.py shell -c "from django.contrib.auth.models import User; u, _ = User.objects.get_or_create(username='admin', defaults={'email':'admin@admin.com'}); u.set_password('Lam.192122'); u.is_superuser=True; u.is_staff=True; u.save()" && python manage.py shell -c "
+from core.models import Plan
+planes = [
+  {'nombre':'Semilla',     'precio':0,     'max_empresas':1,  'limite_trabajadores':5,   'nivel':1},
+  {'nombre':'Starter',     'precio':16990, 'max_empresas':1,  'limite_trabajadores':20,  'nivel':2},
+  {'nombre':'Pyme',        'precio':39990, 'max_empresas':3,  'limite_trabajadores':75,  'nivel':3},
+  {'nombre':'Corporativo', 'precio':89990, 'max_empresas':10, 'limite_trabajadores':250, 'nivel':4},
+]
+for p in planes:
+  obj, _ = Plan.objects.get_or_create(nombre=p['nombre'], defaults={**p, 'activo':True})
+  changed = False
+  for k, v in p.items():
+    if getattr(obj, k) != v:
+      setattr(obj, k, v)
+      changed = True
+  if changed:
+    obj.save()
+print('Planes OK')
+" && gunicorn config.wsgi:application

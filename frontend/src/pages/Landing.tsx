@@ -97,27 +97,35 @@ const PLANES_PREVIEW = [
     precio: 0,
     descripcion: 'Para dar el primer paso hacia la gestión laboral digital.',
     features: [
-      '1 empresa',
-      'Hasta 3 trabajadores',
+      '1 empresa · hasta 5 trabajadores',
       'Contratos + Anexo 40 Horas',
       'Liquidaciones de sueldo',
-      'Documentos legales',
-      'Firma electrónica incluida',
+      'Documentos legales (amonestaciones, constancias)',
+      'Firma electrónica simple',
     ],
     cta: 'Comenzar Gratis',
   },
   {
-    nombre: 'Pyme',
-    precio: 29990,
-    descripcion: 'La solución completa para gestionar tu plantilla laboral.',
+    nombre: 'Starter',
+    precio: 16990,
+    descripcion: 'Todo lo esencial para gestionar tu equipo sin límites básicos.',
     features: [
-      '3 empresas',
-      'Hasta 40 trabajadores',
+      '1 empresa · hasta 20 trabajadores',
       'Todo lo del plan Semilla',
       'Finiquitos con cálculo automático',
-      'Vacaciones y permisos',
+      'Gestión de vacaciones y permisos',
+    ],
+    cta: 'Elegir Starter',
+  },
+  {
+    nombre: 'Pyme',
+    precio: 39990,
+    descripcion: 'La solución completa para empresas en crecimiento.',
+    features: [
+      '3 empresas · hasta 75 trabajadores',
+      'Todo lo del plan Starter',
       'Libro de Remuneraciones + Previred',
-      'Expediente digital en ZIP',
+      'Expediente digital completo en ZIP',
       'Importación masiva por Excel',
     ],
     destacado: true,
@@ -125,11 +133,10 @@ const PLANES_PREVIEW = [
   },
   {
     nombre: 'Corporativo',
-    precio: 69990,
-    descripcion: 'Control total para grandes organizaciones y holdings.',
+    precio: 89990,
+    descripcion: 'Control total para holdings y grandes organizaciones.',
     features: [
-      '10 empresas',
-      'Hasta 200 trabajadores',
+      '10 empresas · hasta 250 trabajadores',
       'Todo lo del plan Pyme',
       'Panel multi-empresa unificado',
       'Soporte prioritario',
@@ -493,7 +500,7 @@ export default function Landing() {
           </div>
 
           <p className="text-center text-xs mt-8" style={{ color: 'var(--c-text-4)' }}>
-            ¿Necesitas un plan a medida para más de 200 trabajadores?{' '}
+            ¿Necesitas un plan a medida para más de 250 trabajadores?{' '}
             <a href="mailto:hola@jornada40.cl" className="underline" style={{ color: 'var(--c-text-3)' }}>
               Contáctanos
             </a>

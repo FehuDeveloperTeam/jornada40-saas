@@ -9,7 +9,9 @@ interface Plan {
   nombre: string;
   precio: number;
   limite_trabajadores: number;
+  max_empresas: number;
   descripcion: string;
+  nivel: number;
 }
 
 interface MiSuscripcion {
@@ -46,16 +48,19 @@ export default function Suscripcion() {
   const [errorCarga, setErrorCarga] = useState(false);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const [miSuscripcion, setMiSuscripcion] = useState<MiSuscripcion | null>(null);
+  const [planesDisponibles, setPlanesDisponibles] = useState<Plan[]>([]);
   const [userData, setUserData] = useState({ nombres: '', apellido_paterno: '', apellido_materno: '', email: '', rut: '' });
 
   useEffect(() => {
     const fetchDatos = async () => {
       try {
-        const [subRes, perfilRes] = await Promise.all([
+        const [subRes, perfilRes, planesRes] = await Promise.all([
           client.get('/clientes/mi_suscripcion/'),
-          client.get('/clientes/perfil/')
+          client.get('/clientes/perfil/'),
+          client.get('/planes/'),
         ]);
         setMiSuscripcion(subRes.data);
+        setPlanesDisponibles(Array.isArray(planesRes.data) ? planesRes.data : (planesRes.data.results ?? []));
         setUserData({
           nombres: perfilRes.data.nombres || '',
           apellido_paterno: perfilRes.data.apellido_paterno || '',
@@ -116,8 +121,10 @@ export default function Suscripcion() {
     ? Math.min((miSuscripcion.trabajadores_actuales / miSuscripcion.plan.limite_trabajadores) * 100, 100)
     : 0;
 
-  const esCorporativo = miSuscripcion?.plan?.nombre?.toUpperCase().includes('CORPO');
-  const esPyme = miSuscripcion?.plan?.nombre?.toUpperCase().includes('PYME');
+  const nivelActual = miSuscripcion?.plan?.nivel ?? 1;
+  const planesUpgrade = planesDisponibles
+    .filter(p => p.nivel > nivelActual)
+    .sort((a, b) => a.nivel - b.nivel);
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: 'var(--c-bg-app)' }}>
@@ -251,7 +258,7 @@ export default function Suscripcion() {
                 </div>
 
                 {/* Planes de mejora */}
-                {esCorporativo ? (
+                {planesUpgrade.length === 0 ? (
                   <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.2)' }}>
                     <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
                       style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
@@ -263,43 +270,47 @@ export default function Suscripcion() {
                 ) : (
                   <div className="space-y-4">
                     <h2 className="text-base font-bold" style={{ color: 'var(--c-text-1)' }}>Mejorar Plan</h2>
-
-                    {!esPyme && (
-                      <div className="rounded-2xl p-6 relative transition-all"
-                        style={{ background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.3)' }}>
-                        <div className="absolute top-4 right-4">
-                          <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white"
-                            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
-                            <Zap size={10} /> Popular
-                          </span>
-                        </div>
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
-                          <div>
-                            <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Plan PYME</h3>
-                            <p className="text-sm mb-2" style={{ color: 'var(--c-text-3)' }}>Hasta 40 trabajadores. Ideal para empresas en crecimiento.</p>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>$29.990 <span className="text-sm font-normal" style={{ color: 'var(--c-text-3)' }}>/ mes</span></p>
+                    {planesUpgrade.map((plan, idx) => {
+                      const esPyme = plan.nombre.toUpperCase().includes('PYME');
+                      const isFirst = idx === 0;
+                      return (
+                        <div key={plan.id} className="rounded-2xl p-6 relative transition-all"
+                          style={{
+                            background: isFirst ? 'rgba(37,99,235,0.08)' : 'var(--c-bg-card-2)',
+                            border: isFirst ? '1px solid rgba(37,99,235,0.3)' : '1px solid var(--c-border)',
+                          }}>
+                          {esPyme && (
+                            <div className="absolute top-4 right-4">
+                              <span className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold text-white"
+                                style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+                                <Zap size={10} /> Popular
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+                            <div>
+                              <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>
+                                Plan {plan.nombre}
+                              </h3>
+                              <p className="text-sm mb-2" style={{ color: 'var(--c-text-3)' }}>
+                                {plan.max_empresas} {plan.max_empresas === 1 ? 'empresa' : 'empresas'} · hasta {plan.limite_trabajadores} trabajadores
+                              </p>
+                              <p className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>
+                                ${plan.precio.toLocaleString('es-CL')}{' '}
+                                <span className="text-sm font-normal" style={{ color: 'var(--c-text-3)' }}>/ mes</span>
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleMejorarPlan(plan.id, 'mensual')}
+                              disabled={procesandoPago}
+                              className={isFirst ? 'btn-primary' : 'btn-secondary'}
+                              style={{ width: 'auto', display: 'inline-flex' }}>
+                              {procesandoPago ? 'Procesando…' : `Mejorar a ${plan.nombre}`}
+                            </button>
                           </div>
-                          <button onClick={() => handleMejorarPlan(2, 'mensual')} disabled={procesandoPago} className="btn-primary"
-                            style={{ width: 'auto', display: 'inline-flex' }}>
-                            {procesandoPago ? 'Procesando…' : 'Mejorar a PYME'}
-                          </button>
                         </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-2xl p-6" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
-                        <div>
-                          <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--c-text-1)' }}>Plan Corporativo</h3>
-                          <p className="text-sm mb-2" style={{ color: 'var(--c-text-3)' }}>Hasta 200 trabajadores. Cargas masivas y soporte prioritario.</p>
-                          <p className="text-2xl font-bold" style={{ color: 'var(--c-text-1)' }}>$69.990 <span className="text-sm font-normal" style={{ color: 'var(--c-text-3)' }}>/ mes</span></p>
-                        </div>
-                        <button onClick={() => handleMejorarPlan(3, 'mensual')} disabled={procesandoPago} className="btn-secondary"
-                          style={{ width: 'auto', display: 'inline-flex' }}>
-                          {procesandoPago ? 'Procesando…' : 'Obtener Corporativo'}
-                        </button>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

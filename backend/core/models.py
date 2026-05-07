@@ -6,11 +6,14 @@ from django.db.models import Max
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Plan(models.Model):
-    nombre = models.CharField(max_length=50) 
+    nombre = models.CharField(max_length=50)
     descripcion = models.TextField(blank=True, null=True)
-    precio = models.IntegerField(default=0) 
+    precio = models.IntegerField(default=0)
     max_empresas = models.IntegerField(default=1)
-    limite_trabajadores = models.IntegerField(default=3) # Ajustado al nombre que usa views.py
+    limite_trabajadores = models.IntegerField(default=5)
+    # Nivel de plan: 1=Semilla, 2=Starter, 3=Pyme, 4=Corporativo
+    # Controla qué features están disponibles (finiquitos, vacaciones, Previred, ZIP, etc.)
+    nivel = models.IntegerField(default=1)
     activo = models.BooleanField(default=True)
 
     def __str__(self):

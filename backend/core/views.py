@@ -145,11 +145,11 @@ def estandarizar_fecha(fecha_valor):
     return None
 
 
-def _es_plan_semilla(user) -> bool:
-    """True si el usuario no tiene plan activo o su plan es Semilla (gratuito)."""
+def _plan_activo(user):
+    """Devuelve el objeto Plan activo del usuario, o None si no tiene plan."""
     cliente = getattr(user, 'perfil_cliente', None)
     if not cliente:
-        return True
+        return None
     plan = cliente.plan
     if not plan:
         try:
@@ -158,9 +158,24 @@ def _es_plan_semilla(user) -> bool:
                 plan = suscripcion.plan
         except Exception:
             pass
-    if not plan:
-        return True
-    return plan.nombre.lower() == 'semilla'
+    return plan
+
+
+def _nivel_plan(user) -> int:
+    """Retorna el nivel del plan activo: 1=Semilla, 2=Starter, 3=Pyme, 4=Corporativo.
+    Sin plan asignado se asume nivel 1 (Semilla)."""
+    plan = _plan_activo(user)
+    return plan.nivel if plan else 1
+
+
+def _plan_permite(user, nivel_min: int) -> bool:
+    """True si el plan del usuario tiene nivel >= nivel_min."""
+    return _nivel_plan(user) >= nivel_min
+
+
+def _es_plan_semilla(user) -> bool:
+    """True si el usuario no tiene plan activo o su plan es nivel 1 (Semilla)."""
+    return _nivel_plan(user) == 1
 
 
 def _html_a_pdf_bytes(html_string: str, nombre_doc: str) -> bytes:
@@ -471,6 +486,14 @@ class VacacionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(empleado_id=empleado_id)
         return qs
 
+    def create(self, request, *args, **kwargs):
+        if not _plan_permite(request.user, 2):
+            return Response(
+                {'error': 'La gestión de vacaciones y permisos está disponible desde el plan Starter. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         """Auto-calcula días hábiles si el cliente no los envía."""
         fecha_inicio = serializer.validated_data.get('fecha_inicio')
@@ -485,6 +508,11 @@ class VacacionViewSet(viewsets.ModelViewSet):
         """GET /api/vacaciones/saldo/?empleado=<id>
         Retorna el saldo de vacaciones del empleado.
         """
+        if not _plan_permite(request.user, 2):
+            return Response(
+                {'error': 'La gestión de vacaciones está disponible desde el plan Starter.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         empleado_id = request.query_params.get('empleado')
         if not empleado_id:
             return Response({'error': 'Parámetro empleado requerido.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -700,11 +728,16 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def carga_masiva(self, request):
+        if not _plan_permite(request.user, 3):
+            return Response(
+                {'error': 'La importación masiva por Excel está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             data = request.data[0] if isinstance(request.data, list) else request.data
             empresa_id = data.get('empresa')
             archivo_excel = request.FILES.get('file') or data.get('file')
-            
+
             if not archivo_excel or not empresa_id:
                 return Response({'error': 'Falta el archivo o la empresa.'}, status=400)
 
@@ -1164,8 +1197,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             MAX_LIQUIDACIONES_ZIP = 12
             cantidad_liquidaciones = min(cantidad_liquidaciones, MAX_LIQUIDACIONES_ZIP)
 
-            if _es_plan_semilla(request.user):
-                return Response({'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Actualiza a PYME para desbloquear esta función.'}, status=403)
+            if not _plan_permite(request.user, 3):
+                return Response({'error': 'La descarga masiva de expedientes en ZIP está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'}, status=403)
 
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
             empleados = Empleado.objects.filter(id__in=empleados_ids, empresa=empresa)
@@ -1262,13 +1295,12 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def descargar_anexos_zip(self, request):
 
-        cliente = getattr(request.user, 'perfil_cliente', None)
-        if cliente and cliente.plan and cliente.plan.nombre.lower() == 'semilla':
+        if not _plan_permite(request.user, 3):
             return Response(
-                {'error': 'Tu plan Semilla no permite descargas masivas en ZIP. Mejora a PYME para desbloquear esta función.'}, 
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'La descarga masiva de expedientes en ZIP está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         empleado_ids = request.data.get('empleados', [])
 
         if not empleado_ids:
@@ -1516,13 +1548,16 @@ def registrar_cliente(request):
             plan_semilla, creado = Plan.objects.get_or_create(
                 nombre='Semilla',
                 defaults={
-                    'nombre': 'Semilla',
                     'max_empresas': 1,
-                    'limite_trabajadores': 3,
+                    'limite_trabajadores': 5,
                     'precio': 0,
-                    'activo': True
+                    'nivel': 1,
+                    'activo': True,
                 }
             )
+            if not creado and plan_semilla.nivel != 1:
+                plan_semilla.nivel = 1
+                plan_semilla.save(update_fields=['nivel'])
             
             # 2. Creamos el perfil en core_cliente 
             cliente = Cliente.objects.create(
@@ -1810,6 +1845,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='exportar_previred')
     def exportar_previred(self, request):
+        if not _plan_permite(request.user, 3):
+            return Response(
+                {'error': 'La exportación Previred está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         mes_param = request.query_params.get('mes')
         anio_param = request.query_params.get('anio')
         empresa_id = request.query_params.get('empresa')
@@ -1963,6 +2003,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='libro_remuneraciones')
     def libro_remuneraciones(self, request):
+        if not _plan_permite(request.user, 3):
+            return Response(
+                {'error': 'El Libro de Remuneraciones está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         mes_param  = request.query_params.get('mes')
         anio_param = request.query_params.get('anio')
         empresa_id = request.query_params.get('empresa')
@@ -2692,6 +2737,12 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
         return qs
 
     def create(self, request, *args, **kwargs):
+        if not _plan_permite(request.user, 2):
+            return Response(
+                {'error': 'Los finiquitos están disponibles desde el plan Starter. Mejora tu suscripción para acceder a esta función.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         data = request.data
         empleado_id = data.get('empleado')
 
