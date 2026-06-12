@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // Cuando el video esté disponible, asignar la ruta aquí (ej: '/hero-bg.mp4')
-const VIDEO_HERO_SRC = '';
+const VIDEO_HERO_SRC = 'https://jornada40.cl/public/J40Landing.mp4';
 
 const FEATURES = [
   {
@@ -97,7 +97,7 @@ const PLANES_PREVIEW = [
     precio: 0,
     descripcion: 'Para dar el primer paso hacia la gestión laboral digital.',
     features: [
-      '1 empresa · hasta 5 trabajadores',
+      '1 empresa · hasta 3 trabajadores',
       'Contratos + Anexo 40 Horas',
       'Liquidaciones de sueldo',
       'Documentos legales (amonestaciones, constancias)',
@@ -110,7 +110,7 @@ const PLANES_PREVIEW = [
     precio: 16990,
     descripcion: 'Todo lo esencial para gestionar tu equipo sin límites básicos.',
     features: [
-      '1 empresa · hasta 20 trabajadores',
+      '1 empresa · hasta 10 trabajadores',
       'Todo lo del plan Semilla',
       'Finiquitos con cálculo automático',
       'Gestión de vacaciones y permisos',
