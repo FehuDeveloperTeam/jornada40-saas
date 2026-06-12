@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // Cuando el video esté disponible, asignar la ruta aquí (ej: '/hero-bg.mp4')
-const VIDEO_HERO_SRC = 'https://jornada40.cl/public/J40Landing.mp4';
+const VIDEO_HERO_SRC = '/public/J40Landing.mp4';
 
 const FEATURES = [
   {
