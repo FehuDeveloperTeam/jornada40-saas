@@ -46,7 +46,7 @@ from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
-from .models import Plan, Suscripcion, Cliente
+from .models import Plan, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito
 from .serializers import PlanSerializer
 from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
@@ -67,7 +67,6 @@ from html import escape as _esc
 
 logger = logging.getLogger(__name__)
 import pandas as pd
-import traceback
 import urllib.parse
 from django.db.models import Max, Sum, Exists, OuterRef
 from django.core.files.base import ContentFile
@@ -107,7 +106,7 @@ def validar_rut(rut):
     dv_ingresado = rut_limpio[-1]
 
     try:
-        cuerpo_int = int(cuerpo)
+        int(cuerpo)
     except ValueError:
         return False
 
@@ -1589,7 +1588,7 @@ def registrar_cliente(request):
                 plan_semilla.save(update_fields=['nivel'])
             
             # 2. Creamos el perfil en core_cliente 
-            cliente = Cliente.objects.create(
+            Cliente.objects.create(
                 usuario=user,
                 rut=rut,
                 correo=email,
@@ -1626,7 +1625,7 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         contrato_id = request.data.get('contrato')
         try:
-            contrato = Contrato.objects.get(id=contrato_id, empleado__empresa__owner=request.user)
+            Contrato.objects.get(id=contrato_id, empleado__empresa__owner=request.user)
         except Contrato.DoesNotExist:
             return Response({'error': 'Contrato no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
         return super().create(request, *args, **kwargs)
@@ -1813,7 +1812,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Trabajador no encontrado o no autorizado.'}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError:
             return Response(
-                {'error': f'Ya existe una liquidación para este trabajador en el período indicado.'},
+                {'error': 'Ya existe una liquidación para este trabajador en el período indicado.'},
                 status=status.HTTP_409_CONFLICT
             )
         except Exception as e:

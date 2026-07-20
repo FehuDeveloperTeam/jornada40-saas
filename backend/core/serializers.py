@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, Suscripcion, SolicitudFirma, VacacionEmpleado, Finiquito
+from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):

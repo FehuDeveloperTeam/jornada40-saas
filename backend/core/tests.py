@@ -15,7 +15,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Cliente, Contrato, Empleado, Empresa, Plan, Suscripcion
+from .models import Cliente, Empleado, Empresa, Plan, Suscripcion
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
