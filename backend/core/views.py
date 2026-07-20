@@ -10,11 +10,28 @@ from rest_framework.throttling import AnonRateThrottle
 class LoginRateThrottle(AnonRateThrottle):
     scope = 'login'
 
+class LoginAccountRateThrottle(AnonRateThrottle):
+    scope = 'login'
+    def get_cache_key(self, request, view):
+        username = request.data.get('username', '').strip().lower()
+        if not username:
+            return None  # sin username, no aplica (cae al throttle por IP igual)
+        return f'throttle_login_account_{username}'
+
 class RegisterRateThrottle(AnonRateThrottle):
     scope = 'register'
 
 class PasswordResetRateThrottle(AnonRateThrottle):
     scope = 'password_reset'
+
+class PasswordResetAccountRateThrottle(AnonRateThrottle):
+    scope = 'password_reset'
+    def get_cache_key(self, request, view):
+        email = request.data.get('email', '').strip().lower()
+        if not email:
+            return None
+        return f'throttle_pwreset_account_{email}'
+        
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
@@ -1512,12 +1529,12 @@ class ContratoViewSet(viewsets.ModelViewSet):
 from dj_rest_auth.views import LoginView as DjRestLoginView
 
 class ThrottledLoginView(DjRestLoginView):
-    throttle_classes = [LoginRateThrottle]
+    throttle_classes = [LoginRateThrottle, LoginAccountRateThrottle]
 
 from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
 
 class ThrottledPasswordResetView(DjRestPasswordResetView):
-    throttle_classes = [PasswordResetRateThrottle]
+    throttle_classes = [PasswordResetRateThrottle, PasswordResetAccountRateThrottle]
 
 # ==========================================
 # REGISTRO DE NUEVOS CLIENTES
