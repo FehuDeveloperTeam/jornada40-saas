@@ -46,6 +46,7 @@ def crear_usuario_completo(username, rut_cliente, rut_empresa, plan_semilla=Fals
         precio=0 if plan_semilla else 29990,
         limite_trabajadores=3 if plan_semilla else 100,
         max_empresas=1,
+        nivel=1 if plan_semilla else 3,
     )
     cliente = Cliente.objects.create(
         usuario=user, rut=rut_cliente, nombres='Usuario Test'

@@ -21,6 +21,16 @@ class LoginAccountRateThrottle(AnonRateThrottle):
 class RegisterRateThrottle(AnonRateThrottle):
     scope = 'register'
 
+class RegisterAccountRateThrottle(AnonRateThrottle):
+    scope = 'register'
+    def get_cache_key(self, request, view):
+        rut = request.data.get('rut', '').strip().lower()
+        email = (request.data.get('email') or request.data.get('correo') or '').strip().lower()
+        clave = rut or email
+        if not clave:
+            return None
+        return f'throttle_register_account_{clave}'
+
 class PasswordResetRateThrottle(AnonRateThrottle):
     scope = 'password_reset'
 
@@ -31,7 +41,7 @@ class PasswordResetAccountRateThrottle(AnonRateThrottle):
         if not email:
             return None
         return f'throttle_pwreset_account_{email}'
-        
+
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
@@ -1531,17 +1541,17 @@ from dj_rest_auth.views import LoginView as DjRestLoginView
 class ThrottledLoginView(DjRestLoginView):
     throttle_classes = [LoginRateThrottle, LoginAccountRateThrottle]
 
-from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
-
 class ThrottledPasswordResetView(DjRestPasswordResetView):
     throttle_classes = [PasswordResetRateThrottle, PasswordResetAccountRateThrottle]
+
+from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
 
 # ==========================================
 # REGISTRO DE NUEVOS CLIENTES
 # ==========================================
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@throttle_classes([RegisterRateThrottle])
+@throttle_classes([RegisterRateThrottle, RegisterAccountRateThrottle])
 def registrar_cliente(request):
     rut = request.data.get('rut')
     password = request.data.get('password')
