@@ -1530,8 +1530,9 @@ def registrar_cliente(request):
     password = request.data.get('password')
     # Atrapamos el correo (por si React lo manda como 'email' o como 'correo')
     email = request.data.get('email') or request.data.get('correo')
-    first_name=request.data.get('nombres', '')
-    last_name=request.data.get('apellidos', '')
+    nombre=request.data.get('nombres', '')
+   apellido_paterno = request.data.get('apellido_paterno', '')
+    apellido_materno = request.data.get('apellido_materno', '')
     
     # Validaciones básicas
     if not rut or not password or not email:
@@ -1565,6 +1566,9 @@ def registrar_cliente(request):
                 usuario=user,
                 rut=rut,
                 correo=email,
+                nombre=nombre,
+                apellido_paterno=apellido_paterno,
+                apellido_materno=apellido_materno,
                 plan=plan_semilla  # Asignamos el plan "Semilla" por defecto (usando el objeto obtenido o creado arriba
             )
             
@@ -3589,20 +3593,20 @@ def perfil_usuario(request):
 
     if request.method == 'PUT':
         nombres = request.data.get('nombres')
-        paterno = request.data.get('apellido_paterno')
-        materno = request.data.get('apellido_materno')
+        apellido_paterno = request.data.get('apellido_paterno')
+        apellido_materno = request.data.get('apellido_materno')
         email = request.data.get('email')
 
         # 1. ACTUALIZAR TABLA CLIENTE (Campos específicos)
         if nombres is not None: cliente.nombres = nombres
-        if paterno is not None: cliente.apellido_paterno = paterno
-        if materno is not None: cliente.apellido_materno = materno
+        if apellido_paterno is not None: cliente.apellido_paterno = apellido_paterno
+        if apellido_materno is not None: cliente.apellido_materno = apellido_materno
         if email: cliente.correo = email
         cliente.save()
 
         # 2. MANTENER REDUNDANCIA EN TABLA USER (Django Auth)
         if nombres is not None: request.user.first_name = nombres
-        request.user.last_name = f"{paterno or ''} {materno or ''}".strip()
+        request.user.last_name = f"{apellido_paterno or ''} {apellido_materno or ''}".strip()
         if email: request.user.email = email
         request.user.save()
 
