@@ -1530,8 +1530,8 @@ def registrar_cliente(request):
     password = request.data.get('password')
     # Atrapamos el correo (por si React lo manda como 'email' o como 'correo')
     email = request.data.get('email') or request.data.get('correo')
-    nombre=request.data.get('nombres', '')
-   apellido_paterno = request.data.get('apellido_paterno', '')
+    nombres=request.data.get('nombres', '')
+    apellido_paterno = request.data.get('apellido_paterno', '')
     apellido_materno = request.data.get('apellido_materno', '')
     
     # Validaciones básicas
@@ -1566,11 +1566,14 @@ def registrar_cliente(request):
                 usuario=user,
                 rut=rut,
                 correo=email,
-                nombre=nombre,
+                nombres=nombres,
                 apellido_paterno=apellido_paterno,
                 apellido_materno=apellido_materno,
                 plan=plan_semilla  # Asignamos el plan "Semilla" por defecto (usando el objeto obtenido o creado arriba
             )
+            user.first_name = nombres
+            user.last_name = f"{apellido_paterno} {apellido_materno}".strip()
+            user.save(update_fields=['first_name', 'last_name'])
             
            
         return Response({'mensaje': 'Cliente creado con éxito'}, status=201)
