@@ -1528,7 +1528,7 @@ class ThrottledPasswordResetView(DjRestPasswordResetView):
 def registrar_cliente(request):
     rut = request.data.get('rut')
     password = request.data.get('password')
-    # Atrapamos el correo (por si tu React lo manda como 'email' o como 'correo')
+    # Atrapamos el correo (por si React lo manda como 'email' o como 'correo')
     email = request.data.get('email') or request.data.get('correo')
     first_name=request.data.get('nombres', '')
     last_name=request.data.get('apellidos', '')
@@ -1550,7 +1550,7 @@ def registrar_cliente(request):
                 nombre='Semilla',
                 defaults={
                     'max_empresas': 1,
-                    'limite_trabajadores': 5,
+                    'limite_trabajadores': 3,
                     'precio': 0,
                     'nivel': 1,
                     'activo': True,
