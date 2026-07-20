@@ -1530,7 +1530,7 @@ def registrar_cliente(request):
     password = request.data.get('password')
     # Atrapamos el correo (por si tu React lo manda como 'email' o como 'correo')
     email = request.data.get('email') or request.data.get('correo')
-    first_name=request.data.get('nombres', ''),
+    first_name=request.data.get('nombres', '')
     last_name=request.data.get('apellidos', '')
     
     # Validaciones básicas
