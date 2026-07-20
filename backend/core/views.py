@@ -1537,6 +1537,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
 # LOGIN CON RATE LIMITING
 # ==========================================
 from dj_rest_auth.views import LoginView as DjRestLoginView
+from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
 
 class ThrottledLoginView(DjRestLoginView):
     throttle_classes = [LoginRateThrottle, LoginAccountRateThrottle]
@@ -1544,7 +1545,6 @@ class ThrottledLoginView(DjRestLoginView):
 class ThrottledPasswordResetView(DjRestPasswordResetView):
     throttle_classes = [PasswordResetRateThrottle, PasswordResetAccountRateThrottle]
 
-from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
 
 # ==========================================
 # REGISTRO DE NUEVOS CLIENTES
