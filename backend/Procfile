@@ -1,8 +1,8 @@
-web: python manage.py migrate && python manage.py shell -c "from django.contrib.auth.models import User; u, _ = User.objects.get_or_create(username='admin', defaults={'email': config('ADMIN_INITIAL_NAME')}); u.set_password(config('ADMIN_INITIAL_PASSWORD')); u.is_superuser=True; u.is_staff=True; u.save()" && python manage.py shell -c "
+web: python manage.py migrate && python manage.py shell -c "from django.contrib.auth.models import User; from decouple import config; u, _ = User.objects.get_or_create(username='admin', defaults={'email': config('ADMIN_INITIAL_EMAIL', default='')}); u.set_password(config('ADMIN_INITIAL_PASSWORD')); u.is_superuser=True; u.is_staff=True; u.save()" && python manage.py shell -c "
 from core.models import Plan
 planes = [
-  {'nombre':'Semilla',     'precio':0,     'max_empresas':1,  'limite_trabajadores':5,   'nivel':1},
-  {'nombre':'Starter',     'precio':16990, 'max_empresas':1,  'limite_trabajadores':20,  'nivel':2},
+  {'nombre':'Semilla',     'precio':0,     'max_empresas':1,  'limite_trabajadores':3,   'nivel':1},
+  {'nombre':'Starter',     'precio':16990, 'max_empresas':1,  'limite_trabajadores':10,  'nivel':2},
   {'nombre':'Pyme',        'precio':39990, 'max_empresas':3,  'limite_trabajadores':75,  'nivel':3},
   {'nombre':'Corporativo', 'precio':89990, 'max_empresas':10, 'limite_trabajadores':250, 'nivel':4},
 ]
