@@ -1,19 +1,26 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import client from './api/client';
 import { ToastProvider } from './context/ToastContext';
-import Login from './pages/Login';
-import LobbyEmpresas from './pages/LobbyEmpresas';
-import Dashboard from './pages/Dashboard';
-import Register from './pages/Register';
-import Landing from './pages/Landing';
-import Terminos from './pages/Terminos';
-import Suscripcion from './pages/Suscripcion';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import FirmaPublica from './pages/FirmaPublica';
-import Reportes from './pages/Reportes';
+
+const Login = lazy(() => import('./pages/Login'));
+const LobbyEmpresas = lazy(() => import('./pages/LobbyEmpresas'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Register = lazy(() => import('./pages/Register'));
+const Landing = lazy(() => import('./pages/Landing'));
+const Terminos = lazy(() => import('./pages/Terminos'));
+const Suscripcion = lazy(() => import('./pages/Suscripcion'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const FirmaPublica = lazy(() => import('./pages/FirmaPublica'));
+const Reportes = lazy(() => import('./pages/Reportes'));
+
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
+    <div className="w-12 h-12 rounded-full animate-spin" style={{ border: '3px solid var(--c-border-2)', borderTopColor: '#2563eb' }} />
+  </div>
+);
 
 const RootRoute = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -86,6 +93,7 @@ export default function App() {
   return (
     <ToastProvider>
     <BrowserRouter>
+    <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Ruta Pública */}
         <Route path="/" element={<RootRoute />} />
@@ -134,6 +142,7 @@ export default function App() {
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </ToastProvider>
   );

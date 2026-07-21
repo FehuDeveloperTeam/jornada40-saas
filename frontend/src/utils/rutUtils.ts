@@ -2,7 +2,7 @@
 
 // Recibe un string y devuelve un string (el RUT formateado)
 export const formatRut = (value: string): string => {
-  let rut = value.replace(/[^0-9kK]/g, '').toUpperCase();
+  const rut = value.replace(/[^0-9kK]/g, '').toUpperCase();
   if (rut.length <= 1) return rut;
 
   const cuerpo = rut.slice(0, -1);
@@ -31,7 +31,7 @@ export const validateRut = (rutCompleto: string): boolean => {
   }
 
   const dvEsperado = 11 - (suma % 11);
-  let dvCalculado = dvEsperado === 11 ? "0" : dvEsperado === 10 ? "K" : dvEsperado.toString();
+  const dvCalculado = dvEsperado === 11 ? "0" : dvEsperado === 10 ? "K" : dvEsperado.toString();
 
   return dv === dvCalculado;
 };

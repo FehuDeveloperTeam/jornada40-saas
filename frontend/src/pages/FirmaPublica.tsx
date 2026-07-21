@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
@@ -143,6 +143,7 @@ export default function FirmaPublica() {
   }, [token]);
 
   const cargarInfo = async () => {
+    const cargarInfo = useCallback(async () => {
     try {
       const res = await client.get(`/firma-publica/${token}/`);
       const data: InfoData = res.data;
@@ -168,7 +169,12 @@ export default function FirmaPublica() {
         setStep('terminal_no_encontrado');
       }
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) { setStep('terminal_no_encontrado'); return; }
+    cargarInfo();
+  }, [token, cargarInfo]);
 
   // ── Solicitar OTP ──────────────────────────────────────────────────────────
   const solicitarOtp = async () => {
