@@ -15,6 +15,36 @@ import ResetPassword from './pages/ResetPassword';
 import FirmaPublica from './pages/FirmaPublica';
 import Reportes from './pages/Reportes';
 
+const RootRoute = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const verifySession = async () => {
+      try {
+        await client.get('/auth/user/');
+        setIsAuthenticated(true);
+      } catch {
+        setIsAuthenticated(false);
+      }
+    };
+    verifySession();
+  }, []);
+
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg-app)' }}>
+        <div className="w-12 h-12 rounded-full animate-spin" style={{ border: '3px solid var(--c-border-2)', borderTopColor: '#2563eb' }} />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/empresas" replace />;
+  }
+
+  return <Landing />;
+};
+
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
@@ -58,7 +88,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Ruta Pública */}
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<RootRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/terminos" element={<Terminos />} />
@@ -101,7 +131,7 @@ export default function App() {
           }
         />
 
-        <Route path="/" element={<Navigate to="/empresas" replace />} />
+        
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
