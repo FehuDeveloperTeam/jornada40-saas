@@ -381,3 +381,18 @@ class ZipLimitesTests(APITestCase):
         # 50 empleados exactos NO deben ser rechazados por el límite
         if resp.status_code == status.HTTP_400_BAD_REQUEST:
             self.assertNotIn('50', resp.data.get('error', ''))
+class ImpuestoUnicoTests(APITestCase):
+    """Verifica la tabla de Impuesto Único de Segunda Categoría contra valores oficiales del SII."""
+
+    def test_bajo_tramo_exento_no_paga_impuesto(self):
+        from core.indicadores import calcular_impuesto_unico
+        self.assertEqual(calcular_impuesto_unico(800_000, 71506.0), 0)
+
+    def test_tramo_8_por_ciento_coincide_con_tabla_sii(self):
+        # Ejemplo oficial: renta líquida $3.000.000, UTM $71.506 → $115.579,56 (redondeado 115.580)
+        from core.indicadores import calcular_impuesto_unico
+        self.assertEqual(calcular_impuesto_unico(3_000_000, 71506.0), 115580)
+
+    def test_base_tributable_cero_no_paga_impuesto(self):
+        from core.indicadores import calcular_impuesto_unico
+        self.assertEqual(calcular_impuesto_unico(0, 71506.0), 0)

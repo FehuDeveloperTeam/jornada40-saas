@@ -57,6 +57,7 @@ import io
 import zipfile
 import re
 import math
+from .indicadores import obtener_uf, obtener_utm, calcular_impuesto_unico
 import random
 import string
 from num2words import num2words
@@ -1764,11 +1765,10 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             afp_monto = math.floor(total_imponible * tasa_afp)
 
             # Salud (Isapre UF vs Fonasa 7%)
+            valor_uf = obtener_uf()
             salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
             if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf > 0:
-                # Simulación valor UF 
-                VALOR_UF = 38000 
-                salud_monto = math.floor(float(empleado.plan_isapre_uf) * VALOR_UF)
+                salud_monto = math.floor(float(empleado.plan_isapre_uf) * valor_uf)
                 isapre_uf = empleado.plan_isapre_uf
                 # La ley exige descontar al menos el 7%, si el plan UF es menor, se cobra 7%
                 minimo_legal = math.floor(total_imponible * 0.07)
@@ -1781,9 +1781,13 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             # Seguro Cesantía
             seguro_cesantia = math.floor(total_imponible * 0.006) if contrato.tipo_contrato == 'INDEFINIDO' else 0
 
+            # Impuesto Único de Segunda Categoría
+            base_tributable = total_imponible - afp_monto - salud_monto - seguro_cesantia
+            impuesto_unico = calcular_impuesto_unico(base_tributable, obtener_utm())
+
             # Quincena y otros
             anticipo_quincena = contrato.monto_quincena if contrato.tiene_quincena else 0
-            total_descuentos = afp_monto + salud_monto + seguro_cesantia + anticipo_quincena + suma_otros_descuentos
+            total_descuentos = afp_monto + salud_monto + seguro_cesantia + impuesto_unico + anticipo_quincena + suma_otros_descuentos
 
             # 5. SUELDO LÍQUIDO FINAL
             sueldo_liquido = total_haberes - total_descuentos
@@ -1800,7 +1804,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 detalle_otros_descuentos=detalle_otros_descuentos,
                 afp_nombre=nombre_afp, afp_monto=afp_monto,
                 salud_nombre=salud_nombre, isapre_cotizacion_uf=isapre_uf, salud_monto=salud_monto,
-                seguro_cesantia=seguro_cesantia, anticipo_quincena=anticipo_quincena,
+                seguro_cesantia=seguro_cesantia, impuesto_unico=impuesto_unico, anticipo_quincena=anticipo_quincena,
                 total_imponible=total_imponible, total_haberes=total_haberes,
                 total_descuentos=total_descuentos, sueldo_liquido=sueldo_liquido
             )
@@ -2697,7 +2701,7 @@ _TASAS_AFP = {
     'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
     'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049,
 }
-_VALOR_UF = 38000  # valor referencial
+
 
 # Causales que dan derecho a indemnización por años (Art. 161)
 _CAUSALES_CON_INDEMNIZACION = {'161_1', '161_2', '163bis'}
@@ -2733,7 +2737,7 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
 
     salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
     if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf and float(empleado.plan_isapre_uf) > 0:
-        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * _VALOR_UF),
+        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * obtener_uf()),
                           math.floor(sueldo_proporcional * 0.07))
     else:
         salud_monto = math.floor(sueldo_proporcional * 0.07)
