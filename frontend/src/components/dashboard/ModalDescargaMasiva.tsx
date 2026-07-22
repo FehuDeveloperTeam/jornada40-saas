@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 import type { DocumentosDisponibles } from '../../types';
 import client from '../../api/client';
-import { useToast } from '../../context/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 type Props = {
   empleados: UseDashboardReturn['empleados'];

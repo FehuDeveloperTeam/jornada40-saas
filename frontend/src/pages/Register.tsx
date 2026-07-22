@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import axios from 'axios';
 import client from '../api/client';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { Check, Zap, ArrowLeft, Building2, ArrowRight, User } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
 import { formatRut, validateRut } from '../utils/rutUtils';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { ShieldCheck, Settings, Trash2, RefreshCcw, Plus, LogOut, X, ArrowRight, Building2, PenLine, BarChart3 } from 'lucide-react';
 import ModalFirmaEmpleador from '../components/ModalFirmaEmpleador';
 import ThemeToggle from '../components/ThemeToggle';

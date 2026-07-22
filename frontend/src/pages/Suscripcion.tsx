@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
-import { useToast } from '../context/ToastContext';
+import { useToast } from '../hooks/useToast';
 import { Check, CreditCard, User, Shield, ArrowLeft, Zap } from 'lucide-react';
 
 interface Plan {

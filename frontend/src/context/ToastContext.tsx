@@ -1,20 +1,12 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
-
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+import { ToastContext } from './toast-context';
+import type { ToastType, ShowToast } from './toast-context';
 
 interface ToastItem {
   id: string;
   message: string;
   type: ToastType;
-}
-
-type ShowToast = (message: string, type?: ToastType) => void;
-
-const ToastContext = createContext<ShowToast>(() => {});
-
-export function useToast() {
-  return useContext(ToastContext);
 }
 
 const DURATION: Record<ToastType, number> = {
