@@ -137,13 +137,7 @@ export default function FirmaPublica() {
   }, []);
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!token) { setStep('terminal_no_encontrado'); return; }
-    cargarInfo();
-  }, [token]);
-
-  const cargarInfo = async () => {
-    const cargarInfo = useCallback(async () => {
+  const cargarInfo = useCallback(async () => {
     try {
       const res = await client.get(`/firma-publica/${token}/`);
       const data: InfoData = res.data;
