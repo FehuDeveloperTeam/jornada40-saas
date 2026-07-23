@@ -1693,22 +1693,7 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=500)
 
 
-class LiquidacionViewSet(viewsets.ModelViewSet):
-    queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
-    serializer_class = LiquidacionSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        # Solo liquidaciones de empleados que pertenecen al usuario autenticado
-        queryset = Liquidacion.objects.filter(
-            empleado__empresa__owner=self.request.user
-        ).order_by('-anio', '-mes')
-        empleado_id = self.request.query_params.get('empleado', None)
-        if empleado_id is not None:
-            queryset = queryset.filter(empleado_id=empleado_id)
-        return queryset
-
-    def _calcular_liquidacion(contrato, empleado, data):
+def _calcular_liquidacion(contrato, empleado, data):
     """
     Calcula todos los campos derivados de una liquidación (haberes, descuentos
     legales, impuesto único y totales) a partir de los datos de asistencia y
@@ -1899,7 +1884,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-        
+
     @action(detail=True, methods=['get'])
     def generar_pdf(self, request, pk=None):
         try:

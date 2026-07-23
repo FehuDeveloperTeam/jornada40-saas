@@ -12,12 +12,13 @@ from unittest.mock import patch
 import openpyxl
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Cliente, Empleado, Empresa, Plan, Suscripcion, SolicitudFirma
+from .models import Cliente, Contrato, Empleado, Empresa, Liquidacion, Plan, Suscripcion, SolicitudFirma
 from .serializers import ContratoSerializer
 
 
@@ -515,3 +516,55 @@ class FirmaConcurrenciaTests(APITestCase):
         url = f'/api/firma-publica/{self.solicitud.token}/rechazar/'
         resp = self.client.post(url, {'sesion_token': str(self.sesion_token)}, format='json')
         self.assertEqual(resp.status_code, 400)
+
+class LiquidacionRecalculoTests(APITestCase):
+    """Verifica que editar una liquidación existente recalcule los totales,
+    en vez de dejarlos congelados con los valores de la creación original."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo(
+            'liquidacion_owner', '55.555.555-5', '88.888.888-8'
+        )
+        self.empleado = crear_empleado(self.empresa, '66.666.666-6')
+        self.contrato = Contrato.objects.create(
+            empleado=self.empleado, tipo_contrato='INDEFINIDO',
+            fecha_inicio='2024-01-01', sueldo_base=1_000_000,
+            gratificacion_legal='MENSUAL',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_editar_dias_ausencia_recalcula_totales(self):
+        resp_crear = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 1, 'anio': 2026,
+            'dias_ausencia': 0,
+        }, format='json')
+        self.assertEqual(resp_crear.status_code, 201)
+        liquidacion_id = resp_crear.data['id']
+        sueldo_base_sin_ausencias = resp_crear.data['sueldo_base']
+        liquido_sin_ausencias = resp_crear.data['sueldo_liquido']
+
+        resp_editar = self.client.patch(f'/api/liquidaciones/{liquidacion_id}/', {
+            'dias_ausencia': 10,
+        }, format='json')
+        self.assertEqual(resp_editar.status_code, 200)
+
+        # Con 10 días de ausencia, el sueldo base proporcional y el líquido
+        # deben ser menores — si quedaran "congelados", serían idénticos.
+        self.assertLess(resp_editar.data['sueldo_base'], sueldo_base_sin_ausencias)
+        self.assertLess(resp_editar.data['sueldo_liquido'], liquido_sin_ausencias)
+        self.assertEqual(resp_editar.data['dias_ausencia'], 10)
+
+    def test_editar_liquidacion_limpia_pdf_generado(self):
+        resp_crear = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 2, 'anio': 2026,
+        }, format='json')
+        liquidacion_id = resp_crear.data['id']
+
+        liquidacion = Liquidacion.objects.get(id=liquidacion_id)
+        liquidacion.archivo_pdf.save('test.pdf', ContentFile(b'%PDF-fake'), save=True)
+        self.assertTrue(liquidacion.archivo_pdf)
+
+        self.client.patch(f'/api/liquidaciones/{liquidacion_id}/', {'dias_ausencia': 5}, format='json')
+
+        liquidacion.refresh_from_db()
+        self.assertFalse(liquidacion.archivo_pdf)
