@@ -4041,41 +4041,49 @@ def firma_publica_firmar(request, token):
         return Response({'error': 'La imagen de firma es demasiado grande.'}, status=400)
 
     try:
-        solicitud = SolicitudFirma.objects.select_related(
-            'empleado', 'empresa', 'empresa__owner'
-        ).get(token=token)
+        with transaction.atomic():
+            solicitud = SolicitudFirma.objects.select_related(
+                'empleado', 'empresa', 'empresa__owner'
+            ).select_for_update().get(token=token)
+
+            # ── Validaciones de estado ──────────────────────────────────────
+            if solicitud.estado != 'PENDIENTE':
+                return Response(
+                    {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
+                    status=400,
+                )
+
+            if timezone.now() > solicitud.expira_en:
+                solicitud.estado = 'EXPIRADO'
+                solicitud.save(update_fields=['estado', 'actualizado_en'])
+                return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+            if (not solicitud.sesion_token_trabajador
+                    or str(solicitud.sesion_token_trabajador) != sesion_token):
+                return Response(
+                    {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
+                    status=403,
+                )
+
+            if not solicitud.b2_key_temporal:
+                return Response(
+                    {'error': 'No se encontró el PDF del documento. Contacta al empleador.'},
+                    status=400,
+                )
+
+            # Reclamamos la solicitud de inmediato para que ninguna petición
+            # concurrente (doble clic, doble tap) pueda pasar este chequeo.
+            solicitud.estado = 'PROCESANDO'
+            solicitud.save(update_fields=['estado', 'actualizado_en'])
     except SolicitudFirma.DoesNotExist:
         return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
-
-    # ── Validaciones de estado ──────────────────────────────────────────────
-    if solicitud.estado != 'PENDIENTE':
-        return Response(
-            {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
-            status=400,
-        )
-
-    if timezone.now() > solicitud.expira_en:
-        solicitud.estado = 'EXPIRADO'
-        solicitud.save(update_fields=['estado', 'actualizado_en'])
-        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
-
-    if (not solicitud.sesion_token_trabajador
-            or str(solicitud.sesion_token_trabajador) != sesion_token):
-        return Response(
-            {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
-            status=403,
-        )
-
-    if not solicitud.b2_key_temporal:
-        return Response(
-            {'error': 'No se encontró el PDF del documento. Contacta al empleador.'},
-            status=400,
-        )
 
     # ── Descargar PDF original de B2 ────────────────────────────────────────
     try:
         pdf_original_bytes = b2_client.descargar_documento(solicitud.b2_key_temporal)
     except Exception as exc:
+        solicitud.estado = 'PENDIENTE'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
         return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
 
     # ── Generar PDF firmado con certificado ─────────────────────────────────
@@ -4110,6 +4118,8 @@ def firma_publica_firmar(request, token):
             email_firmante        = solicitud.email_firmante,
         )
     except Exception as exc:
+        solicitud.estado = 'PENDIENTE'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
         return Response({'error': f'Error al generar el documento firmado: {exc}'}, status=500)
 
     # ── Subir PDF firmado a B2 ──────────────────────────────────────────────
@@ -4122,6 +4132,8 @@ def firma_publica_firmar(request, token):
     try:
         b2_client.subir_documento(pdf_firmado_bytes, key_firmado)
     except Exception as exc:
+        solicitud.estado = 'PENDIENTE'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
         return Response({'error': f'Error al guardar el documento firmado: {exc}'}, status=500)
 
     # Eliminar PDF temporal (no crítico)
@@ -4219,33 +4231,34 @@ def firma_publica_rechazar(request, token):
         return Response({'error': 'Sesión inválida. Vuelve a verificar tu identidad.'}, status=400)
 
     try:
-        solicitud = SolicitudFirma.objects.select_related(
-            'empleado', 'empresa', 'empresa__owner'
-        ).get(token=token)
+        with transaction.atomic():
+            solicitud = SolicitudFirma.objects.select_related(
+                'empleado', 'empresa', 'empresa__owner'
+            ).select_for_update().get(token=token)
+
+            if solicitud.estado != 'PENDIENTE':
+                return Response(
+                    {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
+                    status=400,
+                )
+
+            if timezone.now() > solicitud.expira_en:
+                solicitud.estado = 'EXPIRADO'
+                solicitud.save(update_fields=['estado', 'actualizado_en'])
+                return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+            if (not solicitud.sesion_token_trabajador
+                    or str(solicitud.sesion_token_trabajador) != sesion_token):
+                return Response(
+                    {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
+                    status=403,
+                )
+
+            solicitud.estado = 'RECHAZADO'
+            solicitud.motivo_rechazo = motivo
+            solicitud.save(update_fields=['estado', 'motivo_rechazo', 'actualizado_en'])
     except SolicitudFirma.DoesNotExist:
         return Response({'error': 'Solicitud no encontrada.'}, status=404)
-
-    if solicitud.estado != 'PENDIENTE':
-        return Response(
-            {'error': f'Esta solicitud ya no está pendiente ({solicitud.get_estado_display()}).'},
-            status=400,
-        )
-
-    if timezone.now() > solicitud.expira_en:
-        solicitud.estado = 'EXPIRADO'
-        solicitud.save(update_fields=['estado', 'actualizado_en'])
-        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
-
-    if (not solicitud.sesion_token_trabajador
-            or str(solicitud.sesion_token_trabajador) != sesion_token):
-        return Response(
-            {'error': 'Sesión inválida. Vuelve a verificar tu identidad con el código OTP.'},
-            status=403,
-        )
-
-    solicitud.estado = 'RECHAZADO'
-    solicitud.motivo_rechazo = motivo
-    solicitud.save(update_fields=['estado', 'motivo_rechazo', 'actualizado_en'])
 
     try:
         _notificar_rechazo_empleador(solicitud, motivo)

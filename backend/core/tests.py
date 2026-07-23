@@ -6,16 +6,18 @@ Cubre: autenticación, aislamiento de datos, rate limiting, webhook,
 Correr con: python manage.py test core
 """
 import io
+import uuid
 from unittest.mock import patch
 
 import openpyxl
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Cliente, Empleado, Empresa, Plan, Suscripcion
+from .models import Cliente, Empleado, Empresa, Plan, Suscripcion, SolicitudFirma
 from .serializers import ContratoSerializer
 
 
@@ -443,3 +445,73 @@ class ContratoValidacionFechasTests(APITestCase):
     def test_indefinido_sin_fecha_fin_es_valido(self):
         serializer = ContratoSerializer(data=self._data(tipo_contrato='INDEFINIDO', fecha_fin=None))
         self.assertTrue(serializer.is_valid(), serializer.errors)
+
+class FirmaConcurrenciaTests(APITestCase):
+    """Verifica que firmar/rechazar reclamen la solicitud antes de procesarla,
+    de forma que una segunda petición concurrente no pueda duplicar la firma."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo(
+            'firma_owner', '33.333.333-3', '77.777.777-7'
+        )
+        self.empleado = crear_empleado(self.empresa, '44.444.444-4')
+        self.sesion_token = uuid.uuid4()
+        self.solicitud = SolicitudFirma.objects.create(
+            empleado=self.empleado,
+            empresa=self.empresa,
+            tipo_documento='CONTRATO',
+            estado='PENDIENTE',
+            b2_key_temporal='pendientes/test.pdf',
+            sesion_token_trabajador=self.sesion_token,
+            expira_en=timezone.now() + timezone.timedelta(days=1),
+        )
+
+    @patch('core.views.b2_client.eliminar_documento')
+    @patch('core.views.b2_client.subir_documento')
+    @patch('core.pdf_firma.agregar_certificado_firma')
+    @patch('core.views.b2_client.descargar_documento')
+    def test_segunda_peticion_de_firma_es_rechazada(self, mock_descargar, mock_certificado, mock_subir, mock_eliminar):
+        mock_descargar.return_value = b'%PDF-original'
+        mock_certificado.return_value = b'%PDF-firmado'
+
+        payload = {
+            'sesion_token': str(self.sesion_token),
+            'firma_trabajador': 'data:image/png;base64,aGVsbG8=',
+        }
+        url = f'/api/firma-publica/{self.solicitud.token}/firmar/'
+
+        resp1 = self.client.post(url, payload, format='json')
+        self.assertEqual(resp1.status_code, 200)
+
+        # Segunda petición (simula doble clic) sobre la misma solicitud ya FIRMADO
+        resp2 = self.client.post(url, payload, format='json')
+        self.assertEqual(resp2.status_code, 400)
+
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, 'FIRMADO')
+
+    @patch('core.views.b2_client.subir_documento', side_effect=Exception('B2 caído'))
+    @patch('core.pdf_firma.agregar_certificado_firma')
+    @patch('core.views.b2_client.descargar_documento')
+    def test_falla_en_b2_revierte_a_pendiente(self, mock_descargar, mock_certificado, mock_subir):
+        mock_descargar.return_value = b'%PDF-original'
+        mock_certificado.return_value = b'%PDF-firmado'
+
+        url = f'/api/firma-publica/{self.solicitud.token}/firmar/'
+        resp = self.client.post(url, {
+            'sesion_token': str(self.sesion_token),
+            'firma_trabajador': 'data:image/png;base64,aGVsbG8=',
+        }, format='json')
+
+        self.assertEqual(resp.status_code, 500)
+        self.solicitud.refresh_from_db()
+        # Debe quedar disponible para reintentar, no atascada en PROCESANDO
+        self.assertEqual(self.solicitud.estado, 'PENDIENTE')
+
+    def test_rechazar_solicitud_ya_no_pendiente_es_rechazado(self):
+        self.solicitud.estado = 'FIRMADO'
+        self.solicitud.save(update_fields=['estado'])
+
+        url = f'/api/firma-publica/{self.solicitud.token}/rechazar/'
+        resp = self.client.post(url, {'sesion_token': str(self.sesion_token)}, format='json')
+        self.assertEqual(resp.status_code, 400)

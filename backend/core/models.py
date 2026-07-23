@@ -424,6 +424,7 @@ class Suscripcion(models.Model):
 class SolicitudFirma(models.Model):
     ESTADOS = [
         ('PENDIENTE',  'Pendiente de firma'),
+        ('PROCESANDO', 'Procesando firma'),
         ('FIRMADO',    'Firmado'),
         ('RECHAZADO',  'Rechazado por el trabajador'),
         ('EXPIRADO',   'Plazo vencido'),
