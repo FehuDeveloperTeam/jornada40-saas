@@ -16,6 +16,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from .models import Cliente, Empleado, Empresa, Plan, Suscripcion
+from .serializers import ContratoSerializer
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -396,3 +397,49 @@ class ImpuestoUnicoTests(APITestCase):
     def test_base_tributable_cero_no_paga_impuesto(self):
         from core.indicadores import calcular_impuesto_unico
         self.assertEqual(calcular_impuesto_unico(0, 71506.0), 0)
+
+class ContratoValidacionFechasTests(APITestCase):
+    """Verifica las reglas de fecha/duración de ContratoSerializer."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo(
+            'contrato_owner', '11.111.111-1', '76.111.111-1'
+        )
+        self.empleado = crear_empleado(self.empresa, '22.222.222-2')
+
+    def _data(self, **overrides):
+        base = {
+            'empleado': self.empleado.id,
+            'tipo_contrato': 'PLAZO_FIJO',
+            'cargo': 'Analista',
+            'fecha_inicio': '2026-01-01',
+            'fecha_fin': '2026-06-01',
+            'sueldo_base': 500000,
+        }
+        base.update(overrides)
+        return base
+
+    def test_plazo_fijo_sin_fecha_fin_es_invalido(self):
+        serializer = ContratoSerializer(data=self._data(fecha_fin=None))
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('fecha_fin', serializer.errors)
+
+    def test_fecha_fin_anterior_a_inicio_es_invalido(self):
+        serializer = ContratoSerializer(data=self._data(fecha_inicio='2026-06-01', fecha_fin='2026-01-01'))
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('fecha_fin', serializer.errors)
+
+    def test_plazo_fijo_mas_de_un_ano_sin_titulo_es_invalido(self):
+        serializer = ContratoSerializer(data=self._data(fecha_inicio='2026-01-01', fecha_fin='2027-06-01'))
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('fecha_fin', serializer.errors)
+
+    def test_plazo_fijo_dos_anos_con_titulo_es_valido(self):
+        serializer = ContratoSerializer(data=self._data(
+            fecha_inicio='2026-01-01', fecha_fin='2027-12-01', es_profesional_titulado=True
+        ))
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_indefinido_sin_fecha_fin_es_valido(self):
+        serializer = ContratoSerializer(data=self._data(tipo_contrato='INDEFINIDO', fecha_fin=None))
+        self.assertTrue(serializer.is_valid(), serializer.errors)

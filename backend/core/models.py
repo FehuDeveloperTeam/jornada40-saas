@@ -157,6 +157,10 @@ class Contrato(models.Model):
     cargo = models.CharField(max_length=100, default="No especificado")
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField(null=True, blank=True)
+    es_profesional_titulado = models.BooleanField(
+        default=False,
+        help_text="Gerente o profesional/técnico con título de educación superior — habilita el tope de 2 años en vez de 1 para contratos a plazo fijo (Art. 159 N°4 del Código del Trabajo)."
+    )
     sueldo_base = models.IntegerField(validators=[MinValueValidator(0)])
 
     # 2. Datos de la Ley 40 Horas y Jornadas

@@ -36,7 +36,7 @@ class ContratoSerializer(serializers.ModelSerializer):
         model = Contrato
         fields = [
             'id', 'empleado', 'tipo_contrato', 'cargo',
-            'fecha_inicio', 'fecha_fin', 'sueldo_base',
+            'fecha_inicio', 'fecha_fin', 'es_profesional_titulado', 'sueldo_base',
             'tipo_jornada', 'horas_semanales', 'distribucion_dias', 'distribucion_horario',
             'dia_pago', 'gratificacion_legal',
             'tiene_quincena', 'dia_quincena', 'monto_quincena',
@@ -48,6 +48,31 @@ class ContratoSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'archivo_contrato', 'archivo_anexo_40h', 'creado_en',
                             'tiene_contrato_pdf', 'tiene_anexo_40h_pdf')
 
+    def validate(self, data):
+        tipo = data.get('tipo_contrato', getattr(self.instance, 'tipo_contrato', None))
+        fecha_inicio = data.get('fecha_inicio', getattr(self.instance, 'fecha_inicio', None))
+        fecha_fin = data.get('fecha_fin', getattr(self.instance, 'fecha_fin', None))
+        es_profesional_titulado = data.get('es_profesional_titulado', getattr(self.instance, 'es_profesional_titulado', False))
+
+        if tipo in ('PLAZO_FIJO', 'OBRA_FAENA') and not fecha_fin:
+            raise serializers.ValidationError({
+                'fecha_fin': 'La fecha de término es obligatoria para contratos a plazo fijo o por obra/faena.'
+            })
+
+        if fecha_fin and fecha_inicio and fecha_fin <= fecha_inicio:
+            raise serializers.ValidationError({
+                'fecha_fin': 'La fecha de término debe ser posterior a la fecha de inicio.'
+            })
+
+        if tipo == 'PLAZO_FIJO' and fecha_fin and fecha_inicio:
+            tope_dias = 731 if es_profesional_titulado else 366
+            if (fecha_fin - fecha_inicio).days > tope_dias:
+                tope_anios = 2 if es_profesional_titulado else 1
+                raise serializers.ValidationError({
+                    'fecha_fin': f'Un contrato a plazo fijo no puede exceder {tope_anios} año(s) de duración (Art. 159 N°4 del Código del Trabajo).'
+                })
+
+        return data
 
 class EmpleadoSerializer(serializers.ModelSerializer):
     contrato_activo = ContratoSerializer(read_only=True)

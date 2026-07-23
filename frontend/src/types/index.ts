@@ -79,6 +79,7 @@ export interface Contrato {
     cargo: string;
     fecha_inicio: string;
     fecha_fin: string | null;
+    es_profesional_titulado: boolean;
     sueldo_base: number;
     tipo_jornada: 'ORDINARIA' | 'TURNOS' | 'BISMANAL' | 'ART_22' | 'PARCIAL' | 'OTRO';
     horas_semanales: string; // DecimalField llega como string desde DRF
@@ -97,6 +98,7 @@ export interface Contrato {
     tiene_contrato_pdf: boolean;
     tiene_anexo_40h_pdf: boolean;
     creado_en: string;
+    
 }
 
 export interface Empleado {

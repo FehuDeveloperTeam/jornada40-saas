@@ -258,13 +258,35 @@ export default function TabContratos({
             <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--c-text-3)' }}>Fecha de Inicio</label>
             <input type="date" name="fecha_inicio" required value={contratoData.fecha_inicio || ''} onChange={handleContratoChange} style={{ width:'100%', background:'var(--c-bg-input)', border:'1px solid var(--c-border-input)', borderRadius:'0.625rem', padding:'0.625rem 0.75rem', color:'var(--c-text-1)', outline:'none' }} />
           </div>
-          {contratoData.tipo_contrato === 'PLAZO_FIJO' && (
+          {(contratoData.tipo_contrato === 'PLAZO_FIJO' || contratoData.tipo_contrato === 'OBRA_FAENA') && (
             <div className="col-span-2 p-4 rounded-xl flex gap-4" style={{ background:'rgba(251,146,60,0.08)', border:'1px solid rgba(251,146,60,0.25)' }}>
               <div className="w-1/2">
                 <label className="block text-xs font-semibold mb-1" style={{ color:'#fdba74' }}>Fecha de Término</label>
                 <input type="date" name="fecha_fin" required value={contratoData.fecha_fin || ''} onChange={handleContratoChange} style={{ width:'100%', background:'var(--c-bg-input)', border:'1px solid rgba(251,146,60,0.3)', borderRadius:'0.5rem', padding:'0.5rem 0.75rem', color:'#fdba74', outline:'none' }} />
               </div>
               <p className="w-1/2 text-xs flex items-center" style={{ color:'rgba(253,186,116,0.7)' }}>Indica la fecha exacta en la que terminará la relación laboral.</p>
+            </div>
+          )}
+          {contratoData.tipo_contrato === 'PLAZO_FIJO' && (
+            <div className="col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="es_profesional_titulado"
+                name="es_profesional_titulado"
+                checked={contratoData.es_profesional_titulado || false}
+                onChange={handleContratoChange}
+                className="w-4 h-4"
+                style={{ cursor: 'pointer' }}
+              />
+              <label htmlFor="es_profesional_titulado" className="text-xs font-semibold" style={{ color: 'var(--c-text-2)', cursor: 'pointer' }}>
+                Es gerente o profesional/técnico con título de educación superior
+              </label>
+              <span
+                title="Habilita un tope de 2 años para el contrato a plazo fijo, en vez de 1 año. Aplica solo a gerentes o a quienes tengan título profesional o técnico de nivel superior (Art. 159 N°4 del Código del Trabajo)."
+                style={{ cursor: 'help', color: 'var(--c-text-3)', fontSize: '0.7rem', border: '1px solid var(--c-border)', borderRadius: '50%', width: '1rem', height: '1rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ?
+              </span>
             </div>
           )}
           <div className="col-span-2">
