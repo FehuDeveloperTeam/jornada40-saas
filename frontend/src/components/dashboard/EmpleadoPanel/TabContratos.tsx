@@ -5,6 +5,7 @@ import type { SolicitudFirma } from '../../../types';
 
 type Props = {
   contratoData: UseDashboardReturn['contratoData'];
+  setContratoData: UseDashboardReturn['setContratoData'];
   handleContratoChange: UseDashboardReturn['handleContratoChange'];
   guardarContrato: UseDashboardReturn['guardarContrato'];
   setHayCambiosContrato: UseDashboardReturn['setHayCambiosContrato'];
@@ -166,7 +167,7 @@ function FirmaBadge({
 }
 
 export default function TabContratos({
-  contratoData, handleContratoChange, guardarContrato, setHayCambiosContrato,
+  contratoData, setContratoData, handleContratoChange, guardarContrato, setHayCambiosContrato,
   funciones, setFunciones, clausulas, setClausulas,
   horario, setHorario, totalHorasCalculadas,
   hayCambiosContrato,
@@ -333,6 +334,62 @@ export default function TabContratos({
                 <label className="block text-xs font-semibold mb-1" style={{ color:'#93c5fd' }}>Monto de la Quincena ($)</label>
                 <input type="number" min="10000" max={contratoData.sueldo_base || 5000000} name="monto_quincena" value={contratoData.monto_quincena || ''} onChange={handleContratoChange} placeholder="Ej: 150000" style={{ width:'100%', background:'var(--c-bg-input)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', padding:'0.5rem 0.75rem', color:'#bfdbfe', outline:'none' }} />
               </div>
+            </div>
+          )}
+
+          <div className="col-span-2 flex items-center gap-3">
+            <input type="checkbox" name="es_comisionista" checked={contratoData.es_comisionista || false} onChange={handleContratoChange} className="w-5 h-5 text-blue-600" />
+            <label className="font-semibold" style={{ color:'var(--c-text-2)' }}>El trabajador recibe comisiones por venta (remuneración variable)</label>
+          </div>
+
+          {contratoData.es_comisionista && (
+            <div className="col-span-2 p-4 rounded-xl space-y-3" style={{ background:'rgba(37,99,235,0.08)', border:'1px solid rgba(37,99,235,0.25)' }}>
+              <div className="flex justify-between items-center">
+                <p className="text-xs font-semibold" style={{ color:'#93c5fd' }}>Categorías y porcentaje de comisión (ej. Carrocería: 0,5%)</p>
+                <button type="button"
+                  onClick={() => {
+                    const config = contratoData.comisiones_config || [];
+                    setContratoData(prev => ({ ...prev, comisiones_config: [...config, { glosa: '', porcentaje: 0 }] }));
+                    setHayCambiosContrato(true);
+                  }}
+                  className="text-xs font-bold transition-colors" style={{ color: '#60a5fa' }}>
+                  + Agregar Categoría
+                </button>
+              </div>
+              {(contratoData.comisiones_config || []).length === 0 ? (
+                <p className="text-sm italic" style={{ color: 'var(--c-text-3)' }}>Agrega al menos una categoría para poder calcular comisiones en la liquidación.</p>
+              ) : (
+                (contratoData.comisiones_config || []).map((item, index) => (
+                  <div key={index} className="flex gap-4">
+                    <input type="text" placeholder="Categoría (Ej: Carrocería)" value={item.glosa}
+                      onChange={(e) => {
+                        const config = [...(contratoData.comisiones_config || [])];
+                        config[index] = { ...config[index], glosa: e.target.value };
+                        setContratoData(prev => ({ ...prev, comisiones_config: config }));
+                        setHayCambiosContrato(true);
+                      }}
+                      style={{ width:'100%', background:'var(--c-bg-input)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', padding:'0.5rem 0.75rem', color:'#bfdbfe', outline:'none' }} />
+                    <div className="w-32 relative">
+                      <input type="number" step="0.01" min="0" max="100" placeholder="0.5" value={item.porcentaje || ''}
+                        onChange={(e) => {
+                          const config = [...(contratoData.comisiones_config || [])];
+                          config[index] = { ...config[index], porcentaje: Number(e.target.value) };
+                          setContratoData(prev => ({ ...prev, comisiones_config: config }));
+                          setHayCambiosContrato(true);
+                        }}
+                        style={{ width:'100%', background:'var(--c-bg-input)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', padding:'0.5rem 0.75rem', color:'#bfdbfe', outline:'none', textAlign: 'right' }} />
+                      <span className="absolute right-8 top-1/2 -translate-y-1/2 text-xs" style={{ color: '#93c5fd' }}>%</span>
+                    </div>
+                    <button type="button"
+                      onClick={() => {
+                        const config = (contratoData.comisiones_config || []).filter((_, i) => i !== index);
+                        setContratoData(prev => ({ ...prev, comisiones_config: config }));
+                        setHayCambiosContrato(true);
+                      }}
+                      className="font-bold px-3 rounded-lg transition-colors" style={{ color: '#f87171' }}>✕</button>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>

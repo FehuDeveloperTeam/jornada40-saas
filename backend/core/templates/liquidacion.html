@@ -137,6 +137,20 @@
                         </tr>
                         {% endfor %}
 
+                        {% for item in liquidacion.detalle_comisiones %}
+                        <tr class="item-row">
+                            <td>COMISION {{ item.glosa|upper|truncatechars:28 }}</td>
+                            <td class="right">{{ item.valor|intcomma }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if liquidacion.semana_corrida %}
+                        <tr class="item-row">
+                            <td>SEMANA CORRIDA</td>
+                            <td class="right">{{ liquidacion.semana_corrida|intcomma }}</td>
+                        </tr>
+                        {% endif %}
+
                         <tr class="subtotal-row">
                             <td class="center">TOTAL IMPONIBLE</td>
                             <td class="right">{{ liquidacion.total_imponible|intcomma }}</td>

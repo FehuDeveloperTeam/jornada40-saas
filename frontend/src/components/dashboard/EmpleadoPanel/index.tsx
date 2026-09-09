@@ -21,6 +21,7 @@ type Props = {
   setFormData: UseDashboardReturn['setFormData'];
   isSavingContrato: UseDashboardReturn['isSavingContrato'];
   contratoData: UseDashboardReturn['contratoData'];
+  setContratoData: UseDashboardReturn['setContratoData'];
   totalHorasCalculadas: UseDashboardReturn['totalHorasCalculadas'];
   showDocumentoForm: UseDashboardReturn['showDocumentoForm'];
   setShowDocumentoForm: UseDashboardReturn['setShowDocumentoForm'];
@@ -56,7 +57,6 @@ type Props = {
   // Tab: Liquidaciones
   liquidaciones: UseDashboardReturn['liquidaciones'];
   showLiqForm: UseDashboardReturn['showLiqForm'];
-  setShowLiqForm: UseDashboardReturn['setShowLiqForm'];
   expandedLiqId: UseDashboardReturn['expandedLiqId'];
   setExpandedLiqId: UseDashboardReturn['setExpandedLiqId'];
   liqMes: UseDashboardReturn['liqMes'];
@@ -73,6 +73,13 @@ type Props = {
   setHaberesNoImponiblesList: UseDashboardReturn['setHaberesNoImponiblesList'];
   horasExtrasList: UseDashboardReturn['horasExtrasList'];
   setHorasExtrasList: UseDashboardReturn['setHorasExtrasList'];
+  comisionesList: UseDashboardReturn['comisionesList'];
+  setComisionesList: UseDashboardReturn['setComisionesList'];
+  editingLiqId: UseDashboardReturn['editingLiqId'];
+  calcularValorComision: UseDashboardReturn['calcularValorComision'];
+  abrirNuevaLiquidacion: UseDashboardReturn['abrirNuevaLiquidacion'];
+  iniciarEdicionLiquidacion: UseDashboardReturn['iniciarEdicionLiquidacion'];
+  cerrarFormularioLiquidacion: UseDashboardReturn['cerrarFormularioLiquidacion'];
   isGeneratingLiq: UseDashboardReturn['isGeneratingLiq'];
   generarLiquidacion: UseDashboardReturn['generarLiquidacion'];
   descargarLiquidacionPDF: UseDashboardReturn['descargarLiquidacionPDF'];
@@ -117,7 +124,7 @@ type Props = {
 export default function EmpleadoPanel({
   setIsPanelOpen, panelMode, setPanelMode, selectedEmpleado,
   activeTab, setActiveTab, isValidRut, setIsValidRut, formData, setFormData,
-  isSavingContrato, contratoData, totalHorasCalculadas,
+  isSavingContrato, contratoData, setContratoData, totalHorasCalculadas,
   showDocumentoForm, setShowDocumentoForm, isSavingDocumento,
   handleInputChange, guardarEmpleado,
   handleContratoChange, guardarContrato, setHayCambiosContrato,
@@ -129,12 +136,14 @@ export default function EmpleadoPanel({
   anexosContrato, showAnexoContratoForm, setShowAnexoContratoForm,
   isSavingAnexoContrato, anexoContratoData, setAnexoContratoData,
   guardarAnexoContrato, descargarAnexoContratoPDF,
-  liquidaciones, showLiqForm, setShowLiqForm, expandedLiqId, setExpandedLiqId,
+  liquidaciones, showLiqForm, expandedLiqId, setExpandedLiqId,
   liqMes, setLiqMes, liqAnio, setLiqAnio,
   liqDiasTrabajados, setLiqDiasTrabajados, liqAusencias, setLiqAusencias,
   haberesImponiblesList, setHaberesImponiblesList,
   haberesNoImponiblesList, setHaberesNoImponiblesList,
   horasExtrasList, setHorasExtrasList,
+  comisionesList, setComisionesList, editingLiqId, calcularValorComision,
+  abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
   documentosLegales, documentoData, setDocumentoData, guardarDocumentoLegal, descargarDocumentoPDF,
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma,
@@ -295,6 +304,7 @@ export default function EmpleadoPanel({
             {activeTab === 'contratos' && (
               <TabContratos
                 contratoData={contratoData}
+                setContratoData={setContratoData}
                 handleContratoChange={handleContratoChange}
                 guardarContrato={guardarContrato}
                 setHayCambiosContrato={setHayCambiosContrato}
@@ -335,7 +345,6 @@ export default function EmpleadoPanel({
                 selectedEmpleado={selectedEmpleado}
                 liquidaciones={liquidaciones}
                 showLiqForm={showLiqForm}
-                setShowLiqForm={setShowLiqForm}
                 expandedLiqId={expandedLiqId}
                 setExpandedLiqId={setExpandedLiqId}
                 liqMes={liqMes}
@@ -352,6 +361,13 @@ export default function EmpleadoPanel({
                 setHaberesNoImponiblesList={setHaberesNoImponiblesList}
                 horasExtrasList={horasExtrasList}
                 setHorasExtrasList={setHorasExtrasList}
+                comisionesList={comisionesList}
+                setComisionesList={setComisionesList}
+                editingLiqId={editingLiqId}
+                calcularValorComision={calcularValorComision}
+                abrirNuevaLiquidacion={abrirNuevaLiquidacion}
+                iniciarEdicionLiquidacion={iniciarEdicionLiquidacion}
+                cerrarFormularioLiquidacion={cerrarFormularioLiquidacion}
                 isGeneratingLiq={isGeneratingLiq}
                 generarLiquidacion={generarLiquidacion}
                 descargarLiquidacionPDF={descargarLiquidacionPDF}

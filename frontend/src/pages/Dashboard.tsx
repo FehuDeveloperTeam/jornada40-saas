@@ -41,7 +41,7 @@ export default function Dashboard() {
     // Formulario empleado
     formData, setFormData,
     // Formulario contrato
-    contratoData,
+    contratoData, setContratoData,
     isSavingContrato, hayCambiosContrato, setHayCambiosContrato,
     funciones, setFunciones,
     clausulas, setClausulas,
@@ -49,7 +49,7 @@ export default function Dashboard() {
     totalHorasCalculadas,
     // Liquidaciones
     liquidaciones,
-    showLiqForm, setShowLiqForm,
+    showLiqForm,
     isGeneratingLiq,
     expandedLiqId, setExpandedLiqId,
     liqMes, setLiqMes,
@@ -59,6 +59,8 @@ export default function Dashboard() {
     haberesImponiblesList, setHaberesImponiblesList,
     haberesNoImponiblesList, setHaberesNoImponiblesList,
     horasExtrasList, setHorasExtrasList,
+    comisionesList, setComisionesList, editingLiqId, calcularValorComision,
+    abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
     // Documentos legales
     documentosLegales,
     documentoData, setDocumentoData,
@@ -246,6 +248,7 @@ export default function Dashboard() {
           setFormData={setFormData}
           isSavingContrato={isSavingContrato}
           contratoData={contratoData}
+          setContratoData={setContratoData}
           totalHorasCalculadas={totalHorasCalculadas}
           showDocumentoForm={showDocumentoForm}
           setShowDocumentoForm={setShowDocumentoForm}
@@ -278,7 +281,6 @@ export default function Dashboard() {
           descargarAnexoContratoPDF={descargarAnexoContratoPDF}
           liquidaciones={liquidaciones}
           showLiqForm={showLiqForm}
-          setShowLiqForm={setShowLiqForm}
           expandedLiqId={expandedLiqId}
           setExpandedLiqId={setExpandedLiqId}
           liqMes={liqMes}
@@ -295,6 +297,13 @@ export default function Dashboard() {
           setHaberesNoImponiblesList={setHaberesNoImponiblesList}
           horasExtrasList={horasExtrasList}
           setHorasExtrasList={setHorasExtrasList}
+          comisionesList={comisionesList}
+          setComisionesList={setComisionesList}
+          editingLiqId={editingLiqId}
+          calcularValorComision={calcularValorComision}
+          abrirNuevaLiquidacion={abrirNuevaLiquidacion}
+          iniciarEdicionLiquidacion={iniciarEdicionLiquidacion}
+          cerrarFormularioLiquidacion={cerrarFormularioLiquidacion}
           isGeneratingLiq={isGeneratingLiq}
           generarLiquidacion={generarLiquidacion}
           descargarLiquidacionPDF={descargarLiquidacionPDF}

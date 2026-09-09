@@ -90,6 +90,8 @@ export interface Contrato {
     tiene_quincena: boolean;
     dia_quincena: number | null;
     monto_quincena: number | null;
+    es_comisionista: boolean;
+    comisiones_config: ComisionConfig[];
     jornada_personalizada: string | null;
     funciones_especificas: string[] | null;
     clausulas_especiales: string[] | null;
@@ -215,6 +217,21 @@ export interface HoraExtraItem {
     valor: number;
 }
 
+// Tasa de comisión configurada en el contrato (ej. "Carrocería" 0.5%)
+export interface ComisionConfig {
+    glosa: string;
+    porcentaje: number;
+}
+
+// Monto vendido en el mes por categoría; el backend recalcula 'valor' con
+// el porcentaje guardado en el contrato (nunca confía en el que llegue aquí)
+export interface ComisionItem {
+    glosa: string;
+    monto_vendido: number;
+    porcentaje: number;
+    valor: number;
+}
+
 export interface Liquidacion {
     id: number;
     empleado: number;
@@ -229,6 +246,8 @@ export interface Liquidacion {
     detalle_haberes_imponibles: DetalleItem[];
     detalle_horas_extras: HoraExtraItem[];
     detalle_haberes_no_imponibles: DetalleItem[];
+    detalle_comisiones: ComisionItem[];
+    semana_corrida: number;
     afp_nombre: string | null;
     afp_monto: number;
     salud_nombre: string | null;

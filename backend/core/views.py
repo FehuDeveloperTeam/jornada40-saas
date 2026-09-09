@@ -296,6 +296,22 @@ _FERIADOS_FIJOS_CL = frozenset([
 ])
 
 
+def _contar_domingos_y_festivos(mes: int, anio: int) -> int:
+    """Cuenta los domingos y feriados fijos dentro de un mes calendario.
+
+    Usado para la semana corrida (Art. 45 Código del Trabajo): un domingo
+    que coincide con un feriado fijo se cuenta una sola vez.
+    """
+    import calendar
+    _, ultimo_dia = calendar.monthrange(anio, mes)
+    dias = 0
+    for dia in range(1, ultimo_dia + 1):
+        fecha = datetime.date(anio, mes, dia)
+        if fecha.weekday() == 6 or (mes, dia) in _FERIADOS_FIJOS_CL:
+            dias += 1
+    return dias
+
+
 def _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin) -> int:
     """Días hábiles entre fecha_inicio y fecha_fin (inclusive) según ley chilena.
 
@@ -1725,13 +1741,49 @@ def _calcular_liquidacion(contrato, empleado, data):
     suma_no_imponibles = sum(int(item.get('valor', 0)) for item in detalle_no_imponibles)
     suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in detalle_otros_descuentos)
 
+    # 2b. COMISIONES (remuneración variable, Art. 45 Código del Trabajo)
+    # El porcentaje SIEMPRE se toma de la configuración guardada en el contrato,
+    # nunca del valor que mande el cliente, para que no se pueda alterar la tasa
+    # pactada desde el navegador. El input solo aporta el monto vendido del mes.
+    config_por_glosa = {
+        str(c.get('glosa', '')): float(c.get('porcentaje', 0))
+        for c in (contrato.comisiones_config or [])
+    }
+    detalle_comisiones_input = data.get('detalle_comisiones', []) or []
+    detalle_comisiones = []
+    for item in detalle_comisiones_input:
+        glosa = str(item.get('glosa', ''))
+        monto_vendido = int(item.get('monto_vendido', 0) or 0)
+        porcentaje = config_por_glosa.get(glosa, 0)
+        valor = math.floor(monto_vendido * porcentaje / 100)
+        detalle_comisiones.append({
+            'glosa': glosa, 'monto_vendido': monto_vendido,
+            'porcentaje': porcentaje, 'valor': valor,
+        })
+    suma_comisiones = sum(item['valor'] for item in detalle_comisiones)
+
+    # 2c. SEMANA CORRIDA (Art. 45) — método mensual simplificado.
+    # Solo se calcula sobre comisiones: las horas extras quedan excluidas
+    # explícitamente por el Art. 32 inciso final del Código del Trabajo.
+    semana_corrida = 0
+    if suma_comisiones > 0 and dias_a_pagar > 0:
+        mes = int(data.get('mes') or 0)
+        anio = int(data.get('anio') or 0)
+        if mes and anio:
+            promedio_diario_variable = suma_comisiones / dias_a_pagar
+            dias_descanso = _contar_domingos_y_festivos(mes, anio)
+            semana_corrida = math.floor(promedio_diario_variable * dias_descanso)
+
     # 3. CÁLCULO DE HABERES
     sueldo_base_mensual = contrato.sueldo_base
     sueldo_base_proporcional = math.floor((sueldo_base_mensual / 30) * dias_a_pagar)
 
     # Gratificación
     tope_gratificacion = 200000
-    base_gratificacion = sueldo_base_proporcional + suma_imponibles_extra + suma_horas_extras
+    base_gratificacion = (
+        sueldo_base_proporcional + suma_imponibles_extra + suma_horas_extras
+        + suma_comisiones + semana_corrida
+    )
     gratificacion_calculada = math.floor(base_gratificacion * 0.25)
     gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if contrato.gratificacion_legal == 'MENSUAL' else 0
 
@@ -1782,6 +1834,7 @@ def _calcular_liquidacion(contrato, empleado, data):
         'detalle_haberes_imponibles': detalle_imponibles,
         'detalle_horas_extras': detalle_horas_extras,
         'detalle_haberes_no_imponibles': detalle_no_imponibles,
+        'detalle_comisiones': detalle_comisiones, 'semana_corrida': semana_corrida,
         'detalle_otros_descuentos': detalle_otros_descuentos,
         'afp_nombre': nombre_afp, 'afp_monto': afp_monto,
         'salud_nombre': salud_nombre, 'isapre_cotizacion_uf': isapre_uf, 'salud_monto': salud_monto,
@@ -1840,6 +1893,27 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
+
+        # Una liquidación ya firmada por el trabajador queda inmutable.
+        # Mientras la firma esté solo PENDIENTE, se debe cancelar esa
+        # solicitud antes de poder editar (flujo ya soportado por /cancelar/).
+        firmada = SolicitudFirma.objects.filter(
+            tipo_documento='LIQUIDACION', liquidacion=instance, estado='FIRMADO'
+        ).exists()
+        if firmada:
+            return Response(
+                {'error': 'Esta liquidación ya fue firmada por el trabajador y no puede modificarse.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        pendiente = SolicitudFirma.objects.filter(
+            tipo_documento='LIQUIDACION', liquidacion=instance, estado='PENDIENTE'
+        ).exists()
+        if pendiente:
+            return Response(
+                {'error': 'Hay una solicitud de firma pendiente para esta liquidación. Cancélala antes de modificarla.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         empleado = instance.empleado
         contrato = Contrato.objects.filter(empleado=empleado).first()
 
@@ -1848,9 +1922,9 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         data = request.data
         campos_editables = [
-            'dias_trabajados', 'dias_ausencia', 'dias_licencia', 'dias_no_contratados',
+            'mes', 'anio', 'dias_trabajados', 'dias_ausencia', 'dias_licencia', 'dias_no_contratados',
             'detalle_haberes_imponibles', 'detalle_horas_extras',
-            'detalle_haberes_no_imponibles', 'detalle_otros_descuentos',
+            'detalle_haberes_no_imponibles', 'detalle_otros_descuentos', 'detalle_comisiones',
         ]
         # Combina lo que venga en el request con lo que ya estaba guardado,
         # así un PATCH parcial recalcula usando el resto de los valores tal
@@ -2161,6 +2235,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             if not isinstance(det_imp, list): det_imp = []
             det_hex = liq.detalle_horas_extras or []
             if not isinstance(det_hex, list): det_hex = []
+            det_com = liq.detalle_comisiones or []
+            if not isinstance(det_com, list): det_com = []
             det_noi = liq.detalle_haberes_no_imponibles or []
             if not isinstance(det_noi, list): det_noi = []
             det_odc = liq.detalle_otros_descuentos or []
@@ -2168,6 +2244,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
             otros_imp  = sum(int(d.get('valor', 0)) for d in det_imp if isinstance(d, dict))
             otros_imp += sum(int(d.get('valor', 0)) for d in det_hex if isinstance(d, dict))
+            otros_imp += sum(int(d.get('valor', 0)) for d in det_com if isinstance(d, dict))
+            otros_imp += int(liq.semana_corrida or 0)
             no_impon   = sum(int(d.get('valor', 0)) for d in det_noi if isinstance(d, dict))
             otros_desc = sum(int(d.get('valor', 0)) for d in det_odc if isinstance(d, dict))
 

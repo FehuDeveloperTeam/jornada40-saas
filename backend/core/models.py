@@ -177,7 +177,12 @@ class Contrato(models.Model):
     tiene_quincena = models.BooleanField(default=False)
     dia_quincena = models.IntegerField(null=True, blank=True)
     monto_quincena = models.IntegerField(null=True, blank=True)
-    
+
+    # 3b. Comisiones (remuneración variable, Art. 45 semana corrida)
+    es_comisionista = models.BooleanField(default=False)
+    # [{"glosa": "Carrocería", "porcentaje": 0.5}, ...] — porcentaje sobre el monto vendido
+    comisiones_config = models.JSONField(default=list, blank=True)
+
     # 4. Arreglos Dinámicos (Listas en vez de texto plano)
     jornada_personalizada = models.TextField(blank=True, null=True)
     funciones_especificas = models.JSONField(default=list, blank=True, null=True)
@@ -304,7 +309,11 @@ class Liquidacion(models.Model):
     detalle_haberes_imponibles = models.JSONField(default=list, blank=True)
     detalle_horas_extras = models.JSONField(default=list, blank=True)
     detalle_haberes_no_imponibles = models.JSONField(default=list, blank=True)
-    
+    # [{"glosa": "Carrocería", "monto_vendido": 15000000, "porcentaje": 0.5, "valor": 75000}, ...]
+    detalle_comisiones = models.JSONField(default=list, blank=True)
+    # Art. 45 Código del Trabajo — promedio diario de comisiones x domingos y festivos del mes
+    semana_corrida = models.IntegerField(default=0)
+
     # --- DESCUENTOS PREVISIONALES ---
     afp_nombre = models.CharField(max_length=50, blank=True, null=True)
     afp_monto = models.IntegerField(default=0)

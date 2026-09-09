@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
   Contrato, AnexoContrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
-  SolicitudFirma, VacacionEmpleado, SaldoVacaciones, Finiquito,
+  SolicitudFirma, VacacionEmpleado, SaldoVacaciones, Finiquito, ComisionItem,
 } from '../types';
 
 export const defaultHorario: HorarioSemana = {
@@ -81,6 +81,8 @@ export function useDashboard() {
   const [haberesImponiblesList, setHaberesImponiblesList] = useState<DetalleItem[]>([]);
   const [haberesNoImponiblesList, setHaberesNoImponiblesList] = useState<DetalleItem[]>([]);
   const [horasExtrasList, setHorasExtrasList] = useState<HoraExtraItem[]>([]);
+  const [comisionesList, setComisionesList] = useState<ComisionItem[]>([]);
+  const [editingLiqId, setEditingLiqId] = useState<number | null>(null);
 
   // --- Documentos legales ---
   const [documentosLegales, setDocumentosLegales] = useState<DocumentoLegal[]>([]);
@@ -749,6 +751,53 @@ export function useDashboard() {
 
   // ─── Liquidaciones ─────────────────────────────────────────────────────────
 
+  const calcularValorComision = (montoVendido: number, porcentaje: number) => {
+    if (!montoVendido || !porcentaje) return 0;
+    return Math.floor((montoVendido * porcentaje) / 100);
+  };
+
+  const resetFormularioLiquidacion = () => {
+    setLiqMes(new Date().getMonth() + 1);
+    setLiqAnio(new Date().getFullYear());
+    setLiqDiasTrabajados(30);
+    setLiqAusencias(0);
+    setHaberesImponiblesList([]);
+    setHorasExtrasList([]);
+    setHaberesNoImponiblesList([]);
+    setComisionesList([]);
+    setEditingLiqId(null);
+  };
+
+  /** Abre el formulario para calcular una liquidación nueva, precargando las
+   * categorías de comisión configuradas en el contrato (si es comisionista). */
+  const abrirNuevaLiquidacion = () => {
+    resetFormularioLiquidacion();
+    const config = selectedEmpleado?.contrato_activo?.comisiones_config || [];
+    if (selectedEmpleado?.contrato_activo?.es_comisionista && config.length > 0) {
+      setComisionesList(config.map(c => ({ glosa: c.glosa, porcentaje: c.porcentaje, monto_vendido: 0, valor: 0 })));
+    }
+    setShowLiqForm(true);
+  };
+
+  /** Abre el formulario precargado con los datos de una liquidación existente. */
+  const iniciarEdicionLiquidacion = (liq: Liquidacion) => {
+    setEditingLiqId(liq.id);
+    setLiqMes(liq.mes);
+    setLiqAnio(liq.anio);
+    setLiqDiasTrabajados(liq.dias_trabajados);
+    setLiqAusencias(liq.dias_ausencia);
+    setHaberesImponiblesList(liq.detalle_haberes_imponibles || []);
+    setHorasExtrasList(liq.detalle_horas_extras || []);
+    setHaberesNoImponiblesList(liq.detalle_haberes_no_imponibles || []);
+    setComisionesList(liq.detalle_comisiones || []);
+    setShowLiqForm(true);
+  };
+
+  const cerrarFormularioLiquidacion = () => {
+    setShowLiqForm(false);
+    resetFormularioLiquidacion();
+  };
+
   const generarLiquidacion = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGeneratingLiq(true);
@@ -762,16 +811,19 @@ export function useDashboard() {
         detalle_haberes_imponibles: haberesImponiblesList,
         detalle_horas_extras: horasExtrasList,
         detalle_haberes_no_imponibles: haberesNoImponiblesList,
+        detalle_comisiones: comisionesList.map(c => ({ glosa: c.glosa, monto_vendido: c.monto_vendido })),
         detalle_otros_descuentos: [],
       };
-      const res = await client.post('/liquidaciones/', payload);
-      setLiquidaciones(prev => [res.data, ...prev]);
-      setShowLiqForm(false);
-      setHaberesImponiblesList([]);
-      setHorasExtrasList([]);
-      setHaberesNoImponiblesList([]);
-      setLiqAusencias(0);
-      showToast('¡Liquidación calculada y generada exitosamente!', 'success');
+      if (editingLiqId) {
+        const res = await client.patch(`/liquidaciones/${editingLiqId}/`, payload);
+        setLiquidaciones(prev => prev.map(l => (l.id === editingLiqId ? res.data : l)));
+        showToast('¡Liquidación actualizada exitosamente!', 'success');
+      } else {
+        const res = await client.post('/liquidaciones/', payload);
+        setLiquidaciones(prev => [res.data, ...prev]);
+        showToast('¡Liquidación calculada y generada exitosamente!', 'success');
+      }
+      cerrarFormularioLiquidacion();
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.data?.error) {
         showToast(`Error del Servidor: ${error.response.data.error}`, 'error');
@@ -1192,6 +1244,10 @@ export function useDashboard() {
     haberesImponiblesList, setHaberesImponiblesList,
     haberesNoImponiblesList, setHaberesNoImponiblesList,
     horasExtrasList, setHorasExtrasList,
+    comisionesList, setComisionesList,
+    editingLiqId,
+    calcularValorComision,
+    abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
     // Documentos legales
     documentosLegales,
     documentoData, setDocumentoData,

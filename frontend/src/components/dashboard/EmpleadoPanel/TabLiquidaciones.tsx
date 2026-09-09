@@ -1,13 +1,17 @@
 import React from 'react';
-import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye } from 'lucide-react';
+import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye, Pencil } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
 import type { SolicitudFirma } from '../../../types';
+
+const NOMBRES_MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
 
 type Props = {
   selectedEmpleado: UseDashboardReturn['selectedEmpleado'];
   liquidaciones: UseDashboardReturn['liquidaciones'];
   showLiqForm: UseDashboardReturn['showLiqForm'];
-  setShowLiqForm: UseDashboardReturn['setShowLiqForm'];
   expandedLiqId: UseDashboardReturn['expandedLiqId'];
   setExpandedLiqId: UseDashboardReturn['setExpandedLiqId'];
   liqMes: UseDashboardReturn['liqMes'];
@@ -24,6 +28,13 @@ type Props = {
   setHaberesNoImponiblesList: UseDashboardReturn['setHaberesNoImponiblesList'];
   horasExtrasList: UseDashboardReturn['horasExtrasList'];
   setHorasExtrasList: UseDashboardReturn['setHorasExtrasList'];
+  comisionesList: UseDashboardReturn['comisionesList'];
+  setComisionesList: UseDashboardReturn['setComisionesList'];
+  editingLiqId: UseDashboardReturn['editingLiqId'];
+  calcularValorComision: UseDashboardReturn['calcularValorComision'];
+  abrirNuevaLiquidacion: UseDashboardReturn['abrirNuevaLiquidacion'];
+  iniciarEdicionLiquidacion: UseDashboardReturn['iniciarEdicionLiquidacion'];
+  cerrarFormularioLiquidacion: UseDashboardReturn['cerrarFormularioLiquidacion'];
   isGeneratingLiq: UseDashboardReturn['isGeneratingLiq'];
   generarLiquidacion: UseDashboardReturn['generarLiquidacion'];
   descargarLiquidacionPDF: UseDashboardReturn['descargarLiquidacionPDF'];
@@ -59,13 +70,15 @@ const lbl: React.CSSProperties = {
 };
 
 export default function TabLiquidaciones({
-  selectedEmpleado, liquidaciones, showLiqForm, setShowLiqForm,
+  selectedEmpleado, liquidaciones, showLiqForm,
   expandedLiqId, setExpandedLiqId,
   liqMes, setLiqMes, liqAnio, setLiqAnio,
   liqDiasTrabajados, setLiqDiasTrabajados, liqAusencias, setLiqAusencias,
   haberesImponiblesList, setHaberesImponiblesList,
   haberesNoImponiblesList, setHaberesNoImponiblesList,
   horasExtrasList, setHorasExtrasList,
+  comisionesList, setComisionesList, editingLiqId, calcularValorComision,
+  abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
   solicitudesFirma, isSendingFirma, enviarAFirma, cancelarFirma, reenviarFirma, onVerDetalleFirma,
 }: Props) {
@@ -78,7 +91,7 @@ export default function TabLiquidaciones({
               <h3 className="text-lg font-extrabold" style={{ color: 'var(--c-text-1)' }}>Historial de Remuneraciones</h3>
               <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>Nómina mensual, haberes y descuentos legales.</p>
             </div>
-            <button onClick={() => setShowLiqForm(true)}
+            <button onClick={() => abrirNuevaLiquidacion()}
               className="px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
               style={{ color: 'var(--c-text-2)', background: 'var(--c-bg-input)', border: '1px solid var(--c-border-input)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-input-focus)')}
@@ -200,6 +213,19 @@ export default function TabLiquidaciones({
                                     </button>
                                   </div>
                                 )}
+                                {solicitudActiva?.estado !== 'FIRMADO' && solicitudActiva?.estado !== 'PENDIENTE' && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); iniciarEdicionLiquidacion(liq); }}
+                                    className="text-xs font-semibold flex items-center gap-1 transition-colors"
+                                    style={{ color: 'var(--c-text-3)' }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--c-text-3)')}
+                                    title="Editar liquidación"
+                                  >
+                                    <Pencil className="w-3 h-3" />Editar
+                                  </button>
+                                )}
                               </>
                             );
                           })()}
@@ -231,6 +257,18 @@ export default function TabLiquidaciones({
                                   <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${extra.valor.toLocaleString('es-CL')}</span>
                                 </div>
                               ))}
+                              {liq.detalle_comisiones?.map((com, i) => (
+                                <div key={`com-${i}`} className="flex justify-between text-sm">
+                                  <span style={{ color: 'var(--c-text-2)' }}>Comisión {com.glosa} ({com.porcentaje}%)</span>
+                                  <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${com.valor.toLocaleString('es-CL')}</span>
+                                </div>
+                              ))}
+                              {liq.semana_corrida > 0 && (
+                                <div className="flex justify-between text-sm">
+                                  <span style={{ color: 'var(--c-text-2)' }}>Semana Corrida (Art. 45)</span>
+                                  <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${liq.semana_corrida.toLocaleString('es-CL')}</span>
+                                </div>
+                              )}
                               {liq.detalle_haberes_no_imponibles?.map((noimp, i) => (
                                 <div key={`ni-${i}`} className="flex justify-between text-sm">
                                   <span style={{ color: 'var(--c-text-2)' }}>{noimp.glosa}</span>
@@ -269,10 +307,10 @@ export default function TabLiquidaciones({
         <form id="liqForm" onSubmit={generarLiquidacion} className="p-8 rounded-[1.5rem] space-y-8" style={{ background: 'var(--c-bg-card-2)', border: '1px solid var(--c-border)' }}>
           <div className="flex justify-between items-center pb-4" style={{ borderBottom: '1px solid var(--c-border)' }}>
             <div>
-              <h3 className="text-lg font-extrabold" style={{ color: 'var(--c-text-1)' }}>Configurar Liquidación de Sueldo</h3>
+              <h3 className="text-lg font-extrabold" style={{ color: 'var(--c-text-1)' }}>{editingLiqId ? 'Editar Liquidación de Sueldo' : 'Configurar Liquidación de Sueldo'}</h3>
               <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>AFP {selectedEmpleado?.afp || 'MODELO'} y Salud {selectedEmpleado?.sistema_salud || 'FONASA'} se calcularán automáticamente.</p>
             </div>
-            <button type="button" onClick={() => setShowLiqForm(false)}
+            <button type="button" onClick={() => cerrarFormularioLiquidacion()}
               className="text-sm font-bold transition-colors"
               style={{ color: 'var(--c-text-3)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--c-text-2)')}
@@ -285,7 +323,7 @@ export default function TabLiquidaciones({
               <div>
                 <label style={lbl}>Mes</label>
                 <select required value={liqMes} onChange={(e) => setLiqMes(Number(e.target.value))} style={{ ...inp, cursor: 'pointer' }}>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m} style={{ background: 'var(--c-bg-modal)' }}>Mes {m}</option>)}
+                  {NOMBRES_MESES.map((nombre, i) => <option key={i + 1} value={i + 1} style={{ background: 'var(--c-bg-modal)' }}>{nombre}</option>)}
                 </select>
               </div>
               <div>
@@ -365,6 +403,41 @@ export default function TabLiquidaciones({
               </div>
             )}
           </div>
+
+          {comisionesList.length > 0 && (
+            <div>
+              <div className="flex justify-between items-end mb-4">
+                <h4 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Comisiones del Mes</h4>
+                <p className="text-xs italic" style={{ color: 'var(--c-text-3)' }}>Tasas configuradas en el contrato</p>
+              </div>
+              <div className="space-y-3">
+                {comisionesList.map((item, index) => (
+                  <div key={index} className="flex gap-4 items-center">
+                    <div className="flex-1">
+                      <span className="text-sm font-bold" style={{ color: 'var(--c-text-1)' }}>{item.glosa}</span>
+                      <span className="text-xs ml-2" style={{ color: 'var(--c-text-3)' }}>({item.porcentaje}%)</span>
+                    </div>
+                    <div className="w-48 relative">
+                      <span className="absolute text-xs top-[-16px] left-1" style={{ color: 'var(--c-text-3)' }}>Monto Vendido ($)</span>
+                      <input type="number" placeholder="0" value={item.monto_vendido || ''}
+                        onChange={(e) => {
+                          const montoVendido = Number(e.target.value);
+                          const newL = [...comisionesList];
+                          newL[index] = { ...newL[index], monto_vendido: montoVendido, valor: calcularValorComision(montoVendido, newL[index].porcentaje) };
+                          setComisionesList(newL);
+                        }}
+                        style={{ ...inp, width: '100%', textAlign: 'right' }} />
+                    </div>
+                    <div className="w-36 relative">
+                      <span className="absolute text-xs top-[-16px] left-1" style={{ color: 'var(--c-text-3)' }}>Comisión Calculada</span>
+                      <input type="number" readOnly value={item.valor || 0}
+                        style={{ ...inp, width: '100%', textAlign: 'right', background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.25)', color: '#93c5fd', cursor: 'not-allowed' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="flex justify-between items-end mb-4">

@@ -40,6 +40,7 @@ class ContratoSerializer(serializers.ModelSerializer):
             'tipo_jornada', 'horas_semanales', 'distribucion_dias', 'distribucion_horario',
             'dia_pago', 'gratificacion_legal',
             'tiene_quincena', 'dia_quincena', 'monto_quincena',
+            'es_comisionista', 'comisiones_config',
             'jornada_personalizada', 'funciones_especificas', 'clausulas_especiales',
             'archivo_contrato', 'archivo_anexo_40h',
             'tiene_contrato_pdf', 'tiene_anexo_40h_pdf',
@@ -94,7 +95,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'tiene_rechazos_pendientes',
         ]
         read_only_fields = ('id', 'ficha_numero', 'creado_en', 'contrato_activo',
-                            'tiene_rechazos_pendientes', 'activo')
+                            'tiene_rechazos_pendientes')
 
 
 class AnexoContratoSerializer(serializers.ModelSerializer):
@@ -136,6 +137,7 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             'dias_trabajados', 'dias_licencia', 'dias_ausencia', 'dias_no_contratados',
             'sueldo_base', 'gratificacion',
             'detalle_haberes_imponibles', 'detalle_horas_extras', 'detalle_haberes_no_imponibles',
+            'detalle_comisiones', 'semana_corrida',
             'afp_nombre', 'afp_monto',
             'salud_nombre', 'isapre_cotizacion_uf', 'salud_monto',
             'seguro_cesantia', 'impuesto_unico',
@@ -144,7 +146,7 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             'archivo_pdf', 'fecha_emision',
         ]
         read_only_fields = (
-            'id',
+            'id', 'semana_corrida',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
             'archivo_pdf', 'fecha_emision',
         )
