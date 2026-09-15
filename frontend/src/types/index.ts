@@ -257,6 +257,10 @@ export interface Liquidacion {
     impuesto_unico: number;
     anticipo_quincena: number;
     detalle_otros_descuentos: DetalleItem[];
+    // Términos del contrato congelados al emitir la liquidación
+    sueldo_base_contrato: number;
+    gratificacion_legal: string;
+    tipo_contrato: string;
     total_imponible: number;
     total_haberes: number;
     total_descuentos: number;

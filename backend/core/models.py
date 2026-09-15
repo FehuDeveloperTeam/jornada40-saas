@@ -329,6 +329,13 @@ class Liquidacion(models.Model):
     anticipo_quincena = models.IntegerField(default=0)
     detalle_otros_descuentos = models.JSONField(default=list, blank=True)
     
+    # --- TÉRMINOS DEL CONTRATO CONGELADOS AL EMITIR ---
+    # Se guardan para que recalcular una liquidación antigua use las condiciones
+    # que estaban vigentes en su período, y no las del contrato de hoy.
+    sueldo_base_contrato = models.IntegerField(default=0)
+    gratificacion_legal = models.CharField(max_length=20, blank=True, default='')
+    tipo_contrato = models.CharField(max_length=20, blank=True, default='')
+
     # --- TOTALES MATEMÁTICOS ---
     total_imponible = models.IntegerField(default=0)
     total_haberes = models.IntegerField(default=0)

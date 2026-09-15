@@ -1709,7 +1709,53 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=500)
 
 
-def _calcular_liquidacion(contrato, empleado, data):
+def _terminos_vigentes(contrato) -> dict:
+    """Condiciones contractuales de hoy — se usan al emitir una liquidación nueva."""
+    return {
+        'sueldo_base_contrato': contrato.sueldo_base,
+        'gratificacion_legal': contrato.gratificacion_legal,
+        'tipo_contrato': contrato.tipo_contrato,
+        'anticipo_quincena': (contrato.monto_quincena or 0) if contrato.tiene_quincena else 0,
+        'porcentajes_comision': {
+            str(c.get('glosa', '')): float(c.get('porcentaje', 0))
+            for c in (contrato.comisiones_config or [])
+        },
+    }
+
+
+def _terminos_congelados(liquidacion, contrato) -> dict:
+    """Condiciones con las que se emitió una liquidación existente.
+
+    Al editarla se recalcula con estos valores y no con los del contrato
+    vigente: una liquidación de marzo no debe recalcularse con el sueldo o la
+    comisión que se pactaron en junio. Los porcentajes de comisión se leen de
+    la fila guardada en BD, nunca del payload, para que no puedan alterarse.
+
+    Las liquidaciones anteriores a esta funcionalidad no tienen los términos
+    guardados; en ese caso se cae al contrato vigente como mejor aproximación.
+    """
+    if not liquidacion.sueldo_base_contrato:
+        return _terminos_vigentes(contrato)
+
+    porcentajes = {
+        str(c.get('glosa', '')): float(c.get('porcentaje', 0))
+        for c in (liquidacion.detalle_comisiones or [])
+    }
+    # Una categoría agregada al contrato después de emitir esta liquidación
+    # todavía no tiene porcentaje histórico: se toma el del contrato.
+    for glosa, porcentaje in _terminos_vigentes(contrato)['porcentajes_comision'].items():
+        porcentajes.setdefault(glosa, porcentaje)
+
+    return {
+        'sueldo_base_contrato': liquidacion.sueldo_base_contrato,
+        'gratificacion_legal': liquidacion.gratificacion_legal or contrato.gratificacion_legal,
+        'tipo_contrato': liquidacion.tipo_contrato or contrato.tipo_contrato,
+        'anticipo_quincena': liquidacion.anticipo_quincena or 0,
+        'porcentajes_comision': porcentajes,
+    }
+
+
+def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     """
     Calcula todos los campos derivados de una liquidación (haberes, descuentos
     legales, impuesto único y totales) a partir de los datos de asistencia y
@@ -1718,7 +1764,12 @@ def _calcular_liquidacion(contrato, empleado, data):
     Usada tanto por LiquidacionViewSet.create() como por .update(), para que
     editar una liquidación existente recalcule los totales de la misma forma
     que al crearla (en vez de dejarlos congelados con los valores viejos).
+
+    `terminos` son las condiciones contractuales a aplicar (ver
+    _terminos_vigentes / _terminos_congelados). Sin él se usa el contrato actual.
     """
+    if terminos is None:
+        terminos = _terminos_vigentes(contrato)
     # 1. ASISTENCIA
     dias_trabajados = int(data.get('dias_trabajados', 30))
     dias_ausencia = int(data.get('dias_ausencia', 0))
@@ -1742,13 +1793,10 @@ def _calcular_liquidacion(contrato, empleado, data):
     suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in detalle_otros_descuentos)
 
     # 2b. COMISIONES (remuneración variable, Art. 45 Código del Trabajo)
-    # El porcentaje SIEMPRE se toma de la configuración guardada en el contrato,
-    # nunca del valor que mande el cliente, para que no se pueda alterar la tasa
-    # pactada desde el navegador. El input solo aporta el monto vendido del mes.
-    config_por_glosa = {
-        str(c.get('glosa', '')): float(c.get('porcentaje', 0))
-        for c in (contrato.comisiones_config or [])
-    }
+    # El porcentaje SIEMPRE sale de los términos resueltos en el servidor
+    # (contrato vigente o los congelados en la liquidación), nunca del valor que
+    # mande el cliente. El input solo aporta el monto vendido del mes.
+    config_por_glosa = terminos['porcentajes_comision']
     detalle_comisiones_input = data.get('detalle_comisiones', []) or []
     detalle_comisiones = []
     for item in detalle_comisiones_input:
@@ -1775,7 +1823,7 @@ def _calcular_liquidacion(contrato, empleado, data):
             semana_corrida = math.floor(promedio_diario_variable * dias_descanso)
 
     # 3. CÁLCULO DE HABERES
-    sueldo_base_mensual = contrato.sueldo_base
+    sueldo_base_mensual = terminos['sueldo_base_contrato']
     sueldo_base_proporcional = math.floor((sueldo_base_mensual / 30) * dias_a_pagar)
 
     # Gratificación
@@ -1785,7 +1833,7 @@ def _calcular_liquidacion(contrato, empleado, data):
         + suma_comisiones + semana_corrida
     )
     gratificacion_calculada = math.floor(base_gratificacion * 0.25)
-    gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if contrato.gratificacion_legal == 'MENSUAL' else 0
+    gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if terminos['gratificacion_legal'] == 'MENSUAL' else 0
 
     total_imponible = base_gratificacion + gratificacion_final
     total_haberes = total_imponible + suma_no_imponibles
@@ -1814,14 +1862,14 @@ def _calcular_liquidacion(contrato, empleado, data):
         isapre_uf = 0
 
     # Seguro Cesantía
-    seguro_cesantia = math.floor(total_imponible * 0.006) if contrato.tipo_contrato == 'INDEFINIDO' else 0
+    seguro_cesantia = math.floor(total_imponible * 0.006) if terminos['tipo_contrato'] == 'INDEFINIDO' else 0
 
     # Impuesto Único de Segunda Categoría
     base_tributable = total_imponible - afp_monto - salud_monto - seguro_cesantia
     impuesto_unico = calcular_impuesto_unico(base_tributable, obtener_utm())
 
     # Quincena y otros
-    anticipo_quincena = contrato.monto_quincena if contrato.tiene_quincena else 0
+    anticipo_quincena = terminos['anticipo_quincena']
     total_descuentos = afp_monto + salud_monto + seguro_cesantia + impuesto_unico + anticipo_quincena + suma_otros_descuentos
 
     # 5. SUELDO LÍQUIDO FINAL
@@ -1839,6 +1887,9 @@ def _calcular_liquidacion(contrato, empleado, data):
         'afp_nombre': nombre_afp, 'afp_monto': afp_monto,
         'salud_nombre': salud_nombre, 'isapre_cotizacion_uf': isapre_uf, 'salud_monto': salud_monto,
         'seguro_cesantia': seguro_cesantia, 'impuesto_unico': impuesto_unico, 'anticipo_quincena': anticipo_quincena,
+        'sueldo_base_contrato': terminos['sueldo_base_contrato'],
+        'gratificacion_legal': terminos['gratificacion_legal'],
+        'tipo_contrato': terminos['tipo_contrato'],
         'total_imponible': total_imponible, 'total_haberes': total_haberes,
         'total_descuentos': total_descuentos, 'sueldo_liquido': sueldo_liquido,
     }
@@ -1871,7 +1922,9 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             if not contrato:
                 return Response({'error': 'El trabajador no tiene un contrato activo.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            calculado = _calcular_liquidacion(contrato, empleado, data)
+            calculado = _calcular_liquidacion(
+                contrato, empleado, data, terminos=_terminos_vigentes(contrato)
+            )
 
             liquidacion = Liquidacion.objects.create(
                 empleado=empleado, mes=data.get('mes'), anio=data.get('anio'),
@@ -1934,7 +1987,10 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         }
 
         try:
-            calculado = _calcular_liquidacion(contrato, empleado, datos_para_calculo)
+            calculado = _calcular_liquidacion(
+                contrato, empleado, datos_para_calculo,
+                terminos=_terminos_congelados(instance, contrato),
+            )
 
             for campo, valor in calculado.items():
                 setattr(instance, campo, valor)

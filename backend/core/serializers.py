@@ -142,11 +142,13 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             'salud_nombre', 'isapre_cotizacion_uf', 'salud_monto',
             'seguro_cesantia', 'impuesto_unico',
             'anticipo_quincena', 'detalle_otros_descuentos',
+            'sueldo_base_contrato', 'gratificacion_legal', 'tipo_contrato',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
             'archivo_pdf', 'fecha_emision',
         ]
         read_only_fields = (
             'id', 'semana_corrida',
+            'sueldo_base_contrato', 'gratificacion_legal', 'tipo_contrato',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
             'archivo_pdf', 'fecha_emision',
         )
