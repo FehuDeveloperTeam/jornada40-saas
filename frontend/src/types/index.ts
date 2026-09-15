@@ -151,6 +151,21 @@ export interface DocumentosDisponibles {
     cantidad_anexos_contrato: number;
 }
 
+// Cambios estructurados que un anexo aplica al contrato al ser firmado.
+// Las claves son campos de Contrato; el backend valida contra su whitelist.
+export type CambiosAnexo = Partial<{
+    cargo: string;
+    sueldo_base: number;
+    tipo_jornada: string;
+    horas_semanales: number;
+    gratificacion_legal: string;
+    es_comisionista: boolean;
+    comisiones_config: ComisionConfig[];
+    tiene_quincena: boolean;
+    dia_quincena: number;
+    monto_quincena: number;
+}>;
+
 export interface AnexoContrato {
     id: number;
     contrato: number;
@@ -158,6 +173,10 @@ export interface AnexoContrato {
     descripcion: string;
     clausulas_modificadas: string[];
     fecha_emision: string;
+    cambios: CambiosAnexo;
+    vigencia_desde: string | null;
+    aplicado: boolean;
+    aplicado_en: string | null;
     archivo_pdf: string | null;
     creado_en: string;
 }
@@ -298,6 +317,7 @@ export interface SolicitudFirma {
     empresa: number;
     contrato: number | null;
     documento_legal: number | null;
+    anexo_contrato: number | null;
     liquidacion: number | null;
     vacacion: number | null;
     finiquito: number | null;

@@ -1626,6 +1626,118 @@ def registrar_cliente(request):
     except Exception as e:
         return Response({'error': str(e)}, status=500)
     
+# Campos del contrato que un anexo puede modificar. Todo lo que no esté acá
+# se ignora, aunque venga en el JSON: evita que un payload manipulado cambie
+# el empleado dueño del contrato o campos que no corresponden a un anexo.
+_CAMPOS_ANEXO_APLICABLES = {
+    'cargo':               str,
+    'sueldo_base':         int,
+    'tipo_jornada':        str,
+    'horas_semanales':     float,
+    'gratificacion_legal': str,
+    'es_comisionista':     bool,
+    'comisiones_config':   list,
+    'tiene_quincena':      bool,
+    'dia_quincena':        int,
+    'monto_quincena':      int,
+}
+
+_ETIQUETAS_CAMPOS_ANEXO = {
+    'cargo':               'Cargo',
+    'sueldo_base':         'Sueldo base',
+    'tipo_jornada':        'Tipo de jornada',
+    'horas_semanales':     'Horas semanales',
+    'gratificacion_legal': 'Gratificación legal',
+    'es_comisionista':     'Remuneración por comisiones',
+    'comisiones_config':   'Comisiones por venta',
+    'tiene_quincena':      'Anticipo quincenal',
+    'dia_quincena':        'Día de la quincena',
+    'monto_quincena':      'Monto de la quincena',
+}
+
+
+def _formatear_valor_anexo(campo, valor) -> str:
+    """Representación legible de un valor para la cláusula del anexo."""
+    if campo == 'comisiones_config':
+        if not valor:
+            return 'sin comisiones'
+        return ', '.join(
+            f"{c.get('glosa', '')} {c.get('porcentaje', 0)}%" for c in valor
+        )
+    if isinstance(valor, bool):
+        return 'Sí' if valor else 'No'
+    if campo in ('sueldo_base', 'monto_quincena') and valor:
+        return f"${int(valor):,}".replace(',', '.')
+    return str(valor)
+
+
+def _clausulas_desde_cambios(anexo, contrato) -> list:
+    """Genera el texto de las cláusulas a partir de los cambios estructurados.
+
+    Se antepone a las cláusulas de texto libre que haya escrito el empleador,
+    para que el PDF refleje siempre lo que el anexo modifica de verdad.
+    """
+    cambios = anexo.cambios or {}
+    if not cambios:
+        return []
+
+    desde = anexo.vigencia_desde or anexo.fecha_emision
+    fecha_txt = f"{desde.day:02d} de {_MESES[desde.month - 1]} de {desde.year}"
+
+    clausulas = []
+    for campo, valor_nuevo in cambios.items():
+        if campo not in _CAMPOS_ANEXO_APLICABLES:
+            continue
+        etiqueta = _ETIQUETAS_CAMPOS_ANEXO.get(campo, campo)
+        anterior = _formatear_valor_anexo(campo, getattr(contrato, campo, None))
+        nuevo = _formatear_valor_anexo(campo, valor_nuevo)
+        clausulas.append(
+            f"{etiqueta}: se modifica de «{anterior}» a «{nuevo}», "
+            f"con vigencia a contar del {fecha_txt}."
+        )
+    return clausulas
+
+
+def _aplicar_anexo_a_contrato(anexo) -> bool:
+    """Traspasa los cambios del anexo al contrato. Se llama al firmarse.
+
+    Retorna True si aplicó algo. Es idempotente: un anexo ya aplicado no
+    vuelve a tocar el contrato.
+    """
+    if anexo.aplicado or not anexo.cambios:
+        return False
+
+    contrato = anexo.contrato
+    campos_actualizados = []
+
+    for campo, valor in anexo.cambios.items():
+        tipo = _CAMPOS_ANEXO_APLICABLES.get(campo)
+        if tipo is None:
+            continue
+        try:
+            if tipo is bool:
+                valor_limpio = bool(valor)
+            elif tipo is list:
+                valor_limpio = list(valor or [])
+            elif valor is None or valor == '':
+                continue
+            else:
+                valor_limpio = tipo(valor)
+        except (TypeError, ValueError):
+            continue
+        setattr(contrato, campo, valor_limpio)
+        campos_actualizados.append(campo)
+
+    if not campos_actualizados:
+        return False
+
+    contrato.save(update_fields=campos_actualizados)
+    anexo.aplicado = True
+    anexo.aplicado_en = timezone.now()
+    anexo.save(update_fields=['aplicado', 'aplicado_en'])
+    return True
+
+
 class AnexoContratoViewSet(viewsets.ModelViewSet):
     serializer_class = AnexoContratoSerializer
     permission_classes = [IsAuthenticated]
@@ -1647,8 +1759,33 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Contrato no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
         return super().create(request, *args, **kwargs)
 
+    def update(self, request, *args, **kwargs):
+        if self.get_object().aplicado:
+            return Response(
+                {'error': 'Este anexo ya fue firmado y sus cambios se aplicaron al contrato; no puede modificarse.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if self.get_object().aplicado:
+            return Response(
+                {'error': 'Este anexo ya fue firmado y sus cambios se aplicaron al contrato; no puede eliminarse.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         anexo = serializer.save()
+
+        # Las cláusulas del cambio estructurado se materializan al crear el
+        # anexo, cuando el contrato todavía tiene los valores anteriores: así
+        # el documento deja constancia del "de X a Y" tal como era en ese momento.
+        generadas = _clausulas_desde_cambios(anexo, anexo.contrato)
+        if generadas:
+            anexo.clausulas_modificadas = generadas + list(anexo.clausulas_modificadas or [])
+            anexo.save(update_fields=['clausulas_modificadas'])
+
         try:
             contrato = anexo.contrato
             empleado = contrato.empleado
@@ -3244,6 +3381,14 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         except Exception:
             return Response({'error': 'Error al subir el documento al almacenamiento.'}, status=500)
 
+        # El anexo se enlaza explícitamente porque al firmarse aplica sus
+        # cambios al contrato, y hay que saber cuál fue.
+        anexo_obj = None
+        if tipo_doc == 'ANEXO_CONTRATO' and anexo_id:
+            anexo_obj = AnexoContrato.objects.filter(
+                id=anexo_id, contrato__empleado=empleado
+            ).first()
+
         try:
             solicitud = SolicitudFirma.objects.create(
                 empleado=empleado,
@@ -3251,6 +3396,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 tipo_documento=tipo_doc,
                 contrato=contrato_obj,
                 documento_legal=doc_legal_obj,
+                anexo_contrato=anexo_obj,
                 liquidacion=liquidacion_obj,
                 vacacion=vacacion_obj,
                 finiquito=finiquito_obj,
@@ -4348,6 +4494,18 @@ def firma_publica_firmar(request, token):
         'firma_trabajador_imagen', 'b2_key_firmado',
         'sesion_token_trabajador', 'actualizado_en',
     ])
+
+    # ── Un anexo modifica el contrato recién al firmarse (Art. 11) ──────────
+    # Si falla no se revierte la firma: quedó legalmente otorgada. Se registra
+    # para poder aplicar el cambio manualmente.
+    if solicitud.tipo_documento == 'ANEXO_CONTRATO' and solicitud.anexo_contrato_id:
+        try:
+            _aplicar_anexo_a_contrato(solicitud.anexo_contrato)
+        except Exception:
+            logger.exception(
+                'Anexo %s firmado pero no se pudieron aplicar sus cambios al contrato',
+                solicitud.anexo_contrato_id,
+            )
 
     # ── Emails de confirmación (no críticos) ────────────────────────────────
     try:

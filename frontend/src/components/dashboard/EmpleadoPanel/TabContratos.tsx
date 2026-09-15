@@ -1,7 +1,52 @@
 import { useState, useRef } from 'react';
 import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye, ScanLine } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
-import type { SolicitudFirma } from '../../../types';
+import type { SolicitudFirma, CambiosAnexo, ComisionConfig } from '../../../types';
+
+// Campos del contrato que un anexo puede modificar. Debe mantenerse alineado
+// con _CAMPOS_ANEXO_APLICABLES del backend, que es quien valida de verdad.
+type CampoAnexo = {
+  campo: keyof CambiosAnexo;
+  label: string;
+  tipo: 'texto' | 'numero' | 'booleano' | 'opciones' | 'comisiones';
+  opciones?: { valor: string; label: string }[];
+};
+
+const CAMPOS_ANEXO: CampoAnexo[] = [
+  { campo: 'cargo',               label: 'Cargo',                       tipo: 'texto' },
+  { campo: 'sueldo_base',         label: 'Sueldo base',                 tipo: 'numero' },
+  { campo: 'es_comisionista',     label: 'Remuneración por comisiones', tipo: 'booleano' },
+  { campo: 'comisiones_config',   label: 'Comisiones por venta',        tipo: 'comisiones' },
+  { campo: 'horas_semanales',     label: 'Horas semanales',             tipo: 'numero' },
+  {
+    campo: 'tipo_jornada', label: 'Tipo de jornada', tipo: 'opciones',
+    opciones: [
+      { valor: 'ORDINARIA', label: 'Ordinaria' },
+      { valor: 'TURNOS',    label: 'Turnos Rotativos' },
+      { valor: 'BISMANAL',  label: 'Bismanal' },
+      { valor: 'ART_22',    label: 'Artículo 22' },
+      { valor: 'PARCIAL',   label: 'Part-Time' },
+      { valor: 'OTRO',      label: 'Otra' },
+    ],
+  },
+  {
+    campo: 'gratificacion_legal', label: 'Gratificación legal', tipo: 'opciones',
+    opciones: [
+      { valor: 'MENSUAL', label: 'Mensual (Art. 50)' },
+      { valor: 'ANUAL',   label: 'Anual (Art. 47)' },
+    ],
+  },
+  { campo: 'tiene_quincena',  label: 'Anticipo quincenal',   tipo: 'booleano' },
+  { campo: 'dia_quincena',    label: 'Día de la quincena',   tipo: 'numero' },
+  { campo: 'monto_quincena',  label: 'Monto de la quincena', tipo: 'numero' },
+];
+
+const valorInicialCampo = (tipo: CampoAnexo['tipo']) => {
+  if (tipo === 'booleano') return true;
+  if (tipo === 'comisiones') return [] as ComisionConfig[];
+  if (tipo === 'numero') return 0;
+  return '';
+};
 
 type Props = {
   contratoData: UseDashboardReturn['contratoData'];
@@ -625,8 +670,125 @@ export default function TabContratos({
                 </div>
               </div>
 
+              {(() => {
+                const cambios: CambiosAnexo = anexoContratoData.cambios || {};
+                const activos = Object.keys(cambios) as (keyof CambiosAnexo)[];
+                const disponibles = CAMPOS_ANEXO.filter(c => !activos.includes(c.campo));
+                const setCambios = (nuevos: CambiosAnexo) =>
+                  setAnexoContratoData({ ...anexoContratoData, cambios: nuevos });
+
+                return (
+                  <div className="p-4 rounded-xl" style={{ background:'rgba(37,99,235,0.06)', border:'1px solid rgba(37,99,235,0.2)' }}>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-semibold" style={{ color:'#93c5fd' }}>Condiciones del contrato que modifica</label>
+                      {disponibles.length > 0 && (
+                        <select
+                          value=""
+                          onChange={e => {
+                            const def = CAMPOS_ANEXO.find(c => c.campo === e.target.value);
+                            if (!def) return;
+                            setCambios({ ...cambios, [def.campo]: valorInicialCampo(def.tipo) });
+                          }}
+                          className="text-xs font-bold"
+                          style={{ background:'var(--c-bg-input)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', padding:'0.25rem 0.5rem', color:'#60a5fa', outline:'none', cursor:'pointer' }}
+                        >
+                          <option value="">+ Agregar cambio</option>
+                          {disponibles.map(c => (
+                            <option key={c.campo} value={c.campo} style={{ background:'var(--c-bg-modal)' }}>{c.label}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <p className="text-xs mb-3" style={{ color:'var(--c-text-3)' }}>
+                      Los cambios se aplican al contrato cuando el trabajador firma el anexo, no antes.
+                    </p>
+
+                    {activos.length === 0 ? (
+                      <p className="text-sm italic" style={{ color:'var(--c-text-3)' }}>
+                        Anexo solo declarativo: no modifica condiciones ni afecta las liquidaciones.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold mb-1" style={{ color:'#93c5fd' }}>Vigencia desde</label>
+                          <input type="date" required value={anexoContratoData.vigencia_desde || ''}
+                            onChange={e => setAnexoContratoData({ ...anexoContratoData, vigencia_desde: e.target.value })}
+                            style={{ width:'14rem', background:'var(--c-bg-input)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', padding:'0.5rem 0.75rem', color:'#bfdbfe', outline:'none' }} />
+                        </div>
+
+                        {activos.map(campo => {
+                          const def = CAMPOS_ANEXO.find(c => c.campo === campo);
+                          if (!def) return null;
+                          const valor = cambios[campo];
+                          const quitar = () => {
+                            const copia = { ...cambios };
+                            delete copia[campo];
+                            setCambios(copia);
+                          };
+                          const actualizar = (nuevo: unknown) => setCambios({ ...cambios, [campo]: nuevo });
+                          const inputStyle = { width:'100%', background:'var(--c-bg-input)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', padding:'0.5rem 0.75rem', color:'#bfdbfe', outline:'none' } as React.CSSProperties;
+
+                          return (
+                            <div key={campo} className="flex gap-3 items-start">
+                              <span className="text-sm font-semibold pt-2" style={{ color:'var(--c-text-2)', width:'12rem' }}>{def.label}</span>
+                              <div className="flex-1">
+                                {def.tipo === 'texto' && (
+                                  <input type="text" required value={String(valor ?? '')} onChange={e => actualizar(e.target.value)} style={inputStyle} />
+                                )}
+                                {def.tipo === 'numero' && (
+                                  <input type="number" required step={campo === 'horas_semanales' ? '0.5' : '1'} value={Number(valor ?? 0) || ''} onChange={e => actualizar(Number(e.target.value))} style={inputStyle} />
+                                )}
+                                {def.tipo === 'booleano' && (
+                                  <select value={valor ? 'si' : 'no'} onChange={e => actualizar(e.target.value === 'si')} style={{ ...inputStyle, cursor:'pointer' }}>
+                                    <option value="si" style={{ background:'var(--c-bg-modal)' }}>Sí</option>
+                                    <option value="no" style={{ background:'var(--c-bg-modal)' }}>No</option>
+                                  </select>
+                                )}
+                                {def.tipo === 'opciones' && (
+                                  <select required value={String(valor ?? '')} onChange={e => actualizar(e.target.value)} style={{ ...inputStyle, cursor:'pointer' }}>
+                                    <option value="" style={{ background:'var(--c-bg-modal)' }}>Seleccionar...</option>
+                                    {def.opciones?.map(o => (
+                                      <option key={o.valor} value={o.valor} style={{ background:'var(--c-bg-modal)' }}>{o.label}</option>
+                                    ))}
+                                  </select>
+                                )}
+                                {def.tipo === 'comisiones' && (
+                                  <div className="space-y-2">
+                                    {((valor as ComisionConfig[]) || []).map((c, i) => (
+                                      <div key={i} className="flex gap-2">
+                                        <input type="text" required placeholder="Categoría (Ej: Carrocería)" value={c.glosa}
+                                          onChange={e => {
+                                            const lista = [...(valor as ComisionConfig[])];
+                                            lista[i] = { ...lista[i], glosa: e.target.value };
+                                            actualizar(lista);
+                                          }} style={inputStyle} />
+                                        <input type="number" required step="0.01" min="0" max="100" placeholder="0.5" value={c.porcentaje || ''}
+                                          onChange={e => {
+                                            const lista = [...(valor as ComisionConfig[])];
+                                            lista[i] = { ...lista[i], porcentaje: Number(e.target.value) };
+                                            actualizar(lista);
+                                          }} style={{ ...inputStyle, width:'7rem', textAlign:'right' }} />
+                                        <button type="button" onClick={() => actualizar((valor as ComisionConfig[]).filter((_, j) => j !== i))}
+                                          className="px-3 rounded-lg font-bold" style={{ color:'#f87171' }}>✕</button>
+                                      </div>
+                                    ))}
+                                    <button type="button" onClick={() => actualizar([...((valor as ComisionConfig[]) || []), { glosa: '', porcentaje: 0 }])}
+                                      className="text-xs font-bold" style={{ color:'#60a5fa' }}>+ Agregar categoría</button>
+                                  </div>
+                                )}
+                              </div>
+                              <button type="button" onClick={quitar} className="px-3 py-2 rounded-lg font-bold" style={{ background:'rgba(239,68,68,0.1)', color:'#f87171' }}>✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div>
-                <label className="block text-xs font-semibold mb-2" style={{ color:'var(--c-text-3)' }}>Cláusulas Modificadas</label>
+                <label className="block text-xs font-semibold mb-2" style={{ color:'var(--c-text-3)' }}>Cláusulas Adicionales (texto libre)</label>
                 {clausulasAnexo.map((cl, i) => (
                   <div key={i} className="flex gap-2 mb-2">
                     <textarea rows={2} value={cl} onChange={e => { const nueva = [...clausulasAnexo]; nueva[i] = e.target.value; setClausulasAnexo(nueva); setAnexoContratoData({ ...anexoContratoData, clausulas_modificadas: nueva }); }} style={{ flex:1, padding:'0.5rem 0.75rem', background:'var(--c-bg-input)', border:'1px solid var(--c-border-input)', borderRadius:'0.5rem', color:'var(--c-text-1)', outline:'none', resize:'none' }} placeholder="Ej: El cargo del trabajador pasa a ser Jefe de Área..." />
@@ -661,6 +823,17 @@ export default function TabContratos({
                       <div>
                         <p className="font-semibold text-sm" style={{ color: 'var(--c-text-1)' }}>{anexo.titulo}</p>
                         <p className="text-xs mt-0.5" style={{ color:'var(--c-text-3)' }}>Emitido: {anexo.fecha_emision} · Generado: {fechaHora}</p>
+                        {Object.keys(anexo.cambios || {}).length > 0 && (
+                          anexo.aplicado ? (
+                            <p className="text-xs mt-1 font-semibold" style={{ color:'#34d399' }}>
+                              ✓ Cambios aplicados al contrato{anexo.vigencia_desde ? ` · vigencia ${anexo.vigencia_desde}` : ''}
+                            </p>
+                          ) : (
+                            <p className="text-xs mt-1 font-semibold" style={{ color:'#fbbf24' }}>
+                              Modifica el contrato · se aplicará cuando el trabajador firme
+                            </p>
+                          )
+                        )}
                       </div>
                       <button
                         onClick={() => descargarAnexoContratoPDF(anexo.id, anexo.titulo)}
@@ -678,7 +851,7 @@ export default function TabContratos({
                     <div className="pt-2" style={{ borderTop: '1px solid var(--c-border)' }}>
                       <FirmaBadge
                         tipo="ANEXO_CONTRATO"
-                        solicitudes={solicitudesFirma.filter(s => s.contrato === contratoData.id)}
+                        solicitudes={solicitudesFirma.filter(s => s.anexo_contrato === anexo.id)}
                         onEnviar={() => enviarAFirma('ANEXO_CONTRATO', { anexoContratoId: anexo.id })}
                         onCancelar={cancelarFirma}
                         onReenviar={reenviarFirma}

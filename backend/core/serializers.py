@@ -104,9 +104,10 @@ class AnexoContratoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'contrato', 'titulo', 'descripcion',
             'clausulas_modificadas', 'fecha_emision',
+            'cambios', 'vigencia_desde', 'aplicado', 'aplicado_en',
             'archivo_pdf', 'creado_en',
         ]
-        read_only_fields = ('id', 'archivo_pdf', 'creado_en')
+        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'aplicado', 'aplicado_en')
 
 
 class DocumentoLegalSerializer(serializers.ModelSerializer):
@@ -175,7 +176,7 @@ class SolicitudFirmaSerializer(serializers.ModelSerializer):
         model = SolicitudFirma
         fields = [
             'id', 'empleado', 'empresa', 'contrato', 'documento_legal',
-            'liquidacion', 'vacacion', 'finiquito',
+            'anexo_contrato', 'liquidacion', 'vacacion', 'finiquito',
             'tipo_documento', 'token', 'estado',
             'email_firmante', 'ip_firmante',
             'enviado_en', 'firmado_en', 'expira_en',

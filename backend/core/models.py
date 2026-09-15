@@ -209,6 +209,16 @@ class AnexoContrato(models.Model):
     archivo_pdf = models.FileField(upload_to='anexos_contrato/', null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
+    # --- MODIFICACIÓN ESTRUCTURADA DEL CONTRATO (Art. 11 Código del Trabajo) ---
+    # Los cambios se aplican al contrato recién cuando el trabajador firma el
+    # anexo: una modificación no firmada no tiene efecto sobre la relación
+    # laboral, y por lo tanto tampoco sobre las liquidaciones.
+    # {"sueldo_base": 900000, "cargo": "Jefe de Área", "comisiones_config": [...]}
+    cambios = models.JSONField(default=dict, blank=True)
+    vigencia_desde = models.DateField(null=True, blank=True)
+    aplicado = models.BooleanField(default=False)
+    aplicado_en = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"Anexo: {self.titulo} — {self.contrato.empleado} ({self.fecha_emision})"
 
@@ -462,6 +472,8 @@ class SolicitudFirma(models.Model):
     empresa          = models.ForeignKey('Empresa',       on_delete=models.CASCADE,    related_name='solicitudes_firma')
     contrato         = models.ForeignKey('Contrato',      on_delete=models.SET_NULL,   null=True, blank=True)
     documento_legal  = models.ForeignKey('DocumentoLegal', on_delete=models.SET_NULL,  null=True, blank=True)
+    anexo_contrato   = models.ForeignKey('AnexoContrato', on_delete=models.SET_NULL,   null=True, blank=True,
+                                         related_name='solicitudes_firma')
     liquidacion      = models.ForeignKey('Liquidacion',   on_delete=models.SET_NULL,   null=True, blank=True)
     vacacion         = models.ForeignKey('VacacionEmpleado', on_delete=models.SET_NULL, null=True, blank=True)
     finiquito        = models.ForeignKey('Finiquito',     on_delete=models.SET_NULL,   null=True, blank=True)

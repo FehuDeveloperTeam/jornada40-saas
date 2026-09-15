@@ -1056,7 +1056,11 @@ export function useDashboard() {
     if (!contratoData.id) { showToast('Guarda el contrato primero.', 'warning'); return; }
     setIsSavingAnexoContrato(true);
     try {
-      const payload = { ...anexoContratoData, contrato: contratoData.id };
+      const payload: Record<string, unknown> = { ...anexoContratoData, contrato: contratoData.id };
+      // Un anexo puramente declarativo no lleva cambios ni vigencia; enviar
+      // una fecha vacía haría fallar el DateField del backend.
+      if (!payload.vigencia_desde) delete payload.vigencia_desde;
+      if (!payload.cambios || Object.keys(payload.cambios).length === 0) delete payload.cambios;
       const res = await client.post('/anexos_contrato/', payload);
       setAnexosContrato(prev => [res.data, ...prev]);
       setShowAnexoContratoForm(false);
