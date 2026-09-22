@@ -675,3 +675,179 @@ class TopeImponibleTests(APITestCase):
     def test_valor_uf_queda_congelado_en_la_liquidacion(self):
         resultado = self._liquidar(1_000_000, valor_uf=38500.0)
         self.assertEqual(float(resultado['valor_uf']), 38500.0)
+
+
+class PropuestaParametrosTests(APITestCase):
+    """Una propuesta automática no debe alterar cálculos por su cuenta.
+
+    Leer mal un tope imponible desde una página web y aplicarlo en silencio
+    sería peor que quedarse con el valor anterior: por eso las filas de origen
+    PREVIRED solo entran al cálculo una vez confirmadas por una persona.
+    """
+
+    def setUp(self):
+        import datetime
+        from core.models import ParametroPrevisional, TasaAFP
+        self.enero = datetime.date(2025, 1, 1)
+        self.junio = datetime.date(2025, 6, 1)
+        ParametroPrevisional.objects.update_or_create(
+            vigente_desde=self.enero,
+            defaults={'tope_imponible_afp_uf': '87.80', 'ingreso_minimo_mensual': 529000,
+                      'origen': 'MANUAL', 'confirmado': True},
+        )
+        TasaAFP.objects.update_or_create(
+            nombre='MODELO', vigente_desde=self.enero,
+            defaults={'tasa': '0.10580', 'origen': 'MANUAL', 'confirmado': True},
+        )
+
+    def _crear_propuesta(self):
+        from core.models import ParametroPrevisional, TasaAFP
+        ParametroPrevisional.objects.create(
+            vigente_desde=self.junio, tope_imponible_afp_uf='99.99',
+            ingreso_minimo_mensual=999000, origen='PREVIRED', confirmado=False,
+        )
+        TasaAFP.objects.create(
+            nombre='MODELO', vigente_desde=self.junio, tasa='0.15000',
+            origen='PREVIRED', confirmado=False,
+        )
+
+    def test_propuesta_sin_confirmar_no_cambia_los_parametros(self):
+        from core.views import _parametros_previsionales
+        self._crear_propuesta()
+        vigentes = _parametros_previsionales(8, 2025)
+        self.assertEqual(vigentes['tope_imponible_afp_uf'], 87.80)
+        self.assertEqual(vigentes['ingreso_minimo_mensual'], 529000)
+
+    def test_propuesta_sin_confirmar_no_cambia_las_tasas_afp(self):
+        from core.views import _tasas_afp
+        self._crear_propuesta()
+        self.assertEqual(_tasas_afp(8, 2025)['MODELO'], 0.1058)
+
+    def test_al_confirmarla_si_entra_en_vigencia(self):
+        from core.models import ParametroPrevisional, TasaAFP
+        from core.views import _parametros_previsionales, _tasas_afp
+        self._crear_propuesta()
+        ParametroPrevisional.objects.filter(vigente_desde=self.junio).update(confirmado=True)
+        TasaAFP.objects.filter(vigente_desde=self.junio).update(confirmado=True)
+
+        self.assertEqual(_parametros_previsionales(8, 2025)['tope_imponible_afp_uf'], 99.99)
+        self.assertEqual(_tasas_afp(8, 2025)['MODELO'], 0.15)
+
+    def test_carga_manual_rige_sin_necesidad_de_confirmar(self):
+        """Editar a mano en el admin debe surtir efecto de inmediato."""
+        from core.models import ParametroPrevisional
+        from core.views import _parametros_previsionales
+        ParametroPrevisional.objects.create(
+            vigente_desde=self.junio, tope_imponible_afp_uf='90.00',
+            ingreso_minimo_mensual=550000, origen='MANUAL', confirmado=False,
+        )
+        self.assertEqual(_parametros_previsionales(8, 2025)['tope_imponible_afp_uf'], 90.00)
+
+    def test_advierte_cuando_los_parametros_no_estan_confirmados(self):
+        from core.models import ParametroPrevisional
+        from core.views import advertencias_parametros
+        ParametroPrevisional.objects.filter(vigente_desde=self.enero).update(confirmado=False)
+        self.assertTrue(any('no han sido confirmados' in a
+                            for a in advertencias_parametros(3, 2025)))
+
+    def test_advierte_cuando_los_parametros_quedaron_viejos(self):
+        from core.views import advertencias_parametros
+        # Liquidar 2027 con parámetros de enero 2025: los topes se reajustan cada enero
+        self.assertTrue(any('antigüedad' in a for a in advertencias_parametros(6, 2027)))
+
+    def test_sin_advertencias_cuando_todo_esta_al_dia(self):
+        from core.views import advertencias_parametros
+        self.assertEqual(advertencias_parametros(3, 2025), [])
+
+
+class RespaldoIndicadoresTests(APITestCase):
+    """Calcular con la UF de respaldo no debe pasar inadvertido."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_sin_respaldo_activo_no_hay_advertencias(self):
+        from core.indicadores import estado_indicadores
+        self.assertEqual(estado_indicadores(), [])
+
+    def test_caer_en_respaldo_queda_registrado_y_se_advierte(self):
+        from core.indicadores import estado_indicadores, obtener_uf, UF_FALLBACK
+        with patch('core.indicadores.requests.get', side_effect=Exception('sin red')):
+            self.assertEqual(obtener_uf(), UF_FALLBACK)
+        advertencias = estado_indicadores()
+        self.assertTrue(any('UF' in a for a in advertencias))
+
+    def test_al_recuperarse_la_api_deja_de_advertir(self):
+        from core.indicadores import estado_indicadores, obtener_uf
+        with patch('core.indicadores.requests.get', side_effect=Exception('sin red')):
+            obtener_uf()
+        self.assertTrue(estado_indicadores())
+
+        cache.delete('indicador_uf')  # forzar nueva consulta
+        respuesta = type('R', (), {
+            'raise_for_status': lambda self: None,
+            'json': lambda self: {'serie': [{'valor': 41000.0}]},
+        })()
+        with patch('core.indicadores.requests.get', return_value=respuesta):
+            self.assertEqual(obtener_uf(), 41000.0)
+        self.assertEqual(estado_indicadores(), [])
+
+
+class ParserPreviredTests(APITestCase):
+    """El lector de Previred debe interpretar bien o no interpretar nada.
+
+    Es la pieza más frágil del flujo: depende del maquetado de una página
+    ajena. Preferimos que falle en voz alta a que proponga un tope inventado.
+    """
+
+    HTML = """
+    <html><body><table>
+    <tr><td>Renta Tope Imponible AFP</td><td>87,8 UF</td></tr>
+    <tr><td>Renta Tope Imponible Seguro de Cesant&iacute;a</td><td>131,9 UF</td></tr>
+    <tr><td>Ingreso M&iacute;nimo Mensual</td><td>$529.000</td></tr>
+    </table>
+    <table><tr><th>AFP</th><th>Tasa</th></tr>
+    <tr><td>CAPITAL</td><td>11,44%</td></tr>
+    <tr><td>MODELO</td><td>10,58%</td></tr>
+    </table></body></html>
+    """
+
+    def setUp(self):
+        from core.management.commands import sincronizar_previred as sp
+        self.sp = sp
+        self.texto = sp._texto_plano(self.HTML)
+
+    def test_numeros_en_formato_chileno(self):
+        self.assertEqual(self.sp._a_numero('87,8'), 87.8)
+        self.assertEqual(self.sp._a_numero('$529.000'), 529000.0)
+        self.assertEqual(self.sp._a_numero('1.234,56'), 1234.56)
+
+    def test_lee_los_topes_y_el_sueldo_minimo(self):
+        self.assertEqual(
+            self.sp._buscar(self.texto, r'tope\s+imponible[^.]{0,60}?([\d.,]+)\s*UF',
+                            'tope_imponible_afp_uf'), 87.8)
+        self.assertEqual(
+            self.sp._buscar(self.texto, r'(?:cesant[íi]a)[^.]{0,60}?([\d.,]+)\s*UF',
+                            'tope_imponible_afc_uf'), 131.9)
+        self.assertEqual(
+            self.sp._buscar(self.texto, r'ingreso\s+m[íi]nimo[^.]{0,80}?\$?\s*([\d.,]+)',
+                            'ingreso_minimo_mensual'), 529000.0)
+
+    def test_lee_las_tasas_afp_como_porcentaje(self):
+        """El rango valida el porcentaje leído, no la fracción resultante."""
+        for afp, esperado in (('CAPITAL', 11.44), ('MODELO', 10.58)):
+            leido = self.sp._buscar(self.texto, rf'{afp}[^%]{{0,40}}?([\d.,]+)\s*%',
+                                    'tasa_afp_pct')
+            self.assertEqual(leido, esperado)
+            self.assertEqual(round(leido / 100, 5), round(esperado / 100, 5))
+
+    def test_descarta_valores_fuera_de_rango_plausible(self):
+        absurdo = self.sp._buscar('Tope Imponible 9999 UF',
+                                  r'tope\s+imponible[^.]{0,60}?([\d.,]+)\s*UF',
+                                  'tope_imponible_afp_uf')
+        self.assertIsNone(absurdo)
+
+    def test_pagina_irreconocible_no_devuelve_nada(self):
+        otro = self.sp._texto_plano('<html><body>Sitio en mantención</body></html>')
+        self.assertIsNone(self.sp._buscar(
+            otro, r'tope\s+imponible[^.]{0,60}?([\d.,]+)\s*UF', 'tope_imponible_afp_uf'))

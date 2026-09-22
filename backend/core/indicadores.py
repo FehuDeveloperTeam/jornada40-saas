@@ -9,6 +9,7 @@ Si la API no responde, se usa un valor de respaldo (FALLBACK) — ojo que estos
 valores quedan desactualizados con el tiempo; conviene revisarlos cada cierto
 tiempo si empiezan a aparecer usados en los logs.
 """
+import datetime
 import logging
 
 import requests
@@ -19,9 +20,17 @@ logger = logging.getLogger(__name__)
 MINDICADOR_URL = "https://mindicador.cl/api/{indicador}"
 CACHE_TTL_SEGUNDOS = 6 * 60 * 60  # 6 horas
 
-# Valores de respaldo si la API falla. Actualizados por última vez: julio 2026.
+# Valores de respaldo si la API falla. Calcular con ellos no es inocuo: un
+# valor viejo de UF desplaza los topes imponibles y la cotización de Isapre.
 UF_FALLBACK = 40844.79
 UTM_FALLBACK = 71506.0
+FALLBACK_ACTUALIZADO = datetime.date(2026, 7, 1)
+# A partir de cuántos meses de antigüedad el respaldo se considera vencido.
+FALLBACK_MESES_TOLERANCIA = 3
+
+# Marca en caché de que un indicador se resolvió con respaldo, para poder
+# avisarlo en vez de dejarlo solo en el log.
+_RESPALDO_TTL_SEGUNDOS = 7 * 24 * 60 * 60
 
 
 def _obtener_indicador(nombre: str, fallback: float) -> float:
@@ -41,10 +50,35 @@ def _obtener_indicador(nombre: str, fallback: float) -> float:
             "No se pudo obtener el indicador '%s' desde mindicador.cl, usando valor de respaldo (%s).",
             nombre, fallback,
         )
+        cache.set(f"{cache_key}_respaldo", datetime.datetime.now().isoformat(),
+                  _RESPALDO_TTL_SEGUNDOS)
         return fallback
 
+    cache.delete(f"{cache_key}_respaldo")
     cache.set(cache_key, valor, CACHE_TTL_SEGUNDOS)
     return valor
+
+
+def estado_indicadores() -> list:
+    """Advertencias sobre la frescura de UF y UTM.
+
+    Calcular con un valor de respaldo desactualizado altera los topes
+    imponibles y la cotización de Isapre sin que nadie se entere: esta función
+    permite mostrarlo en vez de dejarlo enterrado en el log.
+    """
+    advertencias = []
+    meses_respaldo = (datetime.date.today() - FALLBACK_ACTUALIZADO).days / 30.0
+
+    for nombre, etiqueta in (('uf', 'UF'), ('utm', 'UTM')):
+        if cache.get(f"indicador_{nombre}_respaldo") is None:
+            continue
+        detalle = (f'{etiqueta}: mindicador.cl no responde, se está usando el '
+                   f'valor de respaldo del código')
+        if meses_respaldo > FALLBACK_MESES_TOLERANCIA:
+            detalle += f', con {int(meses_respaldo)} meses de antigüedad'
+        advertencias.append(detalle + '.')
+
+    return advertencias
 
 
 def obtener_uf() -> float:

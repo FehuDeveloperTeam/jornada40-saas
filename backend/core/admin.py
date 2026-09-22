@@ -8,15 +8,34 @@ from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
 # ==========================================
 @admin.register(ParametroPrevisional)
 class ParametroPrevisionalAdmin(admin.ModelAdmin):
-    list_display = ('vigente_desde', 'tope_imponible_afp_uf', 'tope_imponible_afc_uf',
-                    'ingreso_minimo_mensual', 'confirmado')
-    list_filter = ('confirmado',)
+    list_display = ('vigente_desde', 'estado', 'origen', 'tope_imponible_afp_uf',
+                    'tope_imponible_afc_uf', 'ingreso_minimo_mensual')
+    list_filter = ('confirmado', 'origen')
     ordering = ('-vigente_desde',)
+    actions = ['confirmar_propuestas']
+
+    @admin.display(description='Estado')
+    def estado(self, obj):
+        if obj.confirmado:
+            return 'Rige (confirmado)'
+        if obj.origen == 'PREVIRED':
+            return 'Propuesta — NO rige'
+        return 'Rige (sin confirmar)'
+
+    @admin.action(description='Confirmar: poner en vigencia los valores seleccionados')
+    def confirmar_propuestas(self, request, queryset):
+        actualizados = queryset.update(confirmado=True)
+        self.message_user(
+            request,
+            f'{actualizados} período(s) confirmado(s). Las liquidaciones que se '
+            f'calculen para esos períodos ya usan estos valores.')
+
     fieldsets = (
         ('Vigencia', {
-            'fields': ('vigente_desde', 'confirmado', 'notas'),
+            'fields': ('vigente_desde', 'origen', 'confirmado', 'notas'),
             'description': 'Los valores rigen desde esta fecha hasta que exista un período posterior. '
-                           'Marca "confirmado" solo cuando los hayas contrastado con la fuente oficial.',
+                           'Una propuesta leída de Previred no entra al cálculo hasta que la confirmes; '
+                           'una carga manual sí rige de inmediato.',
         }),
         ('Topes imponibles (en UF)', {
             'fields': ('tope_imponible_afp_uf', 'tope_imponible_afc_uf'),
@@ -35,10 +54,16 @@ class ParametroPrevisionalAdmin(admin.ModelAdmin):
 
 @admin.register(TasaAFP)
 class TasaAFPAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'tasa', 'vigente_desde')
-    list_filter = ('vigente_desde',)
+    list_display = ('nombre', 'tasa', 'vigente_desde', 'origen', 'confirmado')
+    list_filter = ('vigente_desde', 'origen', 'confirmado')
     search_fields = ('nombre',)
     ordering = ('-vigente_desde', 'nombre')
+    actions = ['confirmar_propuestas']
+
+    @admin.action(description='Confirmar: poner en vigencia las tasas seleccionadas')
+    def confirmar_propuestas(self, request, queryset):
+        actualizados = queryset.update(confirmado=True)
+        self.message_user(request, f'{actualizados} tasa(s) confirmada(s).')
 
 # ==========================================
 # GESTIÓN DE SUSCRIPCIONES Y CLIENTES

@@ -1884,24 +1884,68 @@ def _parametros_previsionales(mes=None, anio=None) -> dict:
     momento. Si no hay una fila anterior al período se usa la más antigua
     disponible, que es la mejor aproximación para liquidaciones previas.
     """
-    referencia = _fecha_referencia(mes, anio)
-    fila = (ParametroPrevisional.objects
-            .filter(vigente_desde__lte=referencia)
-            .order_by('-vigente_desde').first())
-    if fila is None:
-        fila = ParametroPrevisional.objects.order_by('vigente_desde').first()
+    fila = _fila_parametros(_fecha_referencia(mes, anio))
     if fila is None:
         return dict(_PARAMETROS_RESPALDO)
 
     return {campo: float(getattr(fila, campo)) for campo in _PARAMETROS_RESPALDO}
 
 
+def _fila_parametros(referencia):
+    """Fila de parámetros aplicable a una fecha, o None si no hay ninguna.
+
+    Las propuestas automáticas sin confirmar quedan fuera: existen para que
+    alguien las revise, no para cambiar liquidaciones por su cuenta.
+    """
+    aplicables = ParametroPrevisional.objects.exclude(origen='PREVIRED', confirmado=False)
+    fila = (aplicables.filter(vigente_desde__lte=referencia)
+            .order_by('-vigente_desde').first())
+    if fila is None:
+        fila = aplicables.order_by('vigente_desde').first()
+    return fila
+
+
+# Los topes imponibles y el sueldo mínimo se reajustan al menos una vez al año.
+# Pasado este margen, seguir calculando con los mismos valores es sospechoso.
+_MESES_VIGENCIA_ESPERADA = 14
+
+
+def advertencias_parametros(mes=None, anio=None) -> list:
+    """Motivos por los que los parámetros aplicados podrían no ser fiables.
+
+    Se evalúa contra el período liquidado, no contra hoy: liquidar marzo de
+    2025 con los parámetros de enero de 2025 es correcto.
+    """
+    referencia = _fecha_referencia(mes, anio)
+    fila = _fila_parametros(referencia)
+
+    if fila is None:
+        return ['No hay parámetros previsionales cargados: se está calculando '
+                'con los valores de respaldo del código.']
+
+    advertencias = []
+    if not fila.confirmado:
+        advertencias.append(
+            f'Los parámetros vigentes desde {fila.vigente_desde} no han sido '
+            f'confirmados contra fuente oficial.')
+
+    meses = (referencia - fila.vigente_desde).days / 30.0
+    if meses > _MESES_VIGENCIA_ESPERADA:
+        advertencias.append(
+            f'Para el período {referencia:%m/%Y} se están aplicando los '
+            f'parámetros de {fila.vigente_desde}, de {int(meses)} meses de '
+            f'antigüedad. Los topes se reajustan cada enero.')
+
+    return advertencias
+
+
 def _tasas_afp(mes=None, anio=None) -> dict:
     """Tasa de cada AFP vigente en el período liquidado."""
     referencia = _fecha_referencia(mes, anio)
-    filas = TasaAFP.objects.filter(vigente_desde__lte=referencia).order_by('vigente_desde')
+    aplicables = TasaAFP.objects.exclude(origen='PREVIRED', confirmado=False)
+    filas = aplicables.filter(vigente_desde__lte=referencia).order_by('vigente_desde')
     if not filas.exists():
-        filas = TasaAFP.objects.order_by('vigente_desde')
+        filas = aplicables.order_by('vigente_desde')
 
     # Recorrido ascendente: la vigencia más reciente sobrescribe a la anterior.
     tasas = {}

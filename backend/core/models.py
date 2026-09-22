@@ -46,7 +46,14 @@ class ParametroPrevisional(models.Model):
     tasa_mutual_base = models.DecimalField(max_digits=6, decimal_places=5, default=0.0093)
     tasa_expectativa_vida = models.DecimalField(max_digits=6, decimal_places=5, default=0.009)
 
-    # Mientras esté en False, los valores provienen del seed y no de fuente oficial
+    ORIGEN_CHOICES = [
+        ('MANUAL', 'Carga manual'),
+        ('PREVIRED', 'Propuesta leída de Previred'),
+    ]
+    # Una propuesta automática NO entra al cálculo hasta que alguien la
+    # confirma: leer mal un tope y aplicarlo en silencio es peor que quedarse
+    # con el valor anterior. Las cargas manuales sí rigen de inmediato.
+    origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default='MANUAL')
     confirmado = models.BooleanField(default=False)
     notas = models.TextField(blank=True, default='')
 
@@ -54,6 +61,11 @@ class ParametroPrevisional(models.Model):
         ordering = ['-vigente_desde']
         verbose_name = 'Parámetro previsional'
         verbose_name_plural = 'Parámetros previsionales'
+
+    @property
+    def rige(self) -> bool:
+        """Si estos valores se usan en el cálculo o son solo una propuesta."""
+        return self.confirmado or self.origen != 'PREVIRED'
 
     def __str__(self):
         estado = '' if self.confirmado else ' (por confirmar)'
@@ -65,6 +77,12 @@ class TasaAFP(models.Model):
     nombre = models.CharField(max_length=50)
     tasa = models.DecimalField(max_digits=6, decimal_places=5)
     vigente_desde = models.DateField()
+
+    # Mismo criterio que ParametroPrevisional: una propuesta automática no
+    # entra al cálculo mientras no la confirme una persona.
+    origen = models.CharField(max_length=10, default='MANUAL',
+                              choices=ParametroPrevisional.ORIGEN_CHOICES)
+    confirmado = models.BooleanField(default=True)
 
     class Meta:
         unique_together = ('nombre', 'vigente_desde')
