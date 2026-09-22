@@ -60,6 +60,31 @@ export interface Empresa {
 export interface DetalleItem {
     glosa: string;
     valor: number;
+    /** Concepto del catálogo. Los ítems previos al catálogo no lo tienen. */
+    concepto?: number | null;
+}
+
+export type TipoConcepto =
+    | 'HABER_IMPONIBLE'
+    | 'HABER_NO_IMPONIBLE'
+    | 'HORA_EXTRA'
+    | 'COMISION'
+    | 'DESCUENTO';
+
+export interface ConceptoRemuneracion {
+    id: number;
+    codigo: string;
+    nombre: string;
+    tipo: TipoConcepto;
+    es_imponible: boolean;
+    es_tributable: boolean;
+    afecta_gratificacion: boolean;
+    afecta_semana_corrida: boolean;
+    codigo_lre: string;
+    empresa: number | null;
+    es_del_sistema: boolean;
+    activo: boolean;
+    creado_en: string;
 }
 
 // Horario de un día en la distribución de jornada
@@ -234,6 +259,7 @@ export interface HoraExtraItem {
     horas: number;
     recargo: number;
     valor: number;
+    concepto?: number | null;
 }
 
 // Tasa de comisión configurada en el contrato (ej. "Carrocería" 0.5%)

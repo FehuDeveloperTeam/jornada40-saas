@@ -59,6 +59,7 @@ export default function Dashboard() {
     haberesImponiblesList, setHaberesImponiblesList,
     haberesNoImponiblesList, setHaberesNoImponiblesList,
     horasExtrasList, setHorasExtrasList,
+    otrosDescuentosList, setOtrosDescuentosList, conceptosPorTipo,
     comisionesList, setComisionesList, editingLiqId, calcularValorComision,
     abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
     // Documentos legales
@@ -297,6 +298,9 @@ export default function Dashboard() {
           setHaberesNoImponiblesList={setHaberesNoImponiblesList}
           horasExtrasList={horasExtrasList}
           setHorasExtrasList={setHorasExtrasList}
+          otrosDescuentosList={otrosDescuentosList}
+          setOtrosDescuentosList={setOtrosDescuentosList}
+          conceptosPorTipo={conceptosPorTipo}
           comisionesList={comisionesList}
           setComisionesList={setComisionesList}
           editingLiqId={editingLiqId}

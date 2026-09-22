@@ -1,7 +1,7 @@
 import React from 'react';
 import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye, Pencil } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
-import type { SolicitudFirma } from '../../../types';
+import type { SolicitudFirma, ConceptoRemuneracion } from '../../../types';
 
 const NOMBRES_MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -28,6 +28,9 @@ type Props = {
   setHaberesNoImponiblesList: UseDashboardReturn['setHaberesNoImponiblesList'];
   horasExtrasList: UseDashboardReturn['horasExtrasList'];
   setHorasExtrasList: UseDashboardReturn['setHorasExtrasList'];
+  otrosDescuentosList: UseDashboardReturn['otrosDescuentosList'];
+  setOtrosDescuentosList: UseDashboardReturn['setOtrosDescuentosList'];
+  conceptosPorTipo: UseDashboardReturn['conceptosPorTipo'];
   comisionesList: UseDashboardReturn['comisionesList'];
   setComisionesList: UseDashboardReturn['setComisionesList'];
   editingLiqId: UseDashboardReturn['editingLiqId'];
@@ -59,6 +62,34 @@ const inp: React.CSSProperties = {
   outline: 'none',
 };
 
+/** Selector del catálogo. Reemplaza la glosa de texto libre: la naturaleza
+ *  previsional de la partida la define el concepto, no lo que se escriba. */
+function SelectorConcepto({ opciones, valor, onSelect, placeholder }: {
+  opciones: ConceptoRemuneracion[];
+  valor: number | null | undefined;
+  onSelect: (concepto: ConceptoRemuneracion | null) => void;
+  placeholder: string;
+}) {
+  return (
+    <select
+      required
+      value={valor ?? ''}
+      onChange={(e) => {
+        const id = Number(e.target.value);
+        onSelect(opciones.find(c => c.id === id) ?? null);
+      }}
+      style={{ ...inp, cursor: 'pointer' }}
+    >
+      <option value="" style={{ background: 'var(--c-bg-modal)' }}>{placeholder}</option>
+      {opciones.map(c => (
+        <option key={c.id} value={c.id} style={{ background: 'var(--c-bg-modal)' }}>
+          {c.nombre}{c.es_del_sistema ? '' : ' (propio)'}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 const lbl: React.CSSProperties = {
   display: 'block',
   fontSize: '0.65rem',
@@ -77,6 +108,7 @@ export default function TabLiquidaciones({
   haberesImponiblesList, setHaberesImponiblesList,
   haberesNoImponiblesList, setHaberesNoImponiblesList,
   horasExtrasList, setHorasExtrasList,
+  otrosDescuentosList, setOtrosDescuentosList, conceptosPorTipo,
   comisionesList, setComisionesList, editingLiqId, calcularValorComision,
   abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
@@ -288,6 +320,12 @@ export default function TabLiquidaciones({
                               {liq.anticipo_quincena > 0 && (
                                 <div className="flex justify-between text-sm"><span style={{ color: 'var(--c-text-2)' }}>Anticipo Quincena</span><span className="font-bold" style={{ color: '#f87171' }}>-${liq.anticipo_quincena.toLocaleString('es-CL')}</span></div>
                               )}
+                              {liq.detalle_otros_descuentos?.map((desc, i) => (
+                                <div key={`od-${i}`} className="flex justify-between text-sm">
+                                  <span style={{ color: 'var(--c-text-2)' }}>{desc.glosa}</span>
+                                  <span className="font-bold" style={{ color: '#f87171' }}>-${desc.valor.toLocaleString('es-CL')}</span>
+                                </div>
+                              ))}
                               <div className="flex justify-between text-sm pt-2 mt-2" style={{ borderTop: '1px solid var(--c-border)' }}>
                                 <span className="font-extrabold" style={{ color: 'var(--c-text-1)' }}>Total Descuentos</span>
                                 <span className="font-extrabold" style={{ color: '#f87171' }}>-${liq.total_descuentos.toLocaleString('es-CL')}</span>
@@ -344,7 +382,7 @@ export default function TabLiquidaciones({
           <div>
             <div className="flex justify-between items-end mb-4">
               <h4 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>2. Otros Haberes Imponibles</h4>
-              <button type="button" onClick={() => setHaberesImponiblesList([...haberesImponiblesList, { glosa: '', valor: 0 }])}
+              <button type="button" onClick={() => setHaberesImponiblesList([...haberesImponiblesList, { concepto: null, glosa: '', valor: 0 }])}
                 className="text-xs font-bold transition-colors" style={{ color: '#60a5fa' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
                 onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}>+ Añadir Bono</button>
@@ -355,7 +393,11 @@ export default function TabLiquidaciones({
               <div className="space-y-3">
                 {haberesImponiblesList.map((item, index) => (
                   <div key={index} className="flex gap-4">
-                    <input type="text" placeholder="Glosa (Ej: Bono Producción)" value={item.glosa} onChange={(e) => { const newL = [...haberesImponiblesList]; newL[index].glosa = e.target.value; setHaberesImponiblesList(newL); }} style={inp} />
+                    <SelectorConcepto
+                      opciones={conceptosPorTipo('HABER_IMPONIBLE')}
+                      valor={item.concepto}
+                      placeholder="Selecciona un haber imponible..."
+                      onSelect={(c) => { const newL = [...haberesImponiblesList]; newL[index] = { ...newL[index], concepto: c?.id ?? null, glosa: c?.nombre ?? '' }; setHaberesImponiblesList(newL); }} />
                     <input type="number" placeholder="Valor ($)" value={item.valor || ''} onChange={(e) => { const newL = [...haberesImponiblesList]; newL[index].valor = Number(e.target.value); setHaberesImponiblesList(newL); }} style={{ ...inp, width: '10rem', textAlign: 'right' }} />
                     <button type="button" onClick={() => setHaberesImponiblesList(haberesImponiblesList.filter((_, i) => i !== index))}
                       className="font-bold px-3 rounded-lg transition-colors" style={{ color: '#f87171' }}
@@ -370,7 +412,7 @@ export default function TabLiquidaciones({
           <div>
             <div className="flex justify-between items-end mb-4">
               <h4 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>3. Horas Extras (Sobresueldo)</h4>
-              <button type="button" onClick={() => setHorasExtrasList([...horasExtrasList, { glosa: 'Horas Extras al 50%', horas: 0, recargo: 50, valor: 0 }])}
+              <button type="button" onClick={() => setHorasExtrasList([...horasExtrasList, { concepto: null, glosa: '', horas: 0, recargo: 50, valor: 0 }])}
                 className="text-xs font-bold transition-colors" style={{ color: '#60a5fa' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
                 onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}>+ Añadir Horas Extras</button>
@@ -381,7 +423,11 @@ export default function TabLiquidaciones({
               <div className="space-y-3">
                 {horasExtrasList.map((item, index) => (
                   <div key={index} className="flex gap-4 items-center">
-                    <input type="text" placeholder="Glosa" value={item.glosa} onChange={(e) => { const newL = [...horasExtrasList]; newL[index].glosa = e.target.value; setHorasExtrasList(newL); }} style={inp} />
+                    <SelectorConcepto
+                      opciones={conceptosPorTipo('HORA_EXTRA')}
+                      valor={item.concepto}
+                      placeholder="Selecciona el tipo de hora extra..."
+                      onSelect={(c) => { const newL = [...horasExtrasList]; newL[index] = { ...newL[index], concepto: c?.id ?? null, glosa: c?.nombre ?? '' }; setHorasExtrasList(newL); }} />
                     <div className="w-24 relative">
                       <span className="absolute text-xs top-[-16px] left-1" style={{ color: 'var(--c-text-3)' }}>Hrs</span>
                       <input type="number" placeholder="0" value={item.horas || ''} onChange={(e) => { const val = Number(e.target.value); const newL = [...horasExtrasList]; newL[index].horas = val; newL[index].valor = calcularValorHorasExtras(val, newL[index].recargo); setHorasExtrasList(newL); }} style={{ ...inp, width: '100%', textAlign: 'center' }} />
@@ -442,7 +488,7 @@ export default function TabLiquidaciones({
           <div>
             <div className="flex justify-between items-end mb-4">
               <h4 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>4. Haberes NO Imponibles</h4>
-              <button type="button" onClick={() => setHaberesNoImponiblesList([...haberesNoImponiblesList, { glosa: 'Asignación Colación', valor: 0 }])}
+              <button type="button" onClick={() => setHaberesNoImponiblesList([...haberesNoImponiblesList, { concepto: null, glosa: '', valor: 0 }])}
                 className="text-xs font-bold transition-colors" style={{ color: '#60a5fa' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
                 onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}>+ Añadir Asignación</button>
@@ -453,9 +499,47 @@ export default function TabLiquidaciones({
               <div className="space-y-3">
                 {haberesNoImponiblesList.map((item, index) => (
                   <div key={index} className="flex gap-4">
-                    <input type="text" placeholder="Glosa (Ej: Colación, Movilización, Viático)" value={item.glosa} onChange={(e) => { const newL = [...haberesNoImponiblesList]; newL[index].glosa = e.target.value; setHaberesNoImponiblesList(newL); }} style={inp} />
+                    <SelectorConcepto
+                      opciones={conceptosPorTipo('HABER_NO_IMPONIBLE')}
+                      valor={item.concepto}
+                      placeholder="Selecciona un haber no imponible..."
+                      onSelect={(c) => { const newL = [...haberesNoImponiblesList]; newL[index] = { ...newL[index], concepto: c?.id ?? null, glosa: c?.nombre ?? '' }; setHaberesNoImponiblesList(newL); }} />
                     <input type="number" placeholder="Valor ($)" value={item.valor || ''} onChange={(e) => { const newL = [...haberesNoImponiblesList]; newL[index].valor = Number(e.target.value); setHaberesNoImponiblesList(newL); }} style={{ ...inp, width: '10rem', textAlign: 'right' }} />
                     <button type="button" onClick={() => setHaberesNoImponiblesList(haberesNoImponiblesList.filter((_, i) => i !== index))}
+                      className="font-bold px-3 rounded-lg transition-colors" style={{ color: '#f87171' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex justify-between items-end mb-4">
+              <h4 className="text-xs font-extrabold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>5. Otros Descuentos</h4>
+              <button type="button" onClick={() => setOtrosDescuentosList([...otrosDescuentosList, { concepto: null, glosa: '', valor: 0 }])}
+                className="text-xs font-bold transition-colors" style={{ color: '#60a5fa' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#93c5fd')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#60a5fa')}>+ Añadir Descuento</button>
+            </div>
+            {otrosDescuentosList.length === 0 ? (
+              <p className="text-sm italic" style={{ color: 'var(--c-text-3)' }}>
+                Sin descuentos adicionales (AFP, salud, cesantía e impuesto se calculan solos).
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {otrosDescuentosList.map((item, index) => (
+                  <div key={index} className="flex gap-4">
+                    <SelectorConcepto
+                      opciones={conceptosPorTipo('DESCUENTO')}
+                      valor={item.concepto}
+                      placeholder="Selecciona un descuento..."
+                      onSelect={(c) => { const newL = [...otrosDescuentosList]; newL[index] = { ...newL[index], concepto: c?.id ?? null, glosa: c?.nombre ?? '' }; setOtrosDescuentosList(newL); }} />
+                    <input type="number" placeholder="Valor ($)" value={item.valor || ''}
+                      onChange={(e) => { const newL = [...otrosDescuentosList]; newL[index] = { ...newL[index], valor: Number(e.target.value) }; setOtrosDescuentosList(newL); }}
+                      style={{ ...inp, width: '10rem', textAlign: 'right' }} />
+                    <button type="button" onClick={() => setOtrosDescuentosList(otrosDescuentosList.filter((_, i) => i !== index))}
                       className="font-bold px-3 rounded-lg transition-colors" style={{ color: '#f87171' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>✕</button>

@@ -9,6 +9,7 @@ import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
   Contrato, AnexoContrato, DocumentoLegal, DetalleItem, HoraExtraItem, Liquidacion,
   SolicitudFirma, VacacionEmpleado, SaldoVacaciones, Finiquito, ComisionItem,
+  ConceptoRemuneracion, TipoConcepto,
 } from '../types';
 
 export const defaultHorario: HorarioSemana = {
@@ -82,7 +83,10 @@ export function useDashboard() {
   const [haberesNoImponiblesList, setHaberesNoImponiblesList] = useState<DetalleItem[]>([]);
   const [horasExtrasList, setHorasExtrasList] = useState<HoraExtraItem[]>([]);
   const [comisionesList, setComisionesList] = useState<ComisionItem[]>([]);
+  const [otrosDescuentosList, setOtrosDescuentosList] = useState<DetalleItem[]>([]);
   const [editingLiqId, setEditingLiqId] = useState<number | null>(null);
+  // Catálogo de haberes y descuentos: reemplaza la glosa de texto libre.
+  const [conceptos, setConceptos] = useState<ConceptoRemuneracion[]>([]);
 
   // --- Documentos legales ---
   const [documentosLegales, setDocumentosLegales] = useState<DocumentoLegal[]>([]);
@@ -314,11 +318,13 @@ export function useDashboard() {
   const fetchData = useCallback(async () => {
     if (!empresaActivaId) { navigate('/empresas'); return; }
     try {
-      const [empresaRes, empleadosRes] = await Promise.all([
+      const [empresaRes, empleadosRes, conceptosRes] = await Promise.all([
         client.get(`/empresas/${empresaActivaId}/`),
         client.get('/empleados/'),
+        client.get(`/conceptos/?empresa=${empresaActivaId}`),
       ]);
       setEmpresa(empresaRes.data);
+      setConceptos(conceptosRes.data.results ?? conceptosRes.data);
       const empleadosList: Empleado[] = empleadosRes.data.results ?? empleadosRes.data;
       setEmpleados(
         empleadosList.filter((emp: Empleado) => emp.empresa === parseInt(empresaActivaId)),
@@ -751,6 +757,12 @@ export function useDashboard() {
 
   // ─── Liquidaciones ─────────────────────────────────────────────────────────
 
+  /** Conceptos activos de un tipo, para poblar los selectores del formulario. */
+  const conceptosPorTipo = useCallback(
+    (tipo: TipoConcepto) => conceptos.filter(c => c.tipo === tipo && c.activo),
+    [conceptos],
+  );
+
   const calcularValorComision = (montoVendido: number, porcentaje: number) => {
     if (!montoVendido || !porcentaje) return 0;
     return Math.floor((montoVendido * porcentaje) / 100);
@@ -765,6 +777,7 @@ export function useDashboard() {
     setHorasExtrasList([]);
     setHaberesNoImponiblesList([]);
     setComisionesList([]);
+    setOtrosDescuentosList([]);
     setEditingLiqId(null);
   };
 
@@ -790,6 +803,7 @@ export function useDashboard() {
     setHorasExtrasList(liq.detalle_horas_extras || []);
     setHaberesNoImponiblesList(liq.detalle_haberes_no_imponibles || []);
     setComisionesList(liq.detalle_comisiones || []);
+    setOtrosDescuentosList(liq.detalle_otros_descuentos || []);
     setShowLiqForm(true);
   };
 
@@ -812,7 +826,7 @@ export function useDashboard() {
         detalle_horas_extras: horasExtrasList,
         detalle_haberes_no_imponibles: haberesNoImponiblesList,
         detalle_comisiones: comisionesList.map(c => ({ glosa: c.glosa, monto_vendido: c.monto_vendido })),
-        detalle_otros_descuentos: [],
+        detalle_otros_descuentos: otrosDescuentosList,
       };
       if (editingLiqId) {
         const res = await client.patch(`/liquidaciones/${editingLiqId}/`, payload);
@@ -1249,6 +1263,8 @@ export function useDashboard() {
     haberesNoImponiblesList, setHaberesNoImponiblesList,
     horasExtrasList, setHorasExtrasList,
     comisionesList, setComisionesList,
+    otrosDescuentosList, setOtrosDescuentosList,
+    conceptos, conceptosPorTipo,
     editingLiqId,
     calcularValorComision,
     abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,

@@ -73,6 +73,9 @@ type Props = {
   setHaberesNoImponiblesList: UseDashboardReturn['setHaberesNoImponiblesList'];
   horasExtrasList: UseDashboardReturn['horasExtrasList'];
   setHorasExtrasList: UseDashboardReturn['setHorasExtrasList'];
+  otrosDescuentosList: UseDashboardReturn['otrosDescuentosList'];
+  setOtrosDescuentosList: UseDashboardReturn['setOtrosDescuentosList'];
+  conceptosPorTipo: UseDashboardReturn['conceptosPorTipo'];
   comisionesList: UseDashboardReturn['comisionesList'];
   setComisionesList: UseDashboardReturn['setComisionesList'];
   editingLiqId: UseDashboardReturn['editingLiqId'];
@@ -142,6 +145,7 @@ export default function EmpleadoPanel({
   haberesImponiblesList, setHaberesImponiblesList,
   haberesNoImponiblesList, setHaberesNoImponiblesList,
   horasExtrasList, setHorasExtrasList,
+  otrosDescuentosList, setOtrosDescuentosList, conceptosPorTipo,
   comisionesList, setComisionesList, editingLiqId, calcularValorComision,
   abrirNuevaLiquidacion, iniciarEdicionLiquidacion, cerrarFormularioLiquidacion,
   isGeneratingLiq, generarLiquidacion, descargarLiquidacionPDF, calcularValorHorasExtras,
@@ -361,6 +365,9 @@ export default function EmpleadoPanel({
                 setHaberesNoImponiblesList={setHaberesNoImponiblesList}
                 horasExtrasList={horasExtrasList}
                 setHorasExtrasList={setHorasExtrasList}
+                otrosDescuentosList={otrosDescuentosList}
+                setOtrosDescuentosList={setOtrosDescuentosList}
+                conceptosPorTipo={conceptosPorTipo}
                 comisionesList={comisionesList}
                 setComisionesList={setComisionesList}
                 editingLiqId={editingLiqId}
