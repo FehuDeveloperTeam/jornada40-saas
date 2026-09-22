@@ -1,6 +1,34 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
-                     ParametroPrevisional, TasaAFP)
+                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion)
+
+
+@admin.register(ConceptoRemuneracion)
+class ConceptoRemuneracionAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'codigo', 'tipo', 'ambito', 'es_imponible',
+                    'afecta_gratificacion', 'afecta_semana_corrida', 'activo')
+    list_filter = ('tipo', 'activo', 'es_imponible')
+    search_fields = ('codigo', 'nombre')
+    ordering = ('tipo', 'nombre')
+
+    @admin.display(description='Ámbito')
+    def ambito(self, obj):
+        return obj.empresa.nombre_legal if obj.empresa else 'Catálogo del sistema'
+
+    fieldsets = (
+        (None, {
+            'fields': ('codigo', 'nombre', 'tipo', 'empresa', 'activo'),
+            'description': 'Sin empresa, el concepto queda disponible para todas. '
+                           'La naturaleza previsional se deriva del tipo al crearlo.',
+        }),
+        ('Naturaleza previsional', {
+            'fields': ('es_imponible', 'es_tributable', 'afecta_gratificacion',
+                       'afecta_semana_corrida', 'codigo_lre'),
+            'description': 'Ajustar solo ante una excepción que la ley reconozca. '
+                           'El código LRE se completa al implementar el Libro de '
+                           'Remuneraciones Electrónico.',
+        }),
+    )
 
 
 # ==========================================

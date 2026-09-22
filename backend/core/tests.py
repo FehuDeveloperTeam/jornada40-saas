@@ -851,3 +851,151 @@ class ParserPreviredTests(APITestCase):
         otro = self.sp._texto_plano('<html><body>Sitio en mantención</body></html>')
         self.assertIsNone(self.sp._buscar(
             otro, r'tope\s+imponible[^.]{0,60}?([\d.,]+)\s*UF', 'tope_imponible_afp_uf'))
+
+
+class CatalogoConceptosTests(APITestCase):
+    """El catálogo reemplaza la glosa libre y define la naturaleza del haber."""
+
+    def setUp(self):
+        from core.models import ConceptoRemuneracion
+        self.user, _, _, self.empresa = crear_usuario_completo(
+            'cat_user', '19000000-1', '76900001-1')
+        self.otro_user, _, _, self.otra_empresa = crear_usuario_completo(
+            'cat_otro', '19000000-2', '76900001-2')
+        self.client.force_authenticate(user=self.user)
+        self.colacion = ConceptoRemuneracion.objects.get(codigo='COLACION', empresa=None)
+        self.bono = ConceptoRemuneracion.objects.get(codigo='BONO_PRODUCCION', empresa=None)
+
+    # ── Naturaleza derivada del tipo ────────────────────────────────────────
+
+    def test_la_naturaleza_la_fija_el_tipo_y_no_quien_lo_crea(self):
+        """Un concepto no imponible no puede nacer marcado como imponible."""
+        from core.models import ConceptoRemuneracion
+        concepto = ConceptoRemuneracion.objects.create(
+            codigo='BONO_RARO', nombre='Bono raro', tipo='HABER_NO_IMPONIBLE',
+            empresa=self.empresa, es_imponible=True, afecta_gratificacion=True,
+        )
+        concepto.refresh_from_db()
+        self.assertFalse(concepto.es_imponible)
+        self.assertFalse(concepto.afecta_gratificacion)
+
+    def test_comision_afecta_semana_corrida_y_hora_extra_no(self):
+        """Art. 32 inciso final: las horas extras se excluyen de semana corrida."""
+        from core.models import ConceptoRemuneracion
+        comision = ConceptoRemuneracion.objects.create(
+            codigo='COM_X', nombre='Comisión X', tipo='COMISION', empresa=self.empresa)
+        hora = ConceptoRemuneracion.objects.get(codigo='HORA_EXTRA_50', empresa=None)
+        self.assertTrue(comision.afecta_semana_corrida)
+        self.assertFalse(hora.afecta_semana_corrida)
+
+    # ── Endpoint ────────────────────────────────────────────────────────────
+
+    def test_lista_incluye_catalogo_del_sistema(self):
+        resp = self.client.get('/api/conceptos/?tipo=HABER_NO_IMPONIBLE')
+        codigos = [c['codigo'] for c in resp.data]
+        self.assertIn('COLACION', codigos)
+        self.assertIn('MOVILIZACION', codigos)
+
+    def test_no_se_ven_conceptos_propios_de_otra_empresa(self):
+        from core.models import ConceptoRemuneracion
+        ajeno = ConceptoRemuneracion.objects.create(
+            codigo='AJENO', nombre='Bono ajeno', tipo='HABER_IMPONIBLE',
+            empresa=self.otra_empresa)
+        resp = self.client.get('/api/conceptos/')
+        self.assertNotIn(ajeno.id, [c['id'] for c in resp.data])
+
+    def test_no_se_puede_modificar_un_concepto_del_sistema(self):
+        resp = self.client.patch(f'/api/conceptos/{self.colacion.id}/',
+                                 {'nombre': 'Secuestrado'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_eliminar_un_concepto_propio_lo_desactiva(self):
+        """Las liquidaciones emitidas lo referencian: no se borra, se oculta."""
+        from core.models import ConceptoRemuneracion
+        propio = ConceptoRemuneracion.objects.create(
+            codigo='PROPIO', nombre='Bono propio', tipo='HABER_IMPONIBLE',
+            empresa=self.empresa)
+        resp = self.client.delete(f'/api/conceptos/{propio.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        propio.refresh_from_db()
+        self.assertFalse(propio.activo)
+
+    # ── Efecto en el cálculo ────────────────────────────────────────────────
+
+    def _liquidar(self, **listas):
+        from core.views import _calcular_liquidacion
+
+        class ContratoFalso:
+            sueldo_base = 1_000_000
+            tipo_contrato = 'INDEFINIDO'
+            gratificacion_legal = 'MENSUAL'
+            tiene_quincena = False
+            monto_quincena = 0
+            comisiones_config = []
+
+        class EmpleadoFalso:
+            afp = 'MODELO'
+            sistema_salud = 'FONASA'
+            plan_isapre_uf = 0
+
+        datos = {'mes': 3, 'anio': 2025, 'dias_trabajados': 30, **listas}
+        return _calcular_liquidacion(ContratoFalso(), EmpleadoFalso(), datos)
+
+    def test_haber_no_imponible_no_entra_a_la_base_de_cotizacion(self):
+        sin = self._liquidar()
+        con = self._liquidar(detalle_haberes_no_imponibles=[
+            {'concepto': self.colacion.id, 'glosa': 'x', 'valor': 100_000}])
+        self.assertEqual(sin['total_imponible'], con['total_imponible'])
+        self.assertEqual(con['total_haberes'], sin['total_haberes'] + 100_000)
+
+    def test_haber_imponible_si_entra_a_la_base(self):
+        sin = self._liquidar()
+        con = self._liquidar(detalle_haberes_imponibles=[
+            {'concepto': self.bono.id, 'glosa': 'x', 'valor': 100_000}])
+        self.assertGreater(con['total_imponible'], sin['total_imponible'])
+        self.assertGreater(con['afp_monto'], sin['afp_monto'])
+
+    def test_la_glosa_se_congela_desde_el_concepto(self):
+        """Lo que el cliente mande como glosa no manda: la fija el catálogo."""
+        resultado = self._liquidar(detalle_haberes_no_imponibles=[
+            {'concepto': self.colacion.id, 'glosa': 'lo que sea', 'valor': 50_000}])
+        self.assertEqual(
+            resultado['detalle_haberes_no_imponibles'][0]['glosa'],
+            self.colacion.nombre)
+
+    def test_item_sin_concepto_conserva_el_comportamiento_anterior(self):
+        """Los datos previos al catálogo se siguen clasificando por su lista."""
+        resultado = self._liquidar(detalle_haberes_imponibles=[
+            {'glosa': 'Bono antiguo sin concepto', 'valor': 80_000}])
+        base = self._liquidar()
+        self.assertGreater(resultado['total_imponible'], base['total_imponible'])
+
+    # ── Validación ──────────────────────────────────────────────────────────
+
+    def test_rechaza_un_concepto_en_la_seccion_equivocada(self):
+        empleado = crear_empleado(self.empresa, '11900001-1')
+        Contrato.objects.create(empleado=empleado, sueldo_base=800_000,
+                                fecha_inicio='2024-01-01', cargo='Analista')
+        resp = self.client.post('/api/liquidaciones/', {
+            'empleado': empleado.id, 'mes': 3, 'anio': 2025,
+            'dias_trabajados': 30,
+            # Colación es no imponible: no puede ir entre los imponibles
+            'detalle_haberes_imponibles': [
+                {'concepto': self.colacion.id, 'glosa': 'x', 'valor': 50_000}],
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rechaza_un_concepto_de_otra_empresa(self):
+        from core.models import ConceptoRemuneracion
+        ajeno = ConceptoRemuneracion.objects.create(
+            codigo='AJENO2', nombre='Bono ajeno', tipo='HABER_IMPONIBLE',
+            empresa=self.otra_empresa)
+        empleado = crear_empleado(self.empresa, '11900002-2')
+        Contrato.objects.create(empleado=empleado, sueldo_base=800_000,
+                                fecha_inicio='2024-01-01', cargo='Analista')
+        resp = self.client.post('/api/liquidaciones/', {
+            'empleado': empleado.id, 'mes': 4, 'anio': 2025, 'dias_trabajados': 30,
+            'detalle_haberes_imponibles': [
+                {'concepto': ajeno.id, 'glosa': 'x', 'valor': 50_000}],
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)

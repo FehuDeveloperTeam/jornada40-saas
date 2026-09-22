@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito
+from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
@@ -152,6 +152,29 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             'sueldo_base_contrato', 'gratificacion_legal', 'tipo_contrato',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
             'archivo_pdf', 'fecha_emision',
+        )
+
+
+class ConceptoRemuneracionSerializer(serializers.ModelSerializer):
+    es_del_sistema = serializers.SerializerMethodField()
+
+    def get_es_del_sistema(self, obj):
+        return obj.empresa_id is None
+
+    class Meta:
+        model = ConceptoRemuneracion
+        fields = [
+            'id', 'codigo', 'nombre', 'tipo',
+            'es_imponible', 'es_tributable',
+            'afecta_gratificacion', 'afecta_semana_corrida',
+            'codigo_lre', 'empresa', 'es_del_sistema', 'activo', 'creado_en',
+        ]
+        # La naturaleza previsional la deriva el modelo desde el tipo: no se
+        # acepta que llegue definida desde el cliente.
+        read_only_fields = (
+            'id', 'creado_en', 'es_del_sistema', 'codigo_lre',
+            'es_imponible', 'es_tributable',
+            'afecta_gratificacion', 'afecta_semana_corrida',
         )
 
 

@@ -8,7 +8,7 @@ from .views import (
     webhook_reveniu, crear_checkout_reveniu, perfil_usuario,
     firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
     firma_publica_firmar, firma_publica_documento, firma_publica_rechazar,
-    FiniquitoViewSet,
+    FiniquitoViewSet, ConceptoRemuneracionViewSet,
 )
 
 
@@ -23,6 +23,7 @@ router.register(r'planes', PlanViewSet, basename='plan')
 router.register(r'firmas', SolicitudFirmaViewSet, basename='firma')
 router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
 router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
+router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
 
 urlpatterns = [
     path('', include(router.urls)),

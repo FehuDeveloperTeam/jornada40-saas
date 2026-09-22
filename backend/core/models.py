@@ -271,6 +271,91 @@ class Contrato(models.Model):
     def __str__(self):
         return f"Contrato {self.tipo_contrato} - {self.empleado} - {self.horas_semanales}h"
 
+class ConceptoRemuneracion(models.Model):
+    """Catálogo de haberes y descuentos que pueden aparecer en una liquidación.
+
+    Reemplaza la glosa de texto libre. El punto no es cosmético: cada concepto
+    tiene un tratamiento previsional y tributario distinto, y con texto libre
+    el sistema no puede saber cuál es cuál. Eso es lo que permite clasificar
+    correctamente lo imponible y, más adelante, emitir el Libro de
+    Remuneraciones Electrónico, que exige cada partida mapeada a un código.
+
+    Con empresa en null es un concepto del catálogo del sistema, disponible
+    para todos. Con empresa, es propio de esa empresa.
+    """
+    TIPOS = [
+        ('HABER_IMPONIBLE',    'Haber imponible'),
+        ('HABER_NO_IMPONIBLE', 'Haber no imponible'),
+        ('HORA_EXTRA',         'Hora extra'),
+        ('COMISION',           'Comisión por venta'),
+        ('DESCUENTO',          'Descuento'),
+    ]
+
+    # Naturaleza por defecto de cada tipo. Se aplica al crear un concepto
+    # propio para que la empresa no tenga que decidir algo que fija la ley.
+    NATURALEZA_POR_TIPO = {
+        'HABER_IMPONIBLE':    dict(es_imponible=True,  es_tributable=True,
+                                   afecta_gratificacion=True,  afecta_semana_corrida=False),
+        'HABER_NO_IMPONIBLE': dict(es_imponible=False, es_tributable=False,
+                                   afecta_gratificacion=False, afecta_semana_corrida=False),
+        # Las horas extras quedan fuera de la semana corrida por el Art. 32
+        # inciso final del Código del Trabajo.
+        'HORA_EXTRA':         dict(es_imponible=True,  es_tributable=True,
+                                   afecta_gratificacion=True,  afecta_semana_corrida=False),
+        'COMISION':           dict(es_imponible=True,  es_tributable=True,
+                                   afecta_gratificacion=True,  afecta_semana_corrida=True),
+        'DESCUENTO':          dict(es_imponible=False, es_tributable=False,
+                                   afecta_gratificacion=False, afecta_semana_corrida=False),
+    }
+
+    codigo = models.SlugField(max_length=40)
+    nombre = models.CharField(max_length=100)
+    tipo = models.CharField(max_length=20, choices=TIPOS)
+
+    es_imponible = models.BooleanField(default=False)
+    es_tributable = models.BooleanField(default=False)
+    afecta_gratificacion = models.BooleanField(default=False)
+    afecta_semana_corrida = models.BooleanField(default=False)
+
+    # Columna del Libro de Remuneraciones Electrónico. Se completa al
+    # implementar el LRE; hasta entonces queda vacío a propósito.
+    codigo_lre = models.CharField(max_length=20, blank=True, default='')
+
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, null=True, blank=True,
+                                related_name='conceptos_remuneracion')
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['tipo', 'nombre']
+        verbose_name = 'Concepto de remuneración'
+        verbose_name_plural = 'Conceptos de remuneración'
+        constraints = [
+            # En Postgres dos NULL se consideran distintos, así que el catálogo
+            # del sistema necesita su propia restricción para no duplicarse.
+            models.UniqueConstraint(
+                fields=['codigo'], condition=models.Q(empresa__isnull=True),
+                name='concepto_codigo_unico_en_sistema'),
+            models.UniqueConstraint(
+                fields=['empresa', 'codigo'], condition=models.Q(empresa__isnull=False),
+                name='concepto_codigo_unico_por_empresa'),
+        ]
+
+    def __str__(self):
+        ambito = self.empresa.nombre_legal if self.empresa else 'Sistema'
+        return f"{self.nombre} ({self.get_tipo_display()}) — {ambito}"
+
+    def save(self, *args, **kwargs):
+        # Al crear, la naturaleza previsional la fija el tipo y no el criterio
+        # de quien lo crea: así un bono propio nunca queda marcado como no
+        # imponible por error. Una vez creado sí se puede ajustar desde el
+        # admin, porque existen excepciones puntuales que la ley reconoce.
+        if self._state.adding:
+            for campo, valor in self.NATURALEZA_POR_TIPO.get(self.tipo, {}).items():
+                setattr(self, campo, valor)
+        super().save(*args, **kwargs)
+
+
 # ==========================================
 # 3b. ANEXOS DE CONTRATO (Modificaciones contractuales)
 # ==========================================

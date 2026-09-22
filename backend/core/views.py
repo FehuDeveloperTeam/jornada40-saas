@@ -46,7 +46,7 @@ from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
-from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito, ParametroPrevisional, TasaAFP
+from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito, ParametroPrevisional, TasaAFP, ConceptoRemuneracion
 from .serializers import PlanSerializer
 from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
@@ -69,14 +69,14 @@ from html import escape as _esc
 logger = logging.getLogger(__name__)
 import pandas as pd
 import urllib.parse
-from django.db.models import Max, Sum, Exists, OuterRef
+from django.db.models import Max, Sum, Exists, OuterRef, Q
 from django.core.files.base import ContentFile
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 
-from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer, FiniquitoSerializer
+from .serializers import EmpresaSerializer, EmpleadoSerializer, ContratoSerializer, AnexoContratoSerializer, DocumentoLegalSerializer, LiquidacionSerializer, SolicitudFirmaSerializer, FiniquitoSerializer, ConceptoRemuneracionSerializer
 from . import b2_client
 from django.core.mail import EmailMultiAlternatives
 import uuid as uuid_mod
@@ -1738,6 +1738,67 @@ def _aplicar_anexo_a_contrato(anexo) -> bool:
     return True
 
 
+class ConceptoRemuneracionViewSet(viewsets.ModelViewSet):
+    """Catálogo de haberes y descuentos disponible para el usuario.
+
+    Devuelve los conceptos del sistema más los propios de sus empresas. Los
+    del sistema son de solo lectura: una empresa no puede alterar la
+    naturaleza previsional de un concepto compartido.
+    """
+    serializer_class = ConceptoRemuneracionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = ConceptoRemuneracion.objects.filter(
+            Q(empresa__isnull=True) | Q(empresa__owner=self.request.user)
+        )
+        if self.request.query_params.get('incluir_inactivos') != 'true':
+            qs = qs.filter(activo=True)
+        tipo = self.request.query_params.get('tipo')
+        if tipo:
+            qs = qs.filter(tipo=tipo)
+        empresa_id = self.request.query_params.get('empresa')
+        if empresa_id:
+            qs = qs.filter(Q(empresa__isnull=True) | Q(empresa_id=empresa_id))
+        return qs
+
+    def perform_create(self, serializer):
+        empresa = serializer.validated_data.get('empresa')
+        if empresa is None:
+            raise ValidationError(
+                {'empresa': 'Un concepto propio debe pertenecer a una empresa. '
+                            'El catálogo del sistema no se edita desde aquí.'})
+        if empresa.owner_id != self.request.user.id:
+            raise ValidationError({'empresa': 'Empresa no encontrada.'})
+        serializer.save()
+
+    def _rechazar_si_es_del_sistema(self, instancia):
+        if instancia.empresa_id is None:
+            return Response(
+                {'error': 'Los conceptos del catálogo del sistema no se pueden '
+                          'modificar ni eliminar. Crea uno propio si necesitas '
+                          'una variante.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return None
+
+    def update(self, request, *args, **kwargs):
+        return (self._rechazar_si_es_del_sistema(self.get_object())
+                or super().update(request, *args, **kwargs))
+
+    def destroy(self, request, *args, **kwargs):
+        instancia = self.get_object()
+        rechazo = self._rechazar_si_es_del_sistema(instancia)
+        if rechazo:
+            return rechazo
+        # Desactivar en vez de borrar: las liquidaciones ya emitidas lo
+        # referencian y deben poder seguir mostrándolo.
+        instancia.activo = False
+        instancia.save(update_fields=['activo'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class AnexoContratoViewSet(viewsets.ModelViewSet):
     serializer_class = AnexoContratoSerializer
     permission_classes = [IsAuthenticated]
@@ -1954,6 +2015,67 @@ def _tasas_afp(mes=None, anio=None) -> dict:
     return tasas or dict(_TASAS_AFP_RESPALDO)
 
 
+# Naturaleza que se asume para los ítems sin concepto del catálogo: es la que
+# regía antes de que existiera, cuando la clasificación dependía de en qué
+# lista estaba guardado el ítem.
+_NATURALEZA_POR_LISTA = {
+    'detalle_haberes_imponibles':    dict(es_imponible=True,  afecta_gratificacion=True,
+                                          afecta_semana_corrida=False),
+    'detalle_horas_extras':          dict(es_imponible=True,  afecta_gratificacion=True,
+                                          afecta_semana_corrida=False),
+    'detalle_haberes_no_imponibles': dict(es_imponible=False, afecta_gratificacion=False,
+                                          afecta_semana_corrida=False),
+    'detalle_otros_descuentos':      dict(es_imponible=False, afecta_gratificacion=False,
+                                          afecta_semana_corrida=False),
+}
+
+# Qué tipo de concepto admite cada lista. Evita que un haber no imponible
+# termine guardado entre los imponibles y cotice por error.
+_TIPOS_POR_LISTA = {
+    'detalle_haberes_imponibles':    'HABER_IMPONIBLE',
+    'detalle_horas_extras':          'HORA_EXTRA',
+    'detalle_haberes_no_imponibles': 'HABER_NO_IMPONIBLE',
+    'detalle_otros_descuentos':      'DESCUENTO',
+}
+
+
+def _conceptos_por_id(items) -> dict:
+    """Conceptos referenciados por una lista de ítems, en una sola consulta."""
+    ids = {item.get('concepto') for item in items if item.get('concepto')}
+    if not ids:
+        return {}
+    return {c.id: c for c in ConceptoRemuneracion.objects.filter(id__in=ids)}
+
+
+def _validar_conceptos(data, user):
+    """Comprueba que cada ítem use un concepto válido y del tipo correcto.
+
+    Se valida antes de calcular para poder responder un 400 explicativo en vez
+    de fallar a mitad del cálculo.
+    """
+    todos = []
+    for lista in _TIPOS_POR_LISTA:
+        todos.extend(data.get(lista) or [])
+    conceptos = _conceptos_por_id(todos)
+
+    for lista, tipo_esperado in _TIPOS_POR_LISTA.items():
+        for item in (data.get(lista) or []):
+            concepto_id = item.get('concepto')
+            if not concepto_id:
+                continue  # ítem sin catálogo: se acepta por compatibilidad
+            concepto = conceptos.get(concepto_id)
+            if concepto is None:
+                raise ValidationError(
+                    {'error': f'El concepto {concepto_id} no existe.'})
+            if concepto.empresa_id is not None and concepto.empresa.owner_id != user.id:
+                raise ValidationError(
+                    {'error': f'El concepto «{concepto.nombre}» no pertenece a tus empresas.'})
+            if concepto.tipo != tipo_esperado:
+                raise ValidationError({'error': (
+                    f'«{concepto.nombre}» es un {concepto.get_tipo_display().lower()} '
+                    f'y no puede registrarse en esa sección de la liquidación.')})
+
+
 def _terminos_vigentes(contrato) -> dict:
     """Condiciones contractuales de hoy — se usan al emitir una liquidación nueva."""
     return {
@@ -2034,15 +2156,46 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     if dias_a_pagar < 0: dias_a_pagar = 0
 
     # 2. ARREGLOS DINÁMICOS (JSON)
-    detalle_imponibles = data.get('detalle_haberes_imponibles', [])
-    detalle_no_imponibles = data.get('detalle_haberes_no_imponibles', [])
-    detalle_horas_extras = data.get('detalle_horas_extras', [])
-    detalle_otros_descuentos = data.get('detalle_otros_descuentos', [])
+    detalle_imponibles = data.get('detalle_haberes_imponibles', []) or []
+    detalle_no_imponibles = data.get('detalle_haberes_no_imponibles', []) or []
+    detalle_horas_extras = data.get('detalle_horas_extras', []) or []
+    detalle_otros_descuentos = data.get('detalle_otros_descuentos', []) or []
 
-    # Sumas matemáticas de los arreglos
-    suma_imponibles_extra = sum(int(item.get('valor', 0)) for item in detalle_imponibles)
-    suma_horas_extras = sum(int(item.get('valor', 0)) for item in detalle_horas_extras)
-    suma_no_imponibles = sum(int(item.get('valor', 0)) for item in detalle_no_imponibles)
+    # La naturaleza de cada haber la define su concepto del catálogo. Los
+    # ítems anteriores al catálogo no lo tienen, y para ellos se usa la de la
+    # lista en que están guardados, que es la que regía hasta ahora.
+    conceptos = _conceptos_por_id(
+        detalle_imponibles + detalle_no_imponibles + detalle_horas_extras)
+
+    def _naturaleza(item, lista):
+        concepto = conceptos.get(item.get('concepto'))
+        if concepto is None:
+            return _NATURALEZA_POR_LISTA[lista]
+        return {
+            'es_imponible': concepto.es_imponible,
+            'afecta_gratificacion': concepto.afecta_gratificacion,
+            'afecta_semana_corrida': concepto.afecta_semana_corrida,
+        }
+
+    haberes = (
+        [(item, _naturaleza(item, 'detalle_haberes_imponibles')) for item in detalle_imponibles]
+        + [(item, _naturaleza(item, 'detalle_horas_extras')) for item in detalle_horas_extras]
+        + [(item, _naturaleza(item, 'detalle_haberes_no_imponibles')) for item in detalle_no_imponibles]
+    )
+
+    # La glosa se congela desde el concepto al emitir: si después lo renombran,
+    # la liquidación ya emitida conserva el nombre que tenía ese día.
+    for item, _ in haberes:
+        concepto = conceptos.get(item.get('concepto'))
+        if concepto is not None:
+            item['glosa'] = concepto.nombre
+
+    suma_imponibles_extra = sum(int(i.get('valor', 0)) for i, n in haberes if n['es_imponible'])
+    suma_no_imponibles = sum(int(i.get('valor', 0)) for i, n in haberes if not n['es_imponible'])
+    suma_gratificable_extra = sum(
+        int(i.get('valor', 0)) for i, n in haberes if n['afecta_gratificacion'])
+    suma_semana_corrida_extra = sum(
+        int(i.get('valor', 0)) for i, n in haberes if n['afecta_semana_corrida'])
     suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in detalle_otros_descuentos)
 
     # 2b. COMISIONES (remuneración variable, Art. 45 Código del Trabajo)
@@ -2064,11 +2217,13 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     suma_comisiones = sum(item['valor'] for item in detalle_comisiones)
 
     # 2c. SEMANA CORRIDA (Art. 45) — método mensual simplificado.
-    # Solo se calcula sobre comisiones: las horas extras quedan excluidas
-    # explícitamente por el Art. 32 inciso final del Código del Trabajo.
+    # La base son las comisiones más cualquier haber que el catálogo marque
+    # como variable. Las horas extras quedan excluidas explícitamente por el
+    # Art. 32 inciso final del Código del Trabajo.
+    base_variable = suma_comisiones + suma_semana_corrida_extra
     semana_corrida = 0
-    if suma_comisiones > 0 and dias_a_pagar > 0 and mes and anio:
-        promedio_diario_variable = suma_comisiones / dias_a_pagar
+    if base_variable > 0 and dias_a_pagar > 0 and mes and anio:
+        promedio_diario_variable = base_variable / dias_a_pagar
         dias_descanso = _contar_domingos_y_festivos(mes, anio)
         semana_corrida = math.floor(promedio_diario_variable * dias_descanso)
 
@@ -2080,14 +2235,21 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     tope_gratificacion = math.floor(
         parametros['factor_gratificacion'] * parametros['ingreso_minimo_mensual'] / 12
     )
+    # Gratificable e imponible no son lo mismo: un haber puede cotizar sin
+    # entrar a la base de gratificación. Hasta ahora coincidían porque la
+    # clasificación dependía de la lista; con el catálogo pueden diferir.
     base_gratificacion = (
-        sueldo_base_proporcional + suma_imponibles_extra + suma_horas_extras
+        sueldo_base_proporcional + suma_gratificable_extra
         + suma_comisiones + semana_corrida
     )
     gratificacion_calculada = math.floor(base_gratificacion * 0.25)
     gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if terminos['gratificacion_legal'] == 'MENSUAL' else 0
 
-    total_imponible = base_gratificacion + gratificacion_final
+    base_imponible = (
+        sueldo_base_proporcional + suma_imponibles_extra
+        + suma_comisiones + semana_corrida
+    )
+    total_imponible = base_imponible + gratificacion_final
     total_haberes = total_imponible + suma_no_imponibles
 
     # 4. CÁLCULO DE DESCUENTOS LEGALES
@@ -2175,6 +2337,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         empleado_id = data.get('empleado')
 
         try:
+            _validar_conceptos(data, request.user)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
             # Validar que el empleado pertenezca al usuario autenticado
             empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
             contrato = Contrato.objects.filter(empleado=empleado).first()
@@ -2232,6 +2399,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         if not contrato:
             return Response({'error': 'El trabajador no tiene un contrato activo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            _validar_conceptos(request.data, request.user)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
         data = request.data
         campos_editables = [
