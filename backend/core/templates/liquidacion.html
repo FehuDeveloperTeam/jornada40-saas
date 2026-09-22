@@ -123,21 +123,21 @@
                             <td class="right">{{ liquidacion.gratificacion|intcomma }}</td>
                         </tr>
 
-                        {% for item in liquidacion.detalle_haberes_imponibles %}
+                        {% for item in liquidacion.items_agrupados.imponibles %}
                         <tr class="item-row">
                             <td>{{ item.glosa|upper|truncatechars:35 }}</td>
                             <td class="right">{{ item.valor|intcomma }}</td>
                         </tr>
                         {% endfor %}
 
-                        {% for item in liquidacion.detalle_horas_extras %}
+                        {% for item in liquidacion.items_agrupados.horas_extras %}
                         <tr class="item-row">
                             <td>{{ item.glosa|upper|truncatechars:35 }}</td>
                             <td class="right">{{ item.valor|intcomma }}</td>
                         </tr>
                         {% endfor %}
 
-                        {% for item in liquidacion.detalle_comisiones %}
+                        {% for item in liquidacion.items_agrupados.comisiones %}
                         <tr class="item-row">
                             <td>COMISION {{ item.glosa|upper|truncatechars:28 }}</td>
                             <td class="right">{{ item.valor|intcomma }}</td>
@@ -157,7 +157,7 @@
                         </tr>
                         <tr><td colspan="2" style="height: 10px;"></td></tr>
 
-                        {% for item in liquidacion.detalle_haberes_no_imponibles %}
+                        {% for item in liquidacion.items_agrupados.no_imponibles %}
                         <tr class="item-row">
                             <td>{{ item.glosa|upper|truncatechars:35 }}</td>
                             <td class="right">{{ item.valor|intcomma }}</td>
@@ -201,7 +201,7 @@
                         </tr>
                         {% endif %}
 
-                        {% for item in liquidacion.detalle_otros_descuentos %}
+                        {% for item in liquidacion.items_agrupados.descuentos %}
                         <tr class="item-row">
                             <td>{{ item.glosa|upper|truncatechars:35 }}</td>
                             <td class="right">{{ item.valor|intcomma }}</td>

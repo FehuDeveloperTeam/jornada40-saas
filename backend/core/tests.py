@@ -959,9 +959,7 @@ class CatalogoConceptosTests(APITestCase):
         """Lo que el cliente mande como glosa no manda: la fija el catálogo."""
         resultado = self._liquidar(detalle_haberes_no_imponibles=[
             {'concepto': self.colacion.id, 'glosa': 'lo que sea', 'valor': 50_000}])
-        self.assertEqual(
-            resultado['detalle_haberes_no_imponibles'][0]['glosa'],
-            self.colacion.nombre)
+        self.assertEqual(resultado['detalle_items'][0]['glosa'], self.colacion.nombre)
 
     def test_item_sin_concepto_conserva_el_comportamiento_anterior(self):
         """Los datos previos al catálogo se siguen clasificando por su lista."""
@@ -1049,6 +1047,11 @@ class ComportamientoListasDetalleTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
         return resp.data
 
+    @staticmethod
+    def _items(liq, naturaleza):
+        """Ítems de una naturaleza en la respuesta del API."""
+        return [i for i in liq['detalle_items'] if i.get('naturaleza') == naturaleza]
+
     # ── Montos ──────────────────────────────────────────────────────────────
 
     def test_cada_lista_aporta_a_los_totales_que_le_corresponden(self):
@@ -1058,13 +1061,14 @@ class ComportamientoListasDetalleTests(APITestCase):
         # La colación suma a haberes pero no a imponible
         self.assertEqual(liq['total_haberes'], liq['total_imponible'] + 60_000)
         # El anticipo suma a los descuentos
-        self.assertIn(50_000, [d['valor'] for d in liq['detalle_otros_descuentos']])
+        self.assertIn(50_000, [d['valor'] for d in self._items(liq, 'DESCUENTO')])
 
     def test_la_comision_se_calcula_con_el_porcentaje_del_contrato(self):
         liq = self._crear()
         # 4.000.000 x 0,5% = 20.000
-        self.assertEqual(liq['detalle_comisiones'][0]['valor'], 20_000)
-        self.assertEqual(liq['detalle_comisiones'][0]['porcentaje'], 0.5)
+        comision = self._items(liq, 'COMISION')[0]
+        self.assertEqual(comision['valor'], 20_000)
+        self.assertEqual(comision['porcentaje'], 0.5)
 
     def test_la_comision_genera_semana_corrida_y_las_horas_extras_no(self):
         con_comision = self._crear()
@@ -1089,17 +1093,18 @@ class ComportamientoListasDetalleTests(APITestCase):
                                  {'dias_ausencia': 1}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         # Sigue usando el 0,5% con que se emitió, no el 9,9% nuevo
-        self.assertEqual(resp.data['detalle_comisiones'][0]['porcentaje'], 0.5)
-        self.assertEqual(resp.data['detalle_comisiones'][0]['valor'], 20_000)
+        comision = self._items(resp.data, 'COMISION')[0]
+        self.assertEqual(comision['porcentaje'], 0.5)
+        self.assertEqual(comision['valor'], 20_000)
 
     def test_editar_conserva_todas_las_listas(self):
         liq = self._crear()
         resp = self.client.patch(f'/api/liquidaciones/{liq["id"]}/',
                                  {'dias_ausencia': 2}, format='json')
-        for campo in ('detalle_haberes_imponibles', 'detalle_horas_extras',
-                      'detalle_haberes_no_imponibles', 'detalle_otros_descuentos',
-                      'detalle_comisiones'):
-            self.assertEqual(len(resp.data[campo]), 1, f'{campo} se perdió al editar')
+        for naturaleza in ('HABER_IMPONIBLE', 'HORA_EXTRA', 'HABER_NO_IMPONIBLE',
+                           'DESCUENTO', 'COMISION'):
+            self.assertEqual(len(self._items(resp.data, naturaleza)), 1,
+                             f'{naturaleza} se perdió al editar')
 
     # ── Salidas: PDF y Libro de Remuneraciones ──────────────────────────────
 
@@ -1120,8 +1125,80 @@ class ComportamientoListasDetalleTests(APITestCase):
 
         registro = Liquidacion.objects.get(id=liq['id'])
         otros_imp = (200_000 + 80_000
-                     + registro.detalle_comisiones[0]['valor']
+                     + registro.items_de('COMISION')[0]['valor']
                      + registro.semana_corrida)
         self.assertEqual(
             registro.sueldo_base + registro.gratificacion + otros_imp,
             registro.total_imponible)
+
+
+class DetalleUnificadoTests(APITestCase):
+    """La lista única reemplaza a las cuatro anteriores."""
+
+    def setUp(self):
+        from core.models import ConceptoRemuneracion
+        self.user, _, _, self.empresa = crear_usuario_completo(
+            'uni_user', '18000000-1', '76800001-1')
+        self.client.force_authenticate(user=self.user)
+        self.empleado = crear_empleado(self.empresa, '11800001-1')
+        Contrato.objects.create(
+            empleado=self.empleado, sueldo_base=1_000_000,
+            fecha_inicio='2024-01-01', cargo='Analista')
+        self.bono = ConceptoRemuneracion.objects.get(codigo='BONO_PRODUCCION', empresa=None)
+        self.colacion = ConceptoRemuneracion.objects.get(codigo='COLACION', empresa=None)
+
+    def test_acepta_el_formato_nuevo_de_lista_unica(self):
+        resp = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 7, 'anio': 2025,
+            'dias_trabajados': 30,
+            'detalle_items': [
+                {'concepto': self.bono.id, 'naturaleza': 'HABER_IMPONIBLE',
+                 'glosa': 'x', 'valor': 150_000},
+                {'concepto': self.colacion.id, 'naturaleza': 'HABER_NO_IMPONIBLE',
+                 'glosa': 'x', 'valor': 40_000},
+            ],
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        self.assertEqual(len(resp.data['detalle_items']), 2)
+        # La colación no cotiza pero sí suma a haberes
+        self.assertEqual(resp.data['total_haberes'], resp.data['total_imponible'] + 40_000)
+
+    def test_los_dos_formatos_dan_el_mismo_resultado(self):
+        """Compatibilidad: un cliente sin actualizar debe calcular igual."""
+        viejo = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 8, 'anio': 2025, 'dias_trabajados': 30,
+            'detalle_haberes_imponibles': [
+                {'concepto': self.bono.id, 'glosa': 'x', 'valor': 150_000}],
+            'detalle_haberes_no_imponibles': [
+                {'concepto': self.colacion.id, 'glosa': 'x', 'valor': 40_000}],
+        }, format='json').data
+
+        nuevo = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 9, 'anio': 2025, 'dias_trabajados': 30,
+            'detalle_items': [
+                {'concepto': self.bono.id, 'naturaleza': 'HABER_IMPONIBLE',
+                 'glosa': 'x', 'valor': 150_000},
+                {'concepto': self.colacion.id, 'naturaleza': 'HABER_NO_IMPONIBLE',
+                 'glosa': 'x', 'valor': 40_000},
+            ],
+        }, format='json').data
+
+        for campo in ('total_imponible', 'total_haberes', 'total_descuentos',
+                      'sueldo_liquido', 'afp_monto', 'salud_monto'):
+            self.assertEqual(viejo[campo], nuevo[campo], f'{campo} difiere entre formatos')
+
+    def test_items_agrupados_separa_por_naturaleza(self):
+        resp = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 10, 'anio': 2025, 'dias_trabajados': 30,
+            'detalle_items': [
+                {'concepto': self.bono.id, 'naturaleza': 'HABER_IMPONIBLE',
+                 'glosa': 'x', 'valor': 100_000},
+                {'concepto': self.colacion.id, 'naturaleza': 'HABER_NO_IMPONIBLE',
+                 'glosa': 'x', 'valor': 30_000},
+            ],
+        }, format='json')
+        registro = Liquidacion.objects.get(id=resp.data['id'])
+        agrupados = registro.items_agrupados
+        self.assertEqual(len(agrupados['imponibles']), 1)
+        self.assertEqual(len(agrupados['no_imponibles']), 1)
+        self.assertEqual(agrupados['descuentos'], [])

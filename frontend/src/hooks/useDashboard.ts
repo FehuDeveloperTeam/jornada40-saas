@@ -799,11 +799,15 @@ export function useDashboard() {
     setLiqAnio(liq.anio);
     setLiqDiasTrabajados(liq.dias_trabajados);
     setLiqAusencias(liq.dias_ausencia);
-    setHaberesImponiblesList(liq.detalle_haberes_imponibles || []);
-    setHorasExtrasList(liq.detalle_horas_extras || []);
-    setHaberesNoImponiblesList(liq.detalle_haberes_no_imponibles || []);
-    setComisionesList(liq.detalle_comisiones || []);
-    setOtrosDescuentosList(liq.detalle_otros_descuentos || []);
+    // El formulario conserva una sección por naturaleza porque así se lee la
+    // liquidación y así la exige el PDF; el almacenamiento es una lista única.
+    const items = liq.detalle_items || [];
+    const de = (naturaleza: TipoConcepto) => items.filter(i => i.naturaleza === naturaleza);
+    setHaberesImponiblesList(de('HABER_IMPONIBLE') as DetalleItem[]);
+    setHorasExtrasList(de('HORA_EXTRA') as unknown as HoraExtraItem[]);
+    setHaberesNoImponiblesList(de('HABER_NO_IMPONIBLE') as DetalleItem[]);
+    setComisionesList(de('COMISION') as unknown as ComisionItem[]);
+    setOtrosDescuentosList(de('DESCUENTO') as DetalleItem[]);
     setShowLiqForm(true);
   };
 
@@ -822,11 +826,17 @@ export function useDashboard() {
         anio: liqAnio,
         dias_trabajados: liqDiasTrabajados,
         dias_ausencia: liqAusencias,
-        detalle_haberes_imponibles: haberesImponiblesList,
-        detalle_horas_extras: horasExtrasList,
-        detalle_haberes_no_imponibles: haberesNoImponiblesList,
-        detalle_comisiones: comisionesList.map(c => ({ glosa: c.glosa, monto_vendido: c.monto_vendido })),
-        detalle_otros_descuentos: otrosDescuentosList,
+        detalle_items: [
+          ...haberesImponiblesList.map(i => ({ ...i, naturaleza: 'HABER_IMPONIBLE' })),
+          ...horasExtrasList.map(i => ({ ...i, naturaleza: 'HORA_EXTRA' })),
+          // El backend recalcula el valor con el porcentaje del contrato
+          ...comisionesList.map(c => ({
+            concepto: c.concepto ?? null, glosa: c.glosa,
+            monto_vendido: c.monto_vendido, naturaleza: 'COMISION',
+          })),
+          ...haberesNoImponiblesList.map(i => ({ ...i, naturaleza: 'HABER_NO_IMPONIBLE' })),
+          ...otrosDescuentosList.map(i => ({ ...i, naturaleza: 'DESCUENTO' })),
+        ],
       };
       if (editingLiqId) {
         const res = await client.patch(`/liquidaciones/${editingLiqId}/`, payload);

@@ -283,13 +283,13 @@ export default function TabLiquidaciones({
                               <h5 className="text-xs font-extrabold uppercase tracking-widest pb-2 mb-3" style={{ color: 'var(--c-text-3)', borderBottom: '1px solid var(--c-border)' }}>Detalle de Haberes</h5>
                               <div className="flex justify-between text-sm"><span style={{ color: 'var(--c-text-2)' }}>Sueldo Base ({liq.dias_trabajados}d)</span><span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${liq.sueldo_base.toLocaleString('es-CL')}</span></div>
                               <div className="flex justify-between text-sm"><span style={{ color: 'var(--c-text-2)' }}>Gratificación Legal</span><span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${liq.gratificacion.toLocaleString('es-CL')}</span></div>
-                              {liq.detalle_horas_extras?.map((extra, i) => (
+                              {liq.detalle_items?.filter(i => i.naturaleza === 'HORA_EXTRA').map((extra, i) => (
                                 <div key={`he-${i}`} className="flex justify-between text-sm">
                                   <span style={{ color: 'var(--c-text-2)' }}>{extra.glosa} ({extra.horas}h)</span>
                                   <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${extra.valor.toLocaleString('es-CL')}</span>
                                 </div>
                               ))}
-                              {liq.detalle_comisiones?.map((com, i) => (
+                              {liq.detalle_items?.filter(i => i.naturaleza === 'COMISION').map((com, i) => (
                                 <div key={`com-${i}`} className="flex justify-between text-sm">
                                   <span style={{ color: 'var(--c-text-2)' }}>Comisión {com.glosa} ({com.porcentaje}%)</span>
                                   <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${com.valor.toLocaleString('es-CL')}</span>
@@ -301,7 +301,7 @@ export default function TabLiquidaciones({
                                   <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${liq.semana_corrida.toLocaleString('es-CL')}</span>
                                 </div>
                               )}
-                              {liq.detalle_haberes_no_imponibles?.map((noimp, i) => (
+                              {liq.detalle_items?.filter(i => i.naturaleza === 'HABER_NO_IMPONIBLE').map((noimp, i) => (
                                 <div key={`ni-${i}`} className="flex justify-between text-sm">
                                   <span style={{ color: 'var(--c-text-2)' }}>{noimp.glosa}</span>
                                   <span className="font-bold" style={{ color: 'var(--c-text-1)' }}>${noimp.valor.toLocaleString('es-CL')}</span>
@@ -320,7 +320,7 @@ export default function TabLiquidaciones({
                               {liq.anticipo_quincena > 0 && (
                                 <div className="flex justify-between text-sm"><span style={{ color: 'var(--c-text-2)' }}>Anticipo Quincena</span><span className="font-bold" style={{ color: '#f87171' }}>-${liq.anticipo_quincena.toLocaleString('es-CL')}</span></div>
                               )}
-                              {liq.detalle_otros_descuentos?.map((desc, i) => (
+                              {liq.detalle_items?.filter(i => i.naturaleza === 'DESCUENTO').map((desc, i) => (
                                 <div key={`od-${i}`} className="flex justify-between text-sm">
                                   <span style={{ color: 'var(--c-text-2)' }}>{desc.glosa}</span>
                                   <span className="font-bold" style={{ color: '#f87171' }}>-${desc.valor.toLocaleString('es-CL')}</span>

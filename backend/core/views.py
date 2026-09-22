@@ -1065,10 +1065,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 liquido_palabras = str(liquidacion.sueldo_liquido)
             contrato_liq = Contrato.objects.filter(empleado=empleado).first()
             meses_liq = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-            det_no_imp = liquidacion.detalle_haberes_no_imponibles
-            if not isinstance(det_no_imp, list): det_no_imp = []
-            det_otros = liquidacion.detalle_otros_descuentos
-            if not isinstance(det_otros, list): det_otros = []
+            agrupados = liquidacion.items_agrupados
+            det_no_imp = agrupados['no_imponibles']
+            det_otros = agrupados['descuentos']
             context = {
                 'empleado': empleado, 'empresa': empresa,
                 'liquidacion': liquidacion, 'contrato': contrato_liq,
@@ -1107,10 +1106,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 liquido_palabras = str(liquidacion.sueldo_liquido)
             contrato_liq = Contrato.objects.filter(empleado=empleado).first()
             meses_liq = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-            det_no_imp = liquidacion.detalle_haberes_no_imponibles
-            if not isinstance(det_no_imp, list): det_no_imp = []
-            det_otros = liquidacion.detalle_otros_descuentos
-            if not isinstance(det_otros, list): det_otros = []
+            agrupados = liquidacion.items_agrupados
+            det_no_imp = agrupados['no_imponibles']
+            det_otros = agrupados['descuentos']
             context = {
                 'empleado': empleado, 'empresa': empresa,
                 'liquidacion': liquidacion, 'contrato': contrato_liq,
@@ -2015,28 +2013,46 @@ def _tasas_afp(mes=None, anio=None) -> dict:
     return tasas or dict(_TASAS_AFP_RESPALDO)
 
 
-# Naturaleza que se asume para los ítems sin concepto del catálogo: es la que
-# regía antes de que existiera, cuando la clasificación dependía de en qué
-# lista estaba guardado el ítem.
-_NATURALEZA_POR_LISTA = {
-    'detalle_haberes_imponibles':    dict(es_imponible=True,  afecta_gratificacion=True,
-                                          afecta_semana_corrida=False),
-    'detalle_horas_extras':          dict(es_imponible=True,  afecta_gratificacion=True,
-                                          afecta_semana_corrida=False),
-    'detalle_haberes_no_imponibles': dict(es_imponible=False, afecta_gratificacion=False,
-                                          afecta_semana_corrida=False),
-    'detalle_otros_descuentos':      dict(es_imponible=False, afecta_gratificacion=False,
-                                          afecta_semana_corrida=False),
+# Naturaleza previsional de cada tipo de partida. Se usa para los ítems que
+# no tienen concepto del catálogo: los emitidos antes de que existiera.
+_NATURALEZA_POR_TIPO = {
+    'HABER_IMPONIBLE':    dict(es_imponible=True,  afecta_gratificacion=True,
+                               afecta_semana_corrida=False),
+    'HORA_EXTRA':         dict(es_imponible=True,  afecta_gratificacion=True,
+                               afecta_semana_corrida=False),
+    'COMISION':           dict(es_imponible=True,  afecta_gratificacion=True,
+                               afecta_semana_corrida=True),
+    'HABER_NO_IMPONIBLE': dict(es_imponible=False, afecta_gratificacion=False,
+                               afecta_semana_corrida=False),
+    'DESCUENTO':          dict(es_imponible=False, afecta_gratificacion=False,
+                               afecta_semana_corrida=False),
 }
 
-# Qué tipo de concepto admite cada lista. Evita que un haber no imponible
-# termine guardado entre los imponibles y cotice por error.
+# Listas del formato anterior y la naturaleza que representaba cada una.
 _TIPOS_POR_LISTA = {
     'detalle_haberes_imponibles':    'HABER_IMPONIBLE',
     'detalle_horas_extras':          'HORA_EXTRA',
     'detalle_haberes_no_imponibles': 'HABER_NO_IMPONIBLE',
     'detalle_otros_descuentos':      'DESCUENTO',
+    'detalle_comisiones':            'COMISION',
 }
+
+
+def _items_desde_payload(data) -> list:
+    """Detalle unificado a partir del payload.
+
+    Acepta el formato nuevo y el anterior de listas separadas, para que un
+    cliente que todavía no se actualizó siga funcionando durante el despliegue.
+    """
+    if data.get('detalle_items') is not None:
+        return [dict(i) for i in (data.get('detalle_items') or []) if isinstance(i, dict)]
+
+    items = []
+    for lista, naturaleza in _TIPOS_POR_LISTA.items():
+        for item in (data.get(lista) or []):
+            if isinstance(item, dict):
+                items.append({**item, 'naturaleza': naturaleza})
+    return items
 
 
 def _conceptos_por_id(items) -> dict:
@@ -2053,27 +2069,24 @@ def _validar_conceptos(data, user):
     Se valida antes de calcular para poder responder un 400 explicativo en vez
     de fallar a mitad del cálculo.
     """
-    todos = []
-    for lista in _TIPOS_POR_LISTA:
-        todos.extend(data.get(lista) or [])
-    conceptos = _conceptos_por_id(todos)
+    items = _items_desde_payload(data)
+    conceptos = _conceptos_por_id(items)
 
-    for lista, tipo_esperado in _TIPOS_POR_LISTA.items():
-        for item in (data.get(lista) or []):
-            concepto_id = item.get('concepto')
-            if not concepto_id:
-                continue  # ítem sin catálogo: se acepta por compatibilidad
-            concepto = conceptos.get(concepto_id)
-            if concepto is None:
-                raise ValidationError(
-                    {'error': f'El concepto {concepto_id} no existe.'})
-            if concepto.empresa_id is not None and concepto.empresa.owner_id != user.id:
-                raise ValidationError(
-                    {'error': f'El concepto «{concepto.nombre}» no pertenece a tus empresas.'})
-            if concepto.tipo != tipo_esperado:
-                raise ValidationError({'error': (
-                    f'«{concepto.nombre}» es un {concepto.get_tipo_display().lower()} '
-                    f'y no puede registrarse en esa sección de la liquidación.')})
+    for item in items:
+        concepto_id = item.get('concepto')
+        if not concepto_id:
+            continue  # ítem sin catálogo: se acepta por compatibilidad
+        concepto = conceptos.get(concepto_id)
+        if concepto is None:
+            raise ValidationError({'error': f'El concepto {concepto_id} no existe.'})
+        if concepto.empresa_id is not None and concepto.empresa.owner_id != user.id:
+            raise ValidationError(
+                {'error': f'El concepto «{concepto.nombre}» no pertenece a tus empresas.'})
+        naturaleza = item.get('naturaleza')
+        if naturaleza and concepto.tipo != naturaleza:
+            raise ValidationError({'error': (
+                f'«{concepto.nombre}» es un {concepto.get_tipo_display().lower()} '
+                f'y no puede registrarse como {naturaleza.replace("_", " ").lower()}.')})
 
 
 def _terminos_vigentes(contrato) -> dict:
@@ -2107,7 +2120,7 @@ def _terminos_congelados(liquidacion, contrato) -> dict:
 
     porcentajes = {
         str(c.get('glosa', '')): float(c.get('porcentaje', 0))
-        for c in (liquidacion.detalle_comisiones or [])
+        for c in liquidacion.items_de('COMISION')
     }
     # Una categoría agregada al contrato después de emitir esta liquidación
     # todavía no tiene porcentaje histórico: se toma el del contrato.
@@ -2155,72 +2168,61 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     dias_a_pagar = 30 - dias_ausencia - dias_licencia - dias_no_contratados
     if dias_a_pagar < 0: dias_a_pagar = 0
 
-    # 2. ARREGLOS DINÁMICOS (JSON)
-    detalle_imponibles = data.get('detalle_haberes_imponibles', []) or []
-    detalle_no_imponibles = data.get('detalle_haberes_no_imponibles', []) or []
-    detalle_horas_extras = data.get('detalle_horas_extras', []) or []
-    detalle_otros_descuentos = data.get('detalle_otros_descuentos', []) or []
+    # 2. DETALLE DE HABERES Y DESCUENTOS (lista única)
+    items = _items_desde_payload(data)
+    conceptos = _conceptos_por_id(items)
 
-    # La naturaleza de cada haber la define su concepto del catálogo. Los
-    # ítems anteriores al catálogo no lo tienen, y para ellos se usa la de la
-    # lista en que están guardados, que es la que regía hasta ahora.
-    conceptos = _conceptos_por_id(
-        detalle_imponibles + detalle_no_imponibles + detalle_horas_extras)
+    # La glosa y la naturaleza se congelan desde el concepto al emitir: si
+    # después lo renombran o lo reclasifican, la liquidación ya emitida
+    # conserva lo que tenía ese día.
+    for item in items:
+        concepto = conceptos.get(item.get('concepto'))
+        if concepto is not None:
+            item['glosa'] = concepto.nombre
+            item['naturaleza'] = concepto.tipo
 
-    def _naturaleza(item, lista):
+    # 2b. COMISIONES (remuneración variable, Art. 45 Código del Trabajo)
+    # El valor se recalcula acá y no se toma del payload: el porcentaje sale
+    # de los términos resueltos en el servidor (contrato vigente o los
+    # congelados en la liquidación), así que no puede alterarse desde el
+    # navegador. El input solo aporta el monto vendido del mes.
+    config_por_glosa = terminos['porcentajes_comision']
+    for item in items:
+        if item.get('naturaleza') != 'COMISION':
+            continue
+        monto_vendido = int(item.get('monto_vendido', 0) or 0)
+        porcentaje = config_por_glosa.get(str(item.get('glosa', '')), 0)
+        item['monto_vendido'] = monto_vendido
+        item['porcentaje'] = porcentaje
+        item['valor'] = math.floor(monto_vendido * porcentaje / 100)
+
+    # La naturaleza previsional la define el concepto; los ítems anteriores al
+    # catálogo no lo tienen y usan la congelada en el propio ítem.
+    def _naturaleza(item):
         concepto = conceptos.get(item.get('concepto'))
         if concepto is None:
-            return _NATURALEZA_POR_LISTA[lista]
+            return _NATURALEZA_POR_TIPO[item.get('naturaleza', 'HABER_IMPONIBLE')]
         return {
             'es_imponible': concepto.es_imponible,
             'afecta_gratificacion': concepto.afecta_gratificacion,
             'afecta_semana_corrida': concepto.afecta_semana_corrida,
         }
 
-    haberes = (
-        [(item, _naturaleza(item, 'detalle_haberes_imponibles')) for item in detalle_imponibles]
-        + [(item, _naturaleza(item, 'detalle_horas_extras')) for item in detalle_horas_extras]
-        + [(item, _naturaleza(item, 'detalle_haberes_no_imponibles')) for item in detalle_no_imponibles]
-    )
-
-    # La glosa se congela desde el concepto al emitir: si después lo renombran,
-    # la liquidación ya emitida conserva el nombre que tenía ese día.
-    for item, _ in haberes:
-        concepto = conceptos.get(item.get('concepto'))
-        if concepto is not None:
-            item['glosa'] = concepto.nombre
+    haberes = [(i, _naturaleza(i)) for i in items if i.get('naturaleza') != 'DESCUENTO']
+    descuentos = [i for i in items if i.get('naturaleza') == 'DESCUENTO']
 
     suma_imponibles_extra = sum(int(i.get('valor', 0)) for i, n in haberes if n['es_imponible'])
     suma_no_imponibles = sum(int(i.get('valor', 0)) for i, n in haberes if not n['es_imponible'])
     suma_gratificable_extra = sum(
         int(i.get('valor', 0)) for i, n in haberes if n['afecta_gratificacion'])
-    suma_semana_corrida_extra = sum(
-        int(i.get('valor', 0)) for i, n in haberes if n['afecta_semana_corrida'])
-    suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in detalle_otros_descuentos)
-
-    # 2b. COMISIONES (remuneración variable, Art. 45 Código del Trabajo)
-    # El porcentaje SIEMPRE sale de los términos resueltos en el servidor
-    # (contrato vigente o los congelados en la liquidación), nunca del valor que
-    # mande el cliente. El input solo aporta el monto vendido del mes.
-    config_por_glosa = terminos['porcentajes_comision']
-    detalle_comisiones_input = data.get('detalle_comisiones', []) or []
-    detalle_comisiones = []
-    for item in detalle_comisiones_input:
-        glosa = str(item.get('glosa', ''))
-        monto_vendido = int(item.get('monto_vendido', 0) or 0)
-        porcentaje = config_por_glosa.get(glosa, 0)
-        valor = math.floor(monto_vendido * porcentaje / 100)
-        detalle_comisiones.append({
-            'glosa': glosa, 'monto_vendido': monto_vendido,
-            'porcentaje': porcentaje, 'valor': valor,
-        })
-    suma_comisiones = sum(item['valor'] for item in detalle_comisiones)
+    suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in descuentos)
 
     # 2c. SEMANA CORRIDA (Art. 45) — método mensual simplificado.
-    # La base son las comisiones más cualquier haber que el catálogo marque
-    # como variable. Las horas extras quedan excluidas explícitamente por el
-    # Art. 32 inciso final del Código del Trabajo.
-    base_variable = suma_comisiones + suma_semana_corrida_extra
+    # La base es todo haber que el catálogo marque como remuneración variable,
+    # típicamente las comisiones. Las horas extras quedan excluidas
+    # explícitamente por el Art. 32 inciso final del Código del Trabajo.
+    base_variable = sum(
+        int(i.get('valor', 0)) for i, n in haberes if n['afecta_semana_corrida'])
     semana_corrida = 0
     if base_variable > 0 and dias_a_pagar > 0 and mes and anio:
         promedio_diario_variable = base_variable / dias_a_pagar
@@ -2239,15 +2241,13 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     # entrar a la base de gratificación. Hasta ahora coincidían porque la
     # clasificación dependía de la lista; con el catálogo pueden diferir.
     base_gratificacion = (
-        sueldo_base_proporcional + suma_gratificable_extra
-        + suma_comisiones + semana_corrida
+        sueldo_base_proporcional + suma_gratificable_extra + semana_corrida
     )
     gratificacion_calculada = math.floor(base_gratificacion * 0.25)
     gratificacion_final = min(gratificacion_calculada, tope_gratificacion) if terminos['gratificacion_legal'] == 'MENSUAL' else 0
 
     base_imponible = (
-        sueldo_base_proporcional + suma_imponibles_extra
-        + suma_comisiones + semana_corrida
+        sueldo_base_proporcional + suma_imponibles_extra + semana_corrida
     )
     total_imponible = base_imponible + gratificacion_final
     total_haberes = total_imponible + suma_no_imponibles
@@ -2300,11 +2300,7 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         'dias_trabajados': dias_trabajados, 'dias_licencia': dias_licencia,
         'dias_ausencia': dias_ausencia, 'dias_no_contratados': dias_no_contratados,
         'sueldo_base': sueldo_base_proporcional, 'gratificacion': gratificacion_final,
-        'detalle_haberes_imponibles': detalle_imponibles,
-        'detalle_horas_extras': detalle_horas_extras,
-        'detalle_haberes_no_imponibles': detalle_no_imponibles,
-        'detalle_comisiones': detalle_comisiones, 'semana_corrida': semana_corrida,
-        'detalle_otros_descuentos': detalle_otros_descuentos,
+        'detalle_items': items, 'semana_corrida': semana_corrida,
         'afp_nombre': nombre_afp, 'afp_monto': afp_monto,
         'salud_nombre': salud_nombre, 'isapre_cotizacion_uf': isapre_uf, 'salud_monto': salud_monto,
         'seguro_cesantia': seguro_cesantia, 'impuesto_unico': impuesto_unico, 'anticipo_quincena': anticipo_quincena,
@@ -2407,9 +2403,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         data = request.data
         campos_editables = [
-            'mes', 'anio', 'dias_trabajados', 'dias_ausencia', 'dias_licencia', 'dias_no_contratados',
-            'detalle_haberes_imponibles', 'detalle_horas_extras',
-            'detalle_haberes_no_imponibles', 'detalle_otros_descuentos', 'detalle_comisiones',
+            'mes', 'anio', 'dias_trabajados', 'dias_ausencia', 'dias_licencia',
+            'dias_no_contratados', 'detalle_items',
         ]
         # Combina lo que venga en el request con lo que ya estaba guardado,
         # así un PATCH parcial recalcula usando el resto de los valores tal
@@ -2463,12 +2458,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             sueldo_seguro = int(liquidacion.sueldo_liquido or 0)
             liquido_palabras = num2words(sueldo_seguro, lang='es')
 
-            det_no_imp = liquidacion.detalle_haberes_no_imponibles
-            if not isinstance(det_no_imp, list): det_no_imp = []
+            agrupados = liquidacion.items_agrupados
+            det_no_imp = agrupados['no_imponibles']
             suma_no_imponibles = sum(int(item.get('valor', 0)) for item in det_no_imp if isinstance(item, dict))
 
-            det_otros_dsctos = liquidacion.detalle_otros_descuentos
-            if not isinstance(det_otros_dsctos, list): det_otros_dsctos = []
+            det_otros_dsctos = agrupados['descuentos']
             suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in det_otros_dsctos if isinstance(item, dict))
             
             total_ley = (liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0) + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0)
@@ -2730,16 +2724,12 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
 
         for liq in qs:
             emp = liq.empleado
-            det_imp = liq.detalle_haberes_imponibles or []
-            if not isinstance(det_imp, list): det_imp = []
-            det_hex = liq.detalle_horas_extras or []
-            if not isinstance(det_hex, list): det_hex = []
-            det_com = liq.detalle_comisiones or []
-            if not isinstance(det_com, list): det_com = []
-            det_noi = liq.detalle_haberes_no_imponibles or []
-            if not isinstance(det_noi, list): det_noi = []
-            det_odc = liq.detalle_otros_descuentos or []
-            if not isinstance(det_odc, list): det_odc = []
+            agrupados = liq.items_agrupados
+            det_imp = agrupados['imponibles']
+            det_hex = agrupados['horas_extras']
+            det_com = agrupados['comisiones']
+            det_noi = agrupados['no_imponibles']
+            det_odc = agrupados['descuentos']
 
             otros_imp  = sum(int(d.get('valor', 0)) for d in det_imp if isinstance(d, dict))
             otros_imp += sum(int(d.get('valor', 0)) for d in det_hex if isinstance(d, dict))
@@ -3861,11 +3851,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             mes_nombre = meses[liq.mes - 1]
             sueldo_seguro = int(liq.sueldo_liquido or 0)
             liquido_palabras = num2words(sueldo_seguro, lang='es')
-            det_no_imp = liq.detalle_haberes_no_imponibles
-            if not isinstance(det_no_imp, list): det_no_imp = []
+            agrupados = liq.items_agrupados
+            det_no_imp = agrupados['no_imponibles']
             suma_no_imponibles = sum(int(i.get('valor', 0)) for i in det_no_imp if isinstance(i, dict))
-            det_otros = liq.detalle_otros_descuentos
-            if not isinstance(det_otros, list): det_otros = []
+            det_otros = agrupados['descuentos']
             suma_otros_descuentos = sum(int(i.get('valor', 0)) for i in det_otros if isinstance(i, dict))
             total_ley = ((liq.afp_monto or 0) + (liq.salud_monto or 0) +
                          (liq.seguro_cesantia or 0) + (liq.impuesto_unico or 0))

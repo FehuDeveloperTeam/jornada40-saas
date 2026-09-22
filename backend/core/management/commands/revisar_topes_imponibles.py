@@ -89,11 +89,7 @@ class Command(BaseCommand):
                 'dias_ausencia': liq.dias_ausencia,
                 'dias_licencia': liq.dias_licencia,
                 'dias_no_contratados': liq.dias_no_contratados,
-                'detalle_haberes_imponibles': liq.detalle_haberes_imponibles,
-                'detalle_horas_extras': liq.detalle_horas_extras,
-                'detalle_haberes_no_imponibles': liq.detalle_haberes_no_imponibles,
-                'detalle_otros_descuentos': liq.detalle_otros_descuentos,
-                'detalle_comisiones': liq.detalle_comisiones,
+                'detalle_items': liq.detalle_items,
             }
 
             with transaction.atomic():

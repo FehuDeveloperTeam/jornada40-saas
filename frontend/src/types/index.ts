@@ -270,11 +270,26 @@ export interface ComisionConfig {
 
 // Monto vendido en el mes por categoría; el backend recalcula 'valor' con
 // el porcentaje guardado en el contrato (nunca confía en el que llegue aquí)
+/** Ítem del detalle de una liquidación. Los campos extra dependen de la
+ *  naturaleza: horas y recargo en las horas extras, monto vendido y
+ *  porcentaje en las comisiones. */
+export interface ItemLiquidacion {
+    concepto?: number | null;
+    glosa: string;
+    naturaleza: TipoConcepto;
+    valor: number;
+    horas?: number;
+    recargo?: number;
+    monto_vendido?: number;
+    porcentaje?: number;
+}
+
 export interface ComisionItem {
     glosa: string;
     monto_vendido: number;
     porcentaje: number;
     valor: number;
+    concepto?: number | null;
 }
 
 export interface Liquidacion {
@@ -288,10 +303,8 @@ export interface Liquidacion {
     dias_no_contratados: number;
     sueldo_base: number;
     gratificacion: number;
-    detalle_haberes_imponibles: DetalleItem[];
-    detalle_horas_extras: HoraExtraItem[];
-    detalle_haberes_no_imponibles: DetalleItem[];
-    detalle_comisiones: ComisionItem[];
+    /** Haberes y descuentos en una sola lista; cada ítem lleva su naturaleza. */
+    detalle_items: ItemLiquidacion[];
     semana_corrida: number;
     afp_nombre: string | null;
     afp_monto: number;
@@ -301,7 +314,6 @@ export interface Liquidacion {
     seguro_cesantia: number;
     impuesto_unico: number;
     anticipo_quincena: number;
-    detalle_otros_descuentos: DetalleItem[];
     // Términos del contrato congelados al emitir la liquidación
     sueldo_base_contrato: number;
     gratificacion_legal: string;

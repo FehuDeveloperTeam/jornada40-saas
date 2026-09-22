@@ -475,6 +475,15 @@ class Liquidacion(models.Model):
     # --- HABERES ---
     sueldo_base = models.IntegerField(default=0)
     gratificacion = models.IntegerField(default=0)
+    # Haberes y descuentos en una sola lista. Cada ítem lleva su naturaleza
+    # congelada al emitir, así que agruparlos para el PDF o el Libro no
+    # depende de cómo esté configurado el catálogo hoy:
+    #   {"concepto": 12|null, "glosa": "...", "naturaleza": "HABER_IMPONIBLE",
+    #    "valor": 0, "horas": .., "recargo": .., "monto_vendido": .., "porcentaje": ..}
+    detalle_items = models.JSONField(default=list, blank=True)
+
+    # Listas anteriores a la unificación. Ya no se escriben ni se leen; se
+    # conservan un release como respaldo del traspaso.
     detalle_haberes_imponibles = models.JSONField(default=list, blank=True)
     detalle_horas_extras = models.JSONField(default=list, blank=True)
     detalle_haberes_no_imponibles = models.JSONField(default=list, blank=True)
@@ -520,6 +529,27 @@ class Liquidacion(models.Model):
 
     class Meta:
         unique_together = ('empleado', 'mes', 'anio')
+
+    def items_de(self, naturaleza) -> list:
+        """Ítems de una naturaleza, en el orden en que se registraron."""
+        return [i for i in (self.detalle_items or []) if i.get('naturaleza') == naturaleza]
+
+    @property
+    def items_agrupados(self) -> dict:
+        """Ítems separados por naturaleza, para el PDF y el Libro.
+
+        La liquidación es un documento legal con un orden establecido —
+        haberes imponibles, subtotal, no imponibles, subtotal, descuentos —
+        así que la separación sigue existiendo al mostrarla aunque el
+        almacenamiento sea una sola lista.
+        """
+        return {
+            'imponibles':    self.items_de('HABER_IMPONIBLE'),
+            'horas_extras':  self.items_de('HORA_EXTRA'),
+            'comisiones':    self.items_de('COMISION'),
+            'no_imponibles': self.items_de('HABER_NO_IMPONIBLE'),
+            'descuentos':    self.items_de('DESCUENTO'),
+        }
 
     def __str__(self):
         return f"Liquidación {self.mes}/{self.anio} - {self.empleado.rut}"
