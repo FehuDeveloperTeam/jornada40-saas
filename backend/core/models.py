@@ -20,6 +20,62 @@ class Plan(models.Model):
         return f"{self.nombre} ({self.limite_trabajadores} trab.) - ${self.precio}"
 
 
+class ParametroPrevisional(models.Model):
+    """Parámetros legales del sistema previsional chileno, versionados por período.
+
+    Cambian por ley (topes imponibles y sueldo mínimo se reajustan todos los
+    años). Al vivir en BD, recalcular una liquidación antigua usa los valores
+    que regían en su período y actualizarlos no requiere un despliegue.
+    """
+    vigente_desde = models.DateField(unique=True, help_text='Primer día del período en que rigen estos valores.')
+
+    # Topes imponibles expresados en UF (los fija la Superintendencia de Pensiones)
+    tope_imponible_afp_uf = models.DecimalField(max_digits=6, decimal_places=2, default=87.80)
+    tope_imponible_afc_uf = models.DecimalField(max_digits=6, decimal_places=2, default=131.90)
+
+    # Base del tope de gratificación: 4,75 ingresos mínimos mensuales al año
+    ingreso_minimo_mensual = models.IntegerField(default=529000)
+    factor_gratificacion = models.DecimalField(max_digits=4, decimal_places=2, default=4.75)
+
+    # Tasas de cotización
+    tasa_salud = models.DecimalField(max_digits=6, decimal_places=5, default=0.07)
+    tasa_afc_trabajador_indefinido = models.DecimalField(max_digits=6, decimal_places=5, default=0.006)
+    tasa_afc_empleador_indefinido = models.DecimalField(max_digits=6, decimal_places=5, default=0.024)
+    tasa_afc_empleador_plazo = models.DecimalField(max_digits=6, decimal_places=5, default=0.03)
+    tasa_sis = models.DecimalField(max_digits=6, decimal_places=5, default=0.0149)
+    tasa_mutual_base = models.DecimalField(max_digits=6, decimal_places=5, default=0.0093)
+    tasa_expectativa_vida = models.DecimalField(max_digits=6, decimal_places=5, default=0.009)
+
+    # Mientras esté en False, los valores provienen del seed y no de fuente oficial
+    confirmado = models.BooleanField(default=False)
+    notas = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-vigente_desde']
+        verbose_name = 'Parámetro previsional'
+        verbose_name_plural = 'Parámetros previsionales'
+
+    def __str__(self):
+        estado = '' if self.confirmado else ' (por confirmar)'
+        return f"Parámetros desde {self.vigente_desde}{estado}"
+
+
+class TasaAFP(models.Model):
+    """Tasa de cotización de cada AFP, versionada por período."""
+    nombre = models.CharField(max_length=50)
+    tasa = models.DecimalField(max_digits=6, decimal_places=5)
+    vigente_desde = models.DateField()
+
+    class Meta:
+        unique_together = ('nombre', 'vigente_desde')
+        ordering = ['-vigente_desde', 'nombre']
+        verbose_name = 'Tasa AFP'
+        verbose_name_plural = 'Tasas AFP'
+
+    def __str__(self):
+        return f"{self.nombre} {self.tasa:.2%} desde {self.vigente_desde}"
+
+
 class Cliente(models.Model):
     TIPO_CLIENTE_CHOICES = [
         ('PERSONA', 'Persona Natural'),
@@ -345,6 +401,9 @@ class Liquidacion(models.Model):
     sueldo_base_contrato = models.IntegerField(default=0)
     gratificacion_legal = models.CharField(max_length=20, blank=True, default='')
     tipo_contrato = models.CharField(max_length=20, blank=True, default='')
+    # UF con la que se calcularon los topes imponibles y la Isapre de este
+    # período. Se congela para que recalcular no use la UF de hoy.
+    valor_uf = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     # --- TOTALES MATEMÁTICOS ---
     total_imponible = models.IntegerField(default=0)

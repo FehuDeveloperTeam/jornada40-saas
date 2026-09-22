@@ -46,7 +46,7 @@ from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
-from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito
+from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito, ParametroPrevisional, TasaAFP
 from .serializers import PlanSerializer
 from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
@@ -1846,6 +1846,70 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=500)
 
 
+# Respaldo si la tabla de parámetros está vacía (BD recién creada, antes del
+# seed). Son los valores que estaban embebidos en el código originalmente.
+_PARAMETROS_RESPALDO = {
+    'tope_imponible_afp_uf': 87.80,
+    'tope_imponible_afc_uf': 131.90,
+    'ingreso_minimo_mensual': 529000,
+    'factor_gratificacion': 4.75,
+    'tasa_salud': 0.07,
+    'tasa_afc_trabajador_indefinido': 0.006,
+    'tasa_afc_empleador_indefinido': 0.024,
+    'tasa_afc_empleador_plazo': 0.030,
+    'tasa_sis': 0.0149,
+    'tasa_mutual_base': 0.0093,
+    'tasa_expectativa_vida': 0.009,
+}
+
+_TASAS_AFP_RESPALDO = {
+    'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
+    'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049,
+}
+
+
+def _fecha_referencia(mes, anio) -> datetime.date:
+    """Primer día del período liquidado; hoy si no viene informado."""
+    try:
+        return datetime.date(int(anio), int(mes), 1)
+    except (TypeError, ValueError):
+        return datetime.date.today()
+
+
+def _parametros_previsionales(mes=None, anio=None) -> dict:
+    """Parámetros legales que regían en el período de la liquidación.
+
+    Resolver por período (y no por la fecha de hoy) es lo que permite que
+    recalcular una liquidación antigua use los topes y el sueldo mínimo de su
+    momento. Si no hay una fila anterior al período se usa la más antigua
+    disponible, que es la mejor aproximación para liquidaciones previas.
+    """
+    referencia = _fecha_referencia(mes, anio)
+    fila = (ParametroPrevisional.objects
+            .filter(vigente_desde__lte=referencia)
+            .order_by('-vigente_desde').first())
+    if fila is None:
+        fila = ParametroPrevisional.objects.order_by('vigente_desde').first()
+    if fila is None:
+        return dict(_PARAMETROS_RESPALDO)
+
+    return {campo: float(getattr(fila, campo)) for campo in _PARAMETROS_RESPALDO}
+
+
+def _tasas_afp(mes=None, anio=None) -> dict:
+    """Tasa de cada AFP vigente en el período liquidado."""
+    referencia = _fecha_referencia(mes, anio)
+    filas = TasaAFP.objects.filter(vigente_desde__lte=referencia).order_by('vigente_desde')
+    if not filas.exists():
+        filas = TasaAFP.objects.order_by('vigente_desde')
+
+    # Recorrido ascendente: la vigencia más reciente sobrescribe a la anterior.
+    tasas = {}
+    for fila in filas:
+        tasas[fila.nombre.upper()] = float(fila.tasa)
+    return tasas or dict(_TASAS_AFP_RESPALDO)
+
+
 def _terminos_vigentes(contrato) -> dict:
     """Condiciones contractuales de hoy — se usan al emitir una liquidación nueva."""
     return {
@@ -1853,6 +1917,7 @@ def _terminos_vigentes(contrato) -> dict:
         'gratificacion_legal': contrato.gratificacion_legal,
         'tipo_contrato': contrato.tipo_contrato,
         'anticipo_quincena': (contrato.monto_quincena or 0) if contrato.tiene_quincena else 0,
+        'valor_uf': obtener_uf(),
         'porcentajes_comision': {
             str(c.get('glosa', '')): float(c.get('porcentaje', 0))
             for c in (contrato.comisiones_config or [])
@@ -1888,6 +1953,7 @@ def _terminos_congelados(liquidacion, contrato) -> dict:
         'gratificacion_legal': liquidacion.gratificacion_legal or contrato.gratificacion_legal,
         'tipo_contrato': liquidacion.tipo_contrato or contrato.tipo_contrato,
         'anticipo_quincena': liquidacion.anticipo_quincena or 0,
+        'valor_uf': float(liquidacion.valor_uf) or obtener_uf(),
         'porcentajes_comision': porcentajes,
     }
 
@@ -1907,6 +1973,12 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     """
     if terminos is None:
         terminos = _terminos_vigentes(contrato)
+
+    # Período liquidado: define qué parámetros legales aplican.
+    mes = int(data.get('mes') or 0)
+    anio = int(data.get('anio') or 0)
+    parametros = _parametros_previsionales(mes, anio)
+    valor_uf = terminos['valor_uf']
     # 1. ASISTENCIA
     dias_trabajados = int(data.get('dias_trabajados', 30))
     dias_ausencia = int(data.get('dias_ausencia', 0))
@@ -1951,20 +2023,19 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     # Solo se calcula sobre comisiones: las horas extras quedan excluidas
     # explícitamente por el Art. 32 inciso final del Código del Trabajo.
     semana_corrida = 0
-    if suma_comisiones > 0 and dias_a_pagar > 0:
-        mes = int(data.get('mes') or 0)
-        anio = int(data.get('anio') or 0)
-        if mes and anio:
-            promedio_diario_variable = suma_comisiones / dias_a_pagar
-            dias_descanso = _contar_domingos_y_festivos(mes, anio)
-            semana_corrida = math.floor(promedio_diario_variable * dias_descanso)
+    if suma_comisiones > 0 and dias_a_pagar > 0 and mes and anio:
+        promedio_diario_variable = suma_comisiones / dias_a_pagar
+        dias_descanso = _contar_domingos_y_festivos(mes, anio)
+        semana_corrida = math.floor(promedio_diario_variable * dias_descanso)
 
     # 3. CÁLCULO DE HABERES
     sueldo_base_mensual = terminos['sueldo_base_contrato']
     sueldo_base_proporcional = math.floor((sueldo_base_mensual / 30) * dias_a_pagar)
 
-    # Gratificación
-    tope_gratificacion = 200000
+    # Gratificación: tope legal de 4,75 ingresos mínimos mensuales al año
+    tope_gratificacion = math.floor(
+        parametros['factor_gratificacion'] * parametros['ingreso_minimo_mensual'] / 12
+    )
     base_gratificacion = (
         sueldo_base_proporcional + suma_imponibles_extra + suma_horas_extras
         + suma_comisiones + semana_corrida
@@ -1976,30 +2047,37 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     total_haberes = total_imponible + suma_no_imponibles
 
     # 4. CÁLCULO DE DESCUENTOS LEGALES
-    tasas_afp = {
-        'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
-        'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049
-    }
+    # Las cotizaciones se calculan sobre la renta imponible TOPADA, no sobre el
+    # total imponible: lo que excede el tope legal no cotiza. AFP y salud
+    # comparten tope; el seguro de cesantía tiene uno propio, más alto.
+    tope_afp = math.floor(parametros['tope_imponible_afp_uf'] * valor_uf)
+    tope_afc = math.floor(parametros['tope_imponible_afc_uf'] * valor_uf)
+    renta_imponible_afp = min(total_imponible, tope_afp)
+    renta_imponible_afc = min(total_imponible, tope_afc)
+
     nombre_afp = (empleado.afp or 'MODELO').upper()
-    tasa_afp = tasas_afp.get(nombre_afp, 0.11)
-    afp_monto = math.floor(total_imponible * tasa_afp)
+    tasa_afp = _tasas_afp(mes, anio).get(nombre_afp, 0.11)
+    afp_monto = math.floor(renta_imponible_afp * tasa_afp)
 
     # Salud (Isapre UF vs Fonasa 7%)
-    valor_uf = obtener_uf()
+    tasa_salud = parametros['tasa_salud']
     salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
     if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf > 0:
         salud_monto = math.floor(float(empleado.plan_isapre_uf) * valor_uf)
         isapre_uf = empleado.plan_isapre_uf
         # La ley exige descontar al menos el 7%, si el plan UF es menor, se cobra 7%
-        minimo_legal = math.floor(total_imponible * 0.07)
+        minimo_legal = math.floor(renta_imponible_afp * tasa_salud)
         if salud_monto < minimo_legal:
             salud_monto = minimo_legal
     else:
-        salud_monto = math.floor(total_imponible * 0.07)
+        salud_monto = math.floor(renta_imponible_afp * tasa_salud)
         isapre_uf = 0
 
     # Seguro Cesantía
-    seguro_cesantia = math.floor(total_imponible * 0.006) if terminos['tipo_contrato'] == 'INDEFINIDO' else 0
+    seguro_cesantia = (
+        math.floor(renta_imponible_afc * parametros['tasa_afc_trabajador_indefinido'])
+        if terminos['tipo_contrato'] == 'INDEFINIDO' else 0
+    )
 
     # Impuesto Único de Segunda Categoría
     base_tributable = total_imponible - afp_monto - salud_monto - seguro_cesantia
@@ -2027,6 +2105,7 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         'sueldo_base_contrato': terminos['sueldo_base_contrato'],
         'gratificacion_legal': terminos['gratificacion_legal'],
         'tipo_contrato': terminos['tipo_contrato'],
+        'valor_uf': round(valor_uf, 2),
         'total_imponible': total_imponible, 'total_haberes': total_haberes,
         'total_descuentos': total_descuentos, 'sueldo_liquido': sueldo_liquido,
     }
@@ -2241,6 +2320,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         if not qs.exists():
             return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
 
+        params_periodo = _parametros_previsionales(mes, anio)
+
         lineas = []
         for liq in qs:
             emp = liq.empleado
@@ -2268,9 +2349,18 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             # ── AFP ────────────────────────────────────────────────────────
             nombre_afp = (liq.afp_nombre or 'MODELO').upper()
             cod_afp = _AFP_CODIGOS_PREVIRED.get(nombre_afp, '08')
-            renta_imp = int(liq.total_imponible or 0)
+            # Se informa la renta TOPADA, que es sobre la que se cotiza.
+            uf_periodo = float(liq.valor_uf) or obtener_uf()
+            renta_imp = min(
+                int(liq.total_imponible or 0),
+                math.floor(params_periodo['tope_imponible_afp_uf'] * uf_periodo),
+            )
+            renta_afc = min(
+                int(liq.total_imponible or 0),
+                math.floor(params_periodo['tope_imponible_afc_uf'] * uf_periodo),
+            )
             cotiz_afp = str(int(liq.afp_monto or 0))
-            sis = str(math.floor(renta_imp * _TASA_SIS))
+            sis = str(math.floor(renta_imp * params_periodo['tasa_sis']))
 
             # ── Salud ──────────────────────────────────────────────────────
             sistema = (liq.salud_nombre or 'FONASA').upper()
@@ -2282,24 +2372,24 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             uf_isapre = str(float(liq.isapre_cotizacion_uf or 0))
 
             # ── Mutual AT/EP ───────────────────────────────────────────────
-            cotiz_mutual = str(math.floor(renta_imp * _TASA_MUTUAL_AT))
+            cotiz_mutual = str(math.floor(renta_imp * params_periodo['tasa_mutual_base']))
 
             # ── AFC Cesantía ───────────────────────────────────────────────
             ind_afc = '1' if es_indefinido else '0'
             cotiz_afc_trab = str(int(liq.seguro_cesantia or 0))
             if es_indefinido:
-                cotiz_afc_emp = str(math.floor(renta_imp * _TASA_AFC_EMP_INDEFINIDO))
+                cotiz_afc_emp = str(math.floor(renta_afc * params_periodo['tasa_afc_empleador_indefinido']))
             elif contrato and contrato.tipo_contrato == 'PLAZO_FIJO':
-                cotiz_afc_emp = str(math.floor(renta_imp * _TASA_AFC_EMP_PLAZO))
+                cotiz_afc_emp = str(math.floor(renta_afc * params_periodo['tasa_afc_empleador_plazo']))
             else:
                 cotiz_afc_emp = '0'
-            renta_imp_afc = str(renta_imp) if es_indefinido else '0'
+            renta_imp_afc = str(renta_afc) if es_indefinido else '0'
 
             # ── Reforma 2025 ───────────────────────────────────────────────
             tipo_jornada_code = _TIPO_JORNADA_PREVIRED.get(
                 contrato.tipo_jornada if contrato else 'ORDINARIA', '1'
             )
-            cotiz_expectativa = str(math.floor(renta_imp * _TASA_EXPECTATIVA_VIDA))
+            cotiz_expectativa = str(math.floor(renta_imp * params_periodo['tasa_expectativa_vida']))
 
             # ── Construir array de 105 campos (base cero) ──────────────────
             campos = ['0'] * 105
@@ -2726,12 +2816,19 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
 
         def _costo_emp(liq):
+            par = _parametros_previsionales(liq.mes, liq.anio)
             try:
                 tipo = liq.empleado.contrato_activo.tipo_contrato
-                tasa_afc = _TASA_AFC_EMP_INDEFINIDO if tipo == 'INDEFINIDO' else _TASA_AFC_EMP_PLAZO
+                tasa_afc = (par['tasa_afc_empleador_indefinido'] if tipo == 'INDEFINIDO'
+                            else par['tasa_afc_empleador_plazo'])
             except Exception:
-                tasa_afc = _TASA_AFC_EMP_INDEFINIDO
-            return int(liq.total_imponible * (_TASA_SIS + _TASA_MUTUAL_AT + tasa_afc))
+                tasa_afc = par['tasa_afc_empleador_indefinido']
+            uf_periodo = float(liq.valor_uf) or obtener_uf()
+            renta = min(
+                int(liq.total_imponible or 0),
+                math.floor(par['tope_imponible_afp_uf'] * uf_periodo),
+            )
+            return int(renta * (par['tasa_sis'] + par['tasa_mutual_base'] + tasa_afc))
 
         def clp(n):
             if not n: return '$0'
@@ -2994,11 +3091,8 @@ _TIPO_JORNADA_PREVIRED = {
 }
 
 _MUTUAL_DEFAULT = '01'  # ISL por defecto
-_TASA_MUTUAL_AT = 0.0093  # tasa base AT/EP empleador
-_TASA_AFC_EMP_INDEFINIDO = 0.024
-_TASA_AFC_EMP_PLAZO = 0.030
-_TASA_SIS = 0.0149
-_TASA_EXPECTATIVA_VIDA = 0.009  # Reforma 2025
+# Las tasas (SIS, mutual, AFC, expectativa de vida) viven en
+# ParametroPrevisional: cambian por ley y se versionan por período.
 
 
 def _rut_partes(rut_str: str):
@@ -3031,12 +3125,6 @@ def _fmt_fecha_previred(f) -> str:
 # FINIQUITO
 # ==========================================
 
-_TASAS_AFP = {
-    'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
-    'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049,
-}
-
-
 # Causales que dan derecho a indemnización por años (Art. 161)
 _CAUSALES_CON_INDEMNIZACION = {'161_1', '161_2', '163bis'}
 
@@ -3046,11 +3134,17 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     contrato = Contrato.objects.filter(empleado=empleado).first()
     sueldo_base = contrato.sueldo_base if contrato else empleado.sueldo_base
 
+    parametros = _parametros_previsionales(fecha_termino.month, fecha_termino.year)
+    valor_uf = obtener_uf()
+
     # Sueldo proporcional último mes
     sueldo_proporcional = math.floor((sueldo_base / 30) * dias_trabajados_ultimo_mes)
 
-    # Gratificación proporcional (25% del sueldo proporcional, tope $200.000)
-    gratificacion = min(math.floor(sueldo_proporcional * 0.25), 200_000)
+    # Gratificación proporcional: 25% con tope de 4,75 ingresos mínimos al año
+    tope_gratificacion = math.floor(
+        parametros['factor_gratificacion'] * parametros['ingreso_minimo_mensual'] / 12
+    )
+    gratificacion = min(math.floor(sueldo_proporcional * 0.25), tope_gratificacion)
 
     # Vacaciones adeudadas → feriado proporcional
     saldo_vac = calcular_saldo_vacaciones(empleado)
@@ -3064,17 +3158,22 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     else:
         indemnizacion_anos = 0
 
-    # Descuentos previsionales sobre sueldo proporcional
+    # Descuentos previsionales sobre el sueldo proporcional, topado
+    renta_cotizable = min(
+        sueldo_proporcional,
+        math.floor(parametros['tope_imponible_afp_uf'] * valor_uf),
+    )
     nombre_afp = (empleado.afp or 'MODELO').upper()
-    tasa_afp = _TASAS_AFP.get(nombre_afp, 0.11)
-    afp_monto = math.floor(sueldo_proporcional * tasa_afp)
+    tasa_afp = _tasas_afp(fecha_termino.month, fecha_termino.year).get(nombre_afp, 0.11)
+    afp_monto = math.floor(renta_cotizable * tasa_afp)
 
+    tasa_salud = parametros['tasa_salud']
     salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
     if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf and float(empleado.plan_isapre_uf) > 0:
-        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * obtener_uf()),
-                          math.floor(sueldo_proporcional * 0.07))
+        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * valor_uf),
+                          math.floor(renta_cotizable * tasa_salud))
     else:
-        salud_monto = math.floor(sueldo_proporcional * 0.07)
+        salud_monto = math.floor(renta_cotizable * tasa_salud)
 
     descuentos_prevision = afp_monto + salud_monto
 

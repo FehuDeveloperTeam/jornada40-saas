@@ -257,13 +257,18 @@ class SerializerReadOnlyTests(APITestCase):
         self.empleado.refresh_from_db()
         self.assertEqual(self.empleado.ficha_numero, ficha_original)
 
-    def test_activo_no_modificable_via_patch(self):
+    def test_activo_si_es_modificable_para_desvincular(self):
+        """'activo' debe ser escribible: es el toggle de desvinculación.
+
+        Estuvo en read_only_fields y el backend descartaba el cambio en
+        silencio, así que el trabajador seguía apareciendo como vigente.
+        """
         self.client.patch(
             f'/api/empleados/{self.empleado.id}/',
             {'activo': False}, format='json'
         )
         self.empleado.refresh_from_db()
-        self.assertTrue(self.empleado.activo)
+        self.assertFalse(self.empleado.activo)
 
     def test_creado_en_no_modificable(self):
         ts_original = self.empleado.creado_en
@@ -568,3 +573,105 @@ class LiquidacionRecalculoTests(APITestCase):
 
         liquidacion.refresh_from_db()
         self.assertFalse(liquidacion.archivo_pdf)
+
+class TopeImponibleTests(APITestCase):
+    """El tope imponible limita la base de cotización (Ley 21.735 y DL 3.500).
+
+    Lo que excede el tope no cotiza: sin este límite, una renta alta produce
+    descuentos de AFP, salud y cesantía mayores a los que corresponden.
+    """
+
+    def setUp(self):
+        from core.models import ParametroPrevisional, TasaAFP
+        import datetime
+        # Se fijan valores conocidos para no depender del seed ni de la UF real.
+        ParametroPrevisional.objects.update_or_create(
+            vigente_desde=datetime.date(2025, 1, 1),
+            defaults={
+                'tope_imponible_afp_uf': '87.80',
+                'tope_imponible_afc_uf': '131.90',
+                'ingreso_minimo_mensual': 529000,
+                'factor_gratificacion': '4.75',
+            },
+        )
+        TasaAFP.objects.update_or_create(
+            nombre='MODELO', vigente_desde=datetime.date(2025, 1, 1),
+            defaults={'tasa': '0.10580'},
+        )
+        self.uf = 39000.0
+        self.tope_afp = int(87.80 * self.uf)
+        self.tope_afc = int(131.90 * self.uf)
+
+    def _liquidar(self, sueldo_base, valor_uf=None):
+        """Calcula una liquidación con UF fija y sin tocar la BD de contratos."""
+        from core.views import _calcular_liquidacion
+
+        class ContratoFalso:
+            tipo_contrato = 'INDEFINIDO'
+            gratificacion_legal = 'MENSUAL'
+            tiene_quincena = False
+            monto_quincena = 0
+            comisiones_config = []
+
+        class EmpleadoFalso:
+            afp = 'MODELO'
+            sistema_salud = 'FONASA'
+            plan_isapre_uf = 0
+
+        contrato = ContratoFalso()
+        contrato.sueldo_base = sueldo_base
+        terminos = {
+            'sueldo_base_contrato': sueldo_base,
+            'gratificacion_legal': 'MENSUAL',
+            'tipo_contrato': 'INDEFINIDO',
+            'anticipo_quincena': 0,
+            'valor_uf': valor_uf or self.uf,
+            'porcentajes_comision': {},
+        }
+        return _calcular_liquidacion(
+            contrato, EmpleadoFalso(),
+            {'mes': 3, 'anio': 2025, 'dias_trabajados': 30},
+            terminos=terminos,
+        )
+
+    def test_renta_bajo_el_tope_cotiza_sobre_el_total(self):
+        resultado = self._liquidar(1_000_000)
+        self.assertLess(resultado['total_imponible'], self.tope_afp)
+        self.assertEqual(resultado['afp_monto'], int(resultado['total_imponible'] * 0.1058))
+
+    def test_renta_sobre_el_tope_cotiza_solo_hasta_el_tope(self):
+        resultado = self._liquidar(6_000_000)
+        self.assertGreater(resultado['total_imponible'], self.tope_afp)
+        # La cotización se congela en el tope, no crece con la renta
+        self.assertEqual(resultado['afp_monto'], int(self.tope_afp * 0.1058))
+        self.assertEqual(resultado['salud_monto'], int(self.tope_afp * 0.07))
+
+    def test_cesantia_usa_su_propio_tope_mas_alto(self):
+        # Renta entre ambos topes: AFP topa, cesantía todavía no
+        resultado = self._liquidar(4_000_000)
+        imponible = resultado['total_imponible']
+        self.assertGreater(imponible, self.tope_afp)
+        self.assertLess(imponible, self.tope_afc)
+        self.assertEqual(resultado['afp_monto'], int(self.tope_afp * 0.1058))
+        self.assertEqual(resultado['seguro_cesantia'], int(imponible * 0.006))
+
+    def test_subir_la_renta_sobre_el_tope_no_aumenta_la_cotizacion(self):
+        alta = self._liquidar(6_000_000)
+        mas_alta = self._liquidar(9_000_000)
+        self.assertEqual(alta['afp_monto'], mas_alta['afp_monto'])
+        self.assertEqual(alta['salud_monto'], mas_alta['salud_monto'])
+
+    def test_tope_de_gratificacion_sale_del_sueldo_minimo(self):
+        # 4,75 × 529.000 / 12 = 209.395, no el valor fijo de 200.000 anterior
+        resultado = self._liquidar(6_000_000)
+        self.assertEqual(resultado['gratificacion'], int(4.75 * 529000 / 12))
+
+    def test_parametros_se_resuelven_por_periodo_liquidado(self):
+        """Un período anterior al primer registro usa el más antiguo disponible."""
+        from core.views import _parametros_previsionales
+        antiguo = _parametros_previsionales(1, 2020)
+        self.assertEqual(antiguo['ingreso_minimo_mensual'], 529000)
+
+    def test_valor_uf_queda_congelado_en_la_liquidacion(self):
+        resultado = self._liquidar(1_000_000, valor_uf=38500.0)
+        self.assertEqual(float(resultado['valor_uf']), 38500.0)

@@ -1,5 +1,44 @@
 from django.contrib import admin
-from .models import Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente
+from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
+                     ParametroPrevisional, TasaAFP)
+
+
+# ==========================================
+# PARÁMETROS LEGALES (topes, tasas, sueldo mínimo)
+# ==========================================
+@admin.register(ParametroPrevisional)
+class ParametroPrevisionalAdmin(admin.ModelAdmin):
+    list_display = ('vigente_desde', 'tope_imponible_afp_uf', 'tope_imponible_afc_uf',
+                    'ingreso_minimo_mensual', 'confirmado')
+    list_filter = ('confirmado',)
+    ordering = ('-vigente_desde',)
+    fieldsets = (
+        ('Vigencia', {
+            'fields': ('vigente_desde', 'confirmado', 'notas'),
+            'description': 'Los valores rigen desde esta fecha hasta que exista un período posterior. '
+                           'Marca "confirmado" solo cuando los hayas contrastado con la fuente oficial.',
+        }),
+        ('Topes imponibles (en UF)', {
+            'fields': ('tope_imponible_afp_uf', 'tope_imponible_afc_uf'),
+        }),
+        ('Gratificación', {
+            'fields': ('ingreso_minimo_mensual', 'factor_gratificacion'),
+            'description': 'El tope mensual de gratificación se calcula como factor × sueldo mínimo / 12.',
+        }),
+        ('Tasas de cotización', {
+            'fields': ('tasa_salud', 'tasa_afc_trabajador_indefinido',
+                       'tasa_afc_empleador_indefinido', 'tasa_afc_empleador_plazo',
+                       'tasa_sis', 'tasa_mutual_base', 'tasa_expectativa_vida'),
+        }),
+    )
+
+
+@admin.register(TasaAFP)
+class TasaAFPAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'tasa', 'vigente_desde')
+    list_filter = ('vigente_desde',)
+    search_fields = ('nombre',)
+    ordering = ('-vigente_desde', 'nombre')
 
 # ==========================================
 # GESTIÓN DE SUSCRIPCIONES Y CLIENTES
