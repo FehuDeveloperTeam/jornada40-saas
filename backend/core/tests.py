@@ -999,3 +999,129 @@ class CatalogoConceptosTests(APITestCase):
                 {'concepto': ajeno.id, 'glosa': 'x', 'valor': 50_000}],
         }, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ComportamientoListasDetalleTests(APITestCase):
+    """Fija el comportamiento actual de las listas de detalle antes de unificarlas.
+
+    No prueban código nuevo: existen para que, al pasar de cuatro listas a una
+    sola, cualquier diferencia en los montos, en los PDF o en el Libro de
+    Remuneraciones salte de inmediato. Son la red de seguridad del refactor.
+    """
+
+    def setUp(self):
+        from core.models import ConceptoRemuneracion
+        self.user, _, _, self.empresa = crear_usuario_completo(
+            'det_user', '17000000-1', '76700001-1')
+        self.client.force_authenticate(user=self.user)
+        self.empleado = crear_empleado(self.empresa, '11700001-1')
+        self.contrato = Contrato.objects.create(
+            empleado=self.empleado, sueldo_base=1_000_000,
+            fecha_inicio='2024-01-01', cargo='Vendedor',
+            es_comisionista=True,
+            comisiones_config=[{'glosa': 'Carrocería', 'porcentaje': 0.5}],
+        )
+        self.bono = ConceptoRemuneracion.objects.get(codigo='BONO_PRODUCCION', empresa=None)
+        self.colacion = ConceptoRemuneracion.objects.get(codigo='COLACION', empresa=None)
+        self.hora50 = ConceptoRemuneracion.objects.get(codigo='HORA_EXTRA_50', empresa=None)
+        self.anticipo = ConceptoRemuneracion.objects.get(codigo='ANTICIPO', empresa=None)
+
+    def _payload(self, **extra):
+        return {
+            'empleado': self.empleado.id, 'mes': 5, 'anio': 2025,
+            'dias_trabajados': 30,
+            'detalle_haberes_imponibles': [
+                {'concepto': self.bono.id, 'glosa': 'Bono', 'valor': 200_000}],
+            'detalle_horas_extras': [
+                {'concepto': self.hora50.id, 'glosa': 'HE', 'horas': 10,
+                 'recargo': 50, 'valor': 80_000}],
+            'detalle_haberes_no_imponibles': [
+                {'concepto': self.colacion.id, 'glosa': 'Colación', 'valor': 60_000}],
+            'detalle_otros_descuentos': [
+                {'concepto': self.anticipo.id, 'glosa': 'Anticipo', 'valor': 50_000}],
+            'detalle_comisiones': [
+                {'glosa': 'Carrocería', 'monto_vendido': 4_000_000}],
+            **extra,
+        }
+
+    def _crear(self, **extra):
+        resp = self.client.post('/api/liquidaciones/', self._payload(**extra), format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        return resp.data
+
+    # ── Montos ──────────────────────────────────────────────────────────────
+
+    def test_cada_lista_aporta_a_los_totales_que_le_corresponden(self):
+        liq = self._crear()
+        # Imponible incluye sueldo, bono, horas extras, comisión y semana corrida
+        self.assertGreater(liq['total_imponible'], 1_000_000 + 200_000 + 80_000)
+        # La colación suma a haberes pero no a imponible
+        self.assertEqual(liq['total_haberes'], liq['total_imponible'] + 60_000)
+        # El anticipo suma a los descuentos
+        self.assertIn(50_000, [d['valor'] for d in liq['detalle_otros_descuentos']])
+
+    def test_la_comision_se_calcula_con_el_porcentaje_del_contrato(self):
+        liq = self._crear()
+        # 4.000.000 x 0,5% = 20.000
+        self.assertEqual(liq['detalle_comisiones'][0]['valor'], 20_000)
+        self.assertEqual(liq['detalle_comisiones'][0]['porcentaje'], 0.5)
+
+    def test_la_comision_genera_semana_corrida_y_las_horas_extras_no(self):
+        con_comision = self._crear()
+        self.assertGreater(con_comision['semana_corrida'], 0)
+
+        sin_comision = self.client.post('/api/liquidaciones/', self._payload(
+            mes=6, detalle_comisiones=[]), format='json').data
+        self.assertEqual(sin_comision['semana_corrida'], 0)
+
+    # ── Recálculo con términos congelados ───────────────────────────────────
+
+    def test_editar_conserva_el_porcentaje_historico_de_la_comision(self):
+        """El riesgo más sutil: recalcular no debe perder la comisión."""
+        liq = self._crear()
+        liq_id = liq['id']
+
+        # Cambia la tasa pactada después de emitida
+        self.contrato.comisiones_config = [{'glosa': 'Carrocería', 'porcentaje': 9.9}]
+        self.contrato.save(update_fields=['comisiones_config'])
+
+        resp = self.client.patch(f'/api/liquidaciones/{liq_id}/',
+                                 {'dias_ausencia': 1}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        # Sigue usando el 0,5% con que se emitió, no el 9,9% nuevo
+        self.assertEqual(resp.data['detalle_comisiones'][0]['porcentaje'], 0.5)
+        self.assertEqual(resp.data['detalle_comisiones'][0]['valor'], 20_000)
+
+    def test_editar_conserva_todas_las_listas(self):
+        liq = self._crear()
+        resp = self.client.patch(f'/api/liquidaciones/{liq["id"]}/',
+                                 {'dias_ausencia': 2}, format='json')
+        for campo in ('detalle_haberes_imponibles', 'detalle_horas_extras',
+                      'detalle_haberes_no_imponibles', 'detalle_otros_descuentos',
+                      'detalle_comisiones'):
+            self.assertEqual(len(resp.data[campo]), 1, f'{campo} se perdió al editar')
+
+    # ── Salidas: PDF y Libro de Remuneraciones ──────────────────────────────
+
+    def test_el_pdf_de_la_liquidacion_se_genera(self):
+        liq = self._crear()
+        resp = self.client.get(f'/api/liquidaciones/{liq["id"]}/generar_pdf/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertGreater(len(resp.content), 1000)
+
+    def test_el_libro_cuadra_las_columnas_con_el_total(self):
+        """Otros imponibles debe cubrir bono, horas extras, comisión y semana corrida."""
+        liq = self._crear()
+        resp = self.client.get(
+            f'/api/liquidaciones/libro_remuneraciones/?mes=5&anio=2025'
+            f'&empresa={self.empresa.id}&formato=excel')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+        registro = Liquidacion.objects.get(id=liq['id'])
+        otros_imp = (200_000 + 80_000
+                     + registro.detalle_comisiones[0]['valor']
+                     + registro.semana_corrida)
+        self.assertEqual(
+            registro.sueldo_base + registro.gratificacion + otros_imp,
+            registro.total_imponible)
