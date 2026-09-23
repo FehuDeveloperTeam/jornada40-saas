@@ -88,9 +88,10 @@ export function hitosLey(hoy: Date = new Date()): Hito[] {
 
 export const INCLUYE_POR_NIVEL: Record<number, string[]> = {
   1: ['Contratos y anexos Ley 40 horas', 'Liquidaciones de sueldo', 'Firma electrónica con código OTP', 'Documentos con marca Jornada40'],
-  2: ['Todo lo de Semilla, sin marca', 'Vacaciones y permisos', 'Finiquitos'],
-  3: ['Todo lo de Starter', 'Carga masiva desde Excel', 'Archivo Previred y libro de remuneraciones', 'Descarga masiva de PDF en ZIP'],
-  4: ['Todo lo de Pyme', 'Consolidado de remuneraciones multiempresa'],
+  2: ['Todo lo de Semilla, sin marca', 'Vacaciones y permisos', 'Cartas de término', 'Finiquitos'],
+  3: ['Todo lo de Starter', 'Carga masiva desde Excel', 'Archivo Previred y libro de remuneraciones',
+      'Consolidado de remuneraciones multiempresa', 'Descarga masiva de PDF en ZIP'],
+  4: ['Todo lo de Pyme', 'Más empresas y trabajadores en una sola cuenta'],
 };
 
 /** Plan destacado con la etiqueta "Más elegido". */
