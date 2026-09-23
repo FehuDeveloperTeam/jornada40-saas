@@ -13,14 +13,14 @@ import type { Empleado } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
 import type { DocumentoReciente } from './documentos';
 
-interface Plantilla { titulo: string; detalle: string; Icono: LucideIcon; tab: PestanaClasica; nivel: number }
+interface Plantilla { titulo: string; detalle: string; Icono: LucideIcon; tab: PestanaClasica; nivel: number; ruta?: (id: number) => string }
 
 const PLANTILLAS: Plantilla[] = [
   { titulo: 'Anexo de contrato', detalle: 'Cambios de jornada, sueldo o funciones', Icono: FileSignature, tab: 'contratos', nivel: 1 },
   { titulo: 'Amonestación', detalle: 'Carta por incumplimiento', Icono: FileWarning, tab: 'legal', nivel: 1 },
   { titulo: 'Constancia laboral', detalle: 'Registro de hechos', Icono: ScrollText, tab: 'legal', nivel: 1 },
   { titulo: 'Carta de término', detalle: 'Despido con causal legal', Icono: UserX, tab: 'legal', nivel: 2 },
-  { titulo: 'Finiquito', detalle: 'Cálculo y documento', Icono: FileText, tab: 'finiquito', nivel: 1 },
+  { titulo: 'Finiquito', detalle: 'Cálculo y documento', Icono: FileText, tab: 'finiquito', nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito` },
 ];
 
 export function DocumentosTab({ empleado, documentos, nivel, avisar }: {
@@ -54,10 +54,10 @@ export function DocumentosTab({ empleado, documentos, nivel, avisar }: {
     <div className="flex flex-col gap-5">
       <Seccion titulo="Generar documento">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,200px),1fr))] gap-2.5 p-[18px]">
-          {PLANTILLAS.map(({ titulo, detalle, Icono, tab, nivel: requerido }) => {
+          {PLANTILLAS.map(({ titulo, detalle, Icono, tab, nivel: requerido, ruta }) => {
             const bloqueado = nivel < requerido;
             return (
-              <Link key={titulo} to={bloqueado ? '/suscripcion' : rutaClasica(empleado.id, tab)}
+              <Link key={titulo} to={bloqueado ? '/app/plan' : ruta ? ruta(empleado.id) : rutaClasica(empleado.id, tab)}
                 className="group rounded-[10px] border border-line p-3.5 flex gap-3 items-start no-underline hover:no-underline text-fg hover:border-brand hover:bg-surface-2">
                 <Icono className="size-5 text-brand-text shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
                 <span className="flex flex-col gap-0.5 min-w-0">

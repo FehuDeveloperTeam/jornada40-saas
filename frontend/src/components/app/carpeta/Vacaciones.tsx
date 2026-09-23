@@ -30,7 +30,7 @@ export function Vacaciones({ empleado, nivel, vacaciones, saldo, firmas, avisar 
           <p className="text-[13px] text-fg-3 max-w-[520px]">
             Lleva el saldo de feriado legal y progresivo de cada trabajador y emite los comprobantes para firma.
           </p>
-          <BotonEnlace a="/suscripcion" primario>Ver planes</BotonEnlace>
+          <BotonEnlace a="/app/plan" primario>Ver planes</BotonEnlace>
         </div>
       </Seccion>
     );

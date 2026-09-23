@@ -84,8 +84,8 @@ export default function Trabajadores() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variante="secundario" onClick={() => navigate('/dashboard')} className="h-[38px]"
-            title={nivel >= 3 ? 'Se abre en el panel anterior' : 'Disponible desde el plan Pyme'}
+          <Button variante="secundario" onClick={() => navigate('/app/trabajadores/importar')} className="h-[38px]"
+            title={nivel >= 3 ? 'Cargar o actualizar trabajadores desde una planilla' : 'Disponible desde el plan Pyme'}
             iconoInicio={<Upload className="size-[18px]" strokeWidth={2} />}>Importar Excel</Button>
           <Button variante="secundario" onClick={exportar} disabled={!lista.length} className="h-[38px]"
             iconoInicio={<Download className="size-[18px]" strokeWidth={2} />}>Exportar</Button>

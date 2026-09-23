@@ -46,6 +46,7 @@ export interface Suscripcion {
   plan: { id: number; nombre: string; precio: number; limite_trabajadores: number };
   trabajadores_actuales: number;
   fecha_proximo_cobro: string | null;
+  metodo_pago_glosa?: string | null;
 }
 
 /** Suscripción con el nivel del plan resuelto (el backend habilita por nivel). */

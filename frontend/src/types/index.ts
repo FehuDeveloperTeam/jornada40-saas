@@ -366,8 +366,32 @@ export interface Finiquito {
     descuentos_prevision: number;
     total_a_pagar: number;
     modalidad: 'PRESENCIAL' | 'ELECTRONICO';
+    /** Si el empleador dio el aviso de 30 días (Art. 161); sin él corresponde la sustitutiva. */
+    aviso_previo_dado: boolean;
     archivo_pdf: string | null;
     creado_en: string;
+}
+
+/** Respuesta de /finiquitos/simular/: montos calculados por el backend y su detalle. */
+export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' | 'documento_legal' | 'causal_articulo_label' | 'fecha_emision' | 'modalidad' | 'archivo_pdf' | 'creado_en'> {
+    detalle: {
+        sueldo_proporcional: number;
+        feriado_dias_saldo: number;
+        feriado_dias_proporcionales: number;
+        feriado_dias_habiles: number;
+        feriado_dias_corridos: number;
+        con_indemnizacion: boolean;
+        anios_indemnizacion: number;
+        base_indemnizacion: number;
+        base_indemnizacion_topada: boolean;
+        tope_base_indemnizacion: number;
+        afp_nombre: string;
+        afp: number;
+        salud_nombre: string;
+        salud: number;
+        seguro_cesantia: number;
+        impuesto_unico: number;
+    };
 }
 
 export interface SolicitudFirma {

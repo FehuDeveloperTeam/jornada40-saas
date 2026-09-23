@@ -778,6 +778,8 @@ def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
                 error('RUT repetido en la planilla: se usa solo la primera fila.'); continue
             vistos.add(rut_limpio)
             existente = mapa.get(rut_limpio)
+            if existente is not None and not base['nombre']:
+                base['nombre'] = f'{existente.nombres} {existente.apellido_paterno}'.title()
 
             # ── Valores presentes en la fila ─────────────────────────────
             datos = {}

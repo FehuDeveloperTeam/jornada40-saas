@@ -7,12 +7,12 @@ import type { Empleado } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
 import type { DocumentoReciente } from './documentos';
 
-const ACCIONES: { texto: string; Icono: LucideIcon; tab: PestanaClasica; nivel: number; nueva?: boolean }[] = [
+const ACCIONES: { texto: string; Icono: LucideIcon; tab: PestanaClasica; nivel: number; nueva?: boolean; ruta?: (id: number) => string }[] = [
   { texto: 'Emitir liquidación', Icono: Receipt, tab: 'liquidaciones', nivel: 1, nueva: true },
   { texto: 'Crear anexo de contrato', Icono: FileSignature, tab: 'contratos', nivel: 1 },
   { texto: 'Registrar vacaciones', Icono: CalendarDays, tab: 'vacaciones', nivel: 2 },
   { texto: 'Emitir documento legal', Icono: FileText, tab: 'legal', nivel: 1 },
-  { texto: 'Calcular finiquito', Icono: UserX, tab: 'finiquito', nivel: 1 },
+  { texto: 'Calcular finiquito', Icono: UserX, tab: 'finiquito', nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito` },
 ];
 
 export function Lateral({ empleado, documentos, nivel }: { empleado: Empleado; documentos: DocumentoReciente[]; nivel: number }) {
@@ -35,8 +35,8 @@ export function Lateral({ empleado, documentos, nivel }: { empleado: Empleado; d
     <div className="flex flex-col gap-5">
       <Seccion titulo="Acciones">
         <div className="py-1.5">
-          {ACCIONES.filter((x) => nivel >= x.nivel).map(({ texto, Icono, tab, nueva }) => (
-            <Link key={texto} to={nueva ? rutaLiquidacion(empleado.id) : rutaClasica(empleado.id, tab)}
+          {ACCIONES.filter((x) => nivel >= x.nivel).map(({ texto, Icono, tab, nueva, ruta }) => (
+            <Link key={texto} to={ruta ? ruta(empleado.id) : nueva ? rutaLiquidacion(empleado.id) : rutaClasica(empleado.id, tab)}
               className="flex items-center gap-3 px-[18px] py-2.5 text-[13px] text-fg no-underline hover:no-underline hover:bg-surface-2">
               <Icono className="size-[18px] text-fg-3" strokeWidth={2} aria-hidden />
               <span className="flex-1">{texto}</span>

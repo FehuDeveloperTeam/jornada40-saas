@@ -1,0 +1,185 @@
+import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
+import { Building2, Info, PenLine, TriangleAlert } from 'lucide-react';
+import { AlertaError, Button, CampoRut, Chip, Input } from '../../components/j40';
+import { usePanelContexto } from '../../components/app/AppShell';
+import { FirmaEmpleador } from '../../components/app/FirmaEmpleador';
+import client from '../../api/client';
+import type { Empresa as TEmpresa } from '../../types';
+import { capitalizar, clp, decimalCL, fechaCL } from '../../utils/formato';
+import { validateRut } from '../../utils/rutUtils';
+
+interface Parametros {
+  periodo: string;
+  vigente_desde: string | null;
+  origen: string;
+  ingreso_minimo_mensual: number;
+  tope_imponible_afp_uf: number;
+  tope_imponible_afc_uf: number;
+  tope_gratificacion_mensual: number;
+  tasa_salud: number;
+  tasa_afc_trabajador_indefinido: number;
+  tasa_afc_empleador_indefinido: number;
+  tasa_afc_empleador_plazo: number;
+  tasa_sis: number;
+  tasas_afp: Record<string, number>;
+  uf: number;
+  utm: number;
+  jornada_maxima_vigente: number;
+  advertencias: string[];
+}
+
+const pct = (t: number) => `${decimalCL(t * 100, 2)} %`;
+type Editables = Pick<TEmpresa, 'nombre_legal' | 'alias' | 'giro' | 'direccion' | 'comuna' | 'ciudad' | 'representante_legal' | 'rut_representante'>;
+
+export default function Empresa() {
+  const { empresa, suscripcion, avisar } = usePanelContexto();
+  const parametros = useQuery({ queryKey: ['parametros-vigentes'], queryFn: async () => (await client.get<Parametros>('/parametros/vigentes/')).data, staleTime: 60 * 60 * 1000 });
+  const [firma, setFirma] = useState(false);
+
+  return (
+    <div className="max-w-[1100px] mx-auto flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{capitalizar(empresa.nombre_legal)}</h1>
+          <p className="text-[13px] text-fg-3 mt-0.5 j40-mono">{empresa.rut}</p>
+        </div>
+        <Link to="/empresas" className="inline-flex items-center gap-2 h-10 px-4 rounded-j40-control border border-line-strong bg-surface text-fg text-[13px] font-medium no-underline hover:no-underline hover:bg-surface-2">
+          <Building2 className="size-4" strokeWidth={2} aria-hidden />Agregar o administrar empresas
+        </Link>
+      </div>
+
+      <DatosLegales key={empresa.id} empresa={empresa} avisar={avisar} />
+
+      <Seccion titulo="Firma del empleador" accion={<Button variante="secundario" tamano="sm" onClick={() => setFirma(true)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>{empresa.firma_configurada ? 'Cambiar firma' : 'Configurar firma'}</Button>}>
+        {empresa.firma_configurada ? (
+          <p className="text-[13px] text-fg-2">
+            Firma {capitalizar(empresa.firma_firmante_nombre)} ({capitalizar(empresa.firma_firmante_cargo)}), configurada el {fechaCL(empresa.firma_configurada_en)}.
+            Se estampa en todos los documentos que se firman electrónicamente.
+          </p>
+        ) : (
+          <p className="flex gap-2 text-[13px] text-warn"><TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+            Sin firma configurada: los documentos firmados muestran "Sin firma registrada" en la parte del empleador.</p>
+        )}
+      </Seccion>
+
+      {suscripcion && (
+        <Seccion titulo="Plan y suscripción" accion={<Link to="/app/plan" className="text-[13px] font-medium">Gestionar plan</Link>}>
+          <p className="text-[13px] text-fg-2">
+            Plan <strong className="font-semibold text-fg">{suscripcion.plan.nombre}</strong> · {suscripcion.trabajadores_actuales} de {suscripcion.plan.limite_trabajadores} trabajadores vigentes en todas tus empresas.
+          </p>
+        </Seccion>
+      )}
+
+      <Seccion titulo="Parámetros previsionales vigentes"
+        nota="Son los mismos para todos los clientes. Jornada40 los actualiza con los indicadores oficiales (Previred, SII y Banco Central).">
+        {!parametros.data ? <p className="text-[13px] text-fg-3" role="status">Cargando…</p> : (
+          <>
+            {parametros.data.advertencias.map((a) => (
+              <p key={a} className="flex gap-2 text-[12.5px] text-warn"><Info className="size-4 shrink-0" strokeWidth={2} aria-hidden />{a}</p>
+            ))}
+            <dl className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,210px),1fr))] gap-x-6 gap-y-3.5">
+              <Dato t="Ingreso mínimo mensual" v={clp(parametros.data.ingreso_minimo_mensual)} />
+              <Dato t="Tope gratificación mensual" v={clp(parametros.data.tope_gratificacion_mensual)} />
+              <Dato t="Tope imponible AFP y salud" v={`${decimalCL(parametros.data.tope_imponible_afp_uf, 1)} UF`} />
+              <Dato t="Tope imponible cesantía" v={`${decimalCL(parametros.data.tope_imponible_afc_uf, 1)} UF`} />
+              <Dato t="UF / UTM de hoy" v={`${clp(parametros.data.uf)} / ${clp(parametros.data.utm)}`} />
+              <Dato t="Jornada máxima legal" v={`${parametros.data.jornada_maxima_vigente} h semanales`} />
+              <Dato t="Salud (Fonasa)" v={pct(parametros.data.tasa_salud)} />
+              <Dato t="Cesantía indefinido (trab. / empl.)" v={`${pct(parametros.data.tasa_afc_trabajador_indefinido)} / ${pct(parametros.data.tasa_afc_empleador_indefinido)}`} />
+              <Dato t="SIS (empleador)" v={pct(parametros.data.tasa_sis)} />
+            </dl>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {Object.entries(parametros.data.tasas_afp).sort().map(([afp, t]) => (
+                <Chip key={afp}>{capitalizar(afp)} {pct(t)}</Chip>
+              ))}
+            </div>
+            <p className="text-[11.5px] text-fg-3">
+              Período {parametros.data.periodo}{parametros.data.vigente_desde ? ` · vigentes desde el ${fechaCL(parametros.data.vigente_desde)}` : ''} · {parametros.data.origen}
+            </p>
+          </>
+        )}
+      </Seccion>
+
+      {firma && <FirmaEmpleador onCerrar={() => setFirma(false)} avisar={avisar} />}
+    </div>
+  );
+}
+
+function Seccion({ titulo, nota, accion, children }: { titulo: string; nota?: string; accion?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="bg-surface border border-line rounded-j40-card shadow-card p-[18px] flex flex-col gap-3.5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div><h2 className="text-[15px] font-semibold">{titulo}</h2>{nota && <p className="text-[12.5px] text-fg-3 max-w-[680px]">{nota}</p>}</div>
+        {accion}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Dato({ t, v }: { t: string; v: string }) {
+  return <div className="flex flex-col gap-0.5"><dt className="text-[12px] text-fg-3">{t}</dt><dd className="text-[14px] font-medium j40-num">{v}</dd></div>;
+}
+
+function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: string) => void }) {
+  const queryClient = useQueryClient();
+  const inicial: Editables = {
+    nombre_legal: empresa.nombre_legal, alias: empresa.alias ?? '', giro: empresa.giro ?? '', direccion: empresa.direccion ?? '',
+    comuna: empresa.comuna ?? '', ciudad: empresa.ciudad ?? '', representante_legal: empresa.representante_legal ?? '',
+    rut_representante: empresa.rut_representante ?? '',
+  };
+  const [b, setB] = useState<Editables>(inicial);
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const cambios = (Object.keys(inicial) as (keyof Editables)[]).some((k) => (b[k] ?? '') !== (inicial[k] ?? ''));
+  const poner = (k: keyof Editables) => (e: { target: { value: string } }) => setB((x) => ({ ...x, [k]: e.target.value }));
+
+  const guardar = async () => {
+    if (b.rut_representante && !validateRut(b.rut_representante)) { setError('El RUT del representante legal no es válido.'); return; }
+    if (!b.nombre_legal?.trim()) { setError('Ingresa la razón social.'); return; }
+    setGuardando(true);
+    setError('');
+    try {
+      await client.patch(`/empresas/${empresa.id}/`, b);
+      await queryClient.invalidateQueries({ queryKey: ['empresas'] });
+      avisar('Datos de la empresa guardados');
+    } catch (err) {
+      const d = isAxiosError(err) ? (err.response?.data as Record<string, unknown> | undefined) : undefined;
+      const primero = d && (typeof d.error === 'string' ? d.error : Object.values(d).flat()[0]);
+      setError(typeof primero === 'string' ? primero : 'No pudimos guardar los datos.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <Seccion titulo="Datos legales" nota="Aparecen en contratos, liquidaciones y demás documentos."
+      accion={cambios && (
+        <div className="flex gap-2">
+          <Button variante="secundario" tamano="sm" onClick={() => { setB(inicial); setError(''); }} disabled={guardando}>Descartar</Button>
+          <Button tamano="sm" onClick={guardar} cargando={guardando}>Guardar</Button>
+        </div>
+      )}>
+      {error && <AlertaError>{error}</AlertaError>}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,230px),1fr))] gap-3.5">
+        <Campo etiqueta="Razón social"><Input value={b.nombre_legal ?? ''} onChange={poner('nombre_legal')} /></Campo>
+        <Campo etiqueta="RUT de la empresa"><Input mono value={empresa.rut} disabled readOnly /></Campo>
+        <Campo etiqueta="Nombre de fantasía"><Input value={b.alias ?? ''} onChange={poner('alias')} /></Campo>
+        <Campo etiqueta="Giro"><Input value={b.giro ?? ''} onChange={poner('giro')} /></Campo>
+        <Campo etiqueta="Dirección"><Input value={b.direccion ?? ''} onChange={poner('direccion')} /></Campo>
+        <Campo etiqueta="Comuna"><Input value={b.comuna ?? ''} onChange={poner('comuna')} /></Campo>
+        <Campo etiqueta="Ciudad"><Input value={b.ciudad ?? ''} onChange={poner('ciudad')} /></Campo>
+        <Campo etiqueta="Representante legal"><Input value={b.representante_legal ?? ''} onChange={poner('representante_legal')} /></Campo>
+        <CampoRut etiqueta="RUT del representante" valor={b.rut_representante ?? ''} compacto onChange={(v) => setB((x) => ({ ...x, rut_representante: v }))} />
+      </div>
+    </Seccion>
+  );
+}
+
+function Campo({ etiqueta, children }: { etiqueta: string; children: ReactNode }) {
+  return <label className="flex flex-col gap-1.5 min-w-0"><span className="text-[12.5px] font-medium text-fg-2">{etiqueta}</span>{children}</label>;
+}

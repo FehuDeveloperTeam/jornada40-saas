@@ -46,6 +46,8 @@ interface ItemNav {
   Icono: LucideIcon;
   /** Aún no migrado: abre el panel anterior. */
   clasico?: boolean;
+  /** Pantallas hijas que marcan este ítem como activo (p. ej. Plan → Empresa). */
+  hijas?: string[];
   fin?: boolean;
 }
 
@@ -54,7 +56,7 @@ const NAV: ItemNav[] = [
   { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users },
   { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
   { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
-  { a: '/empresas', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, clasico: true },
+  { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan'] },
 ];
 
 const ESTADO_SUSCRIPCION: Record<string, { texto: string; tono: 'ok' | 'marca' | 'aviso' | 'peligro' }> = {
@@ -145,7 +147,7 @@ export default function AppShell() {
                   <span className="text-[13.5px] font-semibold">{aviso.titulo}</span>
                   <span className="text-[12.5px]">{aviso.detalle}</span>
                 </div>
-                <Link to="/suscripcion" className="h-[34px] px-3.5 inline-flex items-center rounded-[8px] border border-current text-inherit text-[13px] font-semibold no-underline hover:no-underline">
+                <Link to="/app/plan" className="h-[34px] px-3.5 inline-flex items-center rounded-[8px] border border-current text-inherit text-[13px] font-semibold no-underline hover:no-underline">
                   Ver plan
                 </Link>
               </div>
@@ -206,7 +208,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
 
       <div className="flex-1" />
 
-      <Link to="/suscripcion" title="Plan y facturación"
+      <Link to="/app/plan" title="Plan y facturación"
         className="hidden min-[1080px]:flex flex-col gap-2 p-3 mb-2 rounded-[10px] border border-line bg-surface text-fg no-underline hover:no-underline hover:border-line-strong">
         <span className="flex items-center justify-between w-full">
           <span className="text-[12.5px] font-semibold">Plan {suscripcion?.plan.nombre ?? '…'}</span>
@@ -222,13 +224,15 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
       </Link>
 
       <div className="flex items-center gap-2.5 px-1 py-1.5">
-        <span className="grid place-items-center size-8 shrink-0 rounded-full bg-sunken text-fg-2 text-[12px] font-semibold">
-          {iniciales(user?.first_name, user?.last_name) || '·'}
-        </span>
-        <span className="hidden min-[1080px]:flex flex-1 min-w-0 flex-col">
-          <span className="text-[13px] font-medium truncate">{capitalizar(user?.first_name) || 'Mi cuenta'}</span>
-          <span className="text-[11.5px] text-fg-3 truncate j40-mono">{user?.username}</span>
-        </span>
+        <Link to="/app/cuenta" title="Mi cuenta" className="flex flex-1 min-w-0 items-center gap-2.5 rounded-[8px] no-underline hover:no-underline text-fg hover:bg-sunken">
+          <span className="grid place-items-center size-8 shrink-0 rounded-full bg-sunken text-fg-2 text-[12px] font-semibold">
+            {iniciales(user?.first_name, user?.last_name) || '·'}
+          </span>
+          <span className="hidden min-[1080px]:flex flex-1 min-w-0 flex-col">
+            <span className="text-[13px] font-medium truncate">{capitalizar(user?.first_name) || 'Mi cuenta'}</span>
+            <span className="text-[11.5px] text-fg-3 truncate j40-mono">{user?.username}</span>
+          </span>
+        </Link>
         <Button variante="fantasma" soloIcono tamano="sm" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={salir}
           className="hidden min-[1080px]:grid">
           <LogOut className="size-[19px]" strokeWidth={2} />
@@ -240,6 +244,8 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
 
 function ItemLateral({ item, badge }: { item: ItemNav; badge?: number }) {
   const { Icono } = item;
+  const { pathname } = useLocation();
+  const hija = (item.hijas ?? []).some((h) => pathname.startsWith(h));
   const base = 'relative flex items-center gap-3 w-full h-10 px-[11px] rounded-[8px] text-[13.5px] no-underline hover:no-underline justify-center min-[1080px]:justify-start';
   const contenido = (
     <>
@@ -258,7 +264,7 @@ function ItemLateral({ item, badge }: { item: ItemNav; badge?: number }) {
   }
   return (
     <NavLink to={item.a} end={item.fin} title={item.etiqueta}
-      className={({ isActive }) => cn(base, isActive ? 'bg-brand-soft text-brand-text font-semibold' : 'text-fg-2 hover:bg-sunken hover:text-fg')}>
+      className={({ isActive }) => cn(base, isActive || hija ? 'bg-brand-soft text-brand-text font-semibold' : 'text-fg-2 hover:bg-sunken hover:text-fg')}>
       {contenido}
     </NavLink>
   );
@@ -388,8 +394,20 @@ function Encabezado({ empresa, empresas, cambiarEmpresa, abrirPaleta, agregarTra
 function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   const { pathname } = useLocation();
   const carpeta = useMatch('/app/trabajadores/:id');
+  const finiquito = useMatch('/app/trabajadores/:id/finiquito');
   const ctx = useContext(Contexto);
   const nombreEmpresa = capitalizar(empresa.alias || empresa.nombre_legal);
+  if (pathname.startsWith('/app/trabajadores/importar')) {
+    return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Trabajadores', a: '/app/trabajadores' }, { texto: 'Importar' }];
+  }
+  if (finiquito) {
+    const t = ctx?.trabajadores.find((e) => String(e.id) === finiquito.params.id);
+    return [
+      { texto: nombreEmpresa, a: '/app' },
+      { texto: t ? capitalizar(`${t.nombres.split(' ')[0]} ${t.apellido_paterno}`) : 'Trabajador', a: `/app/trabajadores/${finiquito.params.id}` },
+      { texto: 'Finiquito' },
+    ];
+  }
   if (carpeta) {
     const t = ctx?.trabajadores.find((e) => String(e.id) === carpeta.params.id);
     return [
@@ -402,6 +420,10 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   if (pathname.startsWith('/app/remuneraciones/conceptos')) {
     return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones', a: '/app/remuneraciones' }, { texto: 'Conceptos' }];
   }
+  if (pathname.startsWith('/app/trabajadores/importar')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Trabajadores', a: '/app/trabajadores' }, { texto: 'Importar' }];
+  if (pathname.startsWith('/app/empresa')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa' }];
+  if (pathname.startsWith('/app/plan')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Plan y facturación' }];
+  if (pathname.startsWith('/app/cuenta')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Mi cuenta' }];
   if (pathname.startsWith('/app/firmas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Firma electrónica' }];
   if (pathname.startsWith('/app/remuneraciones')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones' }];
   return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Inicio' }];
@@ -467,8 +489,10 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
     { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')) },
     { clave: 'firmas', Icono: Signature, texto: 'Firma electrónica', ejecutar: ir(() => navigate('/app/firmas')) },
     { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')) },
-    { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', detalle: 'Panel anterior', ejecutar: ir(() => navigate('/dashboard')) },
-    { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/suscripcion')) },
+    { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', ejecutar: ir(() => navigate('/app/trabajadores/importar')) },
+    { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/app/plan')) },
+    { clave: 'empresa', Icono: Building2, texto: 'Datos de la empresa', ejecutar: ir(() => navigate('/app/empresa')) },
+    { clave: 'cuenta', Icono: Users, texto: 'Mi cuenta', ejecutar: ir(() => navigate('/app/cuenta')) },
   ] as Resultado[]).filter((a) => !texto || a.texto.toLowerCase().includes(texto));
 
   const todos = [...personas, ...acciones];

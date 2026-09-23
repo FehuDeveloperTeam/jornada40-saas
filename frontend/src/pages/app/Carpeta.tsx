@@ -126,7 +126,7 @@ export default function Carpeta() {
             <Button variante="secundario" onClick={descargarCarpeta} cargando={descargandoZip}
               iconoInicio={<FolderDown className="size-4" strokeWidth={2} />}>Descargar carpeta</Button>
           ) : (
-            <Link to="/suscripcion" className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-3" title="La descarga de la carpeta en ZIP está disponible desde el plan Pyme">
+            <Link to="/app/plan" className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-3" title="La descarga de la carpeta en ZIP está disponible desde el plan Pyme">
               <Lock className="size-3.5" strokeWidth={2} aria-hidden />Carpeta ZIP desde plan Pyme
             </Link>
           )}

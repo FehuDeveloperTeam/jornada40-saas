@@ -21,6 +21,11 @@ const Carpeta = lazy(() => import('./pages/app/Carpeta'));
 const RemuneracionesPanel = lazy(() => import('./pages/app/Remuneraciones'));
 const Conceptos = lazy(() => import('./pages/app/Conceptos'));
 const FirmasPanel = lazy(() => import('./pages/app/Firmas'));
+const FiniquitoPanel = lazy(() => import('./pages/app/Finiquito'));
+const ImportarPanel = lazy(() => import('./pages/app/Importar'));
+const EmpresaPanel = lazy(() => import('./pages/app/Empresa'));
+const PlanPanel = lazy(() => import('./pages/app/Plan'));
+const CuentaPanel = lazy(() => import('./pages/app/Cuenta'));
 
 const LobbyEmpresas = lazy(() => import('./pages/LobbyEmpresas'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -138,6 +143,11 @@ export default function App() {
           <Route index element={<Inicio />} />
           <Route path="trabajadores" element={<Trabajadores />} />
           <Route path="trabajadores/:id" element={<Carpeta />} />
+          <Route path="trabajadores/importar" element={<ImportarPanel />} />
+          <Route path="trabajadores/:id/finiquito" element={<FiniquitoPanel />} />
+          <Route path="empresa" element={<EmpresaPanel />} />
+          <Route path="plan" element={<PlanPanel />} />
+          <Route path="cuenta" element={<CuentaPanel />} />
           <Route path="remuneraciones" element={<RemuneracionesPanel />} />
           <Route path="remuneraciones/conceptos" element={<Conceptos />} />
           <Route path="firmas" element={<FirmasPanel />} />
