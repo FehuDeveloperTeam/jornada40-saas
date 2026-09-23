@@ -10,3 +10,5 @@ node_modules/
 dist/
 .DS_Store
 .vscode/
+# Archivos generados en local (PDF de liquidaciones, anexos, etc.)
+backend/media/
