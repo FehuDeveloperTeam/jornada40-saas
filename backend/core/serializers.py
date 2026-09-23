@@ -345,9 +345,14 @@ class FiniquitoSerializer(serializers.ModelSerializer):
             'feriado_proporcional', 'indemnizacion_anos_servicio',
             'indemnizacion_sustitutiva_aviso', 'otros_haberes', 'otros_descuentos',
             'descuentos_prevision', 'total_a_pagar',
-            'modalidad', 'archivo_pdf', 'creado_en',
+            'modalidad', 'aviso_previo_dado', 'archivo_pdf', 'creado_en',
         ]
-        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'causal_articulo_label')
+        # Los montos los calcula el backend (_calcular_finiquito): nunca se
+        # aceptan desde el cliente.
+        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'causal_articulo_label',
+                            'sueldo_base', 'gratificacion_proporcional', 'feriado_proporcional',
+                            'indemnizacion_anos_servicio', 'indemnizacion_sustitutiva_aviso',
+                            'descuentos_prevision', 'total_a_pagar')
 
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):

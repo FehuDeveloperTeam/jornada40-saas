@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.throttling import AnonRateThrottle
 
 
@@ -78,7 +78,10 @@ import string
 from num2words import num2words
 from decouple import config
 import hmac
+import functools
 import hashlib
+import holidays as holidays_cl
+from dateutil.relativedelta import relativedelta
 import secrets
 import logging
 from html import escape as _esc
@@ -272,58 +275,56 @@ def _ctx_contrato(contrato, es_plan_semilla: bool) -> dict:
 # UTILIDADES DE VACACIONES (Art. 67-68 Código del Trabajo)
 # ==========================================
 
-# Feriados fijos chilenos (mes, día).
-# No incluye Viernes/Sábado Santo (variables); se excluyen al calcular en el año real.
-_FERIADOS_FIJOS_CL = frozenset([
-    (1,  1),   # Año Nuevo
-    (5,  1),   # Día del Trabajo
-    (5,  21),  # Glorias Navales
-    (6,  29),  # San Pedro y San Pablo
-    (7,  16),  # Virgen del Carmen
-    (8,  15),  # Asunción de la Virgen
-    (9,  18),  # Fiestas Patrias
-    (9,  19),  # Glorias del Ejército
-    (10, 12),  # Encuentro de Dos Mundos
-    (10, 31),  # Día de las Iglesias Evangélicas
-    (11, 1),   # Todos los Santos
-    (12, 8),   # Inmaculada Concepción
-    (12, 25),  # Navidad
-])
+# Feriados legales de Chile, incluidos los móviles (Semana Santa, Pueblos
+# Indígenas) y los que la ley traslada a lunes. La lista fija que había antes
+# omitía Viernes y Sábado Santo y el 20/21 de junio.
+@functools.lru_cache(maxsize=32)
+def _feriados_cl(anio: int) -> frozenset:
+    return frozenset(holidays_cl.Chile(years=anio).keys())
+
+
+def es_feriado_cl(fecha) -> bool:
+    return fecha in _feriados_cl(fecha.year)
 
 
 def _contar_domingos_y_festivos(mes: int, anio: int) -> int:
-    """Cuenta los domingos y feriados fijos dentro de un mes calendario.
+    """Cuenta los domingos y feriados dentro de un mes calendario.
 
     Usado para la semana corrida (Art. 45 Código del Trabajo): un domingo
-    que coincide con un feriado fijo se cuenta una sola vez.
+    que coincide con un feriado se cuenta una sola vez.
     """
     import calendar
     _, ultimo_dia = calendar.monthrange(anio, mes)
     dias = 0
     for dia in range(1, ultimo_dia + 1):
         fecha = datetime.date(anio, mes, dia)
-        if fecha.weekday() == 6 or (mes, dia) in _FERIADOS_FIJOS_CL:
+        if fecha.weekday() == 6 or es_feriado_cl(fecha):
             dias += 1
     return dias
 
 
-def _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin) -> int:
-    """Días hábiles entre fecha_inicio y fecha_fin (inclusive) según ley chilena.
+def _es_dia_habil_feriado(fecha) -> bool:
+    """Día hábil para el feriado anual: lunes a viernes que no sea feriado.
 
-    Para vacaciones: hábil = cualquier día que NO sea domingo NI feriado fijo.
-    Los sábados sí cuentan (Art. 67 Código del Trabajo).
+    Art. 69 del Código del Trabajo: "para los efectos del feriado, el día
+    sábado se considerará siempre inhábil".
     """
+    return fecha.weekday() < 5 and not es_feriado_cl(fecha)
+
+
+def _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin) -> int:
+    """Días hábiles de feriado entre fecha_inicio y fecha_fin (inclusive)."""
     dias = 0
     current = fecha_inicio
     delta_un_dia = datetime.timedelta(days=1)
     while current <= fecha_fin:
-        if current.weekday() != 6 and (current.month, current.day) not in _FERIADOS_FIJOS_CL:
+        if _es_dia_habil_feriado(current):
             dias += 1
         current += delta_un_dia
     return dias
 
 
-def calcular_saldo_vacaciones(empleado) -> dict:
+def calcular_saldo_vacaciones(empleado, hasta=None) -> dict:
     """Saldo de vacaciones legales de un empleado (Art. 67-68 Código del Trabajo).
 
     Retorna:
@@ -334,8 +335,8 @@ def calcular_saldo_vacaciones(empleado) -> dict:
         dias_usados         — suma de días_hábiles de registros APROBADO
         dias_disponibles    — devengados − usados (mínimo 0)
     """
-    hoy = datetime.date.today()
-    anos_servicio = (hoy - empleado.fecha_ingreso).days // 365
+    hoy = hasta or datetime.date.today()
+    anos_servicio = relativedelta(hoy, empleado.fecha_ingreso).years if empleado.fecha_ingreso <= hoy else 0
 
     dias_base = 15 * anos_servicio
 
@@ -3765,71 +3766,146 @@ def _fmt_fecha_previred(f) -> str:
 
 # Causales que dan derecho a indemnización por años (Art. 161)
 _CAUSALES_CON_INDEMNIZACION = {'161_1', '161_2', '163bis'}
+# Tope de la base de las indemnizaciones por término (Art. 172 inc. final).
+_TOPE_BASE_INDEMNIZACION_UF = 90
+# Tope de años de la indemnización por años de servicio (Art. 163 inc. 2°):
+# 330 días de remuneración para contratos posteriores al 14-08-1981.
+_TOPE_ANIOS_INDEMNIZACION = 11
 
 
-def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, causal_articulo):
-    """Precalcula todos los montos del finiquito a partir de datos del empleado."""
+def _anios_indemnizacion(fecha_ingreso, fecha_termino) -> int:
+    """Años para la indemnización del Art. 163: 30 días por año de servicio y
+    fracción superior a seis meses, con tope de 11. Exige un año o más de
+    contrato vigente."""
+    if not fecha_ingreso or fecha_termino < fecha_ingreso:
+        return 0
+    tiempo = relativedelta(fecha_termino, fecha_ingreso)
+    if tiempo.years < 1:
+        return 0
+    anios = tiempo.years
+    # Fracción superior a seis meses: más de 6 meses cumplidos (6 meses y 1 día).
+    if tiempo.months > 6 or (tiempo.months == 6 and tiempo.days > 0):
+        anios += 1
+    return min(anios, _TOPE_ANIOS_INDEMNIZACION)
+
+
+def _feriado_proporcional_habiles(empleado, fecha_termino) -> float:
+    """Días hábiles de feriado ganados en el año en curso y no completados
+    (Art. 73): 15 días por año, es decir 1,25 por mes, desde el último
+    aniversario hasta el término."""
+    if not empleado.fecha_ingreso or fecha_termino < empleado.fecha_ingreso:
+        return 0.0
+    tiempo = relativedelta(fecha_termino, empleado.fecha_ingreso)
+    return round((tiempo.months + tiempo.days / 30) * 15 / 12, 2)
+
+
+def _dias_corridos_de_feriado(fecha_termino, dias_habiles: float) -> float:
+    """Convierte días hábiles de feriado a días corridos para pagarlos.
+
+    Criterio de la Dirección del Trabajo: se cuentan desde el día siguiente al
+    término y se agregan los sábados, domingos y feriados que caigan en ese
+    período. La fracción de día que sobra se paga tal cual.
+    """
+    enteros = int(dias_habiles)
+    fraccion = round(dias_habiles - enteros, 2)
+    corridos = 0
+    fecha = fecha_termino
+    contados = 0
+    while contados < enteros:
+        fecha += datetime.timedelta(days=1)
+        corridos += 1
+        if _es_dia_habil_feriado(fecha):
+            contados += 1
+    return corridos + fraccion
+
+
+def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, causal_articulo,
+                        aviso_previo_dado=False, otros_haberes=0, otros_descuentos=0):
+    """Montos del finiquito y su detalle. Todo lo legal se calcula aquí.
+
+    El usuario solo aporta hechos (causal, fecha, días trabajados, si dio el
+    aviso previo) y montos voluntarios (otros haberes y descuentos): nunca
+    los montos que fija la ley.
+    """
     contrato = Contrato.objects.filter(empleado=empleado).first()
     sueldo_base = contrato.sueldo_base if contrato else empleado.sueldo_base
+    tipo_contrato = contrato.tipo_contrato if contrato else 'INDEFINIDO'
+    gratificacion_mensual_pactada = (contrato.gratificacion_legal if contrato else 'MENSUAL') == 'MENSUAL'
 
     parametros = _parametros_previsionales(fecha_termino.month, fecha_termino.year)
     valor_uf = obtener_uf()
+    tope_gratificacion = math.floor(parametros['factor_gratificacion'] * parametros['ingreso_minimo_mensual'] / 12)
 
-    # Sueldo proporcional último mes
-    sueldo_proporcional = math.floor((sueldo_base / 30) * dias_trabajados_ultimo_mes)
+    # ── Remuneración del último mes ──────────────────────────────────────
+    dias = max(0, min(30, int(dias_trabajados_ultimo_mes)))
+    sueldo_proporcional = math.floor((sueldo_base / 30) * dias)
+    gratificacion = (min(math.floor(sueldo_proporcional * 0.25), tope_gratificacion)
+                     if gratificacion_mensual_pactada else 0)
 
-    # Gratificación proporcional: 25% con tope de 4,75 ingresos mínimos al año
-    tope_gratificacion = math.floor(
-        parametros['factor_gratificacion'] * parametros['ingreso_minimo_mensual'] / 12
-    )
-    gratificacion = min(math.floor(sueldo_proporcional * 0.25), tope_gratificacion)
+    # ── Feriado: saldo de años cumplidos + proporcional del año en curso ──
+    saldo = calcular_saldo_vacaciones(empleado, hasta=fecha_termino)['dias_disponibles']
+    proporcional = _feriado_proporcional_habiles(empleado, fecha_termino)
+    dias_habiles_feriado = round(saldo + proporcional, 2)
+    dias_corridos_feriado = _dias_corridos_de_feriado(fecha_termino, dias_habiles_feriado)
+    feriado = math.floor((sueldo_base / 30) * dias_corridos_feriado)
 
-    # Vacaciones adeudadas → feriado proporcional
-    saldo_vac = calcular_saldo_vacaciones(empleado)
-    dias_vac = saldo_vac['dias_disponibles']
-    feriado_prop = math.floor((sueldo_base / 30) * dias_vac)
+    # ── Indemnizaciones (Arts. 161, 162, 163, 163 bis y 172) ──────────────
+    # Base: última remuneración mensual. Se considera el sueldo base y la
+    # gratificación cuando se paga mes a mes; se excluyen horas extra y
+    # bonos esporádicos (Art. 172). Tope de 90 UF.
+    base_indemnizacion_sin_tope = sueldo_base + (min(math.floor(sueldo_base * 0.25), tope_gratificacion)
+                                                 if gratificacion_mensual_pactada else 0)
+    tope_base = _tope_en_pesos(_TOPE_BASE_INDEMNIZACION_UF, valor_uf)
+    base_indemnizacion = min(base_indemnizacion_sin_tope, tope_base)
+    con_indemnizacion = causal_articulo in _CAUSALES_CON_INDEMNIZACION
+    anios = _anios_indemnizacion(empleado.fecha_ingreso, fecha_termino) if con_indemnizacion else 0
+    indemnizacion_anos = base_indemnizacion * anios
+    sustitutiva = base_indemnizacion if (con_indemnizacion and not aviso_previo_dado) else 0
 
-    # Indemnización por años de servicio (solo Art. 161 y 163bis)
-    anos = (fecha_termino - empleado.fecha_ingreso).days // 365 if empleado.fecha_ingreso else 0
-    if causal_articulo in _CAUSALES_CON_INDEMNIZACION:
-        indemnizacion_anos = sueldo_base * min(anos, 11)
-    else:
-        indemnizacion_anos = 0
-
-    # Descuentos previsionales sobre el sueldo proporcional, topado
-    renta_cotizable = min(
-        sueldo_proporcional,
-        _tope_en_pesos(parametros['tope_imponible_afp_uf'], valor_uf),
-    )
+    # ── Descuentos legales sobre la remuneración del último mes ───────────
+    imponible = sueldo_proporcional + gratificacion
+    renta_afp = min(imponible, _tope_en_pesos(parametros['tope_imponible_afp_uf'], valor_uf))
+    renta_afc = min(imponible, _tope_en_pesos(parametros['tope_imponible_afc_uf'], valor_uf))
     nombre_afp = (empleado.afp or 'MODELO').upper()
-    tasa_afp = _tasas_afp(fecha_termino.month, fecha_termino.year).get(nombre_afp, 0.11)
-    afp_monto = math.floor(renta_cotizable * tasa_afp)
-
-    tasa_salud = parametros['tasa_salud']
+    afp_monto = math.floor(renta_afp * _tasas_afp(fecha_termino.month, fecha_termino.year).get(nombre_afp, 0.11))
     salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
+    salud_monto = math.floor(renta_afp * parametros['tasa_salud'])
     if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf and float(empleado.plan_isapre_uf) > 0:
-        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * valor_uf),
-                          math.floor(renta_cotizable * tasa_salud))
-    else:
-        salud_monto = math.floor(renta_cotizable * tasa_salud)
+        salud_monto = max(math.floor(float(empleado.plan_isapre_uf) * valor_uf * dias / 30), salud_monto)
+    anios_servicio = _anios_de_servicio(empleado, contrato, fecha_termino.month, fecha_termino.year)
+    tasa_afc, _ = _tasas_afc(parametros, tipo_contrato, anios_servicio)
+    afc_monto = math.floor(renta_afc * tasa_afc)
+    impuesto = calcular_impuesto_unico(max(imponible - afp_monto - salud_monto - afc_monto, 0), obtener_utm())
+    descuentos_prevision = afp_monto + salud_monto + afc_monto + impuesto
 
-    descuentos_prevision = afp_monto + salud_monto
+    otros_haberes = max(int(otros_haberes or 0), 0)
+    otros_descuentos = max(int(otros_descuentos or 0), 0)
+    total = (sueldo_proporcional + gratificacion + feriado + indemnizacion_anos + sustitutiva
+             + otros_haberes - otros_descuentos - descuentos_prevision)
 
-    total = (sueldo_proporcional + gratificacion + feriado_prop
-             + indemnizacion_anos - descuentos_prevision)
-
-    return {
+    montos = {
         'sueldo_base':                  sueldo_base,
-        'dias_trabajados_ultimo_mes':   dias_trabajados_ultimo_mes,
+        'dias_trabajados_ultimo_mes':   dias,
         'gratificacion_proporcional':   gratificacion,
-        'feriado_proporcional':         feriado_prop,
+        'feriado_proporcional':         feriado,
         'indemnizacion_anos_servicio':  indemnizacion_anos,
-        'indemnizacion_sustitutiva_aviso': 0,
-        'otros_haberes':                0,
-        'otros_descuentos':             0,
+        'indemnizacion_sustitutiva_aviso': sustitutiva,
+        'otros_haberes':                otros_haberes,
+        'otros_descuentos':             otros_descuentos,
         'descuentos_prevision':         descuentos_prevision,
         'total_a_pagar':                max(total, 0),
     }
+    detalle = {
+        'sueldo_proporcional': sueldo_proporcional,
+        'feriado_dias_saldo': saldo, 'feriado_dias_proporcionales': proporcional,
+        'feriado_dias_habiles': dias_habiles_feriado, 'feriado_dias_corridos': dias_corridos_feriado,
+        'con_indemnizacion': con_indemnizacion, 'anios_indemnizacion': anios,
+        'base_indemnizacion': base_indemnizacion, 'base_indemnizacion_topada': base_indemnizacion_sin_tope > tope_base,
+        'tope_base_indemnizacion': tope_base,
+        'afp_nombre': nombre_afp, 'afp': afp_monto, 'salud_nombre': salud_nombre, 'salud': salud_monto,
+        'seguro_cesantia': afc_monto, 'impuesto_unico': impuesto,
+    }
+    return montos, detalle
 
 
 class FiniquitoViewSet(viewsets.ModelViewSet):
@@ -3845,63 +3921,101 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
             qs = qs.filter(empleado_id=empleado_id)
         return qs
 
+    _ERROR_PLAN = 'Los finiquitos están disponibles desde el plan Starter. Mejora tu suscripción para acceder a esta función.'
+
+    def _entrada(self, request, empleado=None, base=None):
+        """Lee los hechos del finiquito. Los montos legales nunca se aceptan del cliente."""
+        data = request.data
+        base = base or {}
+        if empleado is None:
+            try:
+                empleado = Empleado.objects.get(id=data.get('empleado'), empresa__owner=request.user)
+            except (Empleado.DoesNotExist, ValueError, TypeError):
+                raise NotFound('Empleado no encontrado.')
+        try:
+            fecha_termino = datetime.date.fromisoformat(str(data.get('fecha_termino', base.get('fecha_termino', ''))))
+        except (ValueError, TypeError):
+            raise ValidationError({'error': 'Fecha de término inválida.'})
+        if empleado.fecha_ingreso and fecha_termino < empleado.fecha_ingreso:
+            raise ValidationError({'error': 'La fecha de término es anterior al ingreso del trabajador.'})
+        try:
+            entrada = {
+                'dias_trabajados_ultimo_mes': int(data.get('dias_trabajados_ultimo_mes', base.get('dias_trabajados_ultimo_mes', 30))),
+                'causal_articulo': str(data.get('causal_articulo', base.get('causal_articulo', ''))),
+                'aviso_previo_dado': str(data.get('aviso_previo_dado', base.get('aviso_previo_dado', False))).lower() in ('true', '1'),
+                'otros_haberes': int(data.get('otros_haberes', base.get('otros_haberes', 0)) or 0),
+                'otros_descuentos': int(data.get('otros_descuentos', base.get('otros_descuentos', 0)) or 0),
+            }
+        except (ValueError, TypeError):
+            raise ValidationError({'error': 'Días, otros haberes y otros descuentos deben ser números.'})
+        if entrada['causal_articulo'] not in dict(Finiquito.CAUSAL_ARTICULO_CHOICES):
+            raise ValidationError({'error': 'Selecciona una causal de término válida.'})
+        if entrada['otros_haberes'] < 0 or entrada['otros_descuentos'] < 0:
+            raise ValidationError({'error': 'Otros haberes y descuentos no pueden ser negativos.'})
+        return empleado, fecha_termino, entrada
+
+    def _calcular(self, empleado, fecha_termino, entrada):
+        return _calcular_finiquito(
+            empleado, fecha_termino, entrada['dias_trabajados_ultimo_mes'], entrada['causal_articulo'],
+            aviso_previo_dado=entrada['aviso_previo_dado'],
+            otros_haberes=entrada['otros_haberes'], otros_descuentos=entrada['otros_descuentos'])
+
+    @action(detail=False, methods=['post'])
+    def simular(self, request):
+        """Vista previa: el mismo cálculo que al guardar, sin guardar."""
+        if not _plan_permite(request.user, 2):
+            return Response({'error': self._ERROR_PLAN}, status=status.HTTP_403_FORBIDDEN)
+        empleado, fecha_termino, entrada = self._entrada(request)
+        montos, detalle = self._calcular(empleado, fecha_termino, entrada)
+        return Response({**montos, 'detalle': detalle, 'aviso_previo_dado': entrada['aviso_previo_dado'],
+                         'causal_articulo': entrada['causal_articulo'], 'fecha_termino': fecha_termino.isoformat()})
+
     def create(self, request, *args, **kwargs):
         if not _plan_permite(request.user, 2):
-            return Response(
-                {'error': 'Los finiquitos están disponibles desde el plan Starter. Mejora tu suscripción para acceder a esta función.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        data = request.data
-        empleado_id = data.get('empleado')
-
+            return Response({'error': self._ERROR_PLAN}, status=status.HTTP_403_FORBIDDEN)
+        empleado, fecha_termino, entrada = self._entrada(request)
+        montos, _ = self._calcular(empleado, fecha_termino, entrada)
         try:
-            empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
-        except Empleado.DoesNotExist:
-            return Response({'error': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            fecha_termino = datetime.date.fromisoformat(str(data.get('fecha_termino', '')))
+            fecha_emision = datetime.date.fromisoformat(str(request.data.get('fecha_emision', datetime.date.today().isoformat())))
         except (ValueError, TypeError):
-            return Response({'error': 'Fecha de término inválida.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        dias = int(data.get('dias_trabajados_ultimo_mes', 30))
-        causal = str(data.get('causal_articulo', ''))
-
-        montos = _calcular_finiquito(empleado, fecha_termino, dias, causal)
-
-        # Los montos pueden ser sobreescritos si el usuario los envía explícitamente
-        for campo in montos:
-            if campo in data and data[campo] is not None:
-                montos[campo] = int(data[campo])
-
-        # Recalcular total si algún monto fue sobreescrito
-        montos['total_a_pagar'] = max(
-            montos['sueldo_base'] // 30 * montos['dias_trabajados_ultimo_mes']
-            + montos['gratificacion_proporcional']
-            + montos['feriado_proporcional']
-            + montos['indemnizacion_anos_servicio']
-            + montos['indemnizacion_sustitutiva_aviso']
-            + montos['otros_haberes']
-            - montos['otros_descuentos']
-            - montos['descuentos_prevision'],
-            0,
-        )
-
+            fecha_emision = datetime.date.today()
         finiquito = Finiquito.objects.create(
             empleado=empleado,
-            documento_legal_id=data.get('documento_legal') or None,
-            causal_articulo=causal,
+            documento_legal_id=request.data.get('documento_legal') or None,
+            causal_articulo=entrada['causal_articulo'],
+            aviso_previo_dado=entrada['aviso_previo_dado'],
             fecha_termino=fecha_termino,
-            fecha_emision=datetime.date.fromisoformat(
-                str(data.get('fecha_emision', datetime.date.today().isoformat()))
-            ),
-            modalidad=data.get('modalidad', 'PRESENCIAL'),
+            fecha_emision=fecha_emision,
+            modalidad=request.data.get('modalidad', 'PRESENCIAL'),
             **montos,
         )
+        return Response(self.get_serializer(finiquito).data, status=status.HTTP_201_CREATED)
 
-        serializer = self.get_serializer(finiquito)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def update(self, request, *args, **kwargs):
+        """Editar recalcula todo con los hechos nuevos; firmado, ya no se toca."""
+        instancia = self.get_object()
+        if SolicitudFirma.objects.filter(finiquito=instancia, estado__in=('FIRMADO', 'PENDIENTE')).exists():
+            return Response({'error': 'Este finiquito tiene una firma pendiente o ya fue firmado: no se puede modificar.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        base = {
+            'fecha_termino': instancia.fecha_termino.isoformat(), 'causal_articulo': instancia.causal_articulo,
+            'dias_trabajados_ultimo_mes': instancia.dias_trabajados_ultimo_mes, 'aviso_previo_dado': instancia.aviso_previo_dado,
+            'otros_haberes': instancia.otros_haberes, 'otros_descuentos': instancia.otros_descuentos,
+        }
+        _, fecha_termino, entrada = self._entrada(request, empleado=instancia.empleado, base=base)
+        montos, _ = self._calcular(instancia.empleado, fecha_termino, entrada)
+        for campo, valor in {**montos, 'fecha_termino': fecha_termino, 'causal_articulo': entrada['causal_articulo'],
+                             'aviso_previo_dado': entrada['aviso_previo_dado']}.items():
+            setattr(instancia, campo, valor)
+        if 'modalidad' in request.data:
+            instancia.modalidad = request.data['modalidad']
+        if instancia.archivo_pdf:
+            instancia.archivo_pdf.delete(save=False)  # el PDF anterior ya no refleja los montos
+        instancia.save()
+        return Response(self.get_serializer(instancia).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
     @action(detail=True, methods=['get'], url_path='generar_pdf')
     def generar_pdf(self, request, pk=None):

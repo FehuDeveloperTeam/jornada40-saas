@@ -85,3 +85,4 @@ whitenoise==6.11.0
 wrapt==2.1.2
 xhtml2pdf==0.2.17
 zopfli==0.4.0
+holidays==0.105

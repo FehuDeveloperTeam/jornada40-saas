@@ -2308,3 +2308,105 @@ class CupoTrabajadoresTests(APITestCase):
         r = self.client.patch(f'/api/empleados/{e.id}/', {'activo': True}, format='json')
         self.assertEqual(r.status_code, 400)
         self.assertEqual(self.client.get('/api/clientes/mi_suscripcion/').data['trabajadores_actuales'], 3)
+
+
+@patch('core.views.obtener_utm', return_value=71721.0)
+@patch('core.views.obtener_uf', return_value=41057.20)
+class FiniquitoLegalTests(APITestCase):
+    """Finiquito según el Código del Trabajo; los montos legales no los fija el cliente."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('fin_owner', '18.888.888-8', '76.888.888-1')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        self.emp.fecha_ingreso = datetime.date(2019, 3, 1); self.emp.afp = 'HABITAT'; self.emp.sistema_salud = 'FONASA'
+        self.emp.save()
+        Contrato.objects.filter(empleado=self.emp).delete()
+        Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', fecha_inicio='2019-03-01',
+                                sueldo_base=1_000_000, gratificacion_legal='MENSUAL')
+
+    def _simular(self, **extra):
+        datos = {'empleado': self.emp.id, 'fecha_termino': '2026-09-15', 'dias_trabajados_ultimo_mes': 15,
+                 'causal_articulo': '161_1', **extra}
+        return self.client.post('/api/finiquitos/simular/', datos, format='json')
+
+    def test_anios_con_fraccion_superior_a_seis_meses(self, *_):
+        from core.views import _anios_indemnizacion as a
+        d = datetime.date
+        self.assertEqual(a(d(2019, 3, 1), d(2026, 9, 15)), 8)   # 7 años, 6 meses y 14 días → 8
+        self.assertEqual(a(d(2019, 3, 1), d(2026, 9, 1)), 7)    # 6 meses exactos no es "superior"
+        self.assertEqual(a(d(2019, 3, 1), d(2026, 9, 2)), 8)    # 6 meses y 1 día
+        self.assertEqual(a(d(2026, 1, 1), d(2026, 9, 1)), 0)    # menos de un año: no corresponde
+        self.assertEqual(a(d(2000, 1, 1), d(2026, 9, 1)), 11)   # tope de 11 años
+
+    def test_indemnizaciones_161_sin_aviso(self, *_):
+        r = self._simular()
+        self.assertEqual(r.status_code, 200, r.data)
+        # Base Art. 172: sueldo + gratificación mensual con tope (4,75 × 553.553 / 12 = 219.114)
+        self.assertEqual(r.data['detalle']['base_indemnizacion'], 1_219_114)
+        self.assertEqual(r.data['detalle']['anios_indemnizacion'], 8)
+        self.assertEqual(r.data['indemnizacion_anos_servicio'], 8 * 1_219_114)
+        self.assertEqual(r.data['indemnizacion_sustitutiva_aviso'], 1_219_114)
+
+    def test_con_aviso_previo_no_hay_sustitutiva(self, *_):
+        self.assertEqual(self._simular(aviso_previo_dado=True).data['indemnizacion_sustitutiva_aviso'], 0)
+
+    def test_renuncia_sin_indemnizacion(self, *_):
+        r = self._simular(causal_articulo='159_2')
+        self.assertEqual(r.data['indemnizacion_anos_servicio'], 0)
+        self.assertEqual(r.data['indemnizacion_sustitutiva_aviso'], 0)
+        self.assertGreater(r.data['feriado_proporcional'], 0)   # el feriado se paga igual
+
+    def test_tope_90_uf_en_la_base(self, *_):
+        Contrato.objects.filter(empleado=self.emp).update(sueldo_base=5_000_000)
+        r = self._simular()
+        self.assertEqual(r.data['detalle']['base_indemnizacion'], 3_695_148)   # 90 × 41.057,20
+        self.assertTrue(r.data['detalle']['base_indemnizacion_topada'])
+
+    def test_feriado_incluye_proporcional_del_anio_en_curso(self, *_):
+        r = self._simular(causal_articulo='159_2')
+        # 6 meses y 14 días desde el último aniversario: (6 + 14/30) × 1,25 = 8,08 hábiles
+        self.assertAlmostEqual(r.data['detalle']['feriado_dias_proporcionales'], 8.08, places=2)
+        self.assertGreater(r.data['detalle']['feriado_dias_corridos'], r.data['detalle']['feriado_dias_habiles'])
+
+    def test_montos_legales_no_se_aceptan_del_cliente(self, *_):
+        r = self.client.post('/api/finiquitos/', {
+            'empleado': self.emp.id, 'fecha_termino': '2026-09-15', 'causal_articulo': '161_1',
+            'indemnizacion_anos_servicio': 0, 'feriado_proporcional': 0, 'total_a_pagar': 1}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['indemnizacion_anos_servicio'], 8 * 1_219_114)
+        self.assertGreater(r.data['total_a_pagar'], 1)
+        r2 = self.client.patch(f"/api/finiquitos/{r.data['id']}/", {'indemnizacion_anos_servicio': 0, 'otros_haberes': 50_000}, format='json')
+        self.assertEqual(r2.data['indemnizacion_anos_servicio'], 8 * 1_219_114)
+        self.assertEqual(r2.data['otros_haberes'], 50_000)
+        self.assertEqual(r2.data['total_a_pagar'], r.data['total_a_pagar'] + 50_000)
+
+    def test_firmado_no_se_modifica(self, *_):
+        r = self.client.post('/api/finiquitos/', {'empleado': self.emp.id, 'fecha_termino': '2026-09-15',
+                                                  'causal_articulo': '159_2'}, format='json')
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, finiquito_id=r.data['id'],
+                                      tipo_documento='FINIQUITO', estado='FIRMADO',
+                                      expira_en=timezone.now() + timezone.timedelta(days=1))
+        r2 = self.client.patch(f"/api/finiquitos/{r.data['id']}/", {'otros_haberes': 1}, format='json')
+        self.assertEqual(r2.status_code, 403)
+
+
+class FeriadoCalendarioTests(APITestCase):
+    """Art. 69: el sábado es siempre inhábil para el feriado; feriados reales de Chile."""
+
+    def test_semana_normal_son_cinco_dias(self):
+        from core.views import _calcular_dias_habiles_vacacion as h
+        d = datetime.date
+        self.assertEqual(h(d(2026, 8, 31), d(2026, 9, 6)), 5)   # lun 31-08 a dom 06-09: el sábado no cuenta
+
+    def test_viernes_santo(self):
+        from core.views import _calcular_dias_habiles_vacacion as h
+        d = datetime.date
+        self.assertEqual(h(d(2026, 3, 30), d(2026, 4, 3)), 4)   # el 03-04-2026 es Viernes Santo
+
+    def test_conversion_a_corridos(self):
+        from core.views import _dias_corridos_de_feriado as c
+        d = datetime.date
+        self.assertEqual(c(d(2026, 9, 11), 3), 5)      # vie → lun, mar, mié: + sáb y dom
+        self.assertEqual(c(d(2026, 9, 16), 3), 6)      # 18 y 19 son feriados
+        self.assertEqual(c(d(2026, 9, 11), 3.5), 5.5)  # la fracción se paga tal cual

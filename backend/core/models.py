@@ -630,6 +630,9 @@ class Finiquito(models.Model):
     # ── Total calculado ──────────────────────────────────────────────────────
     total_a_pagar = models.IntegerField(default=0)
 
+    # Si el empleador dio el aviso con 30 días de anticipación (Art. 161):
+    # sin él corresponde la indemnización sustitutiva del aviso previo.
+    aviso_previo_dado = models.BooleanField(default=False)
     modalidad  = models.CharField(max_length=15, choices=MODALIDAD_CHOICES, default='PRESENCIAL')
     archivo_pdf = models.FileField(upload_to='finiquitos/', null=True, blank=True)
 
