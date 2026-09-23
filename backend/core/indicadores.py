@@ -22,9 +22,9 @@ CACHE_TTL_SEGUNDOS = 6 * 60 * 60  # 6 horas
 
 # Valores de respaldo si la API falla. Calcular con ellos no es inocuo: un
 # valor viejo de UF desplaza los topes imponibles y la cotización de Isapre.
-UF_FALLBACK = 40844.79
-UTM_FALLBACK = 71506.0
-FALLBACK_ACTUALIZADO = datetime.date(2026, 7, 1)
+UF_FALLBACK = 41057.20
+UTM_FALLBACK = 71721.0
+FALLBACK_ACTUALIZADO = datetime.date(2026, 9, 30)  # indicadores Previred sept. 2026
 # A partir de cuántos meses de antigüedad el respaldo se considera vencido.
 FALLBACK_MESES_TOLERANCIA = 3
 

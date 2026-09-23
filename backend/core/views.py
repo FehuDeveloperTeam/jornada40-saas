@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.throttling import AnonRateThrottle
 
 
@@ -392,6 +392,23 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
                    'La empresa ha sido sometida a un procedimiento concursal de liquidación de sus bienes por resolución judicial, lo que determina el término del contrato de trabajo conforme a lo dispuesto en el Artículo 163 bis del Código del Trabajo.', True),
     }
 
+    # Las cartas de término (despido) son del plan Starter en adelante.
+    _MENSAJE_CARTA_TERMINO = ('Las cartas de término están disponibles desde el plan Starter. '
+                              'Mejora tu suscripción para acceder.')
+
+    def _exigir_plan_si_es_carta_de_termino(self, tipo):
+        if tipo == 'DESPIDO' and not _plan_permite(self.request.user, 2):
+            raise PermissionDenied(self._MENSAJE_CARTA_TERMINO)
+
+    def perform_create(self, serializer):
+        self._exigir_plan_si_es_carta_de_termino(serializer.validated_data.get('tipo'))
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._exigir_plan_si_es_carta_de_termino(
+            serializer.validated_data.get('tipo', serializer.instance.tipo))
+        serializer.save()
+
     def get_queryset(self):
         # Solo documentos de empleados que pertenecen al usuario autenticado
         queryset = DocumentoLegal.objects.filter(
@@ -404,8 +421,10 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def generar_pdf(self, request, pk=None):
+        documento = self.get_object()
+        if documento.tipo == 'DESPIDO' and not _plan_permite(request.user, 2):
+            return Response({'error': self._MENSAJE_CARTA_TERMINO}, status=status.HTTP_403_FORBIDDEN)
         try:
-            documento = self.get_object()
             empleado = documento.empleado
             empresa = empleado.empresa
 
@@ -1999,15 +2018,48 @@ _PARAMETROS_RESPALDO = {
     'tasa_afc_trabajador_indefinido': 0.006,
     'tasa_afc_empleador_indefinido': 0.024,
     'tasa_afc_empleador_plazo': 0.030,
-    'tasa_sis': 0.0149,
+    'tasa_sis': 0.0178,
     'tasa_mutual_base': 0.0093,
-    'tasa_expectativa_vida': 0.009,
+    'tasa_expectativa_vida': 0.0072,
+    'tasa_rentabilidad_protegida': 0.009,
+    'tasa_afp_empleador': 0.001,
+    'tasa_afc_empleador_11_anios': 0.008,
 }
 
 _TASAS_AFP_RESPALDO = {
     'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
     'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1046,
 }
+
+
+# Ley 19.728: desde el año 11 de un contrato indefinido el trabajador deja de
+# cotizar al seguro de cesantía y el empleador paga una tasa menor.
+_ANIOS_AFC_REDUCIDA = 11
+
+
+def _anios_de_servicio(empleado, contrato, mes, anio) -> int:
+    """Años completos de la relación laboral al último día del mes liquidado."""
+    inicio = getattr(empleado, 'fecha_ingreso', None) or getattr(contrato, 'fecha_inicio', None)
+    if not inicio:
+        return 0
+    if isinstance(inicio, str):
+        inicio = datetime.date.fromisoformat(inicio)
+    try:
+        mes, anio = int(mes), int(anio)
+    except (TypeError, ValueError):
+        fin = datetime.date.today()
+    else:
+        fin = datetime.date(anio + (mes == 12), mes % 12 + 1, 1) - datetime.timedelta(days=1)
+    return fin.year - inicio.year - ((fin.month, fin.day) < (inicio.month, inicio.day))
+
+
+def _tasas_afc(parametros, tipo_contrato, anios_servicio) -> tuple:
+    """(tasa trabajador, tasa empleador) del seguro de cesantía."""
+    if tipo_contrato == 'INDEFINIDO':
+        if anios_servicio >= _ANIOS_AFC_REDUCIDA:
+            return 0.0, parametros['tasa_afc_empleador_11_anios']
+        return parametros['tasa_afc_trabajador_indefinido'], parametros['tasa_afc_empleador_indefinido']
+    return 0.0, parametros['tasa_afc_empleador_plazo']
 
 
 def _tope_en_pesos(tope_uf, valor_uf) -> int:
@@ -2478,11 +2530,13 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         salud_monto = math.floor(renta_imponible_afp * tasa_salud)
         isapre_uf = 0
 
-    # Seguro Cesantía
-    seguro_cesantia = (
-        math.floor(renta_imponible_afc * parametros['tasa_afc_trabajador_indefinido'])
-        if terminos['tipo_contrato'] == 'INDEFINIDO' else 0
-    )
+    # Seguro Cesantía: 0,6 % del trabajador indefinido, salvo desde el año 11
+    # de la relación laboral, en que deja de cotizar (antes se le descontaba
+    # igual y su líquido salía menor).
+    tasa_afc_trabajador, _ = _tasas_afc(
+        parametros, terminos['tipo_contrato'],
+        _anios_de_servicio(empleado, contrato, data.get('mes'), data.get('anio')))
+    seguro_cesantia = math.floor(renta_imponible_afc * tasa_afc_trabajador)
 
     # Impuesto Único de Segunda Categoría
     base_tributable = total_imponible - afp_monto - salud_monto - seguro_cesantia
@@ -2787,10 +2841,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             # ── AFC Cesantía ───────────────────────────────────────────────
             ind_afc = '1' if es_indefinido else '0'
             cotiz_afc_trab = str(int(liq.seguro_cesantia or 0))
-            if es_indefinido:
-                cotiz_afc_emp = str(math.floor(renta_afc * params_periodo['tasa_afc_empleador_indefinido']))
-            elif contrato and contrato.tipo_contrato == 'PLAZO_FIJO':
-                cotiz_afc_emp = str(math.floor(renta_afc * params_periodo['tasa_afc_empleador_plazo']))
+            if contrato and contrato.tipo_contrato in ('INDEFINIDO', 'PLAZO_FIJO'):
+                _, tasa_afc_emp = _tasas_afc(
+                    params_periodo, contrato.tipo_contrato,
+                    _anios_de_servicio(emp, contrato, liq.mes, liq.anio))
+                cotiz_afc_emp = str(math.floor(renta_afc * tasa_afc_emp))
             else:
                 cotiz_afc_emp = '0'
             renta_imp_afc = str(renta_afc) if es_indefinido else '0'
@@ -2854,7 +2909,9 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             # Reforma 2025 (campos 86-88, índices 85-87)
             campos[85] = '0'               # RIMA
             campos[86] = tipo_jornada_code # tipo jornada ley 40h
-            campos[87] = cotiz_expectativa # expectativa de vida 0.9%
+            # Posición no verificada contra el formato oficial de Previred para la
+            # reforma; la tasa sale de ParametroPrevisional.tasa_expectativa_vida.
+            campos[87] = cotiz_expectativa # expectativa de vida
             # índices 88-104: extras → '0'
 
             lineas.append(';'.join(campos))
@@ -3197,6 +3254,12 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     # ──────────────────────────────────────────────────────────────────────────
     @action(detail=False, methods=['get'], url_path='consolidado')
     def consolidado(self, request):
+        # Consolidado multiempresa: plan Pyme en adelante.
+        if not _plan_permite(request.user, 3):
+            return Response(
+                {'error': 'El consolidado multiempresa está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         anio_param = request.query_params.get('anio')
         mes_param  = request.query_params.get('mes')
         formato    = request.query_params.get('formato', 'json')
@@ -3222,19 +3285,24 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No hay liquidaciones para el período seleccionado.'}, status=404)
 
         def _costo_emp(liq):
+            """Aportes de cargo del empleador: SIS, mutual, cesantía y reforma."""
             par = _parametros_previsionales(liq.mes, liq.anio)
-            try:
-                tipo = liq.empleado.contrato_activo.tipo_contrato
-                tasa_afc = (par['tasa_afc_empleador_indefinido'] if tipo == 'INDEFINIDO'
-                            else par['tasa_afc_empleador_plazo'])
-            except Exception:
-                tasa_afc = par['tasa_afc_empleador_indefinido']
+            contrato_liq = getattr(liq.empleado, 'contrato_activo', None)
+            tipo = liq.tipo_contrato or getattr(contrato_liq, 'tipo_contrato', 'INDEFINIDO')
+            _, tasa_afc = _tasas_afc(par, tipo, _anios_de_servicio(liq.empleado, contrato_liq, liq.mes, liq.anio))
             uf_periodo = float(liq.valor_uf) or obtener_uf()
             renta = min(
                 int(liq.total_imponible or 0),
                 _tope_en_pesos(par['tope_imponible_afp_uf'], uf_periodo),
             )
-            return int(renta * (par['tasa_sis'] + par['tasa_mutual_base'] + tasa_afc))
+            renta_afc = min(
+                int(liq.total_imponible or 0),
+                _tope_en_pesos(par['tope_imponible_afc_uf'], uf_periodo),
+            )
+            # Reforma de pensiones (Ley 21.735): aporte a la cuenta individual,
+            # rentabilidad protegida y expectativa de vida.
+            reforma = par['tasa_afp_empleador'] + par['tasa_rentabilidad_protegida'] + par['tasa_expectativa_vida']
+            return int(renta * (par['tasa_sis'] + par['tasa_mutual_base'] + reforma) + renta_afc * tasa_afc)
 
         def clp(n):
             if not n: return '$0'

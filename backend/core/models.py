@@ -46,7 +46,14 @@ class ParametroPrevisional(models.Model):
     tasa_afc_empleador_plazo = models.DecimalField(max_digits=6, decimal_places=5, default=0.03)
     tasa_sis = models.DecimalField(max_digits=6, decimal_places=5, default=0.0149)
     tasa_mutual_base = models.DecimalField(max_digits=6, decimal_places=5, default=0.0093)
-    tasa_expectativa_vida = models.DecimalField(max_digits=6, decimal_places=5, default=0.009)
+    tasa_expectativa_vida = models.DecimalField(max_digits=6, decimal_places=5, default=0.0072)
+    # Reforma de pensiones (Ley 21.735), cargo del empleador. Los informa
+    # Previred cada mes en "Seguro Social" y en "Tasa Cotización AFP".
+    tasa_rentabilidad_protegida = models.DecimalField(max_digits=6, decimal_places=5, default=0.009)
+    tasa_afp_empleador = models.DecimalField(max_digits=6, decimal_places=5, default=0.001)
+    # Seguro de cesantía desde el año 11 de un contrato indefinido: el
+    # trabajador deja de cotizar y el empleador paga esta tasa (Ley 19.728).
+    tasa_afc_empleador_11_anios = models.DecimalField(max_digits=6, decimal_places=5, default=0.008)
 
     ORIGEN_CHOICES = [
         ('MANUAL', 'Carga manual'),

@@ -1797,3 +1797,143 @@ class DiagnosticoRedTests(APITestCase):
             resp = self.client.get('/api/diagnostico/red/', HTTP_X_FORWARDED_FOR='1.2.3.4, 5.6.7.8')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['x_forwarded_for'], '1.2.3.4, 5.6.7.8')
+
+
+class PreviredSeptiembre2026Tests(APITestCase):
+    """Parámetros verificados contra el PDF de Previred de septiembre 2026."""
+
+    def test_valores_de_septiembre(self):
+        from core.views import _parametros_previsionales, _tasas_afp
+        p = _parametros_previsionales(9, 2026)
+        self.assertEqual((p['tope_imponible_afp_uf'], p['tope_imponible_afc_uf']), (90.0, 135.2))
+        self.assertEqual(p['ingreso_minimo_mensual'], 553553)
+        self.assertEqual(p['tasa_sis'], 0.0178)
+        self.assertEqual(p['tasa_expectativa_vida'], 0.0072)
+        self.assertEqual(p['tasa_rentabilidad_protegida'], 0.009)
+        self.assertEqual(p['tasa_afp_empleador'], 0.001)
+        self.assertEqual(p['tasa_afc_empleador_11_anios'], 0.008)
+        tasas = _tasas_afp(9, 2026)
+        self.assertEqual(tasas, {**tasas, 'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'HABITAT': 0.1127,
+                                 'PLANVITAL': 0.1116, 'PROVIDA': 0.1145, 'MODELO': 0.1058, 'UNO': 0.1046})
+
+    def test_antes_de_la_reforma_no_hay_aportes_de_la_reforma(self):
+        from core.views import _parametros_previsionales
+        p = _parametros_previsionales(3, 2025)
+        self.assertEqual((p['tasa_rentabilidad_protegida'], p['tasa_afp_empleador']), (0.0, 0.0))
+
+
+class AfcOnceAniosTests(APITestCase):
+    """Desde el año 11 de un contrato indefinido el trabajador no cotiza cesantía."""
+
+    def _liquidar(self, fecha_ingreso, tipo='INDEFINIDO'):
+        from core.views import _calcular_liquidacion
+
+        class C:
+            sueldo_base = 1_000_000; tipo_contrato = tipo; gratificacion_legal = 'MENSUAL'
+            tiene_quincena = False; monto_quincena = 0; comisiones_config = []; horas_semanales = 42
+            fecha_inicio = None
+
+        class E:
+            afp = 'MODELO'; sistema_salud = 'FONASA'; plan_isapre_uf = 0
+
+        e = E(); e.fecha_ingreso = fecha_ingreso
+        return _calcular_liquidacion(C(), e, {'mes': 9, 'anio': 2026, 'dias_trabajados': 30})
+
+    def test_diez_anios_cotiza(self):
+        self.assertGreater(self._liquidar(datetime.date(2016, 1, 1))['seguro_cesantia'], 0)
+
+    def test_once_anios_no_cotiza(self):
+        self.assertEqual(self._liquidar(datetime.date(2015, 1, 1))['seguro_cesantia'], 0)
+
+    def test_borde_del_aniversario(self):
+        from core.views import _anios_de_servicio
+
+        class E: pass
+        e = E()
+        e.fecha_ingreso = datetime.date(2015, 9, 30)
+        self.assertEqual(_anios_de_servicio(e, None, 9, 2026), 11)   # cumple el 30-09-2026
+        e.fecha_ingreso = datetime.date(2015, 10, 1)
+        self.assertEqual(_anios_de_servicio(e, None, 9, 2026), 10)
+
+    def test_tasa_del_empleador(self):
+        from core.views import _parametros_previsionales, _tasas_afc
+        p = _parametros_previsionales(9, 2026)
+        self.assertEqual(_tasas_afc(p, 'INDEFINIDO', 11), (0.0, 0.008))
+        self.assertEqual(_tasas_afc(p, 'INDEFINIDO', 3), (0.006, 0.024))
+        self.assertEqual(_tasas_afc(p, 'PLAZO_FIJO', 20), (0.0, 0.03))
+
+
+class AislamientoAlCrearTests(APITestCase):
+    """Nadie puede crear datos dentro de la empresa de otro cliente."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Cliente, Empresa, Empleado, Plan
+        plan = Plan.objects.create(nombre='Corporativo', precio=0, max_empresas=10, limite_trabajadores=250, nivel=4)
+        self.a = User.objects.create_user(username='1-9', password='x')
+        Cliente.objects.create(usuario=self.a, rut='1-9', nombres='A', plan=plan)
+        b = User.objects.create_user(username='2-7', password='x')
+        Cliente.objects.create(usuario=b, rut='2-7', nombres='B', plan=plan)
+        self.empresa_b = Empresa.objects.create(owner=b, nombre_legal='EB', rut='76.000.001-K')
+        self.emp_b = Empleado.objects.create(empresa=self.empresa_b, rut='3-5', nombres='V',
+                                             apellido_paterno='V', cargo='C', fecha_ingreso='2025-01-01')
+        self.client.force_authenticate(self.a)
+
+    def test_no_crea_trabajador_en_empresa_ajena(self):
+        r = self.client.post('/api/empleados/', {'empresa': self.empresa_b.id, 'rut': '4-3', 'nombres': 'X',
+                             'apellido_paterno': 'Y', 'cargo': 'C', 'fecha_ingreso': '2025-01-01'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_no_crea_documento_legal_a_trabajador_ajeno(self):
+        r = self.client.post('/api/documentos_legales/', {'empleado': self.emp_b.id, 'tipo': 'AMONESTACION',
+                             'fecha_emision': '2026-09-01', 'hechos': 'x'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_no_crea_vacaciones_a_trabajador_ajeno(self):
+        r = self.client.post('/api/vacaciones/', {'empleado': self.emp_b.id, 'empresa': self.empresa_b.id,
+                             'fecha_inicio': '2026-10-01', 'fecha_fin': '2026-10-05', 'dias_habiles': 5}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_no_crea_contrato_a_trabajador_ajeno(self):
+        r = self.client.post('/api/contratos/', {'empleado': self.emp_b.id, 'fecha_inicio': '2026-01-01',
+                             'sueldo_base': 1}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+
+class PermisosPorPlanTests(APITestCase):
+    """Cartas de término desde Starter; consolidado multiempresa desde Pyme."""
+
+    def _usuario(self, nivel):
+        from django.contrib.auth.models import User
+        from core.models import Cliente, Empresa, Empleado, Plan, Suscripcion
+        plan = Plan.objects.create(nombre=f'P{nivel}', precio=0, max_empresas=10, limite_trabajadores=250, nivel=nivel)
+        u = User.objects.create_user(username=f'{nivel}1.111.111-1', password='x')
+        c = Cliente.objects.create(usuario=u, rut=f'{nivel}1.111.111-1', nombres='A', plan=plan)
+        Suscripcion.objects.create(cliente=c, plan=plan, estado='ACTIVE')
+        e = Empresa.objects.create(owner=u, nombre_legal='E', rut=f'7{nivel}.000.001-1')
+        emp = Empleado.objects.create(empresa=e, rut=f'{nivel}.333.333-3', nombres='V', apellido_paterno='V',
+                                      cargo='C', fecha_ingreso='2025-01-01')
+        self.client.force_authenticate(u)
+        return emp
+
+    def _carta(self, emp):
+        return self.client.post('/api/documentos_legales/', {'empleado': emp.id, 'tipo': 'DESPIDO',
+                                'fecha_emision': '2026-09-01', 'hechos': 'x'}, format='json')
+
+    def test_semilla_no_emite_cartas_de_termino(self):
+        self.assertEqual(self._carta(self._usuario(1)).status_code, 403)
+
+    def test_starter_emite_cartas_de_termino(self):
+        self.assertEqual(self._carta(self._usuario(2)).status_code, 201)
+
+    def test_semilla_si_emite_amonestaciones(self):
+        emp = self._usuario(1)
+        r = self.client.post('/api/documentos_legales/', {'empleado': emp.id, 'tipo': 'AMONESTACION',
+                             'fecha_emision': '2026-09-01', 'hechos': 'x'}, format='json')
+        self.assertEqual(r.status_code, 201)
+
+    def test_consolidado_desde_pyme(self):
+        self._usuario(2)
+        self.assertEqual(self.client.get('/api/liquidaciones/consolidado/?anio=2026').status_code, 403)
+        self._usuario(3)
+        self.assertNotEqual(self.client.get('/api/liquidaciones/consolidado/?anio=2026').status_code, 403)

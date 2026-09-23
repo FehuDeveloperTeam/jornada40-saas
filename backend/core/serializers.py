@@ -4,6 +4,37 @@ from dj_rest_auth.serializers import LoginSerializer, PasswordResetSerializer
 from .jornada import avisos_jornada, jornada_maxima_vigente
 from .rut import normalizar_rut_usuario
 
+
+# ── Aislamiento entre clientes ───────────────────────────────────────────────
+# Todo recurso que apunta a una empresa, un trabajador o un contrato debe
+# pertenecer al usuario que hace la solicitud. Las vistas filtran lo que se
+# lee, pero sin esto se podía CREAR dentro de la empresa de otro cliente con
+# solo conocer un id (un trabajador, una amonestación, unas vacaciones).
+
+def _usuario(serializer):
+    request = serializer.context.get('request')
+    return getattr(request, 'user', None)
+
+
+def _exigir_propia(serializer, empresa):
+    usuario = _usuario(serializer)
+    if empresa is not None and usuario is not None and empresa.owner_id != usuario.id:
+        raise serializers.ValidationError('No encontrado.')
+    return empresa
+
+
+def _exigir_propio_empleado(serializer, empleado):
+    if empleado is not None:
+        _exigir_propia(serializer, empleado.empresa)
+    return empleado
+
+
+def _exigir_propio_contrato(serializer, contrato):
+    if contrato is not None:
+        _exigir_propio_empleado(serializer, contrato.empleado)
+    return contrato
+
+
 class EmpresaSerializer(serializers.ModelSerializer):
     firma_configurada = serializers.SerializerMethodField()
 
@@ -42,6 +73,9 @@ class ContratoSerializer(serializers.ModelSerializer):
 
     def get_tiene_anexo_40h_pdf(self, obj):
         return bool(obj.archivo_anexo_40h)
+
+    def validate_empleado(self, empleado):
+        return _exigir_propio_empleado(self, empleado)
 
     class Meta:
         model = Contrato
@@ -92,6 +126,9 @@ class EmpleadoSerializer(serializers.ModelSerializer):
     contrato_activo = ContratoSerializer(read_only=True)
     tiene_rechazos_pendientes = serializers.BooleanField(read_only=True, default=False)
 
+    def validate_empresa(self, empresa):
+        return _exigir_propia(self, empresa)
+
     class Meta:
         model = Empleado
         fields = [
@@ -112,6 +149,9 @@ class EmpleadoSerializer(serializers.ModelSerializer):
 
 
 class AnexoContratoSerializer(serializers.ModelSerializer):
+    def validate_contrato(self, contrato):
+        return _exigir_propio_contrato(self, contrato)
+
     class Meta:
         model = AnexoContrato
         fields = [
@@ -124,6 +164,9 @@ class AnexoContratoSerializer(serializers.ModelSerializer):
 
 
 class DocumentoLegalSerializer(serializers.ModelSerializer):
+    def validate_empleado(self, empleado):
+        return _exigir_propio_empleado(self, empleado)
+
     class Meta:
         model = DocumentoLegal
         fields = [
@@ -144,6 +187,9 @@ class DocumentoLegalSerializer(serializers.ModelSerializer):
 
 
 class LiquidacionSerializer(serializers.ModelSerializer):
+    def validate_empleado(self, empleado):
+        return _exigir_propio_empleado(self, empleado)
+
     class Meta:
         model = Liquidacion
         fields = [
@@ -236,6 +282,19 @@ class VacacionSerializer(serializers.ModelSerializer):
             return _calcular_dias_habiles_vacacion(obj.fecha_inicio, obj.fecha_fin)
         return 0
 
+    def validate_empleado(self, empleado):
+        return _exigir_propio_empleado(self, empleado)
+
+    def validate_empresa(self, empresa):
+        return _exigir_propia(self, empresa)
+
+    def validate(self, attrs):
+        empleado = attrs.get('empleado', getattr(self.instance, 'empleado', None))
+        empresa = attrs.get('empresa', getattr(self.instance, 'empresa', None))
+        if empleado and empresa and empleado.empresa_id != empresa.id:
+            raise serializers.ValidationError({'empresa': 'El trabajador no pertenece a esta empresa.'})
+        return attrs
+
     class Meta:
         model = VacacionEmpleado
         fields = [
@@ -253,6 +312,9 @@ class FiniquitoSerializer(serializers.ModelSerializer):
 
     def get_causal_articulo_label(self, obj):
         return obj.get_causal_articulo_display() if obj.causal_articulo else ''
+
+    def validate_empleado(self, empleado):
+        return _exigir_propio_empleado(self, empleado)
 
     class Meta:
         model = Finiquito
