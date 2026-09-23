@@ -379,11 +379,13 @@ class ConceptoRemuneracion(models.Model):
         return f"{self.nombre} ({self.get_tipo_display()}) — {ambito}"
 
     def save(self, *args, **kwargs):
-        # Al crear, la naturaleza previsional la fija el tipo y no el criterio
-        # de quien lo crea: así un bono propio nunca queda marcado como no
-        # imponible por error. Una vez creado sí se puede ajustar desde el
-        # admin, porque existen excepciones puntuales que la ley reconoce.
-        if self._state.adding:
+        # La naturaleza previsional la fija el tipo, no el criterio de quien
+        # crea el concepto: un bono nunca puede quedar como no imponible.
+        # En los conceptos de una empresa se aplica en cada guardado (tampoco
+        # se altera desde el admin). Solo los del sistema, que mantiene
+        # Jornada40, pueden ajustarse en el admin para las excepciones que la
+        # ley reconoce.
+        if self._state.adding or self.empresa_id is not None:
             for campo, valor in self.NATURALEZA_POR_TIPO.get(self.tipo, {}).items():
                 setattr(self, campo, valor)
         super().save(*args, **kwargs)

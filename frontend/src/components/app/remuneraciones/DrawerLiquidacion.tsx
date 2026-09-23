@@ -216,7 +216,7 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
                         <input className={CONTROL} inputMode="decimal" value={i.horas}
                           onChange={(e) => cambiar(i.clave, { horas: e.target.value.replace(/[^\d,.]/g, '') })} />
                       </Campo>
-                      <Campo etiqueta="Recargo" sufijo="%">
+                      <Campo etiqueta="Recargo" sufijo="%" ayuda="Mínimo legal: 50 %">
                         <input className={CONTROL} inputMode="numeric" value={i.recargo}
                           onChange={(e) => cambiar(i.clave, { recargo: soloDigitos(e.target.value) })} />
                       </Campo>

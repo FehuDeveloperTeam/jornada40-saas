@@ -2092,3 +2092,52 @@ class ConceptosEdicionTests(APITestCase):
         todos = [x['id'] for x in self.client.get('/api/conceptos/?incluir_inactivos=true').data]
         self.assertIn(c['id'], todos)
         self.assertEqual(self.client.patch(f"/api/conceptos/{c['id']}/", {'activo': True}, format='json').status_code, 200)
+
+
+class CajaLegalTests(APITestCase):
+    """El tratamiento legal del cálculo base no se puede alterar."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Contrato, Empresa, Empleado
+        self.u = User.objects.create_user(username='6.666.666-6', password='x')
+        self.e = Empresa.objects.create(owner=self.u, nombre_legal='E', rut='76.666.666-6')
+        self.emp = Empleado.objects.create(empresa=self.e, rut='7.777.777-7', nombres='V', apellido_paterno='V',
+                                           cargo='C', fecha_ingreso='2020-01-01', afp='HABITAT', sistema_salud='FONASA')
+        Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', fecha_inicio='2020-01-01',
+                                sueldo_base=900_000, gratificacion_legal='MENSUAL')
+        self.client.force_authenticate(self.u)
+
+    def test_concepto_de_empresa_no_cambia_naturaleza_ni_desde_el_admin(self):
+        from core.models import ConceptoRemuneracion
+        c = ConceptoRemuneracion.objects.create(empresa=self.e, codigo='BONO_X', nombre='Bono X', tipo='HABER_IMPONIBLE')
+        c.es_imponible = False  # como si se editara en el admin
+        c.save()
+        c.refresh_from_db()
+        self.assertTrue(c.es_imponible)
+
+    def test_concepto_del_sistema_admite_excepcion_en_el_admin(self):
+        from core.models import ConceptoRemuneracion
+        c = ConceptoRemuneracion.objects.create(codigo='SISTEMA_X', nombre='X', tipo='HABER_IMPONIBLE')
+        c.afecta_gratificacion = False
+        c.save()
+        c.refresh_from_db()
+        self.assertFalse(c.afecta_gratificacion)
+
+    def _hora_extra(self, recargo):
+        return self.client.post('/api/liquidaciones/simular/', {
+            'empleado': self.emp.id, 'mes': 9, 'anio': 2026,
+            'detalle_items': [{'glosa': 'HE', 'naturaleza': 'HORA_EXTRA', 'horas': 5, 'recargo': recargo}]}, format='json')
+
+    def test_recargo_menor_al_legal_rechazado(self):
+        r = self._hora_extra(30)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('50 %', r.data['error'])
+        r = self.client.post('/api/liquidaciones/', {
+            'empleado': self.emp.id, 'mes': 9, 'anio': 2026,
+            'detalle_items': [{'glosa': 'HE', 'naturaleza': 'HORA_EXTRA', 'horas': 5, 'recargo': 30}]}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_recargo_legal_o_mayor_aceptado(self):
+        self.assertEqual(self._hora_extra(50).status_code, 200)
+        self.assertEqual(self._hora_extra(100).status_code, 200)

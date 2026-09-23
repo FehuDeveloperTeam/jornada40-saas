@@ -2321,6 +2321,21 @@ def _validar_conceptos(data, user):
     items = _items_desde_payload(data)
     conceptos = _conceptos_por_id(items)
 
+    # El recargo de las horas extras no puede ser menor al 50 % (Art. 32 del
+    # Código del Trabajo). Uno mayor es decisión del empleador; uno menor
+    # dejaría mal calculada la liquidación.
+    for item in items:
+        if item.get('naturaleza') != 'HORA_EXTRA' or item.get('recargo') in (None, ''):
+            continue
+        try:
+            recargo = float(item['recargo'])
+        except (TypeError, ValueError):
+            raise ValidationError({'error': f'Recargo inválido en «{item.get("glosa", "hora extra")}».'})
+        if recargo < 50:
+            raise ValidationError({'error': (
+                f'«{item.get("glosa", "Hora extra")}»: el recargo mínimo legal de las horas extras '
+                f'es 50 % (Art. 32 del Código del Trabajo).')})
+
     for item in items:
         concepto_id = item.get('concepto')
         if not concepto_id:
