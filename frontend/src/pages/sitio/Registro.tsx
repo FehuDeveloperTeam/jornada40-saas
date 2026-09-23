@@ -12,7 +12,7 @@ import { formatearPrecio, textoTrabajadores, usePlanes } from '../../hooks/usePl
 import type { Plan } from '../../types';
 import { cn } from '../../utils/cn';
 import { contrasenaAceptable } from '../../utils/contrasena';
-import { validateRut } from '../../utils/rutUtils';
+import { esRutDePersona, validateRut } from '../../utils/rutUtils';
 
 // La cuenta es siempre de una persona: el titular. Sus empresas se crean
 // después (onboarding o lobby) y cada una tiene su propio RUT. Así una
@@ -37,7 +37,8 @@ function validarCuenta(c: Cuenta): Errores {
   const e: Errores = {};
   if (!c.nombres.trim()) e.nombres = 'Ingresa tus nombres.';
   if (!c.apellidoPaterno.trim()) e.apellidoPaterno = 'Ingresa tu apellido.';
-  if (!validateRut(c.rut)) e.rut = 'Revisa el RUT.';
+  if (!validateRut(c.rut)) e.rut = 'Revisa el RUT: el dígito verificador no calza.';
+  else if (!esRutDePersona(c.rut)) e.rut = 'Ese RUT es de una empresa. Usa tu RUT personal: las empresas se agregan después.';
   if (!/^\S+@\S+\.\S+$/.test(c.email.trim())) e.email = 'Ingresa un correo válido.';
   if (!contrasenaAceptable(c.password)) e.password = 'Usa al menos 8 caracteres con mayúsculas y números.';
   return e;
@@ -190,6 +191,7 @@ export default function Registro() {
             <CampoRut etiqueta="Tu RUT (titular de la cuenta)"
               valor={cuenta.rut} onChange={(v) => cambiar('rut', v)} forzarError={Boolean(errores.rut)}
               ayuda="Tu RUT personal, no el de tu empresa: con él entrarás a todas las empresas que administres." />
+            {errores.rut && <p role="alert" className="-mt-2 text-[12.5px] text-danger">{errores.rut}</p>}
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
               <Field etiqueta="Correo electrónico" error={errores.email}>
@@ -210,10 +212,8 @@ export default function Registro() {
               <MedidorContrasena clave={cuenta.password} id="reg-clave-medidor" />
             </div>
 
-            {(errores.rut || errores.password) && (
-              <p role="alert" className="text-[13px] text-danger">
-                Revisa el RUT y usa una contraseña de al menos 8 caracteres con mayúsculas y números.
-              </p>
+            {errores.password && (
+              <p role="alert" className="text-[13px] text-danger">{errores.password}</p>
             )}
             <Button type="submit" tamano="lg" className="rounded-[10px]">Continuar</Button>
           </form>

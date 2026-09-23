@@ -27,14 +27,14 @@ export default function Recuperar() {
     setError('');
     setEnviando(true);
     try {
-      const { data } = await client.post<{ correo_oculto?: string }>('/auth/recuperar-por-rut/', { rut });
-      setEnviado(`Enviamos el enlace al correo asociado a tu RUT: ${data.correo_oculto}.`);
+      // El backend responde lo mismo exista o no la cuenta, y no revela el
+      // correo: así no se puede averiguar qué RUT tienen cuenta.
+      await client.post('/auth/recuperar-por-rut/', { rut });
+      setEnviado('Si el RUT está registrado, enviamos un enlace al correo asociado. Vence en 24 horas.');
     } catch (err) {
       const estado = isAxiosError(err) ? err.response?.status : undefined;
-      if (estado === 404) {
-        // El backend responde 404 si el RUT no existe; aquí se muestra lo mismo
-        // que ante un envío para no confirmar qué RUT tienen cuenta.
-        setEnviado('Si el RUT está registrado, enviamos un enlace al correo asociado.');
+      if (estado === 400) {
+        setError('Ingresa un RUT válido.');
       } else if (estado === 429) {
         setError('Hiciste demasiadas solicitudes. Espera unos minutos y vuelve a intentarlo.');
       } else {
@@ -48,7 +48,7 @@ export default function Recuperar() {
   return (
     <AuthLayout
       titulo="Recupera el acceso en minutos."
-      descripcion="Te enviamos un enlace seguro de un solo uso para crear una contraseña nueva."
+      descripcion="Te enviamos un enlace seguro de un solo uso, válido por 24 horas."
     >
       {enviado ? (
         <>
@@ -73,7 +73,7 @@ export default function Recuperar() {
           <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
             <CampoRut etiqueta="RUT del titular de la cuenta" valor={rut} onChange={(v) => { setRut(v); setError(''); }}
               autoComplete="username" forzarError={Boolean(error) && !validateRut(rut)}
-              ayuda="Enviaremos el enlace al correo registrado con ese RUT. Por seguridad solo mostramos parte de la dirección." />
+              ayuda="Enviaremos el enlace al correo registrado con ese RUT." />
             <Button type="submit" tamano="lg" cargando={enviando} className="rounded-[10px]">
               {enviando ? 'Enviando…' : 'Enviar enlace'}
             </Button>

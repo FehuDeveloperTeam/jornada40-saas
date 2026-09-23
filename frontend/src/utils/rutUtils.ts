@@ -46,3 +46,11 @@ export const estadoRut = (rut: string): EstadoRut => {
   if (limpio.length < 8) return 'incompleto';
   return validateRut(rut) ? 'valido' : 'invalido';
 };
+
+// Los RUT de personas naturales (y RUN de extranjeros) están bajo 50.000.000;
+// los de empresas parten en 50 millones. Mismo criterio que el backend
+// (_es_rut_de_persona): la cuenta es siempre de la persona titular.
+export const esRutDePersona = (rut: string): boolean => {
+  const cuerpo = rut.replace(/[^0-9kK]/g, '').slice(0, -1);
+  return /^\d+$/.test(cuerpo) && Number(cuerpo) < 50_000_000;
+};

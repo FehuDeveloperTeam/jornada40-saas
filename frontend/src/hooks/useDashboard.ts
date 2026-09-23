@@ -751,9 +751,13 @@ export function useDashboard() {
 
   // ─── Cálculo horas extras (Chile) ──────────────────────────────────────────
 
+  // Vista previa: el valor definitivo lo calcula el backend con el sueldo y
+  // las horas del contrato (congelados en la liquidación). Usa esos mismos
+  // datos para que lo que se ve coincida con lo que se guarda.
   const calcularValorHorasExtras = (horas: number, recargo: number) => {
-    const sueldoBase      = selectedEmpleado?.sueldo_base || 0;
-    const horasSemanales  = selectedEmpleado?.horas_laborales || jornadaMaximaVigente();
+    const contrato        = selectedEmpleado?.contrato_activo;
+    const sueldoBase      = contrato?.sueldo_base ?? selectedEmpleado?.sueldo_base ?? 0;
+    const horasSemanales  = Number(contrato?.horas_semanales) || jornadaMaximaVigente();
     if (!sueldoBase || !horasSemanales || !horas) return 0;
     const valorOrdinaria  = (sueldoBase / 30) * 7 / horasSemanales;
     return Math.round(valorOrdinaria * (1 + recargo / 100) * horas);
