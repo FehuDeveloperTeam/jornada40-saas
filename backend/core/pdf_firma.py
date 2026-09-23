@@ -19,6 +19,11 @@ from reportlab.lib.colors import HexColor, white
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as rl_canvas
 from pypdf import PdfReader, PdfWriter
+from zoneinfo import ZoneInfo
+
+from django.utils import timezone
+
+_ZONA_CHILE = ZoneInfo("America/Santiago")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -92,6 +97,8 @@ def _generar_pagina_certificado(
     firmado_en: datetime,
     ip_firmante: str,
     email_firmante: str,
+    folio: str = '',
+    hash_original: str = '',
 ) -> bytes:
     buf = io.BytesIO()
     ancho, alto = A4          # 595.27 × 841.89 pts
@@ -205,13 +212,18 @@ def _generar_pagina_certificado(
     _separador(c, 'DATOS DE VERIFICACIÓN', margen, y, ancho_util)
     y -= 0.6 * cm
 
+    # La hora se muestra en la de Chile: es la que corresponde al documento.
+    firmado_local = timezone.localtime(firmado_en, _ZONA_CHILE)
     filas = [
+        ('FOLIO',                 folio or '—'),
         ('TOKEN DE VERIFICACIÓN', str(token)),
         ('FECHA Y HORA DE FIRMA',
-         firmado_en.strftime('%d/%m/%Y %H:%M:%S') + ' (UTC)'),
+         firmado_local.strftime('%d/%m/%Y %H:%M:%S') + ' (hora de Chile)'),
         ('IP DEL FIRMANTE',       ip_firmante or 'No registrada'),
         ('EMAIL VERIFICADO',      email_firmante),
     ]
+    if hash_original:
+        filas.append(('HUELLA DEL DOCUMENTO (SHA-256)', hash_original))
     datos_h = len(filas) * 0.82*cm + 0.5*cm
     _caja(c, margen, y - datos_h, ancho_util, datos_h, AZUL_FONDO, AZUL_BORDE)
 
@@ -224,8 +236,12 @@ def _generar_pagina_certificado(
         c.setFont('Helvetica-Bold', 7)
         c.drawString(col_label, yd, label)
         c.setFillColor(GRIS_TEXTO)
-        c.setFont('Helvetica', 8)
-        c.drawString(col_valor, yd, _truncar(valor, 70))
+        if label.startswith('HUELLA'):
+            c.setFont('Courier', 7)      # 64 caracteres hexadecimales completos
+            c.drawString(col_valor, yd, valor)
+        else:
+            c.setFont('Helvetica', 8)
+            c.drawString(col_valor, yd, _truncar(valor, 70))
         yd -= 0.82*cm
 
     # ── Pie de página ────────────────────────────────────────────────────
@@ -262,6 +278,8 @@ def agregar_certificado_firma(
     firmado_en: datetime,
     ip_firmante: str,
     email_firmante: str,
+    folio: str = '',
+    hash_original: str = '',
 ) -> bytes:
     """
     Une el PDF original con la página de certificado de firma.
@@ -296,6 +314,8 @@ def agregar_certificado_firma(
         firmado_en=firmado_en,
         ip_firmante=ip_firmante,
         email_firmante=email_firmante,
+        folio=folio,
+        hash_original=hash_original,
     )
 
     writer = PdfWriter()

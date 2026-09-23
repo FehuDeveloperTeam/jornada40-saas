@@ -725,6 +725,13 @@ class SolicitudFirma(models.Model):
     expira_en        = models.DateTimeField()
     motivo_rechazo   = models.TextField(blank=True, default='')
 
+    # Comprobante de la firma. El folio es correlativo por empresa; las huellas
+    # SHA-256 permiten verificar qué documento se revisó (original) y que el
+    # PDF firmado que se descarga no fue alterado (firmado).
+    folio            = models.CharField(max_length=20, blank=True, default='')
+    hash_original    = models.CharField(max_length=64, blank=True, default='')
+    hash_firmado     = models.CharField(max_length=64, blank=True, default='')
+
     creado_en        = models.DateTimeField(auto_now_add=True)
     actualizado_en   = models.DateTimeField(auto_now=True)
 

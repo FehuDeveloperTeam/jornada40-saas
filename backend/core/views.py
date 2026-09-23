@@ -78,6 +78,8 @@ import string
 from num2words import num2words
 from decouple import config
 import hmac
+import hashlib
+import secrets
 import logging
 from html import escape as _esc
 
@@ -4700,6 +4702,12 @@ def firma_publica_info(request, token):
         'email_firmante_enmascarado': _enmascarar_email(solicitud.email_firmante),
         'expira_en': solicitud.expira_en.isoformat(),
         'ya_verificado': solicitud.sesion_token_trabajador is not None,
+        # Comprobante, solo cuando ya se firmó (para volver a verlo desde el enlace).
+        **({
+            'firmado_en': solicitud.firmado_en.isoformat() if solicitud.firmado_en else None,
+            'folio': solicitud.folio,
+            'hash_firmado': solicitud.hash_firmado,
+        } if solicitud.estado == 'FIRMADO' else {}),
     })
 
 
@@ -4723,6 +4731,24 @@ def firma_publica_solicitar_otp(request, token):
         solicitud.save(update_fields=['estado', 'actualizado_en'])
         return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
 
+    # Confirmar identidad con el RUT antes de enviar el código: el enlace
+    # solo no basta (un correo reenviado o una bandeja compartida).
+    rut_ingresado = limpiar_rut(request.data.get('rut', ''))
+    if not rut_ingresado or rut_ingresado != limpiar_rut(solicitud.empleado.rut):
+        return Response(
+            {'error': 'El RUT no coincide con el del trabajador al que se envió el documento.'},
+            status=400,
+        )
+
+    # Tope de códigos por hora: con 3 intentos por código, acota los intentos
+    # totales de adivinar uno aunque se pidan códigos nuevos cada minuto.
+    hace_una_hora = timezone.now() - timezone.timedelta(hours=1)
+    if OTPFirma.objects.filter(solicitud=solicitud, creado_en__gte=hace_una_hora).count() >= 5:
+        return Response(
+            {'error': 'Pediste demasiados códigos. Intenta de nuevo en una hora.'},
+            status=429,
+        )
+
     # Anti-spam: no permitir más de un OTP por minuto
     ultimo_otp = OTPFirma.objects.filter(solicitud=solicitud).order_by('-creado_en').first()
     if ultimo_otp:
@@ -4740,7 +4766,7 @@ def firma_publica_solicitar_otp(request, token):
     ).update(expira_en=timezone.now())
 
     # Generar código de 6 dígitos
-    codigo = ''.join(random.choices(string.digits, k=6))
+    codigo = ''.join(secrets.choice(string.digits) for _ in range(6))
 
     otp = OTPFirma.objects.create(
         solicitud=solicitud,
@@ -5089,9 +5115,21 @@ def firma_publica_firmar(request, token):
         solicitud.save(update_fields=['estado', 'actualizado_en'])
         return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
 
-    # ── Generar PDF firmado con certificado ─────────────────────────────────
+    # ── Folio correlativo por empresa y huella del documento revisado ───────
     empleado = solicitud.empleado
     empresa  = solicitud.empresa
+    hash_original = hashlib.sha256(pdf_original_bytes).hexdigest()
+    if not solicitud.folio:
+        # Con la fila de la empresa bloqueada, dos firmas simultáneas no
+        # pueden tomar el mismo número. Si luego falla, el folio queda
+        # reservado para el reintento de esta misma solicitud.
+        with transaction.atomic():
+            Empresa.objects.select_for_update().get(id=empresa.id)
+            siguiente = SolicitudFirma.objects.filter(empresa=empresa).exclude(folio='').count() + 1
+            solicitud.folio = f'J40-{timezone.localdate().year}-{siguiente:06d}'
+            solicitud.save(update_fields=['folio', 'actualizado_en'])
+
+    # ── Generar PDF firmado con certificado ─────────────────────────────────
     tipo_labels = {
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
@@ -5119,6 +5157,8 @@ def firma_publica_firmar(request, token):
             firmado_en            = firmado_en,
             ip_firmante           = ip_firmante,
             email_firmante        = solicitud.email_firmante,
+            folio                 = solicitud.folio,
+            hash_original         = hash_original,
         )
     except Exception as exc:
         solicitud.estado = 'PENDIENTE'
@@ -5148,10 +5188,13 @@ def firma_publica_firmar(request, token):
     solicitud.ip_firmante            = ip_firmante or None
     solicitud.firma_trabajador_imagen = firma_trabajador
     solicitud.b2_key_firmado         = key_firmado
+    solicitud.hash_original          = hash_original
+    solicitud.hash_firmado           = hashlib.sha256(pdf_firmado_bytes).hexdigest()
     solicitud.sesion_token_trabajador = None   # invalidar sesión
     solicitud.save(update_fields=[
         'estado', 'firmado_en', 'ip_firmante',
         'firma_trabajador_imagen', 'b2_key_firmado',
+        'hash_original', 'hash_firmado',
         'sesion_token_trabajador', 'actualizado_en',
     ])
 
@@ -5173,7 +5216,10 @@ def firma_publica_firmar(request, token):
     except Exception:
         pass
 
-    return Response({'firmado': True, 'firmado_en': firmado_en.isoformat()})
+    return Response({
+        'firmado': True, 'firmado_en': firmado_en.isoformat(),
+        'folio': solicitud.folio, 'hash_firmado': solicitud.hash_firmado,
+    })
 
 
 # ============================================================
