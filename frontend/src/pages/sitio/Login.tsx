@@ -2,34 +2,26 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
-import { CircleCheck, IdCard } from 'lucide-react';
-import { AlertaError, Button, Field, Input, InputContrasena } from '../../components/j40';
+import { CircleCheck } from 'lucide-react';
+import { AlertaError, Button, CampoRut, InputContrasena } from '../../components/j40';
 import { AuthLayout, EncabezadoForm } from '../../components/sitio/AuthLayout';
 import { useAuth } from '../../context/AuthContext';
-import type { LoginData } from '../../context/AuthContext';
-import { formatRut, validateRut } from '../../utils/rutUtils';
-
-/**
- * El handoff pide iniciar sesión con correo, pero las cuentas existentes
- * entran con RUT (es el `username` en Django). El campo acepta ambos: si trae
- * "@" se envía como correo; si no, como RUT con el formato de rutUtils, que es
- * el mismo con que se guardó al registrarse.
- */
-function credenciales(identificador: string, password: string): LoginData | null {
-  const valor = identificador.trim();
-  if (valor.includes('@')) return { email: valor, password };
-  if (!validateRut(valor)) return null;
-  return { username: formatRut(valor), password };
-}
+import { validateRut } from '../../utils/rutUtils';
 
 function mensajeDeError(error: unknown): string {
   if (isAxiosError(error)) {
-    if (error.response?.status === 400) return 'Revisa tu correo o RUT y tu contraseña.';
+    if (error.response?.status === 400) return 'Revisa tu RUT y tu contraseña.';
     if (error.response?.status === 429) return 'Hiciste demasiados intentos. Espera unos minutos y vuelve a intentarlo.';
   }
   return 'No pudimos iniciar sesión. Intenta de nuevo en un momento.';
 }
 
+/**
+ * Se entra solo con el RUT del titular de la cuenta (el `username` en Django).
+ * El correo no sirve para entrar porque no es único: una persona puede tener
+ * varias cuentas con el mismo correo, y el sistema no sabría a cuál llevarla.
+ * Las empresas del titular se eligen después, en el lobby.
+ */
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -41,22 +33,20 @@ export default function Login() {
     : aviso?.cuentaCreada
       ? 'Tu cuenta quedó creada. Inicia sesión para continuar.'
       : '';
-  const [identificador, setIdentificador] = useState('');
+  const [rut, setRut] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   const enviar = async (e: FormEvent) => {
     e.preventDefault();
-    const datos = credenciales(identificador, password);
-    if (!datos || !password) {
-      setError(!datos ? 'Ingresa un correo o un RUT válido.' : 'Ingresa tu contraseña.');
-      return;
-    }
+    if (!validateRut(rut)) { setError('Ingresa un RUT válido.'); return; }
+    if (!password) { setError('Ingresa tu contraseña.'); return; }
     setError('');
     setEnviando(true);
     try {
-      await login(datos);
+      // CampoRut ya entrega el formato de rutUtils, el mismo con que se guardó.
+      await login({ username: rut, password });
       navigate('/empresas');
     } catch (err) {
       setError(mensajeDeError(err));
@@ -82,33 +72,21 @@ export default function Login() {
       )}
 
       <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
-        <Field etiqueta="Correo o RUT">
-          {(p) => (
-            <Input {...p} tamano="lg" autoComplete="username" placeholder="nombre@empresa.cl"
-              value={identificador} onChange={(e) => setIdentificador(e.target.value)} invalido={Boolean(error)} />
-          )}
-        </Field>
+        <CampoRut etiqueta="RUT del titular de la cuenta" valor={rut} onChange={(v) => { setRut(v); setError(''); }}
+          autoComplete="username" forzarError={Boolean(error) && !validateRut(rut)}
+          ayuda="El RUT con que creaste tu cuenta. Al entrar verás todas tus empresas." />
         <div className="flex flex-col gap-1.5">
           <div className="flex justify-between items-baseline">
             <label htmlFor="login-clave" className="text-[12.5px] font-medium text-fg-2">Contraseña</label>
             <Link to="/forgot-password" className="text-[12.5px] font-medium">¿La olvidaste?</Link>
           </div>
           <InputContrasena id="login-clave" autoComplete="current-password"
-            value={password} onChange={(e) => setPassword(e.target.value)} invalido={Boolean(error)} />
+            value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }} invalido={Boolean(error)} />
         </div>
         <Button type="submit" tamano="lg" cargando={enviando} className="rounded-[10px]">
           {enviando ? 'Ingresando…' : 'Ingresar'}
         </Button>
       </form>
-
-      <div className="flex items-center gap-3 text-fg-3 text-[12px]" aria-hidden>
-        <span className="flex-1 h-px bg-line" />¿No recuerdas tu correo?<span className="flex-1 h-px bg-line" />
-      </div>
-      <Button variante="secundario" onClick={() => navigate('/forgot-password?modo=rut')}
-        className="h-[46px] rounded-[10px] text-[14px]"
-        iconoInicio={<IdCard className="size-[19px] text-fg-3" strokeWidth={2} />}>
-        Recuperar acceso con mi RUT
-      </Button>
     </AuthLayout>
   );
 }

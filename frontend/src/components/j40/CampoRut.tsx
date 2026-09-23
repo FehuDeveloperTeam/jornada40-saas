@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import type { ReactNode } from 'react';
 import { CircleAlert, CircleCheck, Info } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { estadoRut, formatRut } from '../../utils/rutUtils';
@@ -21,6 +22,10 @@ interface CampoRutProps {
   anchoCompleto?: boolean;
   /** Fuerza el estado de error aunque el RUT aún esté incompleto (al enviar). */
   forzarError?: boolean;
+  /** Aclaración bajo el estado del RUT, p. ej. de quién es el RUT que se pide. */
+  ayuda?: ReactNode;
+  /** `username` en el login, para que los gestores de contraseñas lo reconozcan. */
+  autoComplete?: string;
 }
 
 /**
@@ -30,7 +35,8 @@ interface CampoRutProps {
  * busca al usuario al iniciar sesión.
  */
 export function CampoRut({
-  etiqueta, valor, onChange, placeholder = '12.345.678-9', compacto, anchoCompleto, forzarError,
+  etiqueta, valor, onChange, placeholder = '12.345.678-9', compacto, anchoCompleto, forzarError, ayuda,
+  autoComplete = 'off',
 }: CampoRutProps) {
   const id = useId();
   const estado = forzarError && estadoRut(valor) !== 'valido' ? 'invalido' : estadoRut(valor);
@@ -44,18 +50,19 @@ export function CampoRut({
         tamano="lg"
         mono
         inputMode="text"
-        autoComplete="off"
+        autoComplete={autoComplete}
         value={valor}
         placeholder={placeholder}
         onChange={(e) => onChange(formatRut(e.target.value))}
         invalido={estado === 'invalido'}
-        aria-describedby={`${id}-estado`}
+        aria-describedby={ayuda ? `${id}-estado ${id}-ayuda` : `${id}-estado`}
         className={cn(compacto && 'h-11', estado === 'valido' && 'border-ok')}
       />
       <span id={`${id}-estado`} className={cn('flex items-center gap-1.5 text-[12px]', clase)}>
         <Icono className="size-[15px] shrink-0" strokeWidth={2} aria-hidden />
         {texto}
       </span>
+      {ayuda && <p id={`${id}-ayuda`} className="text-[12px] text-fg-3">{ayuda}</p>}
     </div>
   );
 }

@@ -14,11 +14,10 @@ import { cn } from '../../utils/cn';
 import { contrasenaAceptable } from '../../utils/contrasena';
 import { validateRut } from '../../utils/rutUtils';
 
-type TipoCliente = 'EMPRESA' | 'PERSONA';
-
+// La cuenta es siempre de una persona: el titular. Sus empresas se crean
+// después (onboarding o lobby) y cada una tiene su propio RUT. Así una
+// empresa nunca es la "puerta de entrada" de otra.
 interface Cuenta {
-  tipo: TipoCliente;
-  razonSocial: string;
   nombres: string;
   apellidoPaterno: string;
   rut: string;
@@ -29,17 +28,13 @@ interface Cuenta {
 
 type Errores = Partial<Record<keyof Cuenta | 'general', string>>;
 
-/** Datos que el onboarding reutiliza para no pedirlos dos veces. */
+/** Lo que el onboarding recibe del registro. */
 export interface DatosDesdeRegistro {
-  tipo: TipoCliente;
-  rut: string;
-  razonSocial: string;
   plan: string;
 }
 
 function validarCuenta(c: Cuenta): Errores {
   const e: Errores = {};
-  if (c.tipo === 'EMPRESA' && !c.razonSocial.trim()) e.razonSocial = 'Ingresa la razón social.';
   if (!c.nombres.trim()) e.nombres = 'Ingresa tus nombres.';
   if (!c.apellidoPaterno.trim()) e.apellidoPaterno = 'Ingresa tu apellido.';
   if (!validateRut(c.rut)) e.rut = 'Revisa el RUT.';
@@ -65,7 +60,7 @@ export default function Registro() {
 
   const [paso, setPaso] = useState<1 | 2>(1);
   const [cuenta, setCuenta] = useState<Cuenta>({
-    tipo: 'EMPRESA', razonSocial: '', nombres: '', apellidoPaterno: '', rut: '', email: '', telefono: '', password: '',
+    nombres: '', apellidoPaterno: '', rut: '', email: '', telefono: '', password: '',
   });
   const [errores, setErrores] = useState<Errores>({});
   // Si llega desde una tarjeta de precios trae ?plan=<nivel>; si no, parte en
@@ -92,9 +87,7 @@ export default function Registro() {
   const planElegido: Plan | undefined = planes.find((p) => p.nivel === nivelPlan) ?? planes[0];
 
   const irAlOnboarding = () => {
-    const datos: DatosDesdeRegistro = {
-      tipo: cuenta.tipo, rut: cuenta.rut, razonSocial: cuenta.razonSocial, plan: planElegido?.nombre ?? 'Semilla',
-    };
+    const datos: DatosDesdeRegistro = { plan: planElegido?.nombre ?? 'Semilla' };
     navigate('/bienvenida', { state: datos });
   };
 
@@ -110,8 +103,7 @@ export default function Registro() {
         email: cuenta.email.trim(),
         nombres: cuenta.nombres.trim(),
         apellido_paterno: cuenta.apellidoPaterno.trim(),
-        tipo_cliente: cuenta.tipo,
-        razon_social: cuenta.tipo === 'EMPRESA' ? cuenta.razonSocial.trim() : '',
+        tipo_cliente: 'PERSONA',
         telefono: cuenta.telefono.trim(),
       });
     } catch (err) {
@@ -183,23 +175,6 @@ export default function Registro() {
           {errores.general && <AlertaError>{errores.general}</AlertaError>}
 
           <form onSubmit={continuar} noValidate className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <span id="tipo-cliente" className="text-[12.5px] font-medium text-fg-2">Te registras como</span>
-              <div role="radiogroup" aria-labelledby="tipo-cliente" className="grid grid-cols-2 gap-2">
-                <TarjetaOpcion seleccionada={cuenta.tipo === 'EMPRESA'} onSeleccionar={() => cambiar('tipo', 'EMPRESA')}
-                  titulo="Empresa" detalle="Persona jurídica" />
-                <TarjetaOpcion seleccionada={cuenta.tipo === 'PERSONA'} onSeleccionar={() => cambiar('tipo', 'PERSONA')}
-                  titulo="Persona natural" detalle="Con giro o empleador particular" />
-              </div>
-            </div>
-
-            {cuenta.tipo === 'EMPRESA' && (
-              <Field etiqueta="Razón social" error={errores.razonSocial}>
-                {(p) => <Input {...p} tamano="lg" placeholder="Maestranza Los Andes SpA" autoComplete="organization"
-                  value={cuenta.razonSocial} onChange={(e) => cambiar('razonSocial', e.target.value)} />}
-              </Field>
-            )}
-
             <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
               <Field etiqueta="Nombres" error={errores.nombres}>
                 {(p) => <Input {...p} tamano="lg" autoComplete="given-name"
@@ -211,9 +186,10 @@ export default function Registro() {
               </Field>
             </div>
 
-            {/* Es el usuario con que se inicia sesión: para una empresa, su RUT. */}
-            <CampoRut etiqueta={cuenta.tipo === 'EMPRESA' ? 'RUT de la empresa' : 'RUT'}
-              valor={cuenta.rut} onChange={(v) => cambiar('rut', v)} forzarError={Boolean(errores.rut)} />
+            {/* Es el usuario con que se inicia sesión: siempre el RUT personal. */}
+            <CampoRut etiqueta="Tu RUT (titular de la cuenta)"
+              valor={cuenta.rut} onChange={(v) => cambiar('rut', v)} forzarError={Boolean(errores.rut)}
+              ayuda="Tu RUT personal, no el de tu empresa: con él entrarás a todas las empresas que administres." />
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
               <Field etiqueta="Correo electrónico" error={errores.email}>

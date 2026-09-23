@@ -56,11 +56,10 @@ export default function Bienvenida() {
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  // Una cuenta de empresa ya dio su RUT y razón social al registrarse.
+  // Nada se prellena desde el registro: la cuenta es del titular y su RUT no
+  // es el de ninguna empresa.
   const [empresa, setEmpresa] = useState<DatosEmpresa>({
-    rut: registro?.tipo === 'EMPRESA' ? registro.rut : '',
-    nombreLegal: registro?.tipo === 'EMPRESA' ? registro.razonSocial : '',
-    alias: '', giro: '', direccion: '', comuna: '', ciudad: '',
+    rut: '', nombreLegal: '', alias: '', giro: '', direccion: '', comuna: '', ciudad: '',
   });
   const [rep, setRep] = useState<DatosRepresentante>({ nombre: '', rut: '', cargo: '', firma: null });
   const [intentoPaso, setIntentoPaso] = useState(false);
