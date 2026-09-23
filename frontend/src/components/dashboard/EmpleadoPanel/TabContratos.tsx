@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react';
 import { Send, Clock, CheckCircle, XCircle, RotateCcw, Eye, ScanLine } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
+import { useAvisosJornada } from '../../../hooks/useAvisosJornada';
+import { jornadaMaximaVigente } from '../../../utils/ley40';
+import AvisosJornada from '../AvisosJornada';
 import type { SolicitudFirma, CambiosAnexo, ComisionConfig } from '../../../types';
 
 // Campos del contrato que un anexo puede modificar. Debe mantenerse alineado
@@ -230,6 +233,14 @@ export default function TabContratos({
 }: Props) {
   const [clausulasAnexo, setClausulasAnexo] = useState<string[]>([]);
   const [extraccionRealizada, setExtraccionRealizada] = useState(false);
+  // Avisos de jornada en vivo, calculados por el backend. Solo informan: el
+  // botón de guardar no depende de ellos.
+  const esOrdinaria = (contratoData.tipo_jornada || 'ORDINARIA') === 'ORDINARIA';
+  const { avisos: avisosJornada, maximo: maximoJornada } = useAvisosJornada({
+    tipo_jornada: contratoData.tipo_jornada || 'ORDINARIA',
+    horas_semanales: contratoData.horas_semanales,
+    distribucion_horario: esOrdinaria ? horario : {},
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -447,10 +458,19 @@ export default function TabContratos({
         <div className="flex justify-between items-end mb-4 pb-2" style={{ borderBottom:'1px solid var(--c-border)' }}>
           <h3 className="text-lg font-bold" style={{ color: 'var(--c-text-1)' }}>3. Jornada Laboral</h3>
           <div className="text-right">
-            <label className="block text-xs font-semibold mb-1" style={{ color:'var(--c-text-3)' }}>Límite Legal (Hrs Semanales)</label>
-            <input type="number" step="0.5" name="horas_semanales" value={contratoData.horas_semanales || 44} onChange={handleContratoChange} style={{ width:'6rem', padding:'0.25rem 0.5rem', textAlign:'center', fontWeight:700, background:'rgba(37,99,235,0.12)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', color:'#93c5fd', outline:'none' }} />
+            <label className="block text-xs font-semibold mb-1" style={{ color:'var(--c-text-3)' }}>Horas semanales pactadas</label>
+            <input type="number" step="0.5" name="horas_semanales" value={contratoData.horas_semanales || jornadaMaximaVigente()} onChange={handleContratoChange} style={{ width:'6rem', padding:'0.25rem 0.5rem', textAlign:'center', fontWeight:700, background:'rgba(37,99,235,0.12)', border:'1px solid rgba(37,99,235,0.3)', borderRadius:'0.5rem', color:'#93c5fd', outline:'none' }} />
+            <p className="text-xs mt-1" style={{ color:'var(--c-text-3)' }}>
+              Máximo legal vigente: {maximoJornada ?? jornadaMaximaVigente()} h
+            </p>
           </div>
         </div>
+
+        {avisosJornada.length > 0 && (
+          <div className="mb-6">
+            <AvisosJornada avisos={avisosJornada} />
+          </div>
+        )}
 
         <div className="mb-6">
           <label className="block text-xs font-semibold mb-1" style={{ color:'var(--c-text-3)' }}>Tipo de Jornada</label>
@@ -507,16 +527,17 @@ export default function TabContratos({
             })}
 
             {(() => {
-              const excede = totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44);
+              const pactadas = Number(contratoData.horas_semanales) || jornadaMaximaVigente();
+              const calza = Math.abs(totalHorasCalculadas - pactadas) < 0.01;
               return (
-                <div className="mt-4 p-4 rounded-xl flex justify-between items-center" style={{ background: excede ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)', border: `1px solid ${excede ? 'rgba(239,68,68,0.25)' : 'rgba(16,185,129,0.25)'}` }}>
-                  <span className="font-bold" style={{ color:'var(--c-text-2)' }}>Horas asignadas en la semana:</span>
+                <div className="mt-4 p-4 rounded-xl flex justify-between items-center" style={{ background: 'var(--c-bg-input)', border: '1px solid var(--c-border)' }}>
+                  <span className="font-bold" style={{ color:'var(--c-text-2)' }}>Horas del horario en la semana:</span>
                   <div className="text-right">
-                    <span className="text-2xl font-black" style={{ color: excede ? '#f87171' : '#34d399' }}>
-                      {totalHorasCalculadas.toFixed(1)} / {contratoData.horas_semanales || 44}
+                    <span className="text-2xl font-black" style={{ color: calza ? '#34d399' : 'var(--c-text-1)' }}>
+                      {totalHorasCalculadas.toFixed(1)} / {pactadas}
                     </span>
-                    <p className="text-xs font-bold uppercase mt-1" style={{ color: excede ? '#f87171' : '#34d399' }}>
-                      {excede ? '¡Has sobrepasado el límite!' : `Quedan ${((Number(contratoData.horas_semanales) || 44) - totalHorasCalculadas).toFixed(1)} horas libres`}
+                    <p className="text-xs font-bold uppercase mt-1" style={{ color: 'var(--c-text-3)' }}>
+                      {calza ? 'Calza con la jornada pactada' : `Pactadas: ${pactadas} h`}
                     </p>
                   </div>
                 </div>

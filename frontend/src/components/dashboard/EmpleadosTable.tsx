@@ -1,4 +1,4 @@
-import { Download, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Download, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
 import { formatRut } from '../../utils/rutUtils';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 
@@ -269,6 +269,24 @@ export default function EmpleadosTable({
                             Rechazado
                           </span>
                         )}
+                        {(() => {
+                          // Aviso de jornada del contrato (no bloquea nada; ver core/jornada.py).
+                          const avisos = emp.contrato_activo?.avisos_jornada ?? [];
+                          if (avisos.length === 0) return null;
+                          const alta = avisos.some(a => a.gravedad === 'alta');
+                          return (
+                            <span
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold"
+                              style={alta
+                                ? { background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }
+                                : { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}
+                              title={avisos.map(a => a.titulo).join(' · ')}
+                            >
+                              <AlertTriangle className="w-3 h-3" aria-hidden />
+                              {alta ? 'Jornada' : 'Revisar jornada'}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--c-text-2)' }}>{emp.email || '—'}</td>

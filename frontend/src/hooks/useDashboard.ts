@@ -4,6 +4,7 @@ import axios from 'axios';
 import client from '../api/client';
 import { useToast } from './useToast';
 import { formatRut, validateRut } from '../utils/rutUtils';
+import { jornadaMaximaVigente } from '../utils/ley40';
 import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
@@ -417,7 +418,7 @@ export function useDashboard() {
   const descargarPlantillaExcel = () => {
     const datosEjemplo = [
       { RUT: '12.345.678-9', Nombres: 'JUAN ALBERTO', Apellido_Paterno: 'PEREZ', Apellido_Materno: 'GONZALEZ', Email: 'juan.perez@empresa.cl', Sexo: 'M', Nacionalidad: 'CHILENA', Fecha_Nacimiento: '1990-01-01', Estado_Civil: 'SOLTERO', Numero_Telefono: '+56912345678', Comuna: 'SANTIAGO', Direccion: 'AV. PROVIDENCIA 123', Centro_Costo: 'ADMINISTRACION', Cargo: 'VENDEDOR', Fecha_Ingreso: '2023-05-01', Horas_Laborales: 40, Modalidad: 'PRESENCIAL', Sueldo_Base: 500000, AFP: 'MODELO', Salud: 'FONASA', Plan_Isapre_UF: 0, Departamento: 'VENTAS', Sucursal: 'MATRIZ', Forma_Pago: 'TRANSFERENCIA', Banco: 'BANCO ESTADO', Tipo_Cuenta: 'CORRIENTE', Numero_Cuenta: '1234567890' },
-      { RUT: '11.111.111-1', Nombres: 'CAMILA', Apellido_Paterno: 'MARTINEZ', Apellido_Materno: 'GARRIDO', Email: 'camila@empresa.cl', Sexo: 'F', Nacionalidad: 'CHILENA', Fecha_Nacimiento: '1995-05-15', Estado_Civil: 'CASADA', Numero_Telefono: '+56987654321', Comuna: 'PROVIDENCIA', Direccion: 'LOS LEONES 456', Centro_Costo: 'OPERACIONES', Cargo: 'SUPERVISORA', Fecha_Ingreso: '2024-01-10', Horas_Laborales: 44, Modalidad: 'TELETRABAJO', Sueldo_Base: 1200000, AFP: 'PROVIDA', Salud: 'ISAPRE', Plan_Isapre_UF: 2.8, Departamento: 'OPERACIONES', Sucursal: 'MATRIZ', Forma_Pago: 'TRANSFERENCIA', Banco: 'BANCO ESTADO', Tipo_Cuenta: 'CORRIENTE', Numero_Cuenta: '0987654321' },
+      { RUT: '11.111.111-1', Nombres: 'CAMILA', Apellido_Paterno: 'MARTINEZ', Apellido_Materno: 'GARRIDO', Email: 'camila@empresa.cl', Sexo: 'F', Nacionalidad: 'CHILENA', Fecha_Nacimiento: '1995-05-15', Estado_Civil: 'CASADA', Numero_Telefono: '+56987654321', Comuna: 'PROVIDENCIA', Direccion: 'LOS LEONES 456', Centro_Costo: 'OPERACIONES', Cargo: 'SUPERVISORA', Fecha_Ingreso: '2024-01-10', Horas_Laborales: jornadaMaximaVigente(), Modalidad: 'TELETRABAJO', Sueldo_Base: 1200000, AFP: 'PROVIDA', Salud: 'ISAPRE', Plan_Isapre_UF: 2.8, Departamento: 'OPERACIONES', Sucursal: 'MATRIZ', Forma_Pago: 'TRANSFERENCIA', Banco: 'BANCO ESTADO', Tipo_Cuenta: 'CORRIENTE', Numero_Cuenta: '0987654321' },
     ];
     const ws = XLSX.utils.json_to_sheet(datosEjemplo);
     const wb = XLSX.utils.book_new();
@@ -474,7 +475,7 @@ export function useDashboard() {
           tipo_jornada: 'ORDINARIA',
           cargo: emp?.cargo || 'NO ESPECIFICADO',
           sueldo_base: emp?.sueldo_base || 0,
-          horas_semanales: String(emp?.horas_laborales ?? 44),
+          horas_semanales: String(emp?.horas_laborales ?? jornadaMaximaVigente()),
           distribucion_dias: 5,
           fecha_inicio: emp?.fecha_ingreso || new Date().toISOString().split('T')[0],
           dia_pago: 5,
@@ -652,7 +653,10 @@ export function useDashboard() {
     const basePayload = {
       funciones_especificas: funciones,
       clausulas_especiales: clausulas,
-      distribucion_horario: horario,
+      // La grilla de horario solo existe en jornada ordinaria. En Art. 22 y en
+      // "Otra" el horario queda oculto: guardarlo dejaba un horario fantasma
+      // que el contrato no imprime y que disparaba avisos falsos.
+      distribucion_horario: contratoData.tipo_jornada === 'ORDINARIA' ? horario : {},
       dia_quincena:   contratoData.tiene_quincena ? (contratoData.dia_quincena || 15) : null,
       monto_quincena: contratoData.tiene_quincena ? Number(contratoData.monto_quincena) : null,
     };
@@ -749,7 +753,7 @@ export function useDashboard() {
 
   const calcularValorHorasExtras = (horas: number, recargo: number) => {
     const sueldoBase      = selectedEmpleado?.sueldo_base || 0;
-    const horasSemanales  = selectedEmpleado?.horas_laborales || 44;
+    const horasSemanales  = selectedEmpleado?.horas_laborales || jornadaMaximaVigente();
     if (!sueldoBase || !horasSemanales || !horas) return 0;
     const valorOrdinaria  = (sueldoBase / 30) * 7 / horasSemanales;
     return Math.round(valorOrdinaria * (1 + recargo / 100) * horas);

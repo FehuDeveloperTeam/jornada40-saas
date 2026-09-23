@@ -127,8 +127,22 @@ export interface Contrato {
     archivo_anexo_40h: string | null;
     tiene_contrato_pdf: boolean;
     tiene_anexo_40h_pdf: boolean;
+    /** Calculados por el backend (core/jornada.py); solo lectura. */
+    jornada_maxima_vigente?: number;
+    avisos_jornada?: AvisoJornada[];
     creado_en: string;
-    
+}
+
+/** Aviso de incumplimiento de jornada. Informa, no bloquea. */
+export interface AvisoJornada {
+    codigo: 'EXCEDE_MAXIMO' | 'HORARIO_SUPERA_PACTADO' | 'ART22_CON_HORARIO' | 'ART22_CON_HORAS'
+        | 'DIA_SUPERA_10H' | 'PARCIAL_SOBRE_TOPE' | 'PROXIMA_REDUCCION';
+    /** alta: incumple hoy · media: conviene revisar. */
+    gravedad: 'alta' | 'media';
+    titulo: string;
+    detalle: string;
+    recomendacion: string;
+    articulo: string;
 }
 
 export interface Empleado {

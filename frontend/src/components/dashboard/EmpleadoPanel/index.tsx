@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import type { UseDashboardReturn } from '../../../hooks/useDashboard';
 import type { SolicitudFirma } from '../../../types';
 import TabPerfil from './TabPerfil';
@@ -260,6 +261,34 @@ export default function EmpleadoPanel({
             );
           })()}
 
+          {/* BANNER AVISOS DE JORNADA: avisa, no bloquea (core/jornada.py) */}
+          {panelMode !== 'create' && (() => {
+            const avisos = selectedEmpleado?.contrato_activo?.avisos_jornada ?? [];
+            if (avisos.length === 0) return null;
+            const hayAlta = avisos.some(a => a.gravedad === 'alta');
+            const color = hayAlta ? { fondo: 'rgba(239,68,68,0.10)', borde: 'rgba(239,68,68,0.30)', texto: '#fca5a5' }
+                                  : { fondo: 'rgba(245,158,11,0.10)', borde: 'rgba(245,158,11,0.30)', texto: '#fcd34d' };
+            return (
+              <div role="alert" className="px-6 py-3 flex items-center gap-3 flex-wrap shrink-0"
+                style={{ background: color.fondo, borderBottom: `1px solid ${color.borde}` }}>
+                <AlertTriangle size={16} className="shrink-0" style={{ color: color.texto }} aria-hidden />
+                <span className="text-xs font-semibold" style={{ color: color.texto }}>
+                  {hayAlta ? 'El contrato incumple la norma de jornada:' : 'Revisa la jornada del contrato:'}
+                </span>
+                <span className="text-xs" style={{ color: 'var(--c-text-1)' }}>
+                  {avisos.map(a => a.titulo).join(' · ')}
+                </span>
+                {activeTab !== 'contratos' && (
+                  <button onClick={() => setActiveTab('contratos')}
+                    className="px-2.5 py-1 rounded-full text-xs font-bold"
+                    style={{ background: color.fondo, border: `1px solid ${color.borde}`, color: color.texto }}>
+                    Ver detalle y recomendación →
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
           {/* TABS NAV */}
           {panelMode !== 'create' && (
             <div style={{ borderBottom: '1px solid var(--c-border)' }}>
@@ -477,7 +506,9 @@ export default function EmpleadoPanel({
                   <button
                     type="submit"
                     form="contratoForm"
-                    disabled={isSavingContrato || (contratoData.tipo_jornada === 'ORDINARIA' && totalHorasCalculadas > (Number(contratoData.horas_semanales) || 44))}
+                    // Solo se deshabilita mientras guarda: los incumplimientos de
+                    // jornada se avisan pero no impiden guardar (decide el usuario).
+                    disabled={isSavingContrato}
                     className="px-8 py-2.5 text-sm text-white font-semibold rounded-xl transition-colors flex items-center gap-2"
                     style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
                   >
