@@ -1383,3 +1383,62 @@ class TopeEnPesosTests(APITestCase):
         from core.views import _tope_en_pesos
         self.assertEqual(_tope_en_pesos(Decimal('90.00'), Decimal('41057.20')),
                          _tope_en_pesos(90.00, 41057.20))
+
+
+class RegistroDatosClienteTests(APITestCase):
+    """El registro guarda el tipo de cliente, la razón social y el teléfono.
+
+    Los campos existían en el modelo pero el endpoint los descartaba: quien se
+    registraba como empresa quedaba como persona natural y sin razón social.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def _registrar(self, **extra):
+        payload = {
+            'rut': '12.345.678-5', 'password': 'Clave-Segura-2026',
+            'email': 'ana@maestranza.cl', 'nombres': 'Ana', 'apellido_paterno': 'Pérez',
+            **extra,
+        }
+        return self.client.post('/api/auth/register/', payload, format='json')
+
+    def _cliente(self):
+        from core.models import Cliente
+        return Cliente.objects.get(rut='12.345.678-5')
+
+    def test_empresa_guarda_razon_social_y_telefono(self):
+        resp = self._registrar(tipo_cliente='EMPRESA', razon_social='Maestranza Los Andes SpA',
+                               telefono='+56 9 1234 5678')
+        self.assertEqual(resp.status_code, 201)
+        cliente = self._cliente()
+        self.assertEqual(cliente.tipo_cliente, 'EMPRESA')
+        self.assertEqual(cliente.razon_social, 'Maestranza Los Andes SpA')
+        self.assertEqual(cliente.telefono, '+56 9 1234 5678')
+
+    def test_persona_natural_no_guarda_razon_social(self):
+        # Una razón social enviada por error no debe quedar en una persona natural.
+        self._registrar(tipo_cliente='PERSONA', razon_social='No corresponde')
+        cliente = self._cliente()
+        self.assertEqual(cliente.tipo_cliente, 'PERSONA')
+        self.assertIsNone(cliente.razon_social)
+
+    def test_tipo_desconocido_queda_como_persona(self):
+        self._registrar(tipo_cliente='ADMIN')
+        self.assertEqual(self._cliente().tipo_cliente, 'PERSONA')
+
+    def test_formulario_anterior_sigue_registrando(self):
+        """El registro anterior envía EMPRESA sin razón social.
+
+        Railway y Vercel despliegan por separado: mientras convivan, ese
+        formulario tiene que seguir funcionando contra el backend nuevo.
+        """
+        resp = self._registrar(tipo_cliente='EMPRESA', plan_id=1)
+        self.assertEqual(resp.status_code, 201)
+        cliente = self._cliente()
+        self.assertEqual(cliente.tipo_cliente, 'EMPRESA')
+        self.assertIsNone(cliente.razon_social)
+
+    def test_telefono_se_recorta_al_largo_del_campo(self):
+        self._registrar(telefono='9' * 40)
+        self.assertEqual(len(self._cliente().telefono), 20)

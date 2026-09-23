@@ -1591,8 +1591,18 @@ def registrar_cliente(request):
     nombres=request.data.get('nombres', '')
     apellido_paterno = request.data.get('apellido_paterno', '')
     apellido_materno = request.data.get('apellido_materno', '')
-    
+    # El modelo ya tenía estos campos pero el registro los descartaba: el
+    # formulario enviaba tipo_cliente y siempre quedaba PERSONA.
+    tipo_cliente = request.data.get('tipo_cliente', 'PERSONA')
+    if tipo_cliente not in dict(Cliente.TIPO_CLIENTE_CHOICES):
+        tipo_cliente = 'PERSONA'
+    razon_social = (request.data.get('razon_social') or '').strip() if tipo_cliente == 'EMPRESA' else ''
+    telefono = (request.data.get('telefono') or '').strip()[:20]
+
     # Validaciones básicas
+    # La razón social se exige en el formulario, no aquí: el registro anterior
+    # envía EMPRESA por defecto sin razón social, y Railway y Vercel despliegan
+    # por separado. Exigirla aquí rompería el registro mientras conviven.
     if not rut or not password or not email:
         return Response({'error': 'Faltan datos obligatorios (RUT, contraseña o correo)'}, status=400)
 
@@ -1627,6 +1637,9 @@ def registrar_cliente(request):
                 nombres=nombres,
                 apellido_paterno=apellido_paterno,
                 apellido_materno=apellido_materno,
+                tipo_cliente=tipo_cliente,
+                razon_social=razon_social or None,
+                telefono=telefono or None,
                 plan=plan_semilla  # Asignamos el plan "Semilla" por defecto (usando el objeto obtenido o creado arriba
             )
             user.first_name = nombres
