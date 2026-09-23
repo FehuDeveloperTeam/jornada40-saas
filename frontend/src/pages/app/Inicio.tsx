@@ -11,8 +11,8 @@ import type { RespuestaLista } from '../../api/lista';
 import { Button, Card, CardHeader, Chip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { useAuth } from '../../context/AuthContext';
-import { rutaClasica, useFirmas, useVacacionesEmpresa } from '../../hooks/usePanel';
-import type { Liquidacion } from '../../types';
+import { rutaAccion, useFirmas, useVacacionesEmpresa } from '../../hooks/usePanel';
+import type { Empleado, Liquidacion } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, iniciales, nombreMes } from '../../utils/formato';
 import { ETAPAS_LEY_40, fechaCorta, indiceEtapaVigente, jornadaMaximaVigente } from '../../utils/ley40';
@@ -76,7 +76,7 @@ export default function Inicio() {
     for (const e of activos) {
       if (!e.contrato_activo) {
         t.push({ clave: `sc${e.id}`, Icono: FileWarning, tono: 'aviso', titulo: `${nombre(e.id)} no tiene contrato`,
-          detalle: 'Sin contrato no se pueden emitir liquidaciones.', accion: 'Crear contrato', a: rutaClasica(e.id, 'contratos') });
+          detalle: 'Sin contrato no se pueden emitir liquidaciones.', accion: 'Crear contrato', a: rutaAccion(e.id, 'contrato') });
         continue;
       }
       const alta = e.contrato_activo.avisos_jornada?.find((a) => a.gravedad === 'alta');
@@ -88,6 +88,18 @@ export default function Inicio() {
     for (const f of rechazadas) {
       t.push({ clave: `r${f.id}`, Icono: FileSignature, tono: 'peligro', titulo: `Documento rechazado · ${nombre(f.empleado)}`,
         detalle: f.motivo_rechazo || 'El trabajador rechazó la firma.', accion: 'Ver', a: `/app/trabajadores/${f.empleado}?tab=documentos` });
+    }
+    // Plazo fijo por vencer: si sigue trabajando después del plazo, el contrato
+    // pasa a ser indefinido (Art. 159 N°4). Se avisa con 30 días.
+    const en30 = ahora + 30 * 86_400_000;
+    for (const e of activos) {
+      const c = e.contrato_activo;
+      const fin = c?.tipo_contrato === 'PLAZO_FIJO' && c.fecha_fin ? fechaLocal(c.fecha_fin) : null;
+      if (fin && fin.getTime() >= ahora - 86_400_000 && fin.getTime() <= en30) {
+        t.push({ clave: `pf${e.id}`, Icono: Clock, tono: 'aviso', titulo: `Contrato a plazo vence el ${fechaCL(c!.fecha_fin)} · ${nombre(e.id)}`,
+          detalle: 'Renueva, crea un anexo o prepara el término: si sigue trabajando después, pasa a ser indefinido (Art. 159 N°4).',
+          accion: 'Revisar', a: `/app/trabajadores/${e.id}?tab=contrato` });
+      }
     }
     const enTresDias = ahora + 3 * 86_400_000;
     for (const f of pendientes.filter((p) => new Date(p.expira_en).getTime() < enTresDias)) {
@@ -236,7 +248,48 @@ export default function Inicio() {
             );
           })}
         </Card>
+
+        <ComposicionEquipo activos={activos} />
       </div>
     </div>
+  );
+}
+
+/** Indicadores del equipo vigente (los que mostraba el panel anterior). */
+function ComposicionEquipo({ activos }: { activos: Empleado[] }) {
+  if (!activos.length) return null;
+  const total = activos.length;
+  const cuenta = (f: (e: Empleado) => boolean) => activos.filter(f).length;
+  const pct = (n: number) => `${Math.round((n / total) * 100)} %`;
+  const extranjeros = cuenta((e) => Boolean(e.nacionalidad) && !/CHILEN/i.test(e.nacionalidad));
+  const grupos: [string, [string, number][]][] = [
+    ['Contrato', [['Indefinido', cuenta((e) => e.contrato_activo?.tipo_contrato === 'INDEFINIDO')], ['Plazo fijo', cuenta((e) => e.contrato_activo?.tipo_contrato === 'PLAZO_FIJO')],
+      ['Obra o faena', cuenta((e) => e.contrato_activo?.tipo_contrato === 'OBRA_FAENA')], ['Sin contrato', cuenta((e) => !e.contrato_activo)]]],
+    ['Modalidad', [['Presencial', cuenta((e) => e.modalidad === 'PRESENCIAL')], ['Remoto', cuenta((e) => e.modalidad === 'REMOTO')], ['Híbrido', cuenta((e) => e.modalidad === 'HIBRIDO')]]],
+    ['Salud', [['Fonasa', cuenta((e) => e.sistema_salud !== 'ISAPRE')], ['Isapre', cuenta((e) => e.sistema_salud === 'ISAPRE')]]],
+    ['Sexo', [['Femenino', cuenta((e) => e.sexo === 'F')], ['Masculino', cuenta((e) => e.sexo === 'M')], ['Otro o sin dato', cuenta((e) => e.sexo !== 'F' && e.sexo !== 'M')]]],
+  ];
+  return (
+    <Card className="[grid-column:1/-1]">
+      <CardHeader titulo="Composición del equipo" />
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-5 p-[18px]">
+        {grupos.map(([titulo, filas]) => (
+          <div key={titulo} className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-fg-3 uppercase tracking-[0.04em]">{titulo}</span>
+            {filas.filter(([, n]) => n > 0).map(([t, n]) => (
+              <span key={t} className="flex justify-between text-[13px] j40-num"><span className="text-fg-2">{t}</span><span>{n} · {pct(n)}</span></span>
+            ))}
+          </div>
+        ))}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[12px] font-medium text-fg-3 uppercase tracking-[0.04em]">Nacionalidad</span>
+          <span className="flex justify-between text-[13px] j40-num"><span className="text-fg-2">Extranjeros</span><span>{extranjeros} · {pct(extranjeros)}</span></span>
+          {/* Art. 19: al menos el 85 % de los trabajadores debe ser chileno (empresas con más de 25). */}
+          {total > 25 && extranjeros / total > 0.15 && (
+            <span className="text-[12px] text-warn">Supera el 15 % de extranjeros que permite el Art. 19 (con más de 25 trabajadores). Revisa las excepciones que aplican.</span>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }

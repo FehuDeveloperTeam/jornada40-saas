@@ -2,7 +2,7 @@ import { Download, Lock } from 'lucide-react';
 import { Button, Chip } from '../../j40';
 import type { TonoChip } from '../../j40';
 import { descargar } from '../../../api/descargas';
-import { rutaClasica } from '../../../hooks/usePanel';
+import { rutaAccion } from '../../../hooks/usePanel';
 import type { Empleado, SaldoVacaciones, SolicitudFirma, VacacionEmpleado } from '../../../types';
 import { fechaCL } from '../../../utils/formato';
 import { BotonEnlace, ChipFirma, Seccion } from './comun';
@@ -53,7 +53,7 @@ export function Vacaciones({ empleado, nivel, vacaciones, saldo, firmas, avisar 
       </div>
 
       <Seccion titulo="Registro de vacaciones y permisos"
-        accion={<BotonEnlace a={rutaClasica(empleado.id, 'vacaciones')}>Registrar vacaciones</BotonEnlace>}>
+        accion={<BotonEnlace a={rutaAccion(empleado.id, 'vacacion')}>Registrar vacaciones</BotonEnlace>}>
         {ordenadas.length === 0 && <p className="px-[18px] py-5 text-[13px] text-fg-3">Sin vacaciones registradas.</p>}
         {ordenadas.map((v) => {
           const estado = ESTADO[v.estado] ?? ESTADO.PENDIENTE;

@@ -142,6 +142,17 @@ export default function Firmas() {
                 {f.estado === 'RECHAZADO' && f.motivo_rechazo && (
                   <span className="text-[12.5px] text-danger">Motivo: {f.motivo_rechazo}</span>
                 )}
+                <details className="mt-1 text-[12px] text-fg-2">
+                  <summary className="cursor-pointer text-fg-3 hover:text-fg w-fit">Detalle de verificación</summary>
+                  <dl className="mt-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 rounded-[8px] bg-sunken px-3 py-2">
+                    <dt className="text-fg-3">Token</dt><dd className="j40-mono break-all">{f.token}</dd>
+                    <dt className="text-fg-3">Correo verificado</dt><dd>{f.email_firmante || '—'}</dd>
+                    <dt className="text-fg-3">IP del firmante</dt><dd className="j40-mono">{f.ip_firmante || '—'}</dd>
+                    <dt className="text-fg-3">Firmado</dt><dd>{f.firmado_en ? new Date(f.firmado_en).toLocaleString('es-CL', { timeZone: 'America/Santiago' }) + ' (hora de Chile)' : '—'}</dd>
+                    {f.folio && <><dt className="text-fg-3">Folio</dt><dd className="j40-mono">{f.folio}</dd></>}
+                    {f.hash_firmado && <><dt className="text-fg-3">Huella SHA-256</dt><dd className="j40-mono break-all">{f.hash_firmado}</dd></>}
+                  </dl>
+                </details>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {f.estado === 'PENDIENTE' && (

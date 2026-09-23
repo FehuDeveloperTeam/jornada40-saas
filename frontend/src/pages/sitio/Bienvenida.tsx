@@ -87,8 +87,6 @@ export default function Bienvenida() {
       // El panel lee la empresa activa desde aquí (ver usePanel.useEmpresaActiva).
       localStorage.setItem('empresaActivaId', String(empresaId));
       navigate('/app');
-    } else {
-      navigate('/empresas');
     }
   };
 
@@ -216,10 +214,13 @@ export default function Bienvenida() {
             <div className={cn('h-full bg-brand transition-[width] duration-300', ['w-0', 'w-1/3', 'w-2/3'][paso - 1])} />
           </div>
           <div className="flex-1" />
-          <button type="button" onClick={irAlPanel}
-            className="bg-transparent text-fg-2 text-[13px] font-medium cursor-pointer hover:text-fg">
-            Completar después
-          </button>
+          {/* El panel necesita al menos una empresa: sin ella no hay "después". */}
+          {empresaId !== null && (
+            <button type="button" onClick={irAlPanel}
+              className="bg-transparent text-fg-2 text-[13px] font-medium cursor-pointer hover:text-fg">
+              Completar después
+            </button>
+          )}
           <ToggleTema />
         </div>
 

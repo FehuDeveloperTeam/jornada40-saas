@@ -146,11 +146,12 @@ export function rutaLiquidacion(empleadoId: number, mes?: number, anio?: number)
   return `/app/remuneraciones?${p}`;
 }
 
-/** Ruta del panel anterior abierta en la ficha y pestaña de un trabajador. */
-export type PestanaClasica = 'perfil' | 'contratos' | 'liquidaciones' | 'historial' | 'legal' | 'vacaciones' | 'finiquito';
-export function rutaClasica(empleadoId?: number, tab?: PestanaClasica): string {
-  if (!empleadoId) return '/dashboard';
-  return `/dashboard?empleado=${empleadoId}${tab ? `&tab=${tab}` : ''}`;
+/** Acciones de la carpeta que abren un formulario (o el editor de contrato). */
+export type AccionCarpeta = 'contrato' | 'anexo' | 'documento' | 'vacacion';
+export function rutaAccion(empleadoId: number, accion: AccionCarpeta, tipo?: string): string {
+  if (accion === 'contrato') return `/app/trabajadores/${empleadoId}/contrato`;
+  const tab = accion === 'vacacion' ? 'vacaciones' : 'documentos';
+  return `/app/trabajadores/${empleadoId}?tab=${tab}&accion=${accion}${tipo ? `&tipo=${tipo}` : ''}`;
 }
 
 // Pestaña del panel anterior → pestaña equivalente de la carpeta nueva.
@@ -159,7 +160,7 @@ const PESTANA_CARPETA: Record<string, string> = {
   vacaciones: 'vacaciones', legal: 'documentos', finiquito: 'documentos',
 };
 
-/** Camino inverso de rutaClasica: la carpeta de la que se vino, o el inicio del panel. */
+/** Enlaces antiguos (/dashboard?empleado=&tab=) → la carpeta equivalente del panel. */
 export function rutaDesdeClasica(params: URLSearchParams): string {
   const empleado = Number(params.get('empleado'));
   if (!empleado) return '/app';

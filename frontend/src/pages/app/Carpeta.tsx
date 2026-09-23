@@ -2,7 +2,12 @@ import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, FolderDown, Lock } from 'lucide-react';
-import { Button, Chip } from '../../components/j40';
+import { Button, Chip, Modal } from '../../components/j40';
+import { DrawerAnexo, DrawerDocumento, DrawerVacacion } from '../../components/app/carpeta/Formularios';
+import type { TipoDocumento } from '../../components/app/carpeta/Formularios';
+import client from '../../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { estadoTrabajador, TIPO_CONTRATO } from '../../components/app/trabajador';
 import { documentosDe } from '../../components/app/carpeta/documentos';
@@ -35,7 +40,10 @@ const DOCUMENTOS_ZIP = ['contrato', 'anexo_40h', 'liquidaciones', 'amonestacione
 
 export default function Carpeta() {
   const { id } = useParams();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const [confirmarEstado, setConfirmarEstado] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const queryClient = useQueryClient();
   const { empresa, trabajadores, cargandoTrabajadores, nivel, avisar } = usePanelContexto();
   const [descargandoZip, setDescargandoZip] = useState(false);
 
@@ -49,6 +57,7 @@ export default function Carpeta() {
   const carpeta = useCarpeta(empleado?.id, nivel);
   const maximo = jornadaMaximaVigente();
   const pestanaParam = params.get('tab') as Pestana | null;
+  const accion = params.get('accion');
   const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaParam) ? pestanaParam! : 'resumen';
 
   const liquidaciones = carpeta.liquidaciones.data ?? [];
@@ -75,6 +84,27 @@ export default function Carpeta() {
   const estado = estadoTrabajador(empleado, false);
   const nombre = capitalizar(`${empleado.nombres} ${empleado.apellido_paterno} ${empleado.apellido_materno ?? ''}`.trim());
   const base = `/app/trabajadores/${empleado.id}`;
+
+  const cerrarAccion = () => {
+    const p = new URLSearchParams(params);
+    p.delete('accion'); p.delete('tipo');
+    setParams(p, { replace: true });
+  };
+
+  const cambiarEstado = async () => {
+    setCambiandoEstado(true);
+    try {
+      await client.patch(`/empleados/${empleado.id}/`, { activo: !empleado.activo });
+      await queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      await queryClient.invalidateQueries({ queryKey: ['mi_suscripcion'] });
+      avisar(empleado.activo ? 'Trabajador desvinculado' : 'Trabajador reactivado');
+      setConfirmarEstado(false);
+    } catch (err) {
+      avisar((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos cambiar el estado.');
+    } finally {
+      setCambiandoEstado(false);
+    }
+  };
 
   const descargarCarpeta = async () => {
     setDescargandoZip(true);
@@ -122,6 +152,9 @@ export default function Carpeta() {
               {empleado.ficha_numero ? `Ficha N° ${empleado.ficha_numero} · ` : ''}{capitalizar(empresa.nombre_legal)}
             </p>
           </div>
+          <Button variante={empleado.activo ? 'peligro-contorno' : 'secundario'} onClick={() => setConfirmarEstado(true)}>
+            {empleado.activo ? 'Desvincular' : 'Reactivar'}
+          </Button>
           {nivel >= 3 ? (
             <Button variante="secundario" onClick={descargarCarpeta} cargando={descargandoZip}
               iconoInicio={<FolderDown className="size-4" strokeWidth={2} />}>Descargar carpeta</Button>
@@ -174,6 +207,28 @@ export default function Carpeta() {
         </div>
         <Lateral empleado={empleado} documentos={documentos} nivel={nivel} />
       </div>
+
+      {accion === 'anexo' && empleado.contrato_activo && <DrawerAnexo empleado={empleado} onCerrar={cerrarAccion} avisar={avisar} />}
+      {accion === 'documento' && (
+        <DrawerDocumento empleado={empleado} nivel={nivel} onCerrar={cerrarAccion} avisar={avisar}
+          tipoInicial={(['AMONESTACION', 'CONSTANCIA', 'DESPIDO'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'AMONESTACION') as TipoDocumento} />
+      )}
+      {accion === 'vacacion' && nivel >= 2 && <DrawerVacacion empleado={empleado} saldo={carpeta.saldo.data} onCerrar={cerrarAccion} avisar={avisar} />}
+
+      <Modal abierto={confirmarEstado} onCerrar={() => !cambiandoEstado && setConfirmarEstado(false)}
+        titulo={empleado.activo ? 'Desvincular al trabajador' : 'Reactivar al trabajador'}
+        acciones={<>
+          <Button variante="secundario" onClick={() => setConfirmarEstado(false)} disabled={cambiandoEstado}>Cancelar</Button>
+          <Button variante={empleado.activo ? 'peligro' : 'primario'} cargando={cambiandoEstado} onClick={cambiarEstado}>
+            {empleado.activo ? 'Desvincular' : 'Reactivar'}
+          </Button>
+        </>}>
+        <p className="text-[13.5px] text-fg-2">
+          {empleado.activo
+            ? 'Deja de ocupar cupo en tu plan y no aparecerá en los procesos del mes. Su carpeta y documentos se conservan. Si aún no lo haces, emite el finiquito.'
+            : 'Vuelve a ocupar un cupo de tu plan y aparece de nuevo en los procesos del mes.'}
+        </p>
+      </Modal>
     </div>
   );
 }

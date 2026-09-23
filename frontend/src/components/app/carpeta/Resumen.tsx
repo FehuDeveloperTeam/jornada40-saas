@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Download, FileText, Mail, MapPin, Phone } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
-import { rutaClasica, rutaLiquidacion } from '../../../hooks/usePanel';
+import { rutaAccion, rutaLiquidacion } from '../../../hooks/usePanel';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../../types';
 import { capitalizar, clp, periodo } from '../../../utils/formato';
 import { ListaAvisos } from '../Avisos';
@@ -74,7 +74,7 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
           )}
           <ListaAvisos avisos={contrato?.avisos_jornada} compacto />
           {contrato?.avisos_jornada?.some((a) => a.codigo === 'EXCEDE_MAXIMO') && (
-            <BotonEnlace a={rutaClasica(empleado.id, 'contratos')} primario>Generar anexo Ley 40 horas</BotonEnlace>
+            <BotonEnlace a={rutaAccion(empleado.id, 'contrato')} primario>Ajustar jornada o generar anexo 40 horas</BotonEnlace>
           )}
         </div>
       </Seccion>

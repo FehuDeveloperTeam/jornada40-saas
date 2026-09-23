@@ -244,19 +244,30 @@ Custom endpoints:
 
 ### Page-Based Routing
 
-All routes correspond to files in `src/pages/`. Routes are defined in `src/App.tsx`.
+Routes are defined in `src/App.tsx`. Public pages live in `src/pages/sitio/`; the admin panel lives in `src/pages/app/`, rendered inside `components/app/AppShell.tsx` (sidebar, company switcher, ⌘K palette, toasts) and protected by `ProtectedRoute`.
 
 | Route | Component | Protection |
 |-------|-----------|-----------|
-| `/` | `Landing.tsx` | Public |
-| `/login` | `Login.tsx` | Public |
-| `/register` | `Register.tsx` | Public |
-| `/forgot-password` | `ForgotPassword.tsx` | Public |
-| `/reset-password/:uid/:token` | `ResetPassword.tsx` | Public |
-| `/terminos` | `Terminos.tsx` | Public |
-| `/empresas` | `LobbyEmpresas.tsx` | Protected |
-| `/dashboard` | `Dashboard.tsx` | Protected |
-| `/suscripcion` | `Suscripcion.tsx` | Protected |
+| `/` | `sitio/Landing.tsx` (redirects to `/app` if logged in) | Public |
+| `/login`, `/register`, `/forgot-password`, `/reset-password/:uid/:token` | `sitio/*` (login and recovery by RUT only) | Public |
+| `/terminos` | `sitio/Terminos.tsx` | Public |
+| `/firma/:token` | `sitio/Firma.tsx` (worker signing flow: RUT → OTP → review → sign) | Public |
+| `/bienvenida` | `sitio/Bienvenida.tsx` (onboarding) | Protected |
+| `/app` | `app/Inicio.tsx` | Protected |
+| `/app/trabajadores`, `/app/trabajadores/importar` | `app/Trabajadores.tsx`, `app/Importar.tsx` | Protected |
+| `/app/trabajadores/:id` (`?tab=`, `?accion=anexo\|documento\|vacacion`) | `app/Carpeta.tsx` | Protected |
+| `/app/trabajadores/:id/contrato`, `/app/trabajadores/:id/finiquito` | `app/ContratoEditor.tsx`, `app/Finiquito.tsx` | Protected |
+| `/app/remuneraciones`, `/app/remuneraciones/conceptos` | `app/Remuneraciones.tsx`, `app/Conceptos.tsx` | Protected |
+| `/app/firmas`, `/app/reportes` | `app/Firmas.tsx`, `app/Reportes.tsx` | Protected |
+| `/app/empresa`, `/app/empresas`, `/app/plan`, `/app/cuenta` | `app/Empresa.tsx`, `app/Empresas.tsx`, `app/Plan.tsx`, `app/Cuenta.tsx` | Protected |
+
+Legacy URLs (`/dashboard`, `/empresas`, `/suscripcion`, `/reportes`) redirect to their `/app/*` equivalents.
+
+UI primitives live in `src/components/j40/` (design tokens in `src/styles/j40.css`, themed by `data-j40`).
+
+### Backend-first rule
+
+Every legal/previsional calculation happens in the backend; the frontend only shows it. Previews use server endpoints: `POST /liquidaciones/simular/`, `POST /finiquitos/simular/`, `POST /contratos/evaluar-jornada/`, `GET /vacaciones/dias_habiles/`, `POST /empleados/carga_masiva/?previsualizar=1`. Legal amounts (indemnizations, feriado, deductions, a concept's previsional nature) are never accepted from the client. Labor-norm issues (e.g. hours over the legal maximum) produce **warnings, never blocks**.
 
 ### State Management
 
@@ -361,21 +372,8 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-There is currently **no test suite** configured for either the frontend or the backend.
-
-- `backend/core/tests.py` exists but is empty.
-- No Jest/Vitest configuration in the frontend.
-- When adding tests, use Django's built-in `TestCase` / `APITestCase` for the backend, and Vitest for the frontend.
-
-Run tests (once configured):
-
-```bash
-# Backend
-cd backend && python manage.py test
-
-# Frontend
-cd frontend && npm test
-```
+- **Backend:** `backend/core/tests.py` (Django `APITestCase`, ~200 tests covering auth, tenant isolation, plan limits, payroll, finiquito, signing). Run with `cd backend && python manage.py test core`.
+- **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass. End-to-end checks have been run manually with Playwright.
 
 ---
 

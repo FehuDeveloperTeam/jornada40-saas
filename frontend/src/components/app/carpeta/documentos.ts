@@ -49,6 +49,16 @@ export function documentosDe(
       pdf: { url: `/contratos/${contrato.id}/descargar_contrato/`, nombre: `Contrato_${rut}.pdf` },
       envio: { tipo_documento: 'CONTRATO', contrato_id: contrato.id },
     });
+    // Anexo Ley 40 horas: se lista si ya se generó, se envió a firma o la jornada supera el máximo.
+    const firmaAnexo40 = firmaDe(firmas, 'contrato', contrato.id, 'ANEXO_40H');
+    if (contrato.tiene_anexo_40h_pdf || firmaAnexo40 || contrato.avisos_jornada?.some((x) => x.codigo === 'EXCEDE_MAXIMO')) {
+      lista.push({
+        clave: `a40-${contrato.id}`, titulo: 'Anexo Ley 40 horas', fecha: contrato.fecha_inicio,
+        fechaTexto: 'Reducción de jornada al máximo legal', firma: firmaAnexo40,
+        pdf: { url: `/contratos/${contrato.id}/descargar_anexo_40h/`, nombre: `Anexo_40h_${rut}.pdf` },
+        envio: { tipo_documento: 'ANEXO_40H', contrato_id: contrato.id },
+      });
+    }
   }
   for (const l of liquidaciones) {
     lista.push({
@@ -70,7 +80,7 @@ export function documentosDe(
     lista.push({
       clave: `a${a.id}`, titulo: `Anexo · ${a.titulo}`, fecha: a.fecha_emision,
       fechaTexto: fechaCL(a.fecha_emision), firma: firmaDe(firmas, 'anexo_contrato', a.id),
-      pdf: { url: `/anexos_contrato/${a.id}/generar_anexo/`, nombre: `Anexo_${rut}_${a.fecha_emision}.pdf` },
+      pdf: { url: `/anexos_contrato/${a.id}/generar_pdf/`, nombre: `Anexo_${rut}_${a.fecha_emision}.pdf` },
       envio: { tipo_documento: 'ANEXO_CONTRATO', anexo_contrato_id: a.id },
     });
   }

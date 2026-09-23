@@ -11,32 +11,11 @@ import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { lista } from '../../api/lista';
 import type { RespuestaLista } from '../../api/lista';
-import { rutaClasica } from '../../hooks/usePanel';
+import { rutaAccion } from '../../hooks/usePanel';
 import type { Finiquito as TFiniquito, SimulacionFiniquito, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
+import { CAUSALES } from '../../components/app/causales';
 import { antiguedad, capitalizar, clp, decimalCL, fechaCL, iniciales } from '../../utils/formato';
-
-// Mismas causales que el backend (Finiquito.CAUSAL_ARTICULO_CHOICES), agrupadas por artículo.
-const CAUSALES: { grupo: string; items: [string, string][] }[] = [
-  { grupo: 'Art. 159 — Causales objetivas', items: [
-    ['159_1', 'N°1 — Mutuo acuerdo de las partes'], ['159_2', 'N°2 — Renuncia voluntaria del trabajador'],
-    ['159_3', 'N°3 — Muerte del trabajador'], ['159_4', 'N°4 — Vencimiento del plazo convenido'],
-    ['159_5', 'N°5 — Conclusión del trabajo o servicio'], ['159_6', 'N°6 — Caso fortuito o fuerza mayor'],
-  ] },
-  { grupo: 'Art. 160 — Causales disciplinarias', items: [
-    ['160_1a', 'N°1 a) — Falta de probidad'], ['160_1b', 'N°1 b) — Acoso sexual'],
-    ['160_1c', 'N°1 c) — Vías de hecho'], ['160_1d', 'N°1 d) — Injurias al empleador'],
-    ['160_1e', 'N°1 e) — Conducta inmoral grave'], ['160_1f', 'N°1 f) — Acoso laboral'],
-    ['160_2', 'N°2 — Negociaciones prohibidas'], ['160_3', 'N°3 — Inasistencias injustificadas'],
-    ['160_4a', 'N°4 a) — Salida intempestiva'], ['160_4b', 'N°4 b) — Negativa injustificada a trabajar'],
-    ['160_5', 'N°5 — Actos que afectan la seguridad'], ['160_6', 'N°6 — Daño material intencional'],
-    ['160_7', 'N°7 — Incumplimiento grave del contrato'],
-  ] },
-  { grupo: 'Art. 161 — Decisión del empleador', items: [
-    ['161_1', 'Inc. 1° — Necesidades de la empresa'], ['161_2', 'Inc. 2° — Desahucio del empleador'],
-  ] },
-  { grupo: 'Otras', items: [['163bis', 'Art. 163 bis — Liquidación concursal del empleador']] },
-];
 
 function notaLegal(causal: string): string {
   if (causal.startsWith('161') || causal === '163bis') {
@@ -303,7 +282,7 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
               <div className="flex items-center gap-3 flex-wrap">
                 <FileText className="size-5 text-brand-text" strokeWidth={2} aria-hidden />
                 <p className="flex-1 min-w-[200px] text-[13px] text-fg-2">Esta causal exige comunicar el término por escrito, con los hechos y la causal (Art. 162).</p>
-                <Link to={rutaClasica(empleado.id, 'legal')} className="text-[13px] font-medium">Emitir carta</Link>
+                <Link to={rutaAccion(empleado.id, 'documento', 'DESPIDO')} className="text-[13px] font-medium">Emitir carta</Link>
               </div>
             </Seccion>
           )}

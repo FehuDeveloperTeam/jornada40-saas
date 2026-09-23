@@ -1,7 +1,7 @@
 import { Download } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
-import { rutaClasica } from '../../../hooks/usePanel';
+import { rutaAccion } from '../../../hooks/usePanel';
 import type { Empleado, SolicitudFirma } from '../../../types';
 import { capitalizar, clp, fechaCL } from '../../../utils/formato';
 import { ListaAvisos } from '../Avisos';
@@ -33,7 +33,7 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
       <Seccion titulo="Contrato">
         <div className="px-[18px] py-5 flex flex-col gap-3 items-start">
           <p className="text-[13px] text-fg-3">Este trabajador todavía no tiene un contrato registrado.</p>
-          <BotonEnlace a={rutaClasica(empleado.id, 'contratos')} primario>Crear contrato</BotonEnlace>
+          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')} primario>Crear contrato</BotonEnlace>
         </div>
       </Seccion>
     );
@@ -68,7 +68,8 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
           <Button variante="secundario" className="h-9" onClick={pdf} iconoInicio={<Download className="size-4" strokeWidth={2} />}>
             Descargar contrato
           </Button>
-          <BotonEnlace a={rutaClasica(empleado.id, 'contratos')}>Editar o crear anexo</BotonEnlace>
+          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')}>Editar contrato</BotonEnlace>
+          <BotonEnlace a={rutaAccion(empleado.id, 'anexo')}>Crear anexo</BotonEnlace>
         </div>
       </Seccion>
 

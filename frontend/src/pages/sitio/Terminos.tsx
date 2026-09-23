@@ -1,51 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { J40Root, Logo, ToggleTema } from '../../components/j40';
 
-export default function Terminos() {
-  const navigate = useNavigate();
+interface Seccion { titulo: string; contenido?: string; lista?: string[] }
 
-  const handleVolver = () => {
-    if (window.opener) {
-      window.close();
-    } else {
-      navigate('/register');
-    }
-  };
-
-  return (
-    <div className="min-h-screen py-12 px-4" style={{ background: 'var(--c-bg-app)' }}>
-
-      {/* Orbe sutil */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle, #2563eb 0%, transparent 70%)' }} />
-      </div>
-
-      <div className="max-w-3xl mx-auto relative z-10">
-
-        {/* Botón volver */}
-        <button onClick={handleVolver}
-          className="flex items-center gap-2 text-sm font-medium mb-8 transition-colors group"
-          style={{ color: 'var(--c-text-3)' }}>
-          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
-          <span className="group-hover:text-white transition-colors">Volver</span>
-        </button>
-
-        {/* Tarjeta */}
-        <div className="rounded-3xl p-10 glass-card">
-
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mx-auto mb-5"
-              style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 6px 24px rgba(37,99,235,0.35)' }}>
-              <span className="text-white text-xl font-black">J</span>
-            </div>
-            <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--c-text-1)' }}>Términos y Condiciones de Uso</h1>
-            <p className="text-sm" style={{ color: 'var(--c-text-3)' }}>Última actualización: Marzo de 2026</p>
-          </div>
-
-          <div className="space-y-8 text-sm leading-relaxed" style={{ color: 'var(--c-text-2)' }}>
-
-            {[
+const SECCIONES: Seccion[] = [
               {
                 titulo: '1. Aceptación de los Términos',
                 contenido: 'Al registrarse, acceder o utilizar la plataforma Jornada40 (en adelante, "el Servicio" o "el Software"), usted (en adelante, "el Cliente" o "el Usuario") acepta estar legalmente vinculado por estos Términos y Condiciones. Si no está de acuerdo con alguno de los términos, no debe utilizar el Servicio.',
@@ -83,29 +42,46 @@ export default function Terminos() {
                 titulo: '7. Contacto',
                 contenido: 'Para cualquier duda, solicitud de soporte o cancelación, el Cliente puede contactarnos al correo electrónico: contacto.jornada40@gmail.com.',
               },
-            ].map((seccion) => (
-              <section key={seccion.titulo}>
-                <h2 className="text-base font-bold mb-3"
-                  style={{ borderBottom: '1px solid var(--c-border)', paddingBottom: '0.5rem', color: 'var(--c-text-1)' }}>
-                  {seccion.titulo}
-                </h2>
-                {seccion.contenido && <p>{seccion.contenido}</p>}
-                {seccion.lista && (
-                  <ul className="space-y-2 pl-4">
-                    {seccion.lista.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#2563eb' }} />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            ))}
+];
 
-          </div>
+export default function Terminos() {
+  const navigate = useNavigate();
+  // Se abre desde el registro en otra pestaña: "Volver" la cierra.
+  const volver = () => { if (window.opener) window.close(); else navigate('/register'); };
+
+  return (
+    <J40Root className="min-h-dvh bg-canvas">
+      <header className="border-b border-line bg-surface">
+        <div className="max-w-[760px] mx-auto px-4 h-14 flex items-center gap-3">
+          <button type="button" onClick={volver} className="inline-flex items-center gap-1.5 text-[13px] text-fg-2 hover:text-fg">
+            <ArrowLeft className="size-4" strokeWidth={2} aria-hidden />Volver
+          </button>
+          <span className="flex-1" />
+          <Logo tamano={28} />
+          <ToggleTema />
         </div>
-      </div>
-    </div>
+      </header>
+      <main className="max-w-[760px] mx-auto px-4 py-10 flex flex-col gap-8">
+        <div>
+          <h1 className="text-[clamp(24px,3vw,32px)] font-semibold tracking-[-0.02em]">Términos y condiciones de uso</h1>
+          <p className="text-[13px] text-fg-3 mt-1">Última actualización: marzo de 2026</p>
+        </div>
+        {SECCIONES.map((s) => (
+          <section key={s.titulo} className="flex flex-col gap-3">
+            <h2 className="text-[16px] font-semibold pb-2 border-b border-line">{s.titulo}</h2>
+            {s.contenido && <p className="text-[14px] text-fg-2 leading-relaxed">{s.contenido}</p>}
+            {s.lista && (
+              <ul className="flex flex-col gap-2 pl-1">
+                {s.lista.map((item) => (
+                  <li key={item} className="flex gap-2.5 text-[14px] text-fg-2 leading-relaxed">
+                    <span className="mt-2 size-1.5 rounded-full bg-brand shrink-0" aria-hidden />{item}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </main>
+    </J40Root>
   );
 }

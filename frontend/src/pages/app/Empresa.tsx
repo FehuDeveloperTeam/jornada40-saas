@@ -33,7 +33,7 @@ interface Parametros {
 }
 
 const pct = (t: number) => `${decimalCL(t * 100, 2)} %`;
-type Editables = Pick<TEmpresa, 'nombre_legal' | 'alias' | 'giro' | 'direccion' | 'comuna' | 'ciudad' | 'representante_legal' | 'rut_representante'>;
+type Editables = Pick<TEmpresa, 'nombre_legal' | 'alias' | 'giro' | 'direccion' | 'comuna' | 'ciudad' | 'sucursal' | 'representante_legal' | 'rut_representante'>;
 
 export default function Empresa() {
   const { empresa, suscripcion, avisar } = usePanelContexto();
@@ -47,7 +47,7 @@ export default function Empresa() {
           <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{capitalizar(empresa.nombre_legal)}</h1>
           <p className="text-[13px] text-fg-3 mt-0.5 j40-mono">{empresa.rut}</p>
         </div>
-        <Link to="/empresas" className="inline-flex items-center gap-2 h-10 px-4 rounded-j40-control border border-line-strong bg-surface text-fg text-[13px] font-medium no-underline hover:no-underline hover:bg-surface-2">
+        <Link to="/app/empresas" className="inline-flex items-center gap-2 h-10 px-4 rounded-j40-control border border-line-strong bg-surface text-fg text-[13px] font-medium no-underline hover:no-underline hover:bg-surface-2">
           <Building2 className="size-4" strokeWidth={2} aria-hidden />Agregar o administrar empresas
         </Link>
       </div>
@@ -129,7 +129,7 @@ function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: stri
   const queryClient = useQueryClient();
   const inicial: Editables = {
     nombre_legal: empresa.nombre_legal, alias: empresa.alias ?? '', giro: empresa.giro ?? '', direccion: empresa.direccion ?? '',
-    comuna: empresa.comuna ?? '', ciudad: empresa.ciudad ?? '', representante_legal: empresa.representante_legal ?? '',
+    comuna: empresa.comuna ?? '', ciudad: empresa.ciudad ?? '', sucursal: empresa.sucursal ?? '', representante_legal: empresa.representante_legal ?? '',
     rut_representante: empresa.rut_representante ?? '',
   };
   const [b, setB] = useState<Editables>(inicial);
@@ -173,6 +173,7 @@ function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: stri
         <Campo etiqueta="Dirección"><Input value={b.direccion ?? ''} onChange={poner('direccion')} /></Campo>
         <Campo etiqueta="Comuna"><Input value={b.comuna ?? ''} onChange={poner('comuna')} /></Campo>
         <Campo etiqueta="Ciudad"><Input value={b.ciudad ?? ''} onChange={poner('ciudad')} /></Campo>
+        <Campo etiqueta="Sucursal"><Input value={b.sucursal ?? ''} onChange={poner('sucursal')} /></Campo>
         <Campo etiqueta="Representante legal"><Input value={b.representante_legal ?? ''} onChange={poner('representante_legal')} /></Campo>
         <CampoRut etiqueta="RUT del representante" valor={b.rut_representante ?? ''} compacto onChange={(v) => setB((x) => ({ ...x, rut_representante: v }))} />
       </div>

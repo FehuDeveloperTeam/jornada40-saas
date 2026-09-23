@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronRight, CircleAlert, Download, Plus, Search, Upload } from 'lucide-react';
+import { ChevronRight, CircleAlert, Download, FolderArchive, Plus, Search, Upload } from 'lucide-react';
+import { DescargaExpedientes } from '../../components/app/DescargaExpedientes';
 import { Button, Chip, SegmentedControl } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { estadoTrabajador, TIPO_CONTRATO } from '../../components/app/trabajador';
@@ -34,6 +35,7 @@ export default function Trabajadores() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [busqueda, setBusqueda] = useState('');
+  const [expedientes, setExpedientes] = useState(false);
   const filtro = (params.get('filtro') as Filtro) || 'todos';
   const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2);
   const enVacaciones = useMemo(() => deVacacionesHoy(vacaciones.data), [vacaciones.data]);
@@ -89,6 +91,10 @@ export default function Trabajadores() {
             iconoInicio={<Upload className="size-[18px]" strokeWidth={2} />}>Importar Excel</Button>
           <Button variante="secundario" onClick={exportar} disabled={!lista.length} className="h-[38px]"
             iconoInicio={<Download className="size-[18px]" strokeWidth={2} />}>Exportar</Button>
+          {nivel >= 3 && (
+            <Button variante="secundario" onClick={() => setExpedientes(true)} disabled={!trabajadores.length} className="h-[38px]"
+              iconoInicio={<FolderArchive className="size-[18px]" strokeWidth={2} />}>Expedientes ZIP</Button>
+          )}
           <Button onClick={agregarTrabajador} className="min-[720px]:hidden h-[38px]"
             iconoInicio={<Plus className="size-[19px]" strokeWidth={2} />}>Agregar</Button>
         </div>
@@ -194,6 +200,7 @@ export default function Trabajadores() {
           </p>
         )}
       </div>
+      {expedientes && <DescargaExpedientes empresaId={empresa.id} empresaRut={empresa.rut} trabajadores={trabajadores} onCerrar={() => setExpedientes(false)} avisar={avisar} />}
     </div>
   );
 }

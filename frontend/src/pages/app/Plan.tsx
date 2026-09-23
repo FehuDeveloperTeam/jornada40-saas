@@ -96,7 +96,10 @@ export default function Plan() {
           );
         })}
       </div>
-      <p className="text-[12px] text-fg-3">Para bajar de plan, escríbenos: lo programamos para tu próximo cobro y te indicamos qué funciones dejarás de tener.</p>
+      <p className="text-[12px] text-fg-3">
+        Para bajar de plan, escríbenos a <a href="mailto:contacto.jornada40@gmail.com?subject=Cambio%20de%20plan">contacto.jornada40@gmail.com</a>:
+        lo programamos para tu próximo cobro y te indicamos qué funciones dejarás de tener.
+      </p>
 
       {elegido && <Checkout plan={elegido} onCerrar={() => setElegido(null)} />}
     </div>

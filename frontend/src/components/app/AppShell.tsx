@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
-  ArrowUpRight, Banknote, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, FileUp,
+  ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, FileUp,
   LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -26,6 +26,7 @@ interface PanelContexto {
   cargandoTrabajadores: boolean;
   agregarTrabajador: () => void;
   avisar: (texto: string) => void;
+  cambiarEmpresa: (id: number) => void;
 }
 
 const Contexto = createContext<PanelContexto | null>(null);
@@ -56,7 +57,8 @@ const NAV: ItemNav[] = [
   { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users },
   { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
   { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
-  { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan'] },
+  { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn },
+  { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'] },
 ];
 
 const ESTADO_SUSCRIPCION: Record<string, { texto: string; tono: 'ok' | 'marca' | 'aviso' | 'peligro' }> = {
@@ -118,7 +120,8 @@ export default function AppShell() {
     cargandoTrabajadores: trabajadores.isLoading,
     agregarTrabajador: () => { setAperturaDrawer((n) => n + 1); setDrawerTrabajador(true); },
     avisar,
-  }), [empresa, nivel, suscripcion, trabajadores.data, trabajadores.isLoading, avisar]);
+    cambiarEmpresa: cambiar,
+  }), [empresa, nivel, suscripcion, trabajadores.data, trabajadores.isLoading, avisar, cambiar]);
 
   if (!contexto) {
     return (
@@ -332,7 +335,7 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
                 {e.id === empresa.id && <Check className="size-[18px] text-brand-text" strokeWidth={2} aria-hidden />}
               </button>
             ))}
-            <button type="button" role="menuitem" onClick={() => navigate('/empresas')}
+            <button type="button" role="menuitem" onClick={() => navigate('/app/empresas')}
               className="flex items-center gap-2.5 w-full mt-1 p-2.5 rounded-[8px] text-fg-2 text-[13px] text-left cursor-pointer hover:bg-sunken">
               <Plus className="size-[19px]" strokeWidth={2} aria-hidden />Agregar o administrar empresas
             </button>
@@ -395,17 +398,19 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   const { pathname } = useLocation();
   const carpeta = useMatch('/app/trabajadores/:id');
   const finiquito = useMatch('/app/trabajadores/:id/finiquito');
+  const editorContrato = useMatch('/app/trabajadores/:id/contrato');
   const ctx = useContext(Contexto);
   const nombreEmpresa = capitalizar(empresa.alias || empresa.nombre_legal);
   if (pathname.startsWith('/app/trabajadores/importar')) {
     return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Trabajadores', a: '/app/trabajadores' }, { texto: 'Importar' }];
   }
-  if (finiquito) {
-    const t = ctx?.trabajadores.find((e) => String(e.id) === finiquito.params.id);
+  const subpagina = finiquito ?? editorContrato;
+  if (subpagina) {
+    const t = ctx?.trabajadores.find((e) => String(e.id) === subpagina.params.id);
     return [
       { texto: nombreEmpresa, a: '/app' },
-      { texto: t ? capitalizar(`${t.nombres.split(' ')[0]} ${t.apellido_paterno}`) : 'Trabajador', a: `/app/trabajadores/${finiquito.params.id}` },
-      { texto: 'Finiquito' },
+      { texto: t ? capitalizar(`${t.nombres.split(' ')[0]} ${t.apellido_paterno}`) : 'Trabajador', a: `/app/trabajadores/${subpagina.params.id}` },
+      { texto: finiquito ? 'Finiquito' : 'Contrato' },
     ];
   }
   if (carpeta) {
@@ -421,6 +426,8 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
     return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones', a: '/app/remuneraciones' }, { texto: 'Conceptos' }];
   }
   if (pathname.startsWith('/app/trabajadores/importar')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Trabajadores', a: '/app/trabajadores' }, { texto: 'Importar' }];
+  if (pathname.startsWith('/app/reportes')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Reportes' }];
+  if (pathname.startsWith('/app/empresas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Todas las empresas' }];
   if (pathname.startsWith('/app/empresa')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa' }];
   if (pathname.startsWith('/app/plan')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Plan y facturación' }];
   if (pathname.startsWith('/app/cuenta')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Mi cuenta' }];
@@ -434,7 +441,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 function BarraInferior() {
   return (
     <nav aria-label="Principal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
-      {NAV.map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
+      {NAV.filter((n) => n.a !== '/app/reportes').map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
         <NavLink key={etiqueta} to={a} end={fin}
           className={({ isActive }) => cn(
             'flex flex-col items-center justify-center gap-[3px] h-[52px] text-[10.5px] font-medium no-underline hover:no-underline',
@@ -492,6 +499,8 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
     { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', ejecutar: ir(() => navigate('/app/trabajadores/importar')) },
     { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/app/plan')) },
     { clave: 'empresa', Icono: Building2, texto: 'Datos de la empresa', ejecutar: ir(() => navigate('/app/empresa')) },
+    { clave: 'empresas', Icono: Building2, texto: 'Agregar o administrar empresas', ejecutar: ir(() => navigate('/app/empresas')) },
+    { clave: 'reportes', Icono: ChartColumn, texto: 'Reportes multiempresa', ejecutar: ir(() => navigate('/app/reportes')) },
     { clave: 'cuenta', Icono: Users, texto: 'Mi cuenta', ejecutar: ir(() => navigate('/app/cuenta')) },
   ] as Resultado[]).filter((a) => !texto || a.texto.toLowerCase().includes(texto));
 
