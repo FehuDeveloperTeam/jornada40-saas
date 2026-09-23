@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import client from '../api/client';
@@ -1239,6 +1239,27 @@ export function useDashboard() {
   };
 
   // ─── Return ────────────────────────────────────────────────────────────────
+
+  // ─── Enlace directo desde el panel nuevo ───────────────────────────────────
+  // /dashboard?empleado=<id>&tab=<pestaña> abre la ficha de ese trabajador en
+  // esa pestaña. El panel rediseñado lo usa para las acciones que todavía no
+  // migra (nueva liquidación, editar contrato, generar documentos).
+  const enlaceAplicado = useRef(false);
+  useEffect(() => {
+    if (enlaceAplicado.current || empleados.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = Number(params.get('empleado'));
+    if (!id) return;
+    enlaceAplicado.current = true;
+    const emp = empleados.find(e => e.id === id);
+    if (!emp) return;
+    abrirEditar(emp);
+    const TABS = ['perfil', 'contratos', 'liquidaciones', 'historial', 'legal', 'vacaciones', 'finiquito'] as const;
+    const tab = params.get('tab') as typeof TABS[number] | null;
+    if (tab && TABS.includes(tab)) setActiveTab(tab);
+    // Solo se aplica una vez, al llegar con los trabajadores ya cargados.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empleados]);
 
   return {
     // Estado de datos

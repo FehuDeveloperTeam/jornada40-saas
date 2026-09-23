@@ -53,7 +53,7 @@ export function SegmentedControl<T extends string>({
           <label
             key={opcion.valor}
             className={cn(
-              'relative flex-1 inline-flex items-center justify-center px-3.5 rounded-[8px]',
+              'relative flex-1 inline-flex items-center justify-center px-3.5 rounded-[8px] whitespace-nowrap',
               tamano === 'lg' ? 'h-[38px] text-[13.5px]' : 'h-8 text-[13px]',
               'font-medium cursor-pointer select-none transition-colors duration-150',
               'has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-brand-soft',

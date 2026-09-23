@@ -75,7 +75,7 @@ export default function Bienvenida() {
 
   // El onboarding es para cuentas nuevas: con empresas ya creadas no aplica.
   useEffect(() => {
-    if (empresaId === null && empresas.data && empresas.data.length > 0) navigate('/empresas', { replace: true });
+    if (empresaId === null && empresas.data && empresas.data.length > 0) navigate('/app', { replace: true });
   }, [empresas.data, empresaId, navigate]);
 
   const planActual = planes.find((p) => p.id === suscripcion.data?.plan.id);
@@ -84,9 +84,9 @@ export default function Bienvenida() {
 
   const irAlPanel = () => {
     if (empresaId !== null) {
-      // El panel actual lee la empresa activa desde aquí (ver LobbyEmpresas).
+      // El panel lee la empresa activa desde aquí (ver usePanel.useEmpresaActiva).
       localStorage.setItem('empresaActivaId', String(empresaId));
-      navigate('/dashboard');
+      navigate('/app');
     } else {
       navigate('/empresas');
     }

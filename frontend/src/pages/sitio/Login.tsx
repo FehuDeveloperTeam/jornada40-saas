@@ -47,7 +47,7 @@ export default function Login() {
     try {
       // CampoRut ya entrega el formato de rutUtils, el mismo con que se guardó.
       await login({ username: rut, password });
-      navigate('/empresas');
+      navigate('/app');
     } catch (err) {
       setError(mensajeDeError(err));
       setEnviando(false);

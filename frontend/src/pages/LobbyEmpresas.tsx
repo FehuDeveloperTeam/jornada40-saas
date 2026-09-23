@@ -66,7 +66,7 @@ export default function LobbyEmpresas() {
 
   const seleccionarEmpresa = (empresaId: number) => {
     localStorage.setItem('empresaActivaId', empresaId.toString());
-    navigate('/dashboard');
+    navigate('/app');
   };
 
   const cerrarSesion = () => {

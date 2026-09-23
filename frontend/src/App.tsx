@@ -13,6 +13,12 @@ const Recuperar = lazy(() => import('./pages/sitio/Recuperar'));
 const NuevaContrasena = lazy(() => import('./pages/sitio/NuevaContrasena'));
 const Bienvenida = lazy(() => import('./pages/sitio/Bienvenida'));
 
+// Panel rediseñado (paso A): shell, inicio, trabajadores y carpeta.
+const AppShell = lazy(() => import('./components/app/AppShell'));
+const Inicio = lazy(() => import('./pages/app/Inicio'));
+const Trabajadores = lazy(() => import('./pages/app/Trabajadores'));
+const Carpeta = lazy(() => import('./pages/app/Carpeta'));
+
 const LobbyEmpresas = lazy(() => import('./pages/LobbyEmpresas'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Terminos = lazy(() => import('./pages/Terminos'));
@@ -50,7 +56,7 @@ const RootRoute = () => {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/empresas" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   return <Landing />;
@@ -118,6 +124,18 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <AppShell />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Inicio />} />
+          <Route path="trabajadores" element={<Trabajadores />} />
+          <Route path="trabajadores/:id" element={<Carpeta />} />
+        </Route>
         <Route 
           path="/empresas" 
           element={
