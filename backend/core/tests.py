@@ -2445,3 +2445,49 @@ class MiCuentaYParametrosTests(APITestCase):
         self.assertIn('ingreso_minimo_mensual', r.data)
         self.assertIn('HABITAT', r.data['tasas_afp'])
         self.assertEqual(self.client.post('/api/parametros/vigentes/', {}).status_code, 405)
+
+
+@patch('core.views.obtener_utm', return_value=71721.0)
+@patch('core.views.obtener_uf', return_value=41057.20)
+class CierreBackendTests(APITestCase):
+    """Cierre del rediseño: PDF de contrato al día, montos de la carta y días de vacaciones del servidor."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('cierre_owner', '20.000.000-0', '76.000.123-5')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        self.emp.fecha_ingreso = datetime.date(2019, 3, 1); self.emp.save()
+        Contrato.objects.filter(empleado=self.emp).delete()
+        self.contrato = Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', fecha_inicio='2019-03-01',
+                                                sueldo_base=1_000_000, gratificacion_legal='MENSUAL')
+
+    def test_descargar_contrato_lo_genera_y_editar_lo_renueva(self, *_):
+        r = self.client.get(f'/api/contratos/{self.contrato.id}/descargar_contrato/')
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.content.startswith(b'%PDF'))
+        self.contrato.refresh_from_db(); self.assertTrue(self.contrato.archivo_contrato)
+        self.client.patch(f'/api/contratos/{self.contrato.id}/', {'sueldo_base': 1_100_000}, format='json')
+        self.contrato.refresh_from_db(); self.assertFalse(self.contrato.archivo_contrato)
+        self.assertEqual(self.client.get(f'/api/contratos/{self.contrato.id}/descargar_anexo_40h/').status_code, 200)
+
+    def test_carta_de_despido_calcula_montos(self, *_):
+        r = self.client.post('/api/documentos_legales/', {
+            'empleado': self.emp.id, 'tipo': 'DESPIDO', 'fecha_emision': '2026-09-01', 'hechos': 'x',
+            'causal_articulo': '161_1', 'fecha_ultimo_dia': '2026-09-15', 'aviso_previo_dias': 0,
+            'monto_indemnizacion_anos': 1, 'monto_indemnizacion_sustitutiva': 1}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        from core.models import DocumentoLegal
+        doc = DocumentoLegal.objects.get(id=r.data["id"])
+        self.assertEqual(doc.monto_indemnizacion_anos, 8 * 1_219_114)
+        self.assertEqual(doc.monto_indemnizacion_sustitutiva, 1_219_114)
+        r = self.client.patch(f'/api/documentos_legales/{doc.id}/', {'aviso_previo_dias': 30}, format='json')
+        doc.refresh_from_db(); self.assertEqual(doc.monto_indemnizacion_sustitutiva, 0)
+
+    def test_vacaciones_dias_del_servidor(self, *_):
+        r = self.client.get('/api/vacaciones/dias_habiles/?inicio=2026-08-31&fin=2026-09-06')
+        self.assertEqual(r.data['dias_habiles'], 5)
+        r = self.client.post('/api/vacaciones/', {'empleado': self.emp.id, 'empresa': self.empresa.id, 'tipo': 'VACACION_LEGAL',
+                                                  'fecha_inicio': '2026-08-31', 'fecha_fin': '2026-09-06', 'dias_habiles': 1,
+                                                  'estado': 'APROBADO'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['dias_habiles'], 5)

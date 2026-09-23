@@ -426,14 +426,36 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
         if tipo == 'DESPIDO' and not _plan_permite(self.request.user, 2):
             raise PermissionDenied(self._MENSAJE_CARTA_TERMINO)
 
+    def _montos_legales(self, documento):
+        """Indemnizaciones que informa la carta de término (Art. 162 inc. 4°).
+
+        Las calcula el mismo motor del finiquito: el usuario elige la causal,
+        la fecha y si dio el aviso previo, pero no escribe los montos.
+        """
+        if documento.tipo != 'DESPIDO' or documento.causal_articulo not in _CAUSALES_CON_INDEMNIZACION:
+            montos = (None, None)
+        else:
+            fecha = documento.fecha_ultimo_dia or documento.fecha_emision
+            if isinstance(fecha, str):
+                fecha = datetime.date.fromisoformat(fecha)
+            calculado, _ = _calcular_finiquito(
+                documento.empleado, fecha, 30, documento.causal_articulo,
+                aviso_previo_dado=(documento.aviso_previo_dias or 0) >= 30)
+            montos = (calculado['indemnizacion_anos_servicio'], calculado['indemnizacion_sustitutiva_aviso'])
+        documento.monto_indemnizacion_anos, documento.monto_indemnizacion_sustitutiva = montos
+        documento.save(update_fields=['monto_indemnizacion_anos', 'monto_indemnizacion_sustitutiva'])
+
     def perform_create(self, serializer):
         self._exigir_plan_si_es_carta_de_termino(serializer.validated_data.get('tipo'))
-        serializer.save()
+        self._montos_legales(serializer.save())
 
     def perform_update(self, serializer):
         self._exigir_plan_si_es_carta_de_termino(
             serializer.validated_data.get('tipo', serializer.instance.tipo))
-        serializer.save()
+        documento = serializer.save()
+        if documento.archivo_pdf:
+            documento.archivo_pdf.delete(save=False)  # el PDF anterior ya no corresponde
+        self._montos_legales(documento)
 
     def get_queryset(self):
         # Solo documentos de empleados que pertenecen al usuario autenticado
@@ -553,14 +575,31 @@ class VacacionViewSet(viewsets.ModelViewSet):
             )
         return super().create(request, *args, **kwargs)
 
+    def _guardar(self, serializer):
+        """Los días hábiles siempre los calcula el servidor (Art. 69 y feriados)."""
+        inicio = serializer.validated_data.get('fecha_inicio', getattr(serializer.instance, 'fecha_inicio', None))
+        fin = serializer.validated_data.get('fecha_fin', getattr(serializer.instance, 'fecha_fin', None))
+        if inicio and fin and fin < inicio:
+            raise ValidationError({'error': 'La fecha de término es anterior a la de inicio.'})
+        serializer.save(dias_habiles=_calcular_dias_habiles_vacacion(inicio, fin) if inicio and fin else 0)
+
     def perform_create(self, serializer):
-        """Auto-calcula días hábiles si el cliente no los envía."""
-        fecha_inicio = serializer.validated_data.get('fecha_inicio')
-        fecha_fin    = serializer.validated_data.get('fecha_fin')
-        dias = serializer.validated_data.get('dias_habiles') or 0
-        if fecha_inicio and fecha_fin and not dias:
-            dias = _calcular_dias_habiles_vacacion(fecha_inicio, fecha_fin)
-        serializer.save(dias_habiles=dias)
+        self._guardar(serializer)
+
+    def perform_update(self, serializer):
+        self._guardar(serializer)
+
+    @action(detail=False, methods=['get'], url_path='dias_habiles')
+    def dias_habiles(self, request):
+        """GET /api/vacaciones/dias_habiles/?inicio=AAAA-MM-DD&fin=AAAA-MM-DD — vista previa del formulario."""
+        try:
+            inicio = datetime.date.fromisoformat(request.query_params.get('inicio', ''))
+            fin = datetime.date.fromisoformat(request.query_params.get('fin', ''))
+        except ValueError:
+            return Response({'error': 'Fechas inválidas.'}, status=status.HTTP_400_BAD_REQUEST)
+        if fin < inicio:
+            return Response({'error': 'La fecha de término es anterior a la de inicio.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'dias_habiles': _calcular_dias_habiles_vacacion(inicio, fin)})
 
     @action(detail=False, methods=['get'], url_path='saldo')
     def saldo(self, request):
@@ -1530,7 +1569,25 @@ class ContratoViewSet(viewsets.ModelViewSet):
         self._guardar_normalizando(serializer)
 
     def perform_update(self, serializer):
-        self._guardar_normalizando(serializer)
+        contrato = self._guardar_normalizando(serializer)
+        # Los PDF guardados reflejan las condiciones anteriores: se descartan
+        # y se vuelven a generar al descargarlos.
+        for archivo in (contrato.archivo_contrato, contrato.archivo_anexo_40h):
+            if archivo:
+                archivo.delete(save=False)
+        contrato.save(update_fields=['archivo_contrato', 'archivo_anexo_40h'])
+
+    def _pdf_de_contrato(self, contrato, plantilla, campo, nombre):
+        """Genera y guarda el PDF del contrato o del anexo 40h; devuelve sus bytes."""
+        context = self._build_contrato_context(contrato, _es_plan_semilla(self.request.user))
+        pdf_buf = io.BytesIO()
+        if pisa.CreatePDF(get_template(plantilla).render(context), dest=pdf_buf).err:
+            raise ValueError('Error al generar el PDF.')
+        archivo = getattr(contrato, campo)
+        if archivo:
+            archivo.delete(save=False)
+        getattr(contrato, campo).save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
+        return pdf_buf.getvalue()
 
     def _guardar_normalizando(self, serializer):
         """Resuelve las categorías de comisión a conceptos del catálogo."""
@@ -1540,6 +1597,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
         if config != contrato.comisiones_config:
             contrato.comisiones_config = config
             contrato.save(update_fields=['comisiones_config'])
+        return contrato
 
     @action(detail=False, methods=['post'], url_path='evaluar-jornada')
     def evaluar_jornada(self, request):
@@ -1582,10 +1640,11 @@ class ContratoViewSet(viewsets.ModelViewSet):
     def descargar_contrato(self, request, pk=None):
         try:
             contrato = self.get_object()
-            if not contrato.archivo_contrato:
-                return Response({'error': 'El contrato aún no tiene PDF generado.'}, status=status.HTTP_404_NOT_FOUND)
             nombre = f"Contrato_{contrato.empleado.rut}.pdf"
-            response = HttpResponse(contrato.archivo_contrato.read(), content_type='application/pdf')
+            # Sin PDF guardado (nuevo o recién editado) se genera en el momento.
+            datos = (contrato.archivo_contrato.read() if contrato.archivo_contrato
+                     else self._pdf_de_contrato(contrato, 'contrato_trabajo.html', 'archivo_contrato', nombre))
+            response = HttpResponse(datos, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return response
         except Exception as e:
@@ -1614,10 +1673,10 @@ class ContratoViewSet(viewsets.ModelViewSet):
     def descargar_anexo_40h(self, request, pk=None):
         try:
             contrato = self.get_object()
-            if not contrato.archivo_anexo_40h:
-                return Response({'error': 'El anexo 40h aún no tiene PDF generado.'}, status=status.HTTP_404_NOT_FOUND)
             nombre = f"Anexo_40h_{contrato.empleado.rut}.pdf"
-            response = HttpResponse(contrato.archivo_anexo_40h.read(), content_type='application/pdf')
+            datos = (contrato.archivo_anexo_40h.read() if contrato.archivo_anexo_40h
+                     else self._pdf_de_contrato(contrato, 'anexo_40h.html', 'archivo_anexo_40h', nombre))
+            response = HttpResponse(datos, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return response
         except Exception as e:

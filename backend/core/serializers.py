@@ -183,7 +183,9 @@ class DocumentoLegalSerializer(serializers.ModelSerializer):
             'copia_inspeccion_trabajo',
             'archivo_pdf', 'creado_en',
         ]
-        read_only_fields = ('id', 'archivo_pdf', 'creado_en')
+        # Las indemnizaciones de la carta las calcula el backend (_calcular_finiquito).
+        read_only_fields = ('id', 'archivo_pdf', 'creado_en',
+                            'monto_indemnizacion_anos', 'monto_indemnizacion_sustitutiva')
 
 
 class LiquidacionSerializer(serializers.ModelSerializer):
