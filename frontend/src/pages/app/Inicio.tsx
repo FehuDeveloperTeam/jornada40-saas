@@ -126,7 +126,7 @@ export default function Inicio() {
           </h1>
           <p className="text-[13px] text-fg-3 mt-0.5">{fechaLarga(hoy)} · {capitalizar(empresa.nombre_legal)}</p>
         </div>
-        <Button onClick={() => navigate('/dashboard')} iconoInicio={<Banknote className="size-[19px]" strokeWidth={2} />}>
+        <Button onClick={() => navigate('/app/remuneraciones')} iconoInicio={<Banknote className="size-[19px]" strokeWidth={2} />}>
           Ir a remuneraciones
         </Button>
       </div>
@@ -209,7 +209,7 @@ export default function Inicio() {
                 </div>
               </div>
             ))}
-            <Button variante="secundario" onClick={() => navigate('/dashboard')}>Ir al proceso</Button>
+            <Button variante="secundario" onClick={() => navigate('/app/remuneraciones')}>Ir al proceso</Button>
           </div>
         </Card>
 

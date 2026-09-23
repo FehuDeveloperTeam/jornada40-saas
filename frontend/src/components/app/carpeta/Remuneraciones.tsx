@@ -1,13 +1,14 @@
+import { Link } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
-import { rutaClasica } from '../../../hooks/usePanel';
+import { rutaLiquidacion } from '../../../hooks/usePanel';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../../types';
 import { clp, fechaCL, nombreMes, periodo } from '../../../utils/formato';
 import { BotonEnlace, ChipFirma, Seccion } from './comun';
 import { firmaDe } from './utiles';
 
-const COLUMNAS = 'grid-cols-[minmax(140px,1.4fr)_repeat(3,minmax(100px,1fr))_120px_64px]';
+const COLUMNAS = 'grid-cols-[minmax(140px,1.4fr)_repeat(3,minmax(100px,1fr))_170px_64px]';
 
 export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avisar }: {
   empleado: Empleado; liquidaciones: Liquidacion[]; firmas: SolicitudFirma[]; cargando: boolean;
@@ -29,7 +30,7 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
       <Seccion titulo="Remuneraciones">
         <div className="px-[18px] py-5 flex flex-col gap-3 items-start">
           <p className="text-[13px] text-fg-3">Todavía no hay liquidaciones emitidas para este trabajador.</p>
-          <BotonEnlace a={rutaClasica(empleado.id, 'liquidaciones')} primario>Emitir liquidación</BotonEnlace>
+          <BotonEnlace a={rutaLiquidacion(empleado.id)} primario>Emitir liquidación</BotonEnlace>
         </div>
       </Seccion>
     );
@@ -60,7 +61,7 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
       </Seccion>
 
       <Seccion titulo="Liquidaciones emitidas"
-        accion={<BotonEnlace a={rutaClasica(empleado.id, 'liquidaciones')}>Emitir o editar</BotonEnlace>}>
+        accion={<BotonEnlace a={rutaLiquidacion(empleado.id)}>Emitir liquidación</BotonEnlace>}>
         <div className="overflow-x-auto">
           <div className="min-w-[680px]">
             <div className={`grid ${COLUMNAS} gap-3 px-[18px] py-2.5 text-[11.5px] font-medium text-fg-3 uppercase tracking-[0.04em] border-b border-line`}>
@@ -76,7 +77,8 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
                 <span className="text-right">{clp(l.total_imponible)}</span>
                 <span className="text-right">{clp(l.total_descuentos)}</span>
                 <span className="text-right font-semibold">{clp(l.sueldo_liquido)}</span>
-                <span><ChipFirma firma={firmaDe(firmas, 'liquidacion', l.id)} corto /></span>
+                <span className="flex items-center gap-2"><ChipFirma firma={firmaDe(firmas, 'liquidacion', l.id)} corto />
+                  <Link to={rutaLiquidacion(empleado.id, l.mes, l.anio)} className="text-[12px] font-medium">Abrir</Link></span>
                 <Button variante="fantasma" tamano="sm" onClick={() => pdf(l)} aria-label={`Descargar liquidación de ${periodo(l.mes, l.anio)}`}
                   iconoInicio={<Download className="size-4" strokeWidth={2} />}>PDF</Button>
               </div>

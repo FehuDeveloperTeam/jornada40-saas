@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight, Banknote, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, FileUp,
-  LayoutDashboard, LogOut, Plus, Search, Signature, TriangleAlert, UserPlus, Users,
+  LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
@@ -52,7 +52,7 @@ interface ItemNav {
 const NAV: ItemNav[] = [
   { a: '/app', etiqueta: 'Inicio', corta: 'Inicio', Icono: LayoutDashboard, fin: true },
   { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users },
-  { a: '/dashboard', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote, clasico: true },
+  { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
   { a: '/dashboard', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature, clasico: true },
   { a: '/empresas', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, clasico: true },
 ];
@@ -399,6 +399,10 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
     ];
   }
   if (pathname.startsWith('/app/trabajadores')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Trabajadores' }];
+  if (pathname.startsWith('/app/remuneraciones/conceptos')) {
+    return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones', a: '/app/remuneraciones' }, { texto: 'Conceptos' }];
+  }
+  if (pathname.startsWith('/app/remuneraciones')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones' }];
   return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Inicio' }];
 }
 
@@ -458,7 +462,9 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
     { clave: 'agregar', Icono: UserPlus, texto: 'Agregar trabajador', ejecutar: ir(agregarTrabajador) },
     { clave: 'trab', Icono: Users, texto: 'Ver trabajadores', ejecutar: ir(() => navigate('/app/trabajadores')) },
     { clave: 'inicio', Icono: LayoutDashboard, texto: 'Ir a Inicio', ejecutar: ir(() => navigate('/app')) },
-    { clave: 'rem', Icono: Banknote, texto: 'Remuneraciones', detalle: 'Panel anterior', ejecutar: ir(() => navigate('/dashboard')) },
+    { clave: 'rem', Icono: Banknote, texto: 'Remuneraciones del mes', ejecutar: ir(() => navigate('/app/remuneraciones')) },
+    { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')) },
+    { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')) },
     { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', detalle: 'Panel anterior', ejecutar: ir(() => navigate('/dashboard')) },
     { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/suscripcion')) },
   ] as Resultado[]).filter((a) => !texto || a.texto.toLowerCase().includes(texto));

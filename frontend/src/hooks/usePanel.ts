@@ -138,6 +138,13 @@ export function useCarpeta(empleadoId: number | undefined, nivel: number) {
   };
 }
 
+/** Remuneraciones con el formulario de liquidación del trabajador abierto (mes en curso por defecto). */
+export function rutaLiquidacion(empleadoId: number, mes?: number, anio?: number): string {
+  const p = new URLSearchParams({ trabajador: String(empleadoId) });
+  if (mes && anio) { p.set('mes', String(mes)); p.set('anio', String(anio)); }
+  return `/app/remuneraciones?${p}`;
+}
+
 /** Ruta del panel anterior abierta en la ficha y pestaña de un trabajador. */
 export type PestanaClasica = 'perfil' | 'contratos' | 'liquidaciones' | 'historial' | 'legal' | 'vacaciones' | 'finiquito';
 export function rutaClasica(empleadoId?: number, tab?: PestanaClasica): string {

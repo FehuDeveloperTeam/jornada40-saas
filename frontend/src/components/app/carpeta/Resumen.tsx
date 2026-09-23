@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Download, FileText, Mail, MapPin, Phone } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
-import { rutaClasica } from '../../../hooks/usePanel';
+import { rutaClasica, rutaLiquidacion } from '../../../hooks/usePanel';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../../types';
 import { capitalizar, clp, periodo } from '../../../utils/formato';
 import { ListaAvisos } from '../Avisos';
@@ -52,7 +52,7 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
         ) : (
           <div className="px-[18px] py-5 flex flex-col gap-3 items-start">
             <p className="text-[13px] text-fg-3">Todavía no hay liquidaciones emitidas.</p>
-            <BotonEnlace a={rutaClasica(empleado.id, 'liquidaciones')} primario>Emitir la primera</BotonEnlace>
+            <BotonEnlace a={rutaLiquidacion(empleado.id)} primario>Emitir la primera</BotonEnlace>
           </div>
         )}
       </Seccion>

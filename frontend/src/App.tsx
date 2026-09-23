@@ -18,6 +18,8 @@ const AppShell = lazy(() => import('./components/app/AppShell'));
 const Inicio = lazy(() => import('./pages/app/Inicio'));
 const Trabajadores = lazy(() => import('./pages/app/Trabajadores'));
 const Carpeta = lazy(() => import('./pages/app/Carpeta'));
+const RemuneracionesPanel = lazy(() => import('./pages/app/Remuneraciones'));
+const Conceptos = lazy(() => import('./pages/app/Conceptos'));
 
 const LobbyEmpresas = lazy(() => import('./pages/LobbyEmpresas'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -135,6 +137,8 @@ export default function App() {
           <Route index element={<Inicio />} />
           <Route path="trabajadores" element={<Trabajadores />} />
           <Route path="trabajadores/:id" element={<Carpeta />} />
+          <Route path="remuneraciones" element={<RemuneracionesPanel />} />
+          <Route path="remuneraciones/conceptos" element={<Conceptos />} />
         </Route>
         <Route 
           path="/empresas" 
