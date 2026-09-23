@@ -58,6 +58,7 @@ import io
 import zipfile
 import re
 import math
+from decimal import Decimal, ROUND_FLOOR
 from .indicadores import obtener_uf, obtener_utm, calcular_impuesto_unico
 import random
 import string
@@ -1929,11 +1930,13 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
 
 
 # Respaldo si la tabla de parámetros está vacía (BD recién creada, antes del
-# seed). Son los valores que estaban embebidos en el código originalmente.
+# seed). Se mantienen al día con el último período cargado en migraciones: son
+# lo que se aplica cuando todavía no hay filas, y quedarse atrás aquí produce
+# liquidaciones con topes viejos sin que nada lo advierta.
 _PARAMETROS_RESPALDO = {
-    'tope_imponible_afp_uf': 87.80,
-    'tope_imponible_afc_uf': 131.90,
-    'ingreso_minimo_mensual': 529000,
+    'tope_imponible_afp_uf': 90.00,
+    'tope_imponible_afc_uf': 135.20,
+    'ingreso_minimo_mensual': 553553,
     'factor_gratificacion': 4.75,
     'tasa_salud': 0.07,
     'tasa_afc_trabajador_indefinido': 0.006,
@@ -1946,8 +1949,20 @@ _PARAMETROS_RESPALDO = {
 
 _TASAS_AFP_RESPALDO = {
     'MODELO': 0.1058, 'HABITAT': 0.1127, 'PROVIDA': 0.1145,
-    'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1049,
+    'CAPITAL': 0.1144, 'CUPRUM': 0.1144, 'PLANVITAL': 0.1116, 'UNO': 0.1046,
 }
+
+
+def _tope_en_pesos(tope_uf, valor_uf) -> int:
+    """Tope imponible del período llevado a pesos.
+
+    Multiplicar dos floats y truncar pierde un peso cuando el producto cae
+    apenas por debajo del entero: 90 × 41.057,20 da 3.695.147,999... en punto
+    flotante y el tope quedaría en $3.695.147, uno menos que los $3.695.148 que
+    publica Previred. Con Decimal el producto es exacto y el truncado coincide.
+    """
+    producto = Decimal(str(tope_uf)) * Decimal(str(valor_uf))
+    return int(producto.to_integral_value(rounding=ROUND_FLOOR))
 
 
 def _fecha_referencia(mes, anio) -> datetime.date:
@@ -2358,8 +2373,8 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     # Las cotizaciones se calculan sobre la renta imponible TOPADA, no sobre el
     # total imponible: lo que excede el tope legal no cotiza. AFP y salud
     # comparten tope; el seguro de cesantía tiene uno propio, más alto.
-    tope_afp = math.floor(parametros['tope_imponible_afp_uf'] * valor_uf)
-    tope_afc = math.floor(parametros['tope_imponible_afc_uf'] * valor_uf)
+    tope_afp = _tope_en_pesos(parametros['tope_imponible_afp_uf'], valor_uf)
+    tope_afc = _tope_en_pesos(parametros['tope_imponible_afc_uf'], valor_uf)
     renta_imponible_afp = min(total_imponible, tope_afp)
     renta_imponible_afc = min(total_imponible, tope_afc)
 
@@ -2665,11 +2680,11 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             uf_periodo = float(liq.valor_uf) or obtener_uf()
             renta_imp = min(
                 int(liq.total_imponible or 0),
-                math.floor(params_periodo['tope_imponible_afp_uf'] * uf_periodo),
+                _tope_en_pesos(params_periodo['tope_imponible_afp_uf'], uf_periodo),
             )
             renta_afc = min(
                 int(liq.total_imponible or 0),
-                math.floor(params_periodo['tope_imponible_afc_uf'] * uf_periodo),
+                _tope_en_pesos(params_periodo['tope_imponible_afc_uf'], uf_periodo),
             )
             cotiz_afp = str(int(liq.afp_monto or 0))
             sis = str(math.floor(renta_imp * params_periodo['tasa_sis']))
@@ -3134,7 +3149,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             uf_periodo = float(liq.valor_uf) or obtener_uf()
             renta = min(
                 int(liq.total_imponible or 0),
-                math.floor(par['tope_imponible_afp_uf'] * uf_periodo),
+                _tope_en_pesos(par['tope_imponible_afp_uf'], uf_periodo),
             )
             return int(renta * (par['tasa_sis'] + par['tasa_mutual_base'] + tasa_afc))
 
@@ -3469,7 +3484,7 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     # Descuentos previsionales sobre el sueldo proporcional, topado
     renta_cotizable = min(
         sueldo_proporcional,
-        math.floor(parametros['tope_imponible_afp_uf'] * valor_uf),
+        _tope_en_pesos(parametros['tope_imponible_afp_uf'], valor_uf),
     )
     nombre_afp = (empleado.afp or 'MODELO').upper()
     tasa_afp = _tasas_afp(fecha_termino.month, fecha_termino.year).get(nombre_afp, 0.11)

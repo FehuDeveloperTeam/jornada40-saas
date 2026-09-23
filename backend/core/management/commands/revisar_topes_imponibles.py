@@ -11,8 +11,6 @@ se toca, porque su corrección pasa por emitir una nueva.
     python manage.py revisar_topes_imponibles
     python manage.py revisar_topes_imponibles --aplicar
 """
-import math
-
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -32,7 +30,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opciones):
         # Import diferido: views importa modelos y evitamos el ciclo al cargar.
         from core.views import (_calcular_liquidacion, _parametros_previsionales,
-                                _terminos_congelados)
+                                _terminos_congelados, _tope_en_pesos)
 
         aplicar = opciones['aplicar']
         afectadas = []
@@ -40,7 +38,7 @@ class Command(BaseCommand):
         for liq in Liquidacion.objects.select_related('empleado').order_by('anio', 'mes'):
             parametros = _parametros_previsionales(liq.mes, liq.anio)
             uf = float(liq.valor_uf) or obtener_uf()
-            tope = math.floor(parametros['tope_imponible_afp_uf'] * uf)
+            tope = _tope_en_pesos(parametros['tope_imponible_afp_uf'], uf)
             if int(liq.total_imponible or 0) > tope:
                 afectadas.append((liq, tope))
 

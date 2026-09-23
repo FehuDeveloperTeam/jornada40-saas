@@ -585,6 +585,10 @@ class TopeImponibleTests(APITestCase):
         from core.models import ParametroPrevisional, TasaAFP
         import datetime
         # Se fijan valores conocidos para no depender del seed ni de la UF real.
+        # Se vacía el histórico cargado por migraciones: estas pruebas son sobre
+        # cómo se aplica un tope, no sobre qué tope regía en marzo de 2025.
+        ParametroPrevisional.objects.all().delete()
+        TasaAFP.objects.all().delete()
         ParametroPrevisional.objects.update_or_create(
             vigente_desde=datetime.date(2025, 1, 1),
             defaults={
@@ -690,6 +694,10 @@ class PropuestaParametrosTests(APITestCase):
         from core.models import ParametroPrevisional, TasaAFP
         self.enero = datetime.date(2025, 1, 1)
         self.junio = datetime.date(2025, 6, 1)
+        # Igual que arriba: el histórico real haría que el período de prueba
+        # resolviera a otra fila y estas pruebas son sobre confirmado/origen.
+        ParametroPrevisional.objects.all().delete()
+        TasaAFP.objects.all().delete()
         ParametroPrevisional.objects.update_or_create(
             vigente_desde=self.enero,
             defaults={'tope_imponible_afp_uf': '87.80', 'ingreso_minimo_mensual': 529000,
@@ -1294,3 +1302,84 @@ class ComisionesCatalogoTests(APITestCase):
         )
         porcentajes = _terminos_congelados(liq, contrato)['porcentajes_comision']
         self.assertEqual(porcentajes.get('Carrocería'), 0.5)
+
+
+class HistoricoParametrosTests(APITestCase):
+    """El histórico cargado en migraciones debe resolver cada período con sus valores.
+
+    Recalcular una liquidación antigua tiene que usar el sueldo mínimo y los
+    topes que regían entonces: si el motor aplicara siempre los de hoy, corregir
+    un error de 2025 lo convertiría en otro error distinto.
+    """
+
+    def _imm(self, mes, anio):
+        from core.views import _parametros_previsionales
+        return _parametros_previsionales(mes, anio)['ingreso_minimo_mensual']
+
+    def _topes(self, mes, anio):
+        from core.views import _parametros_previsionales
+        par = _parametros_previsionales(mes, anio)
+        return par['tope_imponible_afp_uf'], par['tope_imponible_afc_uf']
+
+    def test_ingreso_minimo_vigente_hoy(self):
+        # Ley 21.830: $553.553 desde las remuneraciones de mayo de 2026.
+        self.assertEqual(self._imm(9, 2026), 553553)
+
+    def test_cada_reajuste_del_ingreso_minimo_rige_desde_su_mes(self):
+        self.assertEqual(self._imm(6, 2024), 460000)   # Ley 21.578
+        self.assertEqual(self._imm(8, 2024), 500000)   # Ley 21.578
+        self.assertEqual(self._imm(3, 2025), 510636)   # Decreto 3 de Hacienda
+        self.assertEqual(self._imm(7, 2025), 529000)   # Ley 21.751
+        self.assertEqual(self._imm(3, 2026), 539000)   # Ley 21.751
+        self.assertEqual(self._imm(5, 2026), 553553)   # Ley 21.830
+
+    def test_el_mes_anterior_a_un_reajuste_conserva_el_valor_viejo(self):
+        self.assertEqual(self._imm(4, 2025), 510636)
+        self.assertEqual(self._imm(4, 2026), 539000)
+
+    def test_topes_imponibles_distinguen_provisional_y_definitivo(self):
+        # La Superintendencia informa un valor provisional para las
+        # remuneraciones de enero y el definitivo desde febrero.
+        self.assertEqual(self._topes(1, 2026), (89.90, 135.10))
+        self.assertEqual(self._topes(2, 2026), (90.00, 135.20))
+        self.assertEqual(self._topes(1, 2025), (87.80, 131.80))
+        self.assertEqual(self._topes(2, 2025), (87.80, 131.90))
+
+    def test_tope_de_gratificacion_con_el_minimo_vigente(self):
+        from core.views import _parametros_previsionales
+        par = _parametros_previsionales(9, 2026)
+        tope = int(par['factor_gratificacion'] * par['ingreso_minimo_mensual'] / 12)
+        self.assertEqual(tope, 219114)
+
+    def test_afp_uno_baja_su_comision_en_octubre_de_2025(self):
+        from core.views import _tasas_afp
+        # 10% obligatorio + comisión: 0,49% hasta septiembre, 0,46% desde octubre.
+        self.assertEqual(_tasas_afp(9, 2025)['UNO'], 0.1049)
+        self.assertEqual(_tasas_afp(10, 2025)['UNO'], 0.1046)
+        # Las demás no se movieron con la licitación.
+        self.assertEqual(_tasas_afp(10, 2025)['MODELO'], 0.1058)
+
+    def test_el_historico_no_dispara_advertencias_de_antiguedad(self):
+        from core.views import advertencias_parametros
+        self.assertEqual(advertencias_parametros(9, 2026), [])
+
+
+class TopeEnPesosTests(APITestCase):
+    """El tope en pesos debe coincidir al peso con el que publica Previred."""
+
+    def test_no_pierde_un_peso_por_el_punto_flotante(self):
+        from core.views import _tope_en_pesos
+        # 90 × 41.057,20 es exactamente 3.695.148, pero en float da
+        # 3.695.147,9999... y truncar ahí devolvía un peso de menos.
+        self.assertEqual(_tope_en_pesos(90.00, 41057.20), 3695148)
+        self.assertEqual(_tope_en_pesos(135.20, 41057.20), 5550933)
+
+    def test_trunca_los_decimales_reales(self):
+        from core.views import _tope_en_pesos
+        self.assertEqual(_tope_en_pesos(87.80, 41057.20), 3604822)
+
+    def test_acepta_decimal_y_float_indistintamente(self):
+        from decimal import Decimal
+        from core.views import _tope_en_pesos
+        self.assertEqual(_tope_en_pesos(Decimal('90.00'), Decimal('41057.20')),
+                         _tope_en_pesos(90.00, 41057.20))
