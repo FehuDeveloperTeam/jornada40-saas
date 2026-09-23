@@ -219,6 +219,25 @@ class ConceptoRemuneracionSerializer(serializers.ModelSerializer):
     def get_es_del_sistema(self, obj):
         return obj.empresa_id is None
 
+    def validate(self, attrs):
+        # Tipo, código y empresa se fijan al crear: la naturaleza previsional
+        # se deriva del tipo solo en ese momento, y las liquidaciones emitidas
+        # referencian el código. Cambiarlos después dejaría el concepto
+        # clasificado con las reglas de otro tipo.
+        if self.instance is not None:
+            for campo in ('tipo', 'codigo', 'empresa'):
+                if campo in attrs and attrs[campo] != getattr(self.instance, campo):
+                    raise serializers.ValidationError(
+                        {campo: 'No se puede cambiar una vez creado el concepto. Crea uno nuevo si lo necesitas.'})
+        else:
+            # La restricción única es condicional y DRF no la valida sola:
+            # sin esto, un código repetido terminaba en IntegrityError (500).
+            empresa, codigo = attrs.get('empresa'), attrs.get('codigo')
+            if empresa and codigo and ConceptoRemuneracion.objects.filter(empresa=empresa, codigo=codigo).exists():
+                raise serializers.ValidationError(
+                    {'codigo': 'Ya existe un concepto con ese código en esta empresa (puede estar desactivado).'})
+        return attrs
+
     class Meta:
         model = ConceptoRemuneracion
         fields = [

@@ -1875,7 +1875,9 @@ class ConceptoRemuneracionViewSet(viewsets.ModelViewSet):
         qs = ConceptoRemuneracion.objects.filter(
             Q(empresa__isnull=True) | Q(empresa__owner=self.request.user)
         )
-        if self.request.query_params.get('incluir_inactivos') != 'true':
+        # Los inactivos se ocultan del listado, pero el detalle los incluye:
+        # si no, un concepto desactivado no se podía volver a activar.
+        if self.action == 'list' and self.request.query_params.get('incluir_inactivos') != 'true':
             qs = qs.filter(activo=True)
         tipo = self.request.query_params.get('tipo')
         if tipo:
@@ -2591,6 +2593,37 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     }
 
 
+def _pdf_liquidacion(liquidacion, es_plan_semilla):
+    """PDF de una liquidación en bytes, o None si xhtml2pdf falla."""
+    empleado = liquidacion.empleado
+    empresa = empleado.empresa
+    contrato = Contrato.objects.filter(empleado=empleado).first()
+    meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
+             "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+    # Transformar número a palabras (Ej: 542000 -> "quinientos cuarenta y dos mil")
+    liquido_palabras = num2words(int(liquidacion.sueldo_liquido or 0), lang='es')
+
+    agrupados = liquidacion.items_agrupados
+    suma_no_imponibles = sum(int(i.get('valor', 0)) for i in agrupados['no_imponibles'] if isinstance(i, dict))
+    suma_otros_descuentos = sum(int(i.get('valor', 0)) for i in agrupados['descuentos'] if isinstance(i, dict))
+    total_ley = ((liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0)
+                 + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0))
+    total_otros_dsctos = (liquidacion.anticipo_quincena or 0) + suma_otros_descuentos
+
+    html = get_template('liquidacion.html').render({
+        'liquidacion': liquidacion, 'empleado': empleado, 'empresa': empresa, 'contrato': contrato,
+        'mes_nombre': meses[liquidacion.mes - 1].upper(), 'liquido_palabras': liquido_palabras,
+        'total_no_imponible': suma_no_imponibles, 'total_ley': total_ley,
+        'total_otros_dsctos': total_otros_dsctos, 'es_plan_semilla': es_plan_semilla,
+    })
+    salida = io.BytesIO()
+    if pisa.CreatePDF(html, dest=salida).err:
+        logger.error('xhtml2pdf no pudo generar la liquidación %s', liquidacion.id)
+        return None
+    return salida.getvalue()
+
+
 class LiquidacionViewSet(viewsets.ModelViewSet):
     queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
     serializer_class = LiquidacionSerializer
@@ -2604,7 +2637,47 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         empleado_id = self.request.query_params.get('empleado', None)
         if empleado_id is not None:
             queryset = queryset.filter(empleado_id=empleado_id)
+        # Filtros del proceso mensual: una empresa y un período.
+        params = self.request.query_params
+        if params.get('empresa'):
+            queryset = queryset.filter(empleado__empresa_id=params['empresa'])
+        if params.get('mes'):
+            queryset = queryset.filter(mes=params['mes'])
+        if params.get('anio'):
+            queryset = queryset.filter(anio=params['anio'])
         return queryset
+
+    @action(detail=False, methods=['post'])
+    def simular(self, request):
+        """Calcula una liquidación sin guardarla (vista previa del formulario).
+
+        Usa exactamente el mismo cálculo que create/update: el frontend no
+        replica ninguna regla previsional. Con `liquidacion` se simula la
+        edición de una existente, con los términos con que se emitió.
+        """
+        data = request.data
+        try:
+            _validar_conceptos(data, request.user)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            empleado = Empleado.objects.get(id=data.get('empleado'), empresa__owner=request.user)
+        except (Empleado.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'Trabajador no encontrado o no autorizado.'}, status=status.HTTP_404_NOT_FOUND)
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+        if not contrato:
+            return Response({'error': 'El trabajador no tiene un contrato activo.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        terminos = _terminos_vigentes(contrato)
+        if data.get('liquidacion'):
+            existente = Liquidacion.objects.filter(id=data['liquidacion'], empleado=empleado).first()
+            if existente:
+                terminos = _terminos_congelados(existente, contrato)
+        try:
+            calculado = _calcular_liquidacion(contrato, empleado, data, terminos=terminos)
+        except (ValueError, TypeError) as e:
+            return Response({'error': f'Datos inválidos: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'empleado': empleado.id, 'mes': data.get('mes'), 'anio': data.get('anio'), **calculado})
 
     def create(self, request, *args, **kwargs):
         data = request.data
@@ -2724,59 +2797,52 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
-            es_plan_semilla = _es_plan_semilla(request.user)
-            empleado = liquidacion.empleado
-            empresa = empleado.empresa
-            contrato = Contrato.objects.filter(empleado=empleado).first()
-
-            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-            mes_nombre = meses[liquidacion.mes - 1]
-
-            # Transformar número a palabras (Ej: 542000 -> "quinientos cuarenta y dos mil")
-            sueldo_seguro = int(liquidacion.sueldo_liquido or 0)
-            liquido_palabras = num2words(sueldo_seguro, lang='es')
-
-            agrupados = liquidacion.items_agrupados
-            det_no_imp = agrupados['no_imponibles']
-            suma_no_imponibles = sum(int(item.get('valor', 0)) for item in det_no_imp if isinstance(item, dict))
-
-            det_otros_dsctos = agrupados['descuentos']
-            suma_otros_descuentos = sum(int(item.get('valor', 0)) for item in det_otros_dsctos if isinstance(item, dict))
-            
-            total_ley = (liquidacion.afp_monto or 0) + (liquidacion.salud_monto or 0) + (liquidacion.seguro_cesantia or 0) + (liquidacion.impuesto_unico or 0)
-            total_otros_dsctos = (liquidacion.anticipo_quincena or 0) + suma_otros_descuentos
-
-            context = {
-                'liquidacion': liquidacion,
-                'empleado': empleado,
-                'empresa': empresa,
-                'contrato': contrato,
-                'mes_nombre': mes_nombre.upper(),
-                'liquido_palabras': liquido_palabras,
-                'total_no_imponible': suma_no_imponibles,
-                'total_ley': total_ley,
-                'total_otros_dsctos': total_otros_dsctos,
-                'es_plan_semilla': es_plan_semilla
-            }
-
-            template = get_template('liquidacion.html')
-            html = template.render(context)
-
-            response = HttpResponse(content_type='application/pdf')
-            nombre_archivo = f'Liquidacion_{liquidacion.mes}_{liquidacion.anio}_{empleado.rut}.pdf'
-            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
-
-            pisa_status = pisa.CreatePDF(html, dest=response)
-
-            if pisa_status.err:
-                print("Error interno de pisa (xhtml2pdf)")
+            pdf = _pdf_liquidacion(liquidacion, _es_plan_semilla(request.user))
+            if pdf is None:
                 return Response({'error': 'Error al generar PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+            response = HttpResponse(pdf, content_type='application/pdf')
+            nombre_archivo = f'Liquidacion_{liquidacion.mes}_{liquidacion.anio}_{liquidacion.empleado.rut}.pdf'
+            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
             return response
-
         except Exception as e:
             logger.exception('Error al generar PDF de liquidación')
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='zip_periodo')
+    def zip_periodo(self, request):
+        """PDF de todas las liquidaciones de una empresa en un período, en un ZIP (plan Pyme+)."""
+        if not _plan_permite(request.user, 3):
+            return Response(
+                {'error': 'La descarga de liquidaciones en ZIP está disponible desde el plan Pyme. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            mes = int(request.query_params.get('mes'))
+            anio = int(request.query_params.get('anio'))
+            empresa = Empresa.objects.get(id=request.query_params.get('empresa'), owner=request.user)
+        except (TypeError, ValueError, Empresa.DoesNotExist):
+            return Response({'error': 'Indica una empresa y un período válidos.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        liquidaciones = (Liquidacion.objects
+                         .filter(empleado__empresa=empresa, mes=mes, anio=anio)
+                         .select_related('empleado', 'empleado__empresa')
+                         .order_by('empleado__apellido_paterno'))
+        if not liquidaciones.exists():
+            return Response({'error': 'No hay liquidaciones emitidas en ese período.'}, status=status.HTTP_404_NOT_FOUND)
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for liq in liquidaciones:
+                pdf = _pdf_liquidacion(liq, False)
+                if pdf is None:
+                    continue
+                emp = liq.empleado
+                nombre = f"Liquidacion_{emp.rut.replace('.', '')}_{emp.apellido_paterno}_{anio}-{mes:02d}.pdf".replace(' ', '_')
+                zf.writestr(nombre, pdf)
+        response = HttpResponse(buffer.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="Liquidaciones_{empresa.rut}_{anio}-{mes:02d}.zip"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
 
     @action(detail=False, methods=['get'], url_path='exportar_previred')
     def exportar_previred(self, request):

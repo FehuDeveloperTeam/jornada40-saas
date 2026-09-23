@@ -1983,3 +1983,112 @@ class IndicadoresSinReintentoTests(APITestCase):
         self.assertEqual(primero, segundo)
         self.assertEqual(get.call_count, 1)
         self.assertTrue(indicadores.estado_indicadores())
+
+
+class RemuneracionesPeriodoTests(APITestCase):
+    """Vista previa, filtros por período y ZIP de liquidaciones (paso B del panel)."""
+
+    def _usuario(self, nivel, sufijo='1'):
+        from django.contrib.auth.models import User
+        from core.models import Cliente, Contrato, Empresa, Empleado, Plan, Suscripcion
+        plan = Plan.objects.create(nombre=f'P{nivel}{sufijo}', precio=0, max_empresas=10, limite_trabajadores=250, nivel=nivel)
+        u = User.objects.create_user(username=f'{nivel}{sufijo}.111.111-1', password='x')
+        c = Cliente.objects.create(usuario=u, rut=f'{nivel}{sufijo}.111.111-1', nombres='A', plan=plan)
+        Suscripcion.objects.create(cliente=c, plan=plan, estado='ACTIVE')
+        e = Empresa.objects.create(owner=u, nombre_legal='E', rut=f'7{nivel}.{sufijo}00.001-1')
+        emp = Empleado.objects.create(empresa=e, rut=f'{nivel}.{sufijo}33.333-3', nombres='V', apellido_paterno='V',
+                                      cargo='C', fecha_ingreso='2020-01-01', afp='HABITAT', sistema_salud='FONASA')
+        Contrato.objects.create(empleado=emp, tipo_contrato='INDEFINIDO', fecha_inicio='2020-01-01',
+                                sueldo_base=900_000, gratificacion_legal='MENSUAL')
+        self.client.force_authenticate(u)
+        return u, e, emp
+
+    def test_simular_igual_a_emitir_y_no_guarda(self):
+        from core.models import Liquidacion
+        _, _, emp = self._usuario(3)
+        datos = {'empleado': emp.id, 'mes': 9, 'anio': 2026, 'dias_trabajados': 30, 'dias_ausencia': 2}
+        sim = self.client.post('/api/liquidaciones/simular/', datos, format='json')
+        self.assertEqual(sim.status_code, 200, sim.data)
+        self.assertEqual(Liquidacion.objects.count(), 0)
+        real = self.client.post('/api/liquidaciones/', datos, format='json')
+        self.assertEqual(real.status_code, 201)
+        for campo in ('sueldo_base', 'gratificacion', 'afp_monto', 'salud_monto', 'seguro_cesantia',
+                      'impuesto_unico', 'total_imponible', 'total_descuentos', 'sueldo_liquido'):
+            self.assertEqual(sim.data[campo], real.data[campo], campo)
+
+    def test_simular_trabajador_ajeno(self):
+        _, _, ajeno = self._usuario(3, '2')
+        self._usuario(3, '3')
+        r = self.client.post('/api/liquidaciones/simular/', {'empleado': ajeno.id, 'mes': 9, 'anio': 2026}, format='json')
+        self.assertEqual(r.status_code, 404)
+
+    def test_filtro_por_empresa_y_periodo(self):
+        _, e, emp = self._usuario(3)
+        for mes in (8, 9):
+            self.client.post('/api/liquidaciones/', {'empleado': emp.id, 'mes': mes, 'anio': 2026}, format='json')
+        r = self.client.get(f'/api/liquidaciones/?empresa={e.id}&mes=9&anio=2026')
+        datos = r.data['results'] if isinstance(r.data, dict) else r.data
+        self.assertEqual([d['mes'] for d in datos], [9])
+
+    def test_zip_periodo_pyme(self):
+        import io, zipfile
+        _, e, emp = self._usuario(3)
+        self.client.post('/api/liquidaciones/', {'empleado': emp.id, 'mes': 9, 'anio': 2026}, format='json')
+        r = self.client.get(f'/api/liquidaciones/zip_periodo/?empresa={e.id}&mes=9&anio=2026')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(zipfile.ZipFile(io.BytesIO(r.content)).namelist()), 1)
+
+    def test_zip_periodo_requiere_pyme(self):
+        _, e, _ = self._usuario(2)
+        r = self.client.get(f'/api/liquidaciones/zip_periodo/?empresa={e.id}&mes=9&anio=2026')
+        self.assertEqual(r.status_code, 403)
+
+    def test_pdf_individual_sigue_funcionando(self):
+        _, _, emp = self._usuario(1)
+        liq = self.client.post('/api/liquidaciones/', {'empleado': emp.id, 'mes': 9, 'anio': 2026}, format='json')
+        r = self.client.get(f"/api/liquidaciones/{liq.data['id']}/generar_pdf/")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.content.startswith(b'%PDF'))
+
+
+class ConceptosEdicionTests(APITestCase):
+    """El catálogo en el panel nuevo: tipo y código fijos; código único por empresa."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Empresa
+        self.u = User.objects.create_user(username='5.555.555-5', password='x')
+        self.e = Empresa.objects.create(owner=self.u, nombre_legal='E', rut='76.555.555-5')
+        self.client.force_authenticate(self.u)
+
+    def _crear(self, codigo='bono-turno', tipo='HABER_IMPONIBLE'):
+        return self.client.post('/api/conceptos/', {'empresa': self.e.id, 'codigo': codigo, 'nombre': 'Bono turno', 'tipo': tipo}, format='json')
+
+    def test_crear_fija_naturaleza_por_tipo(self):
+        r = self._crear()
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertTrue(r.data['es_imponible'])
+        self.assertFalse(r.data['es_del_sistema'])
+
+    def test_no_se_cambia_tipo_ni_codigo(self):
+        c = self._crear().data
+        r = self.client.patch(f"/api/conceptos/{c['id']}/", {'tipo': 'DESCUENTO'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        r = self.client.patch(f"/api/conceptos/{c['id']}/", {'codigo': 'otro'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        r = self.client.patch(f"/api/conceptos/{c['id']}/", {'nombre': 'Bono de turno noche'}, format='json')
+        self.assertEqual(r.status_code, 200)
+
+    def test_codigo_duplicado_da_400(self):
+        self._crear()
+        r = self._crear()
+        self.assertEqual(r.status_code, 400)
+
+    def test_desactivar_y_reactivar(self):
+        c = self._crear().data
+        self.assertEqual(self.client.patch(f"/api/conceptos/{c['id']}/", {'activo': False}, format='json').status_code, 200)
+        activos = [x['id'] for x in self.client.get('/api/conceptos/').data]
+        self.assertNotIn(c['id'], activos)
+        todos = [x['id'] for x in self.client.get('/api/conceptos/?incluir_inactivos=true').data]
+        self.assertIn(c['id'], todos)
+        self.assertEqual(self.client.patch(f"/api/conceptos/{c['id']}/", {'activo': True}, format='json').status_code, 200)
