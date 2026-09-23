@@ -60,6 +60,7 @@ import re
 import math
 from decimal import Decimal, ROUND_FLOOR
 from .indicadores import obtener_uf, obtener_utm, calcular_impuesto_unico
+from .jornada import avisos_jornada, jornada_maxima_vigente
 import random
 import string
 from num2words import num2words
@@ -850,7 +851,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         if sueldo < 0:
                             errores.append(f"Fila {fila_num}: sueldo_base no puede ser negativo.")
                             continue
-                        horas_raw = row_norm.get('horas_laborales', 44)
+                        horas_raw = row_norm.get('horas_laborales', jornada_maxima_vigente())
                         horas = int(horas_raw)
                         if horas <= 0 or horas > 168:
                             errores.append(f"Fila {fila_num}: horas_laborales debe estar entre 1 y 168.")
@@ -1485,6 +1486,24 @@ class ContratoViewSet(viewsets.ModelViewSet):
         if config != contrato.comisiones_config:
             contrato.comisiones_config = config
             contrato.save(update_fields=['comisiones_config'])
+
+    @action(detail=False, methods=['post'], url_path='evaluar-jornada')
+    def evaluar_jornada(self, request):
+        """Avisos de jornada para un contrato que se está editando.
+
+        El formulario lo llama mientras el usuario escribe, para mostrar los
+        incumplimientos antes de guardar. Solo informa: guardar un contrato que
+        incumple sigue permitido, la decisión es del usuario.
+        """
+        datos = request.data
+        return Response({
+            'jornada_maxima_vigente': jornada_maxima_vigente(),
+            'avisos': avisos_jornada(
+                datos.get('tipo_jornada'),
+                datos.get('horas_semanales'),
+                datos.get('distribucion_horario'),
+            ),
+        })
 
     @action(detail=True, methods=['post'])
     def generar_contrato_pdf(self, request, pk=None):

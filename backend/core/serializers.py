@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion
 from dj_rest_auth.serializers import LoginSerializer, PasswordResetSerializer
+from .jornada import avisos_jornada, jornada_maxima_vigente
 
 class EmpresaSerializer(serializers.ModelSerializer):
     firma_configurada = serializers.SerializerMethodField()
@@ -25,6 +26,15 @@ class EmpresaSerializer(serializers.ModelSerializer):
 class ContratoSerializer(serializers.ModelSerializer):
     tiene_contrato_pdf = serializers.SerializerMethodField()
     tiene_anexo_40h_pdf = serializers.SerializerMethodField()
+    # Avisos de jornada (no bloquean nada): ver core/jornada.py.
+    jornada_maxima_vigente = serializers.SerializerMethodField()
+    avisos_jornada = serializers.SerializerMethodField()
+
+    def get_jornada_maxima_vigente(self, obj):
+        return jornada_maxima_vigente()
+
+    def get_avisos_jornada(self, obj):
+        return avisos_jornada(obj.tipo_jornada, obj.horas_semanales, obj.distribucion_horario)
 
     def get_tiene_contrato_pdf(self, obj):
         return bool(obj.archivo_contrato)
@@ -44,10 +54,12 @@ class ContratoSerializer(serializers.ModelSerializer):
             'jornada_personalizada', 'funciones_especificas', 'clausulas_especiales',
             'archivo_contrato', 'archivo_anexo_40h',
             'tiene_contrato_pdf', 'tiene_anexo_40h_pdf',
+            'jornada_maxima_vigente', 'avisos_jornada',
             'creado_en',
         ]
         read_only_fields = ('id', 'archivo_contrato', 'archivo_anexo_40h', 'creado_en',
-                            'tiene_contrato_pdf', 'tiene_anexo_40h_pdf')
+                            'tiene_contrato_pdf', 'tiene_anexo_40h_pdf',
+                            'jornada_maxima_vigente', 'avisos_jornada')
 
     def validate(self, data):
         tipo = data.get('tipo_contrato', getattr(self.instance, 'tipo_contrato', None))

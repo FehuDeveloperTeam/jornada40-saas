@@ -5,6 +5,8 @@ from django.utils import timezone
 from django.db.models import Max
 from django.core.validators import MinValueValidator, MaxValueValidator
 
+from .jornada import jornada_maxima_por_defecto, jornada_maxima_vigente
+
 class Plan(models.Model):
     nombre = models.CharField(max_length=50)
     descripcion = models.TextField(blank=True, null=True)
@@ -239,7 +241,9 @@ class Contrato(models.Model):
 
     # 2. Datos de la Ley 40 Horas y Jornadas
     tipo_jornada = models.CharField(max_length=20, choices=TIPO_JORNADA_CHOICES, default='ORDINARIA')
-    horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=44.0)
+    # El default es el máximo que rige al crear el contrato (antes era 44 fijo,
+    # sobre el máximo legal desde el 26-04-2026).
+    horas_semanales = models.DecimalField(max_digits=3, decimal_places=1, default=jornada_maxima_por_defecto)
     distribucion_dias = models.IntegerField(default=5)
     
     # NUEVO: Matriz de Horarios en JSON y colación
@@ -267,6 +271,18 @@ class Contrato(models.Model):
     archivo_anexo_40h = models.FileField(upload_to='anexos/', null=True, blank=True)
 
     creado_en = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def horas_propuestas_anexo_40h(self):
+        """Horas que propone el anexo de adecuación a la Ley 40 horas.
+
+        El anexo repetía las horas del contrato: a un contrato de 44 h le
+        generaba un anexo de "adecuación" que volvía a decir 44 h. Propone el
+        máximo vigente si el contrato lo excede; si no, mantiene lo pactado.
+        """
+        maximo = jornada_maxima_vigente()
+        horas = float(self.horas_semanales or 0)
+        return f'{min(horas, maximo):g}'.replace('.', ',')
 
     def __str__(self):
         return f"Contrato {self.tipo_contrato} - {self.empleado} - {self.horas_semanales}h"
