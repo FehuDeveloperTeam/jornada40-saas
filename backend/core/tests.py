@@ -2410,3 +2410,38 @@ class FeriadoCalendarioTests(APITestCase):
         self.assertEqual(c(d(2026, 9, 11), 3), 5)      # vie → lun, mar, mié: + sáb y dom
         self.assertEqual(c(d(2026, 9, 16), 3), 6)      # 18 y 19 son feriados
         self.assertEqual(c(d(2026, 9, 11), 3.5), 5.5)  # la fracción se paga tal cual
+
+
+class MiCuentaYParametrosTests(APITestCase):
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('cuenta_owner', '19.999.999-9', '76.999.999-9')
+        self.user.set_password('Clave-Actual-2026'); self.user.save()
+        self.client.force_authenticate(self.user)
+
+    def test_perfil_patch_y_validaciones(self):
+        r = self.client.patch('/api/clientes/perfil/', {'tipo_cliente': 'EMPRESA', 'razon_social': 'Mi Pyme SpA',
+                                                        'telefono': '+56911112222', 'email': 'NUEVO@Example.com'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['email'], 'nuevo@example.com')
+        self.assertEqual(r.data['rut'], '19.999.999-9')
+        self.assertEqual(self.client.patch('/api/clientes/perfil/', {'email': 'malo'}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch('/api/clientes/perfil/', {'razon_social': ''}, format='json').status_code, 400)
+        # El RUT no se cambia por esta vía
+        self.client.patch('/api/clientes/perfil/', {'rut': '11.111.111-1'}, format='json')
+        self.cliente.refresh_from_db(); self.assertEqual(self.cliente.rut, '19.999.999-9')
+
+    def test_cambio_de_clave_exige_la_actual(self):
+        r = self.client.post('/api/auth/password/change/', {'new_password1': 'Otra-Clave-2027', 'new_password2': 'Otra-Clave-2027'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post('/api/auth/password/change/', {'old_password': 'Clave-Actual-2026',
+                                                             'new_password1': 'Otra-Clave-2027', 'new_password2': 'Otra-Clave-2027'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+
+    @patch('core.views.obtener_utm', return_value=71721.0)
+    @patch('core.views.obtener_uf', return_value=41057.20)
+    def test_parametros_vigentes_solo_lectura(self, *_):
+        r = self.client.get('/api/parametros/vigentes/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('ingreso_minimo_mensual', r.data)
+        self.assertIn('HABITAT', r.data['tasas_afp'])
+        self.assertEqual(self.client.post('/api/parametros/vigentes/', {}).status_code, 405)

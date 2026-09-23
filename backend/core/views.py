@@ -1662,6 +1662,38 @@ def indicadores_del_dia(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def parametros_vigentes(request):
+    """Parámetros previsionales con que se calcula hoy, solo lectura.
+
+    Son comunes a todos los clientes: los mantiene Jornada40 en el admin y no
+    se confirman ni se editan desde el panel.
+    """
+    hoy = timezone.localdate()
+    fila = _fila_parametros(_fecha_referencia(hoy.month, hoy.year))
+    p = _parametros_previsionales(hoy.month, hoy.year)
+    return Response({
+        'periodo': f'{hoy.year}-{hoy.month:02d}',
+        'vigente_desde': fila.vigente_desde.isoformat() if fila else None,
+        'origen': fila.get_origen_display() if fila else 'Valores de respaldo del sistema',
+        'ingreso_minimo_mensual': int(p['ingreso_minimo_mensual']),
+        'tope_imponible_afp_uf': p['tope_imponible_afp_uf'],
+        'tope_imponible_afc_uf': p['tope_imponible_afc_uf'],
+        'tope_gratificacion_mensual': math.floor(p['factor_gratificacion'] * p['ingreso_minimo_mensual'] / 12),
+        'tasa_salud': p['tasa_salud'],
+        'tasa_afc_trabajador_indefinido': p['tasa_afc_trabajador_indefinido'],
+        'tasa_afc_empleador_indefinido': p['tasa_afc_empleador_indefinido'],
+        'tasa_afc_empleador_plazo': p['tasa_afc_empleador_plazo'],
+        'tasa_sis': p['tasa_sis'],
+        'tasas_afp': _tasas_afp(hoy.month, hoy.year),
+        'uf': obtener_uf(),
+        'utm': obtener_utm(),
+        'jornada_maxima_vigente': jornada_maxima_vigente(),
+        'advertencias': advertencias_parametros(hoy.month, hoy.year),
+    })
+
+
+@api_view(['GET'])
 @permission_classes([AllowAny])
 def diagnostico_red(request):
     """Muestra la cadena de proxies con que llega una solicitud. Apagado por defecto.
@@ -4779,47 +4811,65 @@ def recuperar_password_por_rut(request):
         )
     return respuesta
 
-@api_view(['GET', 'PUT'])
+@api_view(['GET', 'PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def perfil_usuario(request):
-    # Obtenemos el perfil del cliente (Tabla Cliente)
+    """Datos del titular de la cuenta. El RUT no se cambia: es el usuario de ingreso."""
     cliente = getattr(request.user, 'perfil_cliente', None)
-    
     if not cliente:
         return Response({'error': 'Perfil no encontrado en la tabla Cliente'}, status=404)
 
-    if request.method == 'GET':
-        # EXTRAEMOS DIRECTAMENTE DE LA TABLA CLIENTE
-        return Response({
-            'nombres': cliente.nombres or "",
-            'apellido_paterno': cliente.apellido_paterno or "",
-            'apellido_materno': cliente.apellido_materno or "",
-            'email': request.user.email,
+    def datos():
+        plan = _plan_activo(request.user)
+        return {
             'rut': cliente.rut,
-            # Agregamos el nombre del plan para verificar el error del null
-            'plan_nombre': cliente.plan.nombre if cliente.plan else "Sin Plan (null)"
-        })
+            'tipo_cliente': cliente.tipo_cliente,
+            'nombres': cliente.nombres or '',
+            'apellido_paterno': cliente.apellido_paterno or '',
+            'apellido_materno': cliente.apellido_materno or '',
+            'razon_social': cliente.razon_social or '',
+            'email': request.user.email or cliente.correo or '',
+            'telefono': cliente.telefono or '',
+            'direccion': cliente.direccion or '',
+            'plan_nombre': plan.nombre if plan else '',
+        }
 
-    if request.method == 'PUT':
-        nombres = request.data.get('nombres')
-        apellido_paterno = request.data.get('apellido_paterno')
-        apellido_materno = request.data.get('apellido_materno')
-        email = request.data.get('email')
+    if request.method == 'GET':
+        return Response(datos())
 
-        # 1. ACTUALIZAR TABLA CLIENTE (Campos específicos)
-        if nombres is not None: cliente.nombres = nombres
-        if apellido_paterno is not None: cliente.apellido_paterno = apellido_paterno
-        if apellido_materno is not None: cliente.apellido_materno = apellido_materno
-        if email: cliente.correo = email
-        cliente.save()
+    d = request.data
+    tipo = d.get('tipo_cliente', cliente.tipo_cliente)
+    if tipo not in dict(Cliente.TIPO_CLIENTE_CHOICES):
+        return Response({'error': 'Tipo de cliente inválido.'}, status=400)
+    nombres = str(d.get('nombres', cliente.nombres) or '').strip()
+    if not nombres:
+        return Response({'error': 'Ingresa el nombre del titular.'}, status=400)
+    razon_social = str(d.get('razon_social', cliente.razon_social) or '').strip()
+    if tipo == 'EMPRESA' and not razon_social:
+        return Response({'error': 'Ingresa la razón social.'}, status=400)
+    email = str(d.get('email', request.user.email) or '').strip().lower()
+    if email:
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return Response({'error': 'El correo no es válido.'}, status=400)
 
-        # 2. MANTENER REDUNDANCIA EN TABLA USER (Django Auth)
-        if nombres is not None: request.user.first_name = nombres
-        request.user.last_name = f"{apellido_paterno or ''} {apellido_materno or ''}".strip()
-        if email: request.user.email = email
-        request.user.save()
+    cliente.tipo_cliente = tipo
+    cliente.nombres = nombres
+    for campo in ('apellido_paterno', 'apellido_materno', 'telefono', 'direccion'):
+        if campo in d:
+            setattr(cliente, campo, str(d.get(campo) or '').strip())
+    cliente.razon_social = razon_social
+    cliente.correo = email or cliente.correo
+    cliente.save()
 
-        return Response({'mensaje': 'Perfil actualizado con éxito en ambas tablas'})
+    # El usuario de Django guarda una copia para el correo de recuperación.
+    request.user.first_name = nombres
+    request.user.last_name = f"{cliente.apellido_paterno or ''} {cliente.apellido_materno or ''}".strip()
+    if email:
+        request.user.email = email
+    request.user.save()
+    return Response({'mensaje': 'Perfil actualizado.', **datos()})
 
 
 # ==========================================

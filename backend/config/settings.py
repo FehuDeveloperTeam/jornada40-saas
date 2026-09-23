@@ -147,6 +147,9 @@ REST_AUTH = {
     'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
     # Se entra solo con el RUT del titular; ver LoginPorRutSerializer.
     'LOGIN_SERIALIZER': 'core.serializers.LoginPorRutSerializer',
+    # Cambiar la contraseña exige la actual: con una sesión abierta ajena no
+    # basta para quedarse con la cuenta.
+    'OLD_PASSWORD_FIELD_ENABLED': True,
 }
 
 # ==================================
