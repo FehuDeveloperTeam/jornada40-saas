@@ -145,6 +145,8 @@ REST_AUTH = {
     # SameSite=None + Secure es obligatorio para envío cross-site (Vercel → Railway).
     'JWT_AUTH_SAMESITE': 'None' if IS_DEPLOYED else 'Lax',
     'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
+    # Se entra solo con el RUT del titular; ver LoginPorRutSerializer.
+    'LOGIN_SERIALIZER': 'core.serializers.LoginPorRutSerializer',
 }
 
 # ==================================

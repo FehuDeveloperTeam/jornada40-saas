@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion
-from dj_rest_auth.serializers import PasswordResetSerializer
+from dj_rest_auth.serializers import LoginSerializer, PasswordResetSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
     firma_configurada = serializers.SerializerMethodField()
@@ -262,3 +262,22 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
             'html_email_template_name': 'registration/password_reset_email.html',
             'email_template_name': 'registration/password_reset_email.txt',
         }
+
+
+class LoginPorRutSerializer(LoginSerializer):
+    """Inicio de sesión solo con el RUT del titular (el `username`).
+
+    El correo no identifica a una cuenta: el registro no lo exige único y una
+    persona puede tener varias cuentas con el mismo correo. Con el login por
+    correo de dj-rest-auth, un correo repetido hacía fallar la búsqueda con un
+    error 500, y además ese camino no pasaba por el límite de intentos por
+    cuenta, que se calcula sobre el `username`.
+    """
+    # Quitar el campo hace que dj-rest-auth autentique solo por username.
+    email = None
+
+    def validate(self, attrs):
+        if not (attrs.get('username') or '').strip():
+            raise serializers.ValidationError(
+                {'username': 'Ingresa el RUT del titular de la cuenta.'})
+        return super().validate(attrs)

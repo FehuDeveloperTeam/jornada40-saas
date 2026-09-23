@@ -1442,3 +1442,42 @@ class RegistroDatosClienteTests(APITestCase):
     def test_telefono_se_recorta_al_largo_del_campo(self):
         self._registrar(telefono='9' * 40)
         self.assertEqual(len(self._cliente().telefono), 20)
+
+
+class LoginSoloRutTests(APITestCase):
+    """Se entra solo con el RUT del titular, nunca con el correo.
+
+    El correo puede repetirse entre cuentas: antes, dos cuentas con el mismo
+    correo hacían que el login por correo respondiera 500.
+    """
+
+    def setUp(self):
+        cache.clear()
+        from django.contrib.auth.models import User
+        User.objects.create_user(username='12.345.678-5', password='Clave-Segura-2026', email='mismo@correo.cl')
+        User.objects.create_user(username='9.876.543-3', password='Otra-Clave-2026', email='mismo@correo.cl')
+
+    def _login(self, **datos):
+        return self.client.post('/api/auth/login/', datos, format='json')
+
+    def test_entra_con_rut(self):
+        resp = self._login(username='12.345.678-5', password='Clave-Segura-2026')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_con_correo_no_entra(self):
+        resp = self._login(email='mismo@correo.cl', password='Clave-Segura-2026')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('username', resp.data)
+
+    def test_correo_repetido_ya_no_da_500(self):
+        # Antes: MultipleObjectsReturned sin capturar → 500.
+        resp = self._login(email='mismo@correo.cl', password='cualquiera')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_correo_en_el_campo_username_no_entra(self):
+        resp = self._login(username='mismo@correo.cl', password='Clave-Segura-2026')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_clave_incorrecta(self):
+        resp = self._login(username='12.345.678-5', password='incorrecta')
+        self.assertEqual(resp.status_code, 400)
