@@ -1937,3 +1937,31 @@ class PermisosPorPlanTests(APITestCase):
         self.assertEqual(self.client.get('/api/liquidaciones/consolidado/?anio=2026').status_code, 403)
         self._usuario(3)
         self.assertNotEqual(self.client.get('/api/liquidaciones/consolidado/?anio=2026').status_code, 403)
+
+
+class PanelApiTests(APITestCase):
+    """Endpoints que usa el panel nuevo."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Empresa, Empleado
+        self.u = User.objects.create_user(username='1-9', password='x')
+        e1 = Empresa.objects.create(owner=self.u, nombre_legal='E1', rut='76.000.001-K')
+        self.e2 = Empresa.objects.create(owner=self.u, nombre_legal='E2', rut='76.000.002-8')
+        Empleado.objects.create(empresa=e1, rut='3-5', nombres='A', apellido_paterno='A', cargo='C', fecha_ingreso='2025-01-01')
+        Empleado.objects.create(empresa=self.e2, rut='4-3', nombres='B', apellido_paterno='B', cargo='C', fecha_ingreso='2025-01-01')
+        self.client.force_authenticate(self.u)
+
+    def test_filtro_por_empresa(self):
+        r = self.client.get(f'/api/empleados/?empresa={self.e2.id}')
+        datos = r.data['results'] if isinstance(r.data, dict) else r.data
+        self.assertEqual([e['nombres'] for e in datos], ['B'])
+        r = self.client.get('/api/empleados/')
+        datos = r.data['results'] if isinstance(r.data, dict) else r.data
+        self.assertEqual(len(datos), 2)
+
+    def test_indicadores(self):
+        r = self.client.get('/api/indicadores/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('uf', r.data)
+        self.assertEqual(r.data['jornada_maxima_vigente'], 42)

@@ -708,9 +708,15 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             empleado=OuterRef('pk'),
             estado='RECHAZADO',
         )
-        return Empleado.objects.filter(empresa__owner=self.request.user).annotate(
+        qs = Empleado.objects.filter(empresa__owner=self.request.user).annotate(
             tiene_rechazos_pendientes=Exists(rechazos_qs)
         )
+        # El panel pide los trabajadores de la empresa activa; sin el
+        # parámetro se mantienen todos los del usuario (panel anterior).
+        empresa_id = self.request.query_params.get('empresa')
+        if empresa_id:
+            qs = qs.filter(empresa_id=empresa_id)
+        return qs
 
     def perform_create(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
@@ -1576,6 +1582,24 @@ from dj_rest_auth.views import LoginView as DjRestLoginView
 
 class ThrottledLoginView(DjRestLoginView):
     throttle_classes = [LoginRateThrottle, LoginAccountRateThrottle]
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def indicadores_del_dia(request):
+    """UF, UTM y jornada máxima vigente para el encabezado del panel.
+
+    `respaldo` avisa si mindicador.cl no respondió y se usan los valores de
+    respaldo del código.
+    """
+    from .indicadores import estado_indicadores
+    return Response({
+        'fecha': timezone.localdate().isoformat(),
+        'uf': obtener_uf(),
+        'utm': obtener_utm(),
+        'jornada_maxima_vigente': jornada_maxima_vigente(),
+        'respaldo': bool(estado_indicadores()),
+    })
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
