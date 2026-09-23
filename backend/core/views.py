@@ -2271,9 +2271,10 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     items = _items_desde_payload(data)
     conceptos = _conceptos_por_id(items)
 
-    # La glosa y la naturaleza se congelan desde el concepto al emitir: si
-    # después lo renombran o lo reclasifican, la liquidación ya emitida
-    # conserva lo que tenía ese día.
+    # La glosa y la naturaleza se toman del concepto y quedan guardadas en el
+    # ítem: una liquidación que no se vuelve a tocar conserva el nombre que
+    # tenía el día que se emitió. Al editarla se re-derivan, porque editar es
+    # volver a emitirla y ahí corresponde el nombre vigente.
     for item in items:
         concepto = conceptos.get(item.get('concepto'))
         if concepto is not None:
