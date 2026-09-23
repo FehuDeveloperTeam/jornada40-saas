@@ -1,0 +1,216 @@
+/* ============================================================
+   TOKENS DEL REDISEÑO (handoff "Rediseño frontend Jornada40")
+   ------------------------------------------------------------
+   Convive con el sistema anterior (--c-*) mientras dura la
+   migración progresiva. Las variables crudas van prefijadas
+   --j40-* para que los dos sistemas nunca se pisen; @theme las
+   expone como utilidades de Tailwind con nombres cortos.
+
+   Tema: atributo data-j40="claro|oscuro". Lo aplica <J40Root>,
+   no <html>, para que las rutas que todavía usan el diseño
+   anterior no se vean afectadas.
+
+   Los valores salen de los tres prototipos, no del README:
+   donde discrepaban mandó el prototipo.
+   ============================================================ */
+
+:root,
+[data-j40='claro'] {
+  color-scheme: light;
+
+  --j40-bg: #f4f5f7;
+  --j40-bg-blur: rgba(244, 245, 247, 0.88);
+  --j40-surface: #ffffff;
+  --j40-surface-2: #f9fafb;
+  --j40-sunken: #eef0f3;
+
+  --j40-border: #e3e6eb;
+  --j40-border-strong: #cfd4dc;
+
+  --j40-text: #18212d;
+  --j40-text-2: #475263;
+  --j40-text-3: #6b7687;
+
+  --j40-brand: #0b74de;
+  --j40-brand-btn: #0b6fd6;
+  --j40-brand-soft: #e8f1fc;
+  --j40-brand-text: #0a5db3;
+
+  --j40-navy: #2e3a4b;
+
+  --j40-ok: #1c7a51;
+  --j40-ok-soft: #e6f3ec;
+  --j40-warn: #8c5c0d;
+  --j40-warn-soft: #fbf0dc;
+  --j40-danger: #b0382b;
+  --j40-danger-soft: #fbe9e6;
+
+  --j40-overlay: rgba(18, 25, 36, 0.45);
+
+  /* Superficie oscura del sitio público (hero, CTA final, pie). */
+  --j40-ink: #1b2533;
+  /* Hoja del documento en el flujo de firma. */
+  --j40-paper: #ffffff;
+
+  --j40-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+  --j40-pop: 0 16px 40px rgba(16, 24, 40, 0.16), 0 2px 6px rgba(16, 24, 40, 0.08);
+  --j40-pop-lg: 0 24px 60px rgba(16, 24, 40, 0.14), 0 2px 8px rgba(16, 24, 40, 0.06);
+}
+
+[data-j40='oscuro'] {
+  color-scheme: dark;
+
+  --j40-bg: #0d1218;
+  --j40-bg-blur: rgba(13, 18, 24, 0.88);
+  --j40-surface: #141a22;
+  --j40-surface-2: #181f29;
+  --j40-sunken: #1d2530;
+
+  --j40-border: #242d39;
+  --j40-border-strong: #344152;
+
+  --j40-text: #e5e9ef;
+  --j40-text-2: #aeb7c4;
+  --j40-text-3: #8792a2;
+
+  --j40-brand: #4096ec;
+  --j40-brand-btn: #2c79cf;
+  --j40-brand-soft: #15263b;
+  --j40-brand-text: #86bdf5;
+
+  --j40-navy: #3a4859;
+
+  --j40-ok: #5bc293;
+  --j40-ok-soft: #13281e;
+  --j40-warn: #e2ae55;
+  --j40-warn-soft: #2b2112;
+  --j40-danger: #ee8274;
+  --j40-danger-soft: #2e1816;
+
+  --j40-overlay: rgba(0, 0, 0, 0.6);
+
+  --j40-ink: #0a0f14;
+  --j40-paper: #f7f8fa;
+
+  --j40-shadow: none;
+  --j40-pop: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --j40-pop-lg: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Variante `oscuro:` para los pocos casos en que un token no alcanza y hay
+   que ajustar algo solo en el tema oscuro (p. ej. el texto de un botón
+   sólido). Aplica a cualquier nodo dentro de un [data-j40="oscuro"]. */
+@custom-variant oscuro (&:where([data-j40='oscuro'], [data-j40='oscuro'] *));
+
+/* La tinta de la firma es la misma en ambos temas: representa el
+   trazo sobre el documento, no un color de interfaz. */
+:root {
+  --j40-tinta: #14305c;
+}
+
+/* ------------------------------------------------------------
+   Exposición como utilidades de Tailwind v4.
+   `inline` hace que las utilidades referencien la variable en vez
+   de copiar su valor, que es lo que permite cambiar de tema con
+   solo cambiar el atributo.
+   ------------------------------------------------------------ */
+@theme inline {
+  --color-canvas: var(--j40-bg);
+  --color-canvas-blur: var(--j40-bg-blur);
+  --color-surface: var(--j40-surface);
+  --color-surface-2: var(--j40-surface-2);
+  --color-sunken: var(--j40-sunken);
+
+  --color-line: var(--j40-border);
+  --color-line-strong: var(--j40-border-strong);
+
+  --color-fg: var(--j40-text);
+  --color-fg-2: var(--j40-text-2);
+  --color-fg-3: var(--j40-text-3);
+
+  --color-brand: var(--j40-brand);
+  --color-brand-btn: var(--j40-brand-btn);
+  --color-brand-soft: var(--j40-brand-soft);
+  --color-brand-text: var(--j40-brand-text);
+
+  --color-navy: var(--j40-navy);
+  --color-ink: var(--j40-ink);
+  --color-paper: var(--j40-paper);
+  --color-tinta: var(--j40-tinta);
+
+  --color-ok: var(--j40-ok);
+  --color-ok-soft: var(--j40-ok-soft);
+  --color-warn: var(--j40-warn);
+  --color-warn-soft: var(--j40-warn-soft);
+  --color-danger: var(--j40-danger);
+  --color-danger-soft: var(--j40-danger-soft);
+
+  --color-overlay: var(--j40-overlay);
+
+  --shadow-card: var(--j40-shadow);
+  --shadow-pop: var(--j40-pop);
+  --shadow-pop-lg: var(--j40-pop-lg);
+
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Radios del handoff: tarjeta 12 · modal y drawer 14 · input y
+     botón 9 · logo 9 · avatar 8 · chip 99. */
+  --radius-j40-card: 12px;
+  --radius-j40-modal: 14px;
+  --radius-j40-control: 9px;
+  --radius-j40-avatar: 8px;
+}
+
+/* ------------------------------------------------------------
+   Utilidades propias
+   ------------------------------------------------------------ */
+
+/* Todas las cifras en pesos se alinean en columna. */
+.j40-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* RUT, códigos, folios y OTP. */
+.j40-mono {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Entrada de pantallas y modales del handoff. */
+@keyframes j40-pop {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Entrada de drawers laterales. */
+@keyframes j40-slide {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.j40-anim-pop {
+  animation: j40-pop 0.22s ease-out both;
+}
+
+.j40-anim-slide {
+  animation: j40-slide 0.22s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .j40-anim-pop,
+  .j40-anim-slide {
+    animation: none;
+  }
+}
