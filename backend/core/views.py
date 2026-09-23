@@ -13,7 +13,10 @@ class LoginRateThrottle(AnonRateThrottle):
 class LoginAccountRateThrottle(AnonRateThrottle):
     scope = 'login'
     def get_cache_key(self, request, view):
-        username = request.data.get('username', '').strip().lower()
+        # RUT limpio: con el texto tal cual, "123456785" y "12.345.678-5"
+        # contaban como cuentas distintas y se multiplicaban los intentos.
+        username = limpiar_rut(request.data.get('username', '')) or \
+            str(request.data.get('username', '')).strip().lower()
         if not username:
             return None  # sin username, no aplica (cae al throttle por IP igual)
         return f'throttle_login_account_{username}'
@@ -24,7 +27,7 @@ class RegisterRateThrottle(AnonRateThrottle):
 class RegisterAccountRateThrottle(AnonRateThrottle):
     scope = 'register'
     def get_cache_key(self, request, view):
-        rut = request.data.get('rut', '').strip().lower()
+        rut = limpiar_rut(request.data.get('rut', ''))
         email = (request.data.get('email') or request.data.get('correo') or '').strip().lower()
         clave = rut or email
         if not clave:
@@ -35,15 +38,23 @@ class PasswordResetRateThrottle(AnonRateThrottle):
     scope = 'password_reset'
 
 class PasswordResetAccountRateThrottle(AnonRateThrottle):
+    """Límite de solicitudes de recuperación por cuenta (RUT).
+
+    Evita que alguien inunde de correos de recuperación a un titular
+    cambiando de IP.
+    """
     scope = 'password_reset'
     def get_cache_key(self, request, view):
-        email = request.data.get('email', '').strip().lower()
-        if not email:
+        rut = limpiar_rut(request.data.get('rut', ''))
+        if not rut:
             return None
-        return f'throttle_pwreset_account_{email}'
+        return f'throttle_pwreset_account_{rut}'
 
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
 from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito, ParametroPrevisional, TasaAFP, ConceptoRemuneracion
@@ -61,6 +72,7 @@ import math
 from decimal import Decimal, ROUND_FLOOR
 from .indicadores import obtener_uf, obtener_utm, calcular_impuesto_unico
 from .jornada import avisos_jornada, jornada_maxima_vigente
+from .rut import es_rut_de_persona, formatear_rut, limpiar_rut, normalizar_rut_usuario, validar_rut
 import random
 import string
 from num2words import num2words
@@ -87,52 +99,7 @@ import uuid as uuid_mod
 # ==========================================
 # UTILIDADES DE RUT (VALIDACIÓN Y FORMATO)
 # ==========================================
-def limpiar_rut(rut):
-    return re.sub(r'[^0-9kK]', '', str(rut)).upper()
-
-def formatear_rut(rut):
-    rut_limpio = limpiar_rut(rut)
-    if len(rut_limpio) < 2:
-        return rut
-    cuerpo = rut_limpio[:-1]
-    dv = rut_limpio[-1]
-    try:
-        cuerpo_con_puntos = "{:,}".format(int(cuerpo)).replace(',', '.')
-    except ValueError:
-        return rut
-    return f"{cuerpo_con_puntos}-{dv}"
-
-def validar_rut(rut):
-    rut_limpio = limpiar_rut(rut)
-    if len(rut_limpio) < 2:
-        return False
-    cuerpo = rut_limpio[:-1]
-    dv_ingresado = rut_limpio[-1]
-
-    try:
-        int(cuerpo)
-    except ValueError:
-        return False
-
-    suma = 0
-    multiplo = 2
-    for d in reversed(cuerpo):
-        suma += int(d) * multiplo
-        multiplo += 1
-        if multiplo == 8:
-            multiplo = 2
-    
-    resto = suma % 11
-    dv_esperado = 11 - resto
-    
-    if dv_esperado == 11:
-        dv_calculado = '0'
-    elif dv_esperado == 10:
-        dv_calculado = 'K'
-    else:
-        dv_calculado = str(dv_esperado)
-        
-    return dv_ingresado == dv_calculado
+# Ayudantes de RUT en core/rut.py (los usa también serializers.py).
 
 # ==========================================
 # TRADUCTOR INTELIGENTE DE FECHAS EXCEL
@@ -1587,13 +1554,46 @@ class ContratoViewSet(viewsets.ModelViewSet):
 # LOGIN CON RATE LIMITING
 # ==========================================
 from dj_rest_auth.views import LoginView as DjRestLoginView
-from dj_rest_auth.views import PasswordResetView as DjRestPasswordResetView
 
 class ThrottledLoginView(DjRestLoginView):
     throttle_classes = [LoginRateThrottle, LoginAccountRateThrottle]
 
-class ThrottledPasswordResetView(DjRestPasswordResetView):
-    throttle_classes = [PasswordResetRateThrottle, PasswordResetAccountRateThrottle]
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def diagnostico_red(request):
+    """Muestra la cadena de proxies con que llega una solicitud. Apagado por defecto.
+
+    El límite de intentos identifica al cliente por IP. Sin NUM_PROXIES, DRF
+    usa el encabezado X-Forwarded-For completo, que el cliente puede escribir:
+    cambiándolo en cada intento se esquiva el límite por IP. Para fijar
+    NUM_PROXIES hay que saber cuántos proxies agregan su IP en producción
+    (Vercel → Railway), y un valor mal puesto haría que todos los usuarios
+    compartan un mismo límite.
+
+    Se enciende con DIAGNOSTICO_RED=1 en Railway, se consulta una vez y se
+    apaga. Solo devuelve los encabezados del propio solicitante.
+    """
+    if config('DIAGNOSTICO_RED', default='0') != '1':
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    return Response({
+        'remote_addr': request.META.get('REMOTE_ADDR'),
+        'x_forwarded_for': request.headers.get('x-forwarded-for'),
+        'x_real_ip': request.headers.get('x-real-ip'),
+        'x_vercel_forwarded_for': request.headers.get('x-vercel-forwarded-for'),
+        'ident_actual_drf': AnonRateThrottle().get_ident(request),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def recuperacion_por_correo_cerrada(request):
+    """La recuperación por correo quedó cerrada: se recupera solo por RUT.
+
+    El correo no identifica a una cuenta (puede repetirse entre cuentas).
+    Se responde 410 en vez de dejar activa la ruta de dj-rest-auth.
+    """
+    return Response({'error': 'La recuperación de contraseña es solo por RUT: usa /api/auth/recuperar-por-rut/.'},
+                    status=status.HTTP_410_GONE)
 
 
 # ==========================================
@@ -1603,7 +1603,7 @@ class ThrottledPasswordResetView(DjRestPasswordResetView):
 @permission_classes([AllowAny])
 @throttle_classes([RegisterRateThrottle, RegisterAccountRateThrottle])
 def registrar_cliente(request):
-    rut = request.data.get('rut')
+    rut = (request.data.get('rut') or '').strip()
     password = request.data.get('password')
     # Atrapamos el correo (por si React lo manda como 'email' o como 'correo')
     email = request.data.get('email') or request.data.get('correo')
@@ -1624,6 +1624,26 @@ def registrar_cliente(request):
     # por separado. Exigirla aquí rompería el registro mientras conviven.
     if not rut or not password or not email:
         return Response({'error': 'Faltan datos obligatorios (RUT, contraseña o correo)'}, status=400)
+
+    # El servidor valida lo mismo que el formulario: nada impide llamar a la
+    # API directamente, y el RUT es el usuario con que se inicia sesión.
+    if not validar_rut(rut):
+        return Response({'error': 'El RUT no es válido: revisa el dígito verificador.'}, status=400)
+    # Un solo formato guardado (12.345.678-5): es el que busca el login.
+    rut = formatear_rut(rut)
+    if not es_rut_de_persona(rut):
+        return Response({'error': (
+            'Ese RUT corresponde a una empresa. Regístrate con tu RUT personal: '
+            'las empresas se agregan después, desde tu cuenta.'
+        )}, status=400)
+    try:
+        validate_email(email)
+    except DjangoValidationError:
+        return Response({'error': 'El correo no es válido.'}, status=400)
+    try:
+        validate_password(password, user=User(username=rut, email=email, first_name=nombres))
+    except DjangoValidationError as exc:
+        return Response({'error': ' '.join(exc.messages)}, status=400)
 
     try:
         with transaction.atomic():
@@ -1649,7 +1669,7 @@ def registrar_cliente(request):
                 plan_semilla.save(update_fields=['nivel'])
             
             # 2. Creamos el perfil en core_cliente 
-            Cliente.objects.create(
+            cliente = Cliente.objects.create(
                 usuario=user,
                 rut=rut,
                 correo=email,
@@ -1664,6 +1684,11 @@ def registrar_cliente(request):
             user.first_name = nombres
             user.last_name = f"{apellido_paterno} {apellido_materno}".strip()
             user.save(update_fields=['first_name', 'last_name'])
+
+            # La suscripción nace con la cuenta. Antes solo se creaba al abrir
+            # la página de suscripción, y el webhook de Reveniu (que actualiza
+            # una suscripción existente) fallaba si el pago llegaba antes.
+            Suscripcion.objects.create(cliente=cliente, plan=plan_semilla, estado='ACTIVE')
             
            
         return Response({'mensaje': 'Cliente creado con éxito'}, status=201)
@@ -2239,6 +2264,8 @@ def _terminos_vigentes(contrato) -> dict:
     """Condiciones contractuales de hoy — se usan al emitir una liquidación nueva."""
     return {
         'sueldo_base_contrato': contrato.sueldo_base,
+        'horas_semanales_contrato': float(getattr(contrato, 'horas_semanales', 0) or 0)
+                                    or float(jornada_maxima_vigente()),
         'gratificacion_legal': contrato.gratificacion_legal,
         'tipo_contrato': contrato.tipo_contrato,
         'anticipo_quincena': (contrato.monto_quincena or 0) if contrato.tiene_quincena else 0,
@@ -2275,6 +2302,9 @@ def _terminos_congelados(liquidacion, contrato) -> dict:
 
     return {
         'sueldo_base_contrato': liquidacion.sueldo_base_contrato,
+        # Las emitidas antes de congelar las horas usan las del contrato.
+        'horas_semanales_contrato': float(liquidacion.horas_semanales_contrato
+                                          or contrato.horas_semanales or jornada_maxima_vigente()),
         'gratificacion_legal': liquidacion.gratificacion_legal or contrato.gratificacion_legal,
         'tipo_contrato': liquidacion.tipo_contrato or contrato.tipo_contrato,
         'anticipo_quincena': liquidacion.anticipo_quincena or 0,
@@ -2344,6 +2374,26 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         item['monto_vendido'] = monto_vendido
         item['porcentaje'] = porcentaje
         item['valor'] = math.floor(monto_vendido * porcentaje / 100)
+
+    # 2c. HORAS EXTRA (Arts. 30 a 32 Código del Trabajo)
+    # Igual que las comisiones, el valor se calcula acá: valor hora ordinaria
+    # = sueldo / 30 × 7 / horas semanales, con el sueldo y las horas del
+    # contrato (congelados en la liquidación). Antes llegaba calculado desde el
+    # navegador con las horas de la ficha del trabajador, que pueden no ser
+    # las pactadas. El input aporta solo horas y recargo. Los ítems sin horas
+    # (anteriores a este cálculo) conservan su valor.
+    horas_contrato = float(terminos.get('horas_semanales_contrato') or jornada_maxima_vigente())
+    valor_hora_ordinaria = terminos['sueldo_base_contrato'] / 30 * 7 / horas_contrato
+    for item in items:
+        if item.get('naturaleza') != 'HORA_EXTRA' or 'horas' not in item:
+            continue
+        horas = float(item.get('horas') or 0)
+        recargo = item.get('recargo')
+        recargo = 50.0 if recargo in (None, '') else float(recargo)  # mínimo legal: 50 %
+        item['horas'] = horas
+        item['recargo'] = recargo
+        # Redondeo al entero más cercano, igual que la vista previa del panel.
+        item['valor'] = math.floor(valor_hora_ordinaria * (1 + recargo / 100) * horas + 0.5)
 
     # La naturaleza previsional la define el concepto; los ítems anteriores al
     # catálogo no lo tienen y usan la congelada en el propio ítem.
@@ -2454,6 +2504,7 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         'salud_nombre': salud_nombre, 'isapre_cotizacion_uf': isapre_uf, 'salud_monto': salud_monto,
         'seguro_cesantia': seguro_cesantia, 'impuesto_unico': impuesto_unico, 'anticipo_quincena': anticipo_quincena,
         'sueldo_base_contrato': terminos['sueldo_base_contrato'],
+        'horas_semanales_contrato': round(horas_contrato, 1),
         'gratificacion_legal': terminos['gratificacion_legal'],
         'tipo_contrato': terminos['tipo_contrato'],
         'valor_uf': round(valor_uf, 2),
@@ -4322,10 +4373,14 @@ def webhook_reveniu(request):
             return Response({'error': 'Formato de custom_reference inválido'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            suscripcion = Suscripcion.objects.get(cliente_id=cliente_id)
+            cliente_pago = Cliente.objects.get(id=cliente_id)
             plan_nuevo = Plan.objects.get(id=plan_id)
-        except (Suscripcion.DoesNotExist, Plan.DoesNotExist):
-            return Response({'error': 'Suscripción o plan no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+        except (Cliente.DoesNotExist, Plan.DoesNotExist):
+            return Response({'error': 'Cliente o plan no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+        # Cuentas anteriores al cambio pueden no tener suscripción: un pago
+        # válido no puede perderse por eso.
+        suscripcion, _ = Suscripcion.objects.get_or_create(
+            cliente=cliente_pago, defaults={'plan': plan_nuevo, 'estado': 'ACTIVE'})
 
         suscripcion.plan = plan_nuevo
         suscripcion.estado = 'ACTIVE'
@@ -4341,50 +4396,34 @@ def webhook_reveniu(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@throttle_classes([PasswordResetRateThrottle])
+@throttle_classes([PasswordResetRateThrottle, PasswordResetAccountRateThrottle])
 def recuperar_password_por_rut(request):
-    rut = request.data.get('rut')
-    
-    if not rut:
-        return Response({'error': 'Debes ingresar un RUT'}, status=400)
+    """Envía el enlace de recuperación al correo registrado del titular.
 
-    try:
-        # 1. VALIDAMOS CONTRA TABLA CLIENTES
-        cliente = Cliente.objects.get(rut=rut)
-    except Cliente.DoesNotExist:
-        # Mensaje ambiguo por seguridad anti-hackers
-        return Response({'error': 'Si el RUT es válido, enviaremos un correo.'}, status=404)
+    Responde exactamente lo mismo exista o no el RUT, y no muestra el correo
+    (ni enmascarado): antes el 404 frente al 200 con "and***@dominio" dejaba
+    averiguar qué RUT tienen cuenta y parte de su correo con solo probar RUT.
+    """
+    respuesta = Response({'mensaje': 'Si el RUT está registrado, enviamos un enlace al correo asociado.'},
+                         status=200)
+    rut = normalizar_rut_usuario(request.data.get('rut'))
+    if not validar_rut(rut):
+        return Response({'error': 'El RUT no es válido: revisa el dígito verificador.'}, status=400)
 
-    # 2. VERIFICAMOS SI EL CLIENTE TIENE CORREO
-    if not cliente.correo:
-        return Response({'error': 'Si el RUT es válido, enviaremos un correo.'}, status=404)
-
-    try:
-        # 3. BUSCAMOS AL USUARIO DE DJANGO ASOCIADO A ESE RUT
-        user = User.objects.get(username=rut)
-    except User.DoesNotExist:
-        return Response({'error': 'Error interno: Cliente existe pero no tiene credenciales de acceso.'}, status=400)
-
+    cliente = Cliente.objects.filter(rut=rut).select_related('usuario').first()
+    if not cliente or not cliente.correo:
+        return respuesta
+    user = cliente.usuario
     if user.email != cliente.correo:
         user.email = cliente.correo
-        user.save()
+        user.save(update_fields=['email'])
 
-    # 4. ENMASCARAR EL CORREO (con***@gmail.com)
-    partes = cliente.correo.split('@')
-    if len(partes) != 2:
-        return Response({'error': 'El correo registrado tiene un formato inválido.'}, status=400)
-    nombre_correo, dominio = partes
-
-    if len(nombre_correo) > 3:
-        correo_oculto = nombre_correo[:3] + '*' * (len(nombre_correo) - 3) + '@' + dominio
-    elif len(nombre_correo) > 1:
-        correo_oculto = nombre_correo[0] + '*' * (len(nombre_correo) - 1) + '@' + dominio
-    else:
-        correo_oculto = '*@' + dominio
-
-    # 5. ENVIAR EL CORREO
+    # Se arma el correo para este usuario puntual: PasswordResetForm buscaría
+    # por correo y, con correos repetidos entre cuentas, mandaría enlaces de
+    # todas ellas.
     form = PasswordResetForm({'email': user.email})
     if form.is_valid():
+        form.get_users = lambda email: [user]
         form.save(
             request=request,
             use_https=True,
@@ -4392,12 +4431,7 @@ def recuperar_password_por_rut(request):
             email_template_name='registration/password_reset_email.html',
             html_email_template_name='registration/password_reset_email.html',
         )
-
-    # 6. RESPONDER A REACT
-    return Response({
-        'mensaje': 'Correo enviado exitosamente', 
-        'correo_oculto': correo_oculto
-    }, status=200)
+    return respuesta
 
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion
 from dj_rest_auth.serializers import LoginSerializer, PasswordResetSerializer
 from .jornada import avisos_jornada, jornada_maxima_vigente
+from .rut import normalizar_rut_usuario
 
 class EmpresaSerializer(serializers.ModelSerializer):
     firma_configurada = serializers.SerializerMethodField()
@@ -154,13 +155,13 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             'salud_nombre', 'isapre_cotizacion_uf', 'salud_monto',
             'seguro_cesantia', 'impuesto_unico',
             'anticipo_quincena',
-            'sueldo_base_contrato', 'gratificacion_legal', 'tipo_contrato', 'valor_uf',
+            'sueldo_base_contrato', 'horas_semanales_contrato', 'gratificacion_legal', 'tipo_contrato', 'valor_uf',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
             'archivo_pdf', 'fecha_emision',
         ]
         read_only_fields = (
             'id', 'semana_corrida',
-            'sueldo_base_contrato', 'gratificacion_legal', 'tipo_contrato', 'valor_uf',
+            'sueldo_base_contrato', 'horas_semanales_contrato', 'gratificacion_legal', 'tipo_contrato', 'valor_uf',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
             'archivo_pdf', 'fecha_emision',
         )
@@ -292,4 +293,6 @@ class LoginPorRutSerializer(LoginSerializer):
         if not (attrs.get('username') or '').strip():
             raise serializers.ValidationError(
                 {'username': 'Ingresa el RUT del titular de la cuenta.'})
+        # "123456785" y "12.345.678-5" son la misma cuenta.
+        attrs['username'] = normalizar_rut_usuario(attrs['username'])
         return super().validate(attrs)

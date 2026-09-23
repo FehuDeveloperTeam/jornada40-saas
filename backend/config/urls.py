@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from core.views import ThrottledLoginView, ThrottledPasswordResetView
+from core.views import ThrottledLoginView, recuperacion_por_correo_cerrada
 
 
 urlpatterns = [
@@ -10,7 +10,7 @@ urlpatterns = [
 
     # Login y password reset con rate limiting propio (antes de dj_rest_auth.urls)
     path('api/auth/login/', ThrottledLoginView.as_view(), name='rest_login'),
-    path('api/auth/password/reset/', ThrottledPasswordResetView.as_view(), name='rest_password_reset'),
+    path('api/auth/password/reset/', recuperacion_por_correo_cerrada, name='rest_password_reset'),
 
     # API Auth (Logout — login y reset ya están arriba)
     path('api/auth/', include('dj_rest_auth.urls')),

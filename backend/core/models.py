@@ -272,6 +272,16 @@ class Contrato(models.Model):
 
     creado_en = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Una sola fuente de horas: el contrato. La ficha del trabajador
+        # (horas_laborales) lo refleja, venga el cambio del formulario o de un
+        # anexo firmado; si no, estadísticas y cálculos leían otra cifra.
+        horas = int(float(self.horas_semanales or 0) + 0.5)
+        if horas and self.empleado.horas_laborales != horas:
+            Empleado.objects.filter(pk=self.empleado_id).update(horas_laborales=horas)
+            self.empleado.horas_laborales = horas
+
     @property
     def horas_propuestas_anexo_40h(self):
         """Horas que propone el anexo de adecuación a la Ley 40 horas.
@@ -527,6 +537,8 @@ class Liquidacion(models.Model):
     # Se guardan para que recalcular una liquidación antigua use las condiciones
     # que estaban vigentes en su período, y no las del contrato de hoy.
     sueldo_base_contrato = models.IntegerField(default=0)
+    # Base del valor de la hora extra: sueldo / 30 × 7 / horas semanales.
+    horas_semanales_contrato = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True)
     gratificacion_legal = models.CharField(max_length=20, blank=True, default='')
     tipo_contrato = models.CharField(max_length=20, blank=True, default='')
     # UF con la que se calcularon los topes imponibles y la Isapre de este

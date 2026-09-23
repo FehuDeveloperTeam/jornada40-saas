@@ -177,10 +177,11 @@ class RateLimitingTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_password_reset_excesivo_retorna_429(self):
-        payload = {'email': 'x@x.com'}
+        # La recuperación es solo por RUT (la ruta por correo quedó cerrada).
+        payload = {'rut': '12.345.678-5'}
         for _ in range(2):
-            self.client.post('/api/auth/password/reset/', payload, format='json')
-        resp = self.client.post('/api/auth/password/reset/', payload, format='json')
+            self.client.post('/api/auth/recuperar-por-rut/', payload, format='json')
+        resp = self.client.post('/api/auth/recuperar-por-rut/', payload, format='json')
         self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_register_excesivo_retorna_429(self):
@@ -1132,7 +1133,10 @@ class ComportamientoListasDetalleTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
         registro = Liquidacion.objects.get(id=liq['id'])
-        otros_imp = (200_000 + 80_000
+        # La hora extra la calcula el backend desde horas, recargo y contrato:
+        # los $80.000 del payload ya no se toman tal cual.
+        otros_imp = (200_000
+                     + registro.items_de('HORA_EXTRA')[0]['valor']
                      + registro.items_de('COMISION')[0]['valor']
                      + registro.semana_corrida)
         self.assertEqual(
@@ -1607,3 +1611,189 @@ class AvisosJornadaApiTests(APITestCase):
         self.assertEqual(c.horas_propuestas_anexo_40h, '42')
         c.horas_semanales = 40
         self.assertEqual(c.horas_propuestas_anexo_40h, '40')
+
+
+class RegistroValidadoEnServidorTests(APITestCase):
+    """El servidor valida el registro igual que el formulario.
+
+    Nada impide llamar a la API directo: RUT, correo y contraseña se validan
+    aquí, y la cuenta queda con el RUT de la persona titular.
+    """
+
+    def setUp(self):
+        cache.clear()
+
+    def _registrar(self, **cambios):
+        datos = {'rut': '12.345.678-5', 'password': 'Clave-Segura-2026', 'email': 'ana@correo.cl',
+                 'nombres': 'Ana', 'apellido_paterno': 'Pérez', **cambios}
+        return self.client.post('/api/auth/register/', datos, format='json')
+
+    def test_digito_verificador_incorrecto(self):
+        resp = self._registrar(rut='12.345.678-9')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('dígito verificador', resp.data['error'])
+
+    def test_rut_sin_formato_se_guarda_formateado(self):
+        from django.contrib.auth.models import User
+        self.assertEqual(self._registrar(rut='123456785').status_code, 201)
+        self.assertTrue(User.objects.filter(username='12.345.678-5').exists())
+
+    def test_rut_de_empresa_no_puede_ser_titular(self):
+        resp = self._registrar(rut='76.123.456-0')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('RUT personal', resp.data['error'])
+
+    def test_contrasena_debil_se_rechaza(self):
+        self.assertEqual(self._registrar(password='12345678').status_code, 400)
+
+    def test_correo_invalido_se_rechaza(self):
+        self.assertEqual(self._registrar(email='no-es-correo').status_code, 400)
+
+    def test_la_suscripcion_nace_con_la_cuenta(self):
+        from core.models import Suscripcion
+        self._registrar()
+        s = Suscripcion.objects.get(cliente__rut='12.345.678-5')
+        self.assertEqual((s.plan.nombre, s.estado), ('Semilla', 'ACTIVE'))
+
+
+class WebhookSinSuscripcionTests(APITestCase):
+    """Un pago válido no se pierde si la cuenta no tenía suscripción."""
+
+    def test_crea_la_suscripcion_y_activa_el_plan(self):
+        from django.contrib.auth.models import User
+        from core.models import Cliente, Plan, Suscripcion
+        u = User.objects.create_user(username='12.345.678-5', password='x')
+        semilla = Plan.objects.create(nombre='Semilla', precio=0, max_empresas=1, limite_trabajadores=3, nivel=1)
+        pyme = Plan.objects.create(nombre='Pyme', precio=39990, max_empresas=3, limite_trabajadores=75, nivel=3)
+        cliente = Cliente.objects.create(usuario=u, rut='12.345.678-5', nombres='A', plan=semilla)
+        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+            resp = self.client.post('/api/pagos/webhook/reveniu/', {
+                'event': 'payment_succeeded', 'custom_reference': f'{cliente.id}_{pyme.id}',
+                'subscription_id': 'sub_1',
+            }, format='json', HTTP_X_WEBHOOK_TOKEN='secret-real')
+        self.assertEqual(resp.status_code, 200)
+        s = Suscripcion.objects.get(cliente=cliente)
+        self.assertEqual((s.plan, s.estado), (pyme, 'ACTIVE'))
+        cliente.refresh_from_db()
+        self.assertEqual(cliente.plan, pyme)
+
+
+class RecuperacionSoloPorRutTests(APITestCase):
+    """La recuperación es solo por RUT y no revela qué RUT tienen cuenta."""
+
+    def setUp(self):
+        cache.clear()
+        from django.contrib.auth.models import User
+        from core.models import Cliente
+        u = User.objects.create_user(username='12.345.678-5', password='x', email='ana@correo.cl')
+        Cliente.objects.create(usuario=u, rut='12.345.678-5', nombres='Ana', correo='ana@correo.cl')
+        # Otra cuenta con el mismo correo: no debe recibir enlace.
+        u2 = User.objects.create_user(username='9.876.543-3', password='x', email='ana@correo.cl')
+        Cliente.objects.create(usuario=u2, rut='9.876.543-3', nombres='Otra', correo='ana@correo.cl')
+
+    def _pedir(self, rut):
+        return self.client.post('/api/auth/recuperar-por-rut/', {'rut': rut}, format='json')
+
+    def test_misma_respuesta_exista_o_no_el_rut(self):
+        existe, no_existe = self._pedir('12.345.678-5'), self._pedir('11.111.111-1')
+        self.assertEqual((existe.status_code, existe.data), (no_existe.status_code, no_existe.data))
+        self.assertNotIn('correo_oculto', existe.data)
+
+    def test_envia_un_solo_enlace_aunque_el_correo_se_repita(self):
+        from django.core import mail
+        self._pedir('123456785')  # sin formato: se normaliza
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_rut_invalido(self):
+        self.assertEqual(self._pedir('12.345.678-9').status_code, 400)
+
+    def test_ruta_por_correo_cerrada(self):
+        resp = self.client.post('/api/auth/password/reset/', {'email': 'ana@correo.cl'}, format='json')
+        self.assertEqual(resp.status_code, 410)
+
+    def test_enlace_vence_en_24_horas(self):
+        from django.conf import settings
+        self.assertEqual(settings.PASSWORD_RESET_TIMEOUT, 86400)
+
+
+class LoginRutNormalizadoTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        from django.contrib.auth.models import User
+        User.objects.create_user(username='12.345.678-5', password='Clave-Segura-2026')
+
+    def test_entra_con_rut_sin_formato(self):
+        resp = self.client.post('/api/auth/login/', {'username': '123456785', 'password': 'Clave-Segura-2026'},
+                                format='json')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_limite_por_cuenta_no_se_salta_cambiando_el_formato(self):
+        from core.views import LoginAccountRateThrottle
+        claves = {LoginAccountRateThrottle().get_cache_key(
+            type('R', (), {'data': {'username': u}})(), None)
+            for u in ['123456785', '12.345.678-5', '12345678-5']}
+        self.assertEqual(len(claves), 1)
+
+
+class HorasExtraEnServidorTests(APITestCase):
+    """El valor de las horas extra lo calcula el backend con los datos del contrato."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Cliente, Empresa, Empleado, Plan, Contrato
+        u = User.objects.create_user(username='12.345.678-5', password='x')
+        plan = Plan.objects.create(nombre='Pyme', precio=0, max_empresas=3, limite_trabajadores=75, nivel=3)
+        Cliente.objects.create(usuario=u, rut='12.345.678-5', nombres='A', plan=plan)
+        empresa = Empresa.objects.create(owner=u, nombre_legal='E', rut='76.123.456-0')
+        # Ficha con 44 h (dato viejo) y contrato con 42 h: manda el contrato.
+        self.empleado = Empleado.objects.create(empresa=empresa, rut='9.876.543-3', nombres='T',
+            apellido_paterno='P', cargo='C', fecha_ingreso='2026-01-01', horas_laborales=44)
+        self.contrato = Contrato.objects.create(empleado=self.empleado, fecha_inicio='2026-01-01',
+            sueldo_base=840000, horas_semanales=42)
+
+    def _calcular(self, items):
+        from core.views import _calcular_liquidacion, _terminos_vigentes
+        terminos = {**_terminos_vigentes(self.contrato), 'valor_uf': 40000.0}
+        return _calcular_liquidacion(self.contrato, self.empleado,
+                                     {'mes': 9, 'anio': 2026, 'dias_trabajados': 30, 'detalle_items': items},
+                                     terminos=terminos)
+
+    def test_valor_con_las_horas_del_contrato(self):
+        # 840.000 / 30 × 7 / 42 = 4.666,67 la hora; con 50 % = 7.000; × 10 h = 70.000.
+        r = self._calcular([{'naturaleza': 'HORA_EXTRA', 'glosa': 'Horas extra', 'horas': 10,
+                             'recargo': 50, 'valor': 1}])
+        extra = [i for i in r['detalle_items'] if i['naturaleza'] == 'HORA_EXTRA'][0]
+        self.assertEqual(extra['valor'], 70000)  # el "1" del navegador se ignora
+        self.assertEqual(float(r['horas_semanales_contrato']), 42.0)
+
+    def test_sin_recargo_usa_el_minimo_legal(self):
+        r = self._calcular([{'naturaleza': 'HORA_EXTRA', 'glosa': 'HE', 'horas': 10, 'valor': 0}])
+        extra = [i for i in r['detalle_items'] if i['naturaleza'] == 'HORA_EXTRA'][0]
+        self.assertEqual((extra['recargo'], extra['valor']), (50.0, 70000))
+
+    def test_item_sin_horas_conserva_su_valor(self):
+        r = self._calcular([{'naturaleza': 'HORA_EXTRA', 'glosa': 'HE antigua', 'valor': 12345}])
+        extra = [i for i in r['detalle_items'] if i['naturaleza'] == 'HORA_EXTRA'][0]
+        self.assertEqual(extra['valor'], 12345)
+
+    def test_la_ficha_refleja_las_horas_del_contrato(self):
+        self.empleado.refresh_from_db()
+        self.assertEqual(self.empleado.horas_laborales, 42)
+        self.contrato.horas_semanales = 40
+        self.contrato.save()
+        self.empleado.refresh_from_db()
+        self.assertEqual(self.empleado.horas_laborales, 40)
+
+
+class DiagnosticoRedTests(APITestCase):
+    """El diagnóstico de red está apagado salvo que se encienda a propósito."""
+
+    def test_apagado_por_defecto(self):
+        with patch('core.views.config', side_effect=_mock_config(None)):
+            self.assertEqual(self.client.get('/api/diagnostico/red/').status_code, 404)
+
+    def test_encendido_muestra_los_encabezados_del_solicitante(self):
+        with patch('core.views.config', side_effect=lambda k, default=None, **kw: '1' if k == 'DIAGNOSTICO_RED' else default):
+            resp = self.client.get('/api/diagnostico/red/', HTTP_X_FORWARDED_FOR='1.2.3.4, 5.6.7.8')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['x_forwarded_for'], '1.2.3.4, 5.6.7.8')

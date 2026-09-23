@@ -4,7 +4,7 @@ from django.views.generic import TemplateView
 from .views import (
     DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet,
     AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet,
-    SolicitudFirmaViewSet, VacacionViewSet, mi_suscripcion, recuperar_password_por_rut,
+    SolicitudFirmaViewSet, VacacionViewSet, mi_suscripcion, recuperar_password_por_rut, diagnostico_red,
     webhook_reveniu, crear_checkout_reveniu, perfil_usuario,
     firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
     firma_publica_firmar, firma_publica_documento, firma_publica_rechazar,
@@ -31,6 +31,7 @@ urlpatterns = [
     path('pagos/webhook/reveniu/', webhook_reveniu, name='webhook_reveniu'),
     path('auth/register/', registrar_cliente, name='api_register'),
     path('auth/recuperar-por-rut/', recuperar_password_por_rut, name='recuperar_por_rut'),
+    path('diagnostico/red/', diagnostico_red, name='diagnostico_red'),
     path('clientes/mi_suscripcion/', mi_suscripcion, name='mi_suscripcion'),
     path('clientes/perfil/', perfil_usuario, name='perfil_usuario'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),

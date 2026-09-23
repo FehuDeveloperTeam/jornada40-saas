@@ -266,6 +266,8 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jo
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
 PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
+# El enlace de recuperación vence en 24 horas (el default de Django son 3 días).
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 # ==========================================
 # ALMACENAMIENTO DE ARCHIVOS (PDFs, contratos)
 # ==========================================
