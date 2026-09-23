@@ -4128,12 +4128,12 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
         <td>${sueldo_prop:,.0f}</td></tr>
     <tr><td>Gratificación proporcional</td>
         <td>${finiquito.gratificacion_proporcional:,.0f}</td></tr>
-    <tr><td>Feriado proporcional ({(finiquito.feriado_proporcional * 30 // finiquito.sueldo_base) if finiquito.sueldo_base else 0} días aprox.)</td>
+    <tr><td>Feriado pendiente y proporcional ({(finiquito.feriado_proporcional * 30 // finiquito.sueldo_base) if finiquito.sueldo_base else 0} días corridos aprox.)</td>
         <td>${finiquito.feriado_proporcional:,.0f}</td></tr>
     {f'<tr><td>Indemnización por años de servicio (Art. 163)</td><td>${finiquito.indemnizacion_anos_servicio:,.0f}</td></tr>' if finiquito.indemnizacion_anos_servicio else ''}
     {f'<tr><td>Indemnización sustitutiva de aviso previo</td><td>${finiquito.indemnizacion_sustitutiva_aviso:,.0f}</td></tr>' if finiquito.indemnizacion_sustitutiva_aviso else ''}
     {f'<tr><td>Otros haberes</td><td>${finiquito.otros_haberes:,.0f}</td></tr>' if finiquito.otros_haberes else ''}
-    <tr><td>Descuentos previsionales (AFP + Salud)</td>
+    <tr><td>Descuentos legales (AFP, salud, seguro de cesantía e impuesto)</td>
         <td>-${finiquito.descuentos_prevision:,.0f}</td></tr>
     {f'<tr><td>Otros descuentos</td><td>-${finiquito.otros_descuentos:,.0f}</td></tr>' if finiquito.otros_descuentos else ''}
     <tr class="total-row">
