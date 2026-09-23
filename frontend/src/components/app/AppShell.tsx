@@ -53,7 +53,7 @@ const NAV: ItemNav[] = [
   { a: '/app', etiqueta: 'Inicio', corta: 'Inicio', Icono: LayoutDashboard, fin: true },
   { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users },
   { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
-  { a: '/dashboard', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature, clasico: true },
+  { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
   { a: '/empresas', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, clasico: true },
 ];
 
@@ -402,6 +402,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   if (pathname.startsWith('/app/remuneraciones/conceptos')) {
     return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones', a: '/app/remuneraciones' }, { texto: 'Conceptos' }];
   }
+  if (pathname.startsWith('/app/firmas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Firma electrónica' }];
   if (pathname.startsWith('/app/remuneraciones')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones' }];
   return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Inicio' }];
 }
@@ -464,6 +465,7 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
     { clave: 'inicio', Icono: LayoutDashboard, texto: 'Ir a Inicio', ejecutar: ir(() => navigate('/app')) },
     { clave: 'rem', Icono: Banknote, texto: 'Remuneraciones del mes', ejecutar: ir(() => navigate('/app/remuneraciones')) },
     { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')) },
+    { clave: 'firmas', Icono: Signature, texto: 'Firma electrónica', ejecutar: ir(() => navigate('/app/firmas')) },
     { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')) },
     { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', detalle: 'Panel anterior', ejecutar: ir(() => navigate('/dashboard')) },
     { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/suscripcion')) },

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { nombreSeguro } from '../../api/descargas';
 import type { UseDashboardReturn } from '../../hooks/useDashboard';
 import type { DocumentosDisponibles } from '../../types';
 import client from '../../api/client';
@@ -132,7 +133,7 @@ export default function ModalDescargaMasiva({
       link.href = url;
       const cd = (response.headers['content-disposition'] as string) || '';
       const match = cd.match(/filename="(.+)"/);
-      link.setAttribute('download', match?.[1] ?? 'Expedientes.zip');
+      link.setAttribute('download', nombreSeguro(match?.[1] ?? 'Expedientes.zip'));
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);

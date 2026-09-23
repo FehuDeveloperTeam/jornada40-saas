@@ -76,13 +76,14 @@ export function AlertaError({ children }: { children: ReactNode }) {
 
 /** Casilla con texto al lado, tamaño 18 px y acento de marca. */
 export function Casilla({
-  marcada, onChange, children, invalida,
-}: { marcada: boolean; onChange: (v: boolean) => void; children: ReactNode; invalida?: boolean }) {
+  marcada, onChange, children, invalida, deshabilitada,
+}: { marcada: boolean; onChange: (v: boolean) => void; children: ReactNode; invalida?: boolean; deshabilitada?: boolean }) {
   return (
-    <label className="flex items-start gap-2.5 text-[13.5px] text-fg-2 cursor-pointer">
+    <label className={deshabilitada ? 'flex items-start gap-2.5 text-[13.5px] text-fg-3 cursor-not-allowed' : 'flex items-start gap-2.5 text-[13.5px] text-fg-2 cursor-pointer'}>
       <input
         type="checkbox"
         checked={marcada}
+        disabled={deshabilitada}
         onChange={(e) => onChange(e.target.checked)}
         aria-invalid={invalida || undefined}
         className="size-[18px] mt-0.5 shrink-0 accent-brand cursor-pointer"

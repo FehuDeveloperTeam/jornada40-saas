@@ -7,7 +7,7 @@ type Tamano = 'md' | 'lg';
 // md es el del panel (40 px); lg el de los formularios del sitio público (46 px).
 const TAMANOS: Record<Tamano, string> = {
   md: 'h-10 px-3 rounded-[8px] text-[14px]',
-  lg: 'h-[46px] px-3.5 rounded-[10px] text-[15px]',
+  lg: 'h-[46px] px-3.5 rounded-[10px] text-[16px]',  // 16 px: iOS no hace zoom al enfocar
 };
 
 const BASE =

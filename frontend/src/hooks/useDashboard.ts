@@ -6,6 +6,7 @@ import { useToast } from './useToast';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import { jornadaMaximaVigente } from '../utils/ley40';
 import { rutaDesdeClasica } from './usePanel';
+import { nombreSeguro } from '../api/descargas';
 import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
@@ -404,7 +405,7 @@ export function useDashboard() {
         const match = cd.match(/filename="?([^"]+)"?/);
         if (match?.[1]) fileName = match[1];
       }
-      link.setAttribute('download', fileName);
+      link.setAttribute('download', nombreSeguro(fileName));
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);

@@ -389,6 +389,9 @@ export interface SolicitudFirma {
     firmado_en: string | null;
     expira_en: string;
     motivo_rechazo: string;
+    /** Comprobante (solo firmadas): folio correlativo y huella SHA-256 del PDF firmado. */
+    folio?: string;
+    hash_firmado?: string;
     empleado_nombre: string;
     empresa_nombre: string;
 }
