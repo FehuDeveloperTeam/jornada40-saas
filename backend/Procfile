@@ -16,4 +16,4 @@ for p in planes:
   if changed:
     obj.save()
 print('Planes OK')
-" && gunicorn config.wsgi:application
+" && gunicorn config.wsgi:application --workers 2 --threads 4 --timeout 60

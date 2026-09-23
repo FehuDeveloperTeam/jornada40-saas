@@ -32,6 +32,11 @@ FALLBACK_MESES_TOLERANCIA = 3
 # avisarlo en vez de dejarlo solo en el log.
 _RESPALDO_TTL_SEGUNDOS = 7 * 24 * 60 * 60
 
+# Si mindicador.cl no responde, el respaldo se reutiliza por un rato en vez de
+# reintentar en cada solicitud: con pocos workers, cada reintento dejaba la
+# solicitud esperando el timeout y atrasaba a todas las que venían detrás.
+_REINTENTO_TRAS_FALLA_SEGUNDOS = 10 * 60
+
 
 def _obtener_indicador(nombre: str, fallback: float) -> float:
     cache_key = f"indicador_{nombre}"
@@ -40,7 +45,7 @@ def _obtener_indicador(nombre: str, fallback: float) -> float:
         return valor_cacheado
 
     try:
-        resp = requests.get(MINDICADOR_URL.format(indicador=nombre), timeout=5)
+        resp = requests.get(MINDICADOR_URL.format(indicador=nombre), timeout=(3, 5))
         resp.raise_for_status()
         data = resp.json()
         serie = data.get('serie', [])
@@ -52,6 +57,7 @@ def _obtener_indicador(nombre: str, fallback: float) -> float:
         )
         cache.set(f"{cache_key}_respaldo", datetime.datetime.now().isoformat(),
                   _RESPALDO_TTL_SEGUNDOS)
+        cache.set(cache_key, fallback, _REINTENTO_TRAS_FALLA_SEGUNDOS)
         return fallback
 
     cache.delete(f"{cache_key}_respaldo")

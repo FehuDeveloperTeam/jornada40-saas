@@ -1965,3 +1965,21 @@ class PanelApiTests(APITestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn('uf', r.data)
         self.assertEqual(r.data['jornada_maxima_vigente'], 42)
+
+
+class IndicadoresSinReintentoTests(APITestCase):
+    """Si mindicador.cl falla, no se reintenta en cada solicitud."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_falla_se_cachea_un_rato(self):
+        from unittest.mock import patch
+        from core import indicadores
+        with patch.object(indicadores.requests, 'get', side_effect=Exception('sin red')) as get:
+            primero = indicadores.obtener_uf()
+            segundo = indicadores.obtener_uf()
+        self.assertEqual(primero, segundo)
+        self.assertEqual(get.call_count, 1)
+        self.assertTrue(indicadores.estado_indicadores())
