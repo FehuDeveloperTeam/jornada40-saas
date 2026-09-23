@@ -15,6 +15,9 @@ export interface Plan {
     precio: number;
     max_empresas: number;
     limite_trabajadores: number;
+    /** 1 Semilla · 2 Starter · 3 Pyme · 4 Corporativo. El backend habilita
+     *  funciones por nivel (`_plan_permite`), no por nombre. */
+    nivel: number;
     activo: boolean;
 }
 

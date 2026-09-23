@@ -14,6 +14,8 @@ interface SegmentedControlProps<T extends string> {
   /** Nombre accesible del grupo, p. ej. "Tipo de cliente". */
   etiqueta: string;
   bloque?: boolean;
+  /** `lg` (38 px) es el de los formularios del sitio público. */
+  tamano?: 'md' | 'lg';
   className?: string;
 }
 
@@ -30,6 +32,7 @@ export function SegmentedControl<T extends string>({
   onChange,
   etiqueta,
   bloque = false,
+  tamano = 'md',
   className,
 }: SegmentedControlProps<T>) {
   const nombre = useId();
@@ -50,8 +53,9 @@ export function SegmentedControl<T extends string>({
           <label
             key={opcion.valor}
             className={cn(
-              'relative flex-1 inline-flex items-center justify-center h-8 px-3.5 rounded-[8px]',
-              'text-[13px] font-medium cursor-pointer select-none transition-colors duration-150',
+              'relative flex-1 inline-flex items-center justify-center px-3.5 rounded-[8px]',
+              tamano === 'lg' ? 'h-[38px] text-[13.5px]' : 'h-8 text-[13px]',
+              'font-medium cursor-pointer select-none transition-colors duration-150',
               'has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-brand-soft',
               activa
                 ? 'bg-surface text-fg shadow-card ring-1 ring-line'

@@ -35,3 +35,14 @@ export const validateRut = (rutCompleto: string): boolean => {
 
   return dv === dvCalculado;
 };
+
+export type EstadoRut = 'incompleto' | 'valido' | 'invalido';
+
+// Estado de un RUT mientras se escribe. Con menos de 8 caracteres útiles se
+// considera que el usuario todavía no termina, para no marcarlo en rojo antes
+// de tiempo.
+export const estadoRut = (rut: string): EstadoRut => {
+  const limpio = rut.replace(/[^0-9kK]/g, '');
+  if (limpio.length < 8) return 'incompleto';
+  return validateRut(rut) ? 'valido' : 'invalido';
+};

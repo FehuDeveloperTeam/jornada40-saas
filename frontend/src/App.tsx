@@ -4,15 +4,19 @@ import type { ReactNode } from 'react';
 import client from './api/client';
 import { ToastProvider } from './context/ToastContext';
 
-const Login = lazy(() => import('./pages/Login'));
+// Sitio público y acceso: rediseño (paso E). El resto sigue con el diseño
+// anterior hasta su propio paso de la migración.
+const Landing = lazy(() => import('./pages/sitio/Landing'));
+const Login = lazy(() => import('./pages/sitio/Login'));
+const Registro = lazy(() => import('./pages/sitio/Registro'));
+const Recuperar = lazy(() => import('./pages/sitio/Recuperar'));
+const NuevaContrasena = lazy(() => import('./pages/sitio/NuevaContrasena'));
+const Bienvenida = lazy(() => import('./pages/sitio/Bienvenida'));
+
 const LobbyEmpresas = lazy(() => import('./pages/LobbyEmpresas'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Register = lazy(() => import('./pages/Register'));
-const Landing = lazy(() => import('./pages/Landing'));
 const Terminos = lazy(() => import('./pages/Terminos'));
 const Suscripcion = lazy(() => import('./pages/Suscripcion'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const FirmaPublica = lazy(() => import('./pages/FirmaPublica'));
 const Reportes = lazy(() => import('./pages/Reportes'));
 
@@ -98,13 +102,22 @@ export default function App() {
         {/* Ruta Pública */}
         <Route path="/" element={<RootRoute />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Registro />} />
         <Route path="/terminos" element={<Terminos />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
+        <Route path="/forgot-password" element={<Recuperar />} />
+        {/* La ruta la fija el backend en el correo (PASSWORD_RESET_CONFIRM_URL). */}
+        <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />
         <Route path="/firma/:token" element={<FirmaPublica />} />
 
         {/* Rutas Privadas y Seguras */}
+        <Route
+          path="/bienvenida"
+          element={
+            <ProtectedRoute>
+              <Bienvenida />
+            </ProtectedRoute>
+          }
+        />
         <Route 
           path="/empresas" 
           element={

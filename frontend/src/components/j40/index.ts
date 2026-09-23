@@ -12,3 +12,7 @@ export { SegmentedControl } from './SegmentedControl';
 export type { OpcionSegmento } from './SegmentedControl';
 export { Modal } from './Modal';
 export { Logo } from './Logo';
+export { InputContrasena, MedidorContrasena } from './Contrasena';
+export { CampoRut } from './CampoRut';
+export { ToggleTema, TarjetaOpcion, AlertaError, Casilla } from './Varios';
+export { FirmaPad } from './FirmaPad';

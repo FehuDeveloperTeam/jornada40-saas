@@ -162,6 +162,26 @@
 }
 
 /* ------------------------------------------------------------
+   Base dentro del diseño nuevo
+   En @layer base para que cualquier utilidad pueda sobrescribirlo:
+   en Tailwind v4 una regla sin capa le gana a las utilidades.
+   ------------------------------------------------------------ */
+@layer base {
+  :where([data-j40]) a {
+    color: var(--j40-brand-text);
+    text-decoration: none;
+  }
+  :where([data-j40]) a:hover {
+    text-decoration: underline;
+  }
+}
+
+/* Las anclas del sitio (#precios, #ley…) quedan bajo la barra fija de 64 px. */
+[data-j40] section[id] {
+  scroll-margin-top: 72px;
+}
+
+/* ------------------------------------------------------------
    Utilidades propias
    ------------------------------------------------------------ */
 
