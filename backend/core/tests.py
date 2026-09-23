@@ -2217,3 +2217,94 @@ class ComprobanteFirmaTests(APITestCase):
         # El enlace ya firmado muestra el comprobante.
         info = self.client.get(f'/api/firma-publica/{s.token}/').data
         self.assertEqual(info['folio'], folios[1])
+
+
+class CargaMasivaRevisionTests(APITestCase):
+    """Importador: revisión previa sin guardar, resultado por fila y actualización sin borrar datos."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('carga_owner', '16.666.666-6', '76.321.321-3')
+        self.plan.nivel = 3; self.plan.limite_trabajadores = 3; self.plan.save()
+        self.client.force_authenticate(self.user)
+        self.existente = crear_empleado(self.empresa, '12.345.678-5')
+        self.existente.email = 'guardado@example.com'; self.existente.cargo = 'BODEGUERO'; self.existente.save()
+
+    def _excel(self, filas):
+        import io
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        import pandas as pd
+        buf = io.BytesIO(); pd.DataFrame(filas).to_excel(buf, index=False)
+        return SimpleUploadedFile('t.xlsx', buf.getvalue(),
+                                  content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    def _subir(self, filas, previsualizar=False):
+        url = '/api/empleados/carga_masiva/' + ('?previsualizar=1' if previsualizar else '')
+        return self.client.post(url, {'empresa': self.empresa.id, 'file': self._excel(filas)}, format='multipart')
+
+    def _nuevo(self, rut, **extra):
+        return {'rut': rut, 'nombres': 'Ana', 'apellido_paterno': 'Rojas', 'cargo': 'Vendedora',
+                'fecha_ingreso': '01-03-2025', 'sueldo_base': 600000, 'horas_laborales': 42, **extra}
+
+    def test_previsualizar_no_guarda_y_detalla_filas(self):
+        filas = [self._nuevo('11.111.111-1'), {'rut': '12.345.678-5', 'cargo': 'Jefe de bodega'},
+                 {'rut': '11.111.111-2', 'nombres': 'X'}, self._nuevo('9.876.543-3', horas_laborales=45)]
+        antes = Empleado.objects.count()
+        r = self._subir(filas, previsualizar=True)
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(Empleado.objects.count(), antes)
+        res = {f['rut']: f for f in r.data['filas']}
+        self.assertEqual(res['11.111.111-1']['resultado'], 'nuevo')
+        self.assertEqual(res['12.345.678-5']['resultado'], 'actualiza')
+        self.assertIn('cargo', res['12.345.678-5']['cambios'])
+        self.assertEqual(res['11.111.111-2']['resultado'], 'error')      # RUT inválido: ya no se omite en silencio
+        self.assertIn('RUT inválido', res['11.111.111-2']['mensaje'])
+        self.assertIn('máximo legal', res['9.876.543-3']['alerta'])      # aviso, no bloqueo
+        self.assertEqual(res['9.876.543-3']['resultado'], 'nuevo')
+
+    def test_actualizar_no_borra_columnas_ausentes(self):
+        r = self._subir([{'rut': '12.345.678-5', 'cargo': 'Jefe de bodega'}])
+        self.assertEqual(r.status_code, 200)
+        self.existente.refresh_from_db()
+        self.assertEqual(self.existente.cargo, 'JEFE DE BODEGA')
+        self.assertEqual(self.existente.email, 'guardado@example.com')
+
+    def test_nuevo_sin_fecha_de_ingreso_es_error(self):
+        fila = self._nuevo('11.111.111-1'); fila['fecha_ingreso'] = ''
+        r = self._subir([fila])
+        self.assertEqual(r.data['filas'][0]['resultado'], 'error')
+        self.assertIn('fecha de ingreso', r.data['filas'][0]['mensaje'])
+        self.assertFalse(Empleado.objects.filter(rut='11.111.111-1').exists())
+
+    def test_limite_del_plan_por_fila(self):
+        r = self._subir([self._nuevo('11.111.111-1'), self._nuevo('9.876.543-3'), self._nuevo('7.654.321-6')])
+        resultados = [f['resultado'] for f in r.data['filas']]
+        self.assertEqual(resultados, ['nuevo', 'nuevo', 'limite'])   # 1 existente + 2 nuevos = 3
+        self.assertTrue(r.data['limite_alcanzado'])
+        self.assertEqual(r.data['agregados'], 2)
+
+
+class CupoTrabajadoresTests(APITestCase):
+    """El límite de trabajadores del plan rige al crear uno a uno y cuenta solo a los vigentes."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo(
+            'cupo_owner', '17.777.777-7', '76.777.111-4', plan_semilla=True)  # límite 3
+        self.client.force_authenticate(self.user)
+        self.emps = [crear_empleado(self.empresa, r) for r in ('12.345.678-5', '11.111.111-1', '9.876.543-3')]
+
+    def _crear(self, rut='7.654.321-6'):
+        return self.client.post('/api/empleados/', {'empresa': self.empresa.id, 'rut': rut, 'nombres': 'A', 'apellido_paterno': 'B',
+                                                    'cargo': 'C', 'fecha_ingreso': '2025-01-01'}, format='json')
+
+    def test_no_se_supera_el_limite(self):
+        r = self._crear()
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('3 trabajadores vigentes', r.data['error'])
+
+    def test_desvinculados_no_ocupan_cupo(self):
+        e = self.emps[0]; e.activo = False; e.save()
+        self.assertEqual(self._crear().status_code, 201)
+        # Ahora está lleno: reactivar al desvinculado no se permite.
+        r = self.client.patch(f'/api/empleados/{e.id}/', {'activo': True}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.client.get('/api/clientes/mi_suscripcion/').data['trabajadores_actuales'], 3)

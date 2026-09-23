@@ -161,6 +161,29 @@ def _plan_activo(user):
     return plan
 
 
+def _limite_trabajadores(user) -> int:
+    """Trabajadores vigentes que permite el plan activo. Sin plan rige el de nivel 1."""
+    plan = _plan_activo(user) or Plan.objects.filter(nivel=1).order_by('id').first()
+    return plan.limite_trabajadores if plan else 3
+
+
+def _trabajadores_vigentes(user) -> int:
+    """Cuenta de trabajadores activos en todas las empresas del usuario.
+
+    Los desvinculados (activo=False) no ocupan cupo: con borrado lógico, si
+    contaran, una empresa que despide nunca podría volver a contratar.
+    """
+    return Empleado.objects.filter(empresa__owner=user, activo=True).count()
+
+
+def _exigir_cupo_trabajador(user):
+    limite = _limite_trabajadores(user)
+    if _trabajadores_vigentes(user) >= limite:
+        raise ValidationError({'error': (
+            f'Tu plan permite {limite} trabajadores vigentes y ya los tienes todos. '
+            f'Mejora tu plan o desvincula a alguien para agregar otro.')})
+
+
 def _nivel_plan(user) -> int:
     """Retorna el nivel del plan activo: 1=Semilla, 2=Starter, 3=Pyme, 4=Corporativo.
     Sin plan asignado se asume nivel 1 (Semilla)."""
@@ -657,17 +680,12 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def perform_create(self, serializer):
-        cliente = getattr(self.request.user, 'perfil_cliente', None)
-        
-        # 1. REGLA DE NEGOCIO: Límite de empresas según el Plan
-        if cliente and cliente.plan:
-            total_empresas = Empresa.objects.filter(owner=self.request.user).count()
-            
-            # Definir límite según el ID del plan (1: Semilla, 2: Pyme, 3: Corporativo)
-            limite_empresas = cliente.plan.max_empresas
-                        
-            if total_empresas >= limite_empresas:
-                raise ValidationError({'error': f'Tu {cliente.plan.nombre} permite administrar un máximo de {limite_empresas} empresas. Actualiza tu plan para registrar más.'})
+        # 1. REGLA DE NEGOCIO: Límite de empresas según el plan activo
+        plan = _plan_activo(self.request.user)
+        if plan:
+            total_empresas = Empresa.objects.filter(owner=self.request.user, activo=True).count()
+            if total_empresas >= plan.max_empresas:
+                raise ValidationError({'error': f'Tu plan {plan.nombre} permite administrar un máximo de {plan.max_empresas} empresas. Actualiza tu plan para registrar más.'})
 
         # 2. Convertir a mayúsculas
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
@@ -701,6 +719,133 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             
         serializer.save(**datos_mayusculas)
 
+# Columnas obligatorias para crear un trabajador desde la planilla. Al
+# actualizar uno existente basta el RUT: solo cambian las columnas que traen dato.
+_COLUMNAS_OBLIGATORIAS = ('rut', 'nombres', 'apellido_paterno', 'cargo', 'fecha_ingreso', 'sueldo_base', 'horas_laborales')
+_CAMPOS_TEXTO_CARGA = ('nombres', 'apellido_paterno', 'apellido_materno', 'nacionalidad', 'departamento',
+                       'sucursal', 'cargo', 'forma_pago', 'banco', 'tipo_cuenta')
+_NOMBRE_CAMPO = {
+    'nombres': 'nombres', 'apellido_paterno': 'apellido paterno', 'apellido_materno': 'apellido materno',
+    'email': 'correo', 'sexo': 'sexo', 'nacionalidad': 'nacionalidad', 'fecha_nacimiento': 'fecha de nacimiento',
+    'fecha_ingreso': 'fecha de ingreso', 'departamento': 'departamento', 'sucursal': 'sucursal', 'cargo': 'cargo',
+    'sueldo_base': 'sueldo', 'horas_laborales': 'horas', 'forma_pago': 'forma de pago', 'banco': 'banco',
+    'tipo_cuenta': 'tipo de cuenta', 'numero_cuenta': 'número de cuenta',
+}
+
+
+def _vacio(valor):
+    return valor is None or (isinstance(valor, float) and math.isnan(valor)) or str(valor).strip() == ''
+
+
+def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
+    """Revisa (y si `guardar`, aplica) cada fila de la planilla de trabajadores.
+
+    Devuelve una fila de resultado por registro: 'nuevo', 'actualiza', 'error'
+    o 'limite' (no cabe en el plan), con el mensaje para mostrar. Al actualizar
+    solo se escriben las columnas que traen dato: una columna ausente o vacía
+    no borra lo que ya estaba guardado.
+    """
+    empleados_bd = Empleado.objects.filter(empresa=empresa)
+    mapa = {limpiar_rut(e.rut): e for e in empleados_bd}
+    siguiente_ficha = (empleados_bd.aggregate(Max('ficha_numero'))['ficha_numero__max'] or 0) + 1
+    total_actual = Empleado.objects.filter(empresa__owner=empresa.owner, activo=True).count()
+    maximo_legal = jornada_maxima_vigente()
+    vistos = set()
+    resultados = []
+
+    with transaction.atomic():
+        for fila_num, row in enumerate(registros, start=2):  # la fila 1 es el encabezado
+            r = {str(k).strip().lower().replace(' ', '_'): v for k, v in row.items()}
+            if all(_vacio(v) for v in r.values()):
+                continue  # fila en blanco
+            rut_raw = str(r.get('rut', '')).strip()
+            base = {'fila': fila_num, 'rut': rut_raw,
+                    'nombre': f"{str(r.get('nombres', '')).strip()} {str(r.get('apellido_paterno', '')).strip()}".strip(),
+                    'cargo': str(r.get('cargo', '')).strip(), 'horas': None, 'sueldo': None,
+                    'cambios': [], 'alerta': ''}
+
+            def error(msj):
+                resultados.append({**base, 'resultado': 'error', 'mensaje': msj})
+
+            if not rut_raw:
+                error('Falta el RUT.'); continue
+            if not validar_rut(rut_raw):
+                error(f'RUT inválido ({rut_raw}): revisa el dígito verificador.'); continue
+            rut_limpio = limpiar_rut(rut_raw)
+            base['rut'] = formatear_rut(rut_raw)
+            if rut_limpio in vistos:
+                error('RUT repetido en la planilla: se usa solo la primera fila.'); continue
+            vistos.add(rut_limpio)
+            existente = mapa.get(rut_limpio)
+
+            # ── Valores presentes en la fila ─────────────────────────────
+            datos = {}
+            for campo in _CAMPOS_TEXTO_CARGA:
+                if not _vacio(r.get(campo)):
+                    datos[campo] = str(r[campo]).strip().upper()
+            if not _vacio(r.get('email')):
+                datos['email'] = str(r['email']).strip().lower()
+            if not _vacio(r.get('sexo')):
+                datos['sexo'] = str(r['sexo']).strip().upper()[:1]
+            if not _vacio(r.get('numero_cuenta')):
+                crudo = r['numero_cuenta']
+                try:
+                    datos['numero_cuenta'] = str(int(float(crudo)))
+                except (ValueError, TypeError):
+                    datos['numero_cuenta'] = str(crudo).strip()
+            for campo in ('fecha_ingreso', 'fecha_nacimiento'):
+                if not _vacio(r.get(campo)):
+                    fecha = estandarizar_fecha(r[campo])
+                    if fecha is None:
+                        error(f'{_NOMBRE_CAMPO[campo].capitalize()} inválida ({r[campo]}): usa DD-MM-AAAA.'); break
+                    datos[campo] = fecha
+            else:
+                try:
+                    if not _vacio(r.get('sueldo_base')):
+                        datos['sueldo_base'] = int(float(r['sueldo_base']))
+                        if datos['sueldo_base'] < 0:
+                            error('El sueldo no puede ser negativo.'); continue
+                    if not _vacio(r.get('horas_laborales')):
+                        datos['horas_laborales'] = int(float(r['horas_laborales']))
+                        if not 1 <= datos['horas_laborales'] <= 168:
+                            error('Las horas semanales deben estar entre 1 y 168.'); continue
+                except (ValueError, TypeError):
+                    error('El sueldo o las horas no son números.'); continue
+
+                faltan = [c for c in _COLUMNAS_OBLIGATORIAS[1:] if c not in datos]
+                if existente is None and faltan:
+                    error('Faltan datos para crearlo: ' + ', '.join(_NOMBRE_CAMPO[c] for c in faltan) + '.'); continue
+
+                base['horas'] = datos.get('horas_laborales', existente.horas_laborales if existente else None)
+                base['sueldo'] = datos.get('sueldo_base', existente.sueldo_base if existente else None)
+                if base['horas'] and base['horas'] > maximo_legal:
+                    # Aviso, no bloqueo: la decisión es del empleador.
+                    base['alerta'] = f'Jornada de {base["horas"]} h: supera el máximo legal vigente de {maximo_legal} h.'
+
+                if existente is not None:
+                    cambios = [c for c, v in datos.items() if str(getattr(existente, c) or '') != str(v)]
+                    base['cambios'] = [_NOMBRE_CAMPO[c] for c in cambios]
+                    if guardar and cambios:
+                        for c in cambios:
+                            setattr(existente, c, datos[c])
+                        existente.save(update_fields=cambios)
+                    resultados.append({**base, 'resultado': 'actualiza',
+                                       'mensaje': ('Cambia: ' + ', '.join(base['cambios']) + '.') if cambios else 'Sin cambios.'})
+                    continue
+
+                if total_actual >= limite_trabajadores:
+                    resultados.append({**base, 'resultado': 'limite',
+                                       'mensaje': f'Tu plan permite {limite_trabajadores} trabajadores vigentes: esta fila no se crea.'})
+                    continue
+                if guardar:
+                    Empleado.objects.create(rut=formatear_rut(rut_raw), empresa=empresa, ficha_numero=siguiente_ficha,
+                                            **{'nacionalidad': 'CHILENA', **datos})
+                    siguiente_ficha += 1
+                total_actual += 1
+                resultados.append({**base, 'resultado': 'nuevo', 'mensaje': 'Se crea.'})
+    return resultados
+
+
 class EmpleadoViewSet(viewsets.ModelViewSet):
     serializer_class = EmpleadoSerializer
     permission_classes = [IsAuthenticated]
@@ -721,6 +866,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        _exigir_cupo_trabajador(self.request.user)
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
 
         empresa_destino = serializer.validated_data.get('empresa')
@@ -744,6 +890,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         serializer.save(**datos_mayusculas)
 
     def perform_update(self, serializer):
+        # Reactivar a un desvinculado vuelve a ocupar cupo del plan.
+        if serializer.validated_data.get('activo') is True and not serializer.instance.activo:
+            _exigir_cupo_trabajador(self.request.user)
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
 
         empresa_destino = serializer.validated_data.get('empresa', serializer.instance.empresa)
@@ -794,126 +943,34 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 return Response({'error': 'Solo se aceptan archivos Excel (.xlsx o .xls).'}, status=400)
 
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
-            cliente = getattr(request.user, 'perfil_cliente', None)
-            limite_trabajadores = cliente.plan.limite_trabajadores if (cliente and cliente.plan) else 1000
+            limite_trabajadores = _limite_trabajadores(request.user)
 
-            # Leemos el Excel
-            df = pd.read_excel(archivo_excel).fillna('')
+            # dtype=str: el RUT, la cuenta y las fechas llegan tal como se escribieron.
+            df = pd.read_excel(archivo_excel, dtype=object).fillna('')
             registros = df.to_dict('records')
 
             MAX_FILAS = 500
             if len(registros) > MAX_FILAS:
                 return Response({'error': f'El archivo no puede tener más de {MAX_FILAS} filas por importación.'}, status=400)
-            
-            empleados_creados = 0
-            empleados_actualizados = 0
-            limite_alcanzado = False
-            errores = []
-            
-            # Preparamos el mapa de empleados actuales para evitar duplicados
-            empleados_bd = Empleado.objects.filter(empresa=empresa)
-            mapa_empleados = { limpiar_rut(emp.rut): emp for emp in empleados_bd }
-            
-            siguiente_ficha = (empleados_bd.aggregate(Max('ficha_numero'))['ficha_numero__max'] or 0) + 1
 
-            with transaction.atomic():
-                total_actual = empleados_bd.count()
+            # ?previsualizar=1 revisa cada fila con las mismas reglas y no guarda nada:
+            # es la revisión previa del importador del panel.
+            previsualizar = str(request.query_params.get('previsualizar', '')).lower() in ('1', 'true', 'si')
+            filas = _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar=not previsualizar)
 
-                for fila_num, row in enumerate(registros, start=2):  # start=2 porque fila 1 es el header del Excel
-                    # --- NORMALIZADOR DE COLUMNAS ---
-                    # Creamos un nuevo diccionario con todas las llaves en minúsculas y sin espacios
-                    # Así row.get('email') funcionará aunque el Excel diga "Email", " EMAIL" o "email"
-                    row_norm = { str(k).strip().lower().replace(' ', '_'): v for k, v in row.items() }
-                    
-                    rut_raw = str(row_norm.get('rut', '')).strip()
-                    if not rut_raw: continue
-                    
-                    if not validar_rut(rut_raw):
-                        continue # Saltamos RUTs inválidos
-
-                    rut_limpio = limpiar_rut(rut_raw)
-                    rut_formateado = formatear_rut(rut_raw)
-
-                    # Extraer datos usando las llaves normalizadas
-                    nombres = str(row_norm.get('nombres', '')).strip().upper()
-                    ap_paterno = str(row_norm.get('apellido_paterno', '')).strip().upper()
-                    email_dato = str(row_norm.get('email', '')).strip().lower() # <--- AQUÍ SE CORRIGE EL EMAIL
-
-                    # Lógica de tipos de datos
-                    try:
-                        sueldo = int(float(row_norm.get('sueldo_base', 0)))
-                        if sueldo < 0:
-                            errores.append(f"Fila {fila_num}: sueldo_base no puede ser negativo.")
-                            continue
-                        horas_raw = row_norm.get('horas_laborales', jornada_maxima_vigente())
-                        horas = int(horas_raw)
-                        if horas <= 0 or horas > 168:
-                            errores.append(f"Fila {fila_num}: horas_laborales debe estar entre 1 y 168.")
-                            continue
-                    except (ValueError, TypeError):
-                        errores.append(f"Fila {fila_num}: sueldo_base u horas_laborales contienen valores no numéricos.")
-                        continue
-
-                    raw_cuenta = row_norm.get('numero_cuenta', '')
-                    try:
-                        # Si es numérico (ej. 12345.0), lo pasamos a float, luego a entero (quita el .0) y luego a texto
-                        num_cuenta = str(int(float(raw_cuenta)))
-                    except (ValueError, TypeError):
-                        # Si tiene letras o guiones (ej. "Chequera-123") o está vacío, lo dejamos como texto normal
-                        num_cuenta = str(raw_cuenta).strip()
-
-                    # AQUÍ SE ASIGNAN TODOS LOS CAMPOS QUE ESTABAN EN NULL
-                    nuevos_datos = {
-                        'nombres': nombres,
-                        'apellido_paterno': ap_paterno,
-                        'apellido_materno': str(row_norm.get('apellido_materno', '')).strip().upper(),
-                        'email': email_dato,
-                        'sexo': str(row_norm.get('sexo', 'M')).strip().upper()[:1],
-                        'nacionalidad': str(row_norm.get('nacionalidad', 'CHILENA')).strip().upper(),
-                        'fecha_nacimiento': estandarizar_fecha(row_norm.get('fecha_nacimiento')),
-                        'fecha_ingreso': estandarizar_fecha(row_norm.get('fecha_ingreso')) or datetime.date.today(),
-                        'departamento': str(row_norm.get('departamento', '')).strip().upper(),
-                        'sucursal': str(row_norm.get('sucursal', '')).strip().upper(),
-                        'cargo': str(row_norm.get('cargo', '')).strip().upper(),
-                        'sueldo_base': sueldo,
-                        'horas_laborales': horas,
-                        'forma_pago': str(row_norm.get('forma_pago', 'TRANSFERENCIA')).strip().upper(),
-                        'banco': str(row_norm.get('banco', '')).strip().upper(),
-                        'tipo_cuenta': str(row_norm.get('tipo_cuenta', '')).strip().upper(),
-                        'numero_cuenta': num_cuenta
-                    }
-
-                    empleado_existente = mapa_empleados.get(rut_limpio)
-
-                    if empleado_existente:
-                        # ACTUALIZAR
-                        for key, value in nuevos_datos.items():
-                            setattr(empleado_existente, key, value)
-                        empleado_existente.save()
-                        empleados_actualizados += 1
-                    else:
-                        # CREAR (Validando límite de plan)
-                        if total_actual >= limite_trabajadores:
-                            limite_alcanzado = True
-                            continue
-                        
-                        Empleado.objects.create(
-                            rut=rut_formateado,
-                            empresa=empresa,
-                            ficha_numero=siguiente_ficha,
-                            **nuevos_datos
-                        )
-                        siguiente_ficha += 1
-                        empleados_creados += 1
-                        total_actual += 1
-
+            creados = sum(1 for f in filas if f['resultado'] == 'nuevo')
+            actualizados = sum(1 for f in filas if f['resultado'] == 'actualiza')
             return Response({
-                'agregados': empleados_creados,
-                'actualizados': empleados_actualizados,
-                'limite_alcanzado': limite_alcanzado,
-                'errores': errores,
+                'previsualizacion': previsualizar,
+                'agregados': creados,
+                'actualizados': actualizados,
+                'limite_alcanzado': any(f['resultado'] == 'limite' for f in filas),
+                'errores': [f"Fila {f['fila']}: {f['mensaje']}" for f in filas if f['resultado'] in ('error', 'limite')],
+                'filas': filas,
             }, status=200)
 
+        except Empresa.DoesNotExist:
+            return Response({'error': 'Empresa no encontrada.'}, status=404)
         except Exception:
             return Response({'error': 'Error procesando el archivo. Revisa el formato e inténtalo de nuevo.'}, status=500)
                 
@@ -4463,7 +4520,7 @@ def mi_suscripcion(request):
         )
 
     # 2. Calcular uso real (trabajadores en TODAS las empresas del usuario)
-    trabajadores_actuales = Empleado.objects.filter(empresa__owner=request.user).count()
+    trabajadores_actuales = _trabajadores_vigentes(request.user)
 
     # 3. Armar la respuesta exacta que espera Suscripcion.tsx
     data = {
