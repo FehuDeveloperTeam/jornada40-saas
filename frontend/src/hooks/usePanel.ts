@@ -144,3 +144,17 @@ export function rutaClasica(empleadoId?: number, tab?: PestanaClasica): string {
   if (!empleadoId) return '/dashboard';
   return `/dashboard?empleado=${empleadoId}${tab ? `&tab=${tab}` : ''}`;
 }
+
+// Pestaña del panel anterior → pestaña equivalente de la carpeta nueva.
+const PESTANA_CARPETA: Record<string, string> = {
+  perfil: 'personal', contratos: 'contrato', liquidaciones: 'remuneraciones', historial: 'remuneraciones',
+  vacaciones: 'vacaciones', legal: 'documentos', finiquito: 'documentos',
+};
+
+/** Camino inverso de rutaClasica: la carpeta de la que se vino, o el inicio del panel. */
+export function rutaDesdeClasica(params: URLSearchParams): string {
+  const empleado = Number(params.get('empleado'));
+  if (!empleado) return '/app';
+  const tab = PESTANA_CARPETA[params.get('tab') ?? ''];
+  return `/app/trabajadores/${empleado}${tab ? `?tab=${tab}` : ''}`;
+}

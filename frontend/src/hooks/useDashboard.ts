@@ -5,6 +5,7 @@ import client from '../api/client';
 import { useToast } from './useToast';
 import { formatRut, validateRut } from '../utils/rutUtils';
 import { jornadaMaximaVigente } from '../utils/ley40';
+import { rutaDesdeClasica } from './usePanel';
 import * as XLSX from 'xlsx';
 import type {
   Empresa, Empleado, HorarioDia, HorarioSemana,
@@ -1245,6 +1246,16 @@ export function useDashboard() {
   // esa pestaña. El panel rediseñado lo usa para las acciones que todavía no
   // migra (nueva liquidación, editar contrato, generar documentos).
   const enlaceAplicado = useRef(false);
+  // Si la ficha se abrió desde la carpeta nueva, cerrarla vuelve allá: el
+  // panel anterior es solo un paso intermedio para lo que aún no se migra.
+  const volverACarpeta = useRef<string | null>(null);
+  const abrirOCerrarPanel = (abierto: boolean) => {
+    if (!abierto && volverACarpeta.current) {
+      navigate(volverACarpeta.current);
+      return;
+    }
+    setIsPanelOpen(abierto);
+  };
   useEffect(() => {
     if (enlaceAplicado.current || empleados.length === 0) return;
     const params = new URLSearchParams(window.location.search);
@@ -1254,6 +1265,7 @@ export function useDashboard() {
     const emp = empleados.find(e => e.id === id);
     if (!emp) return;
     abrirEditar(emp);
+    volverACarpeta.current = rutaDesdeClasica(params);
     const TABS = ['perfil', 'contratos', 'liquidaciones', 'historial', 'legal', 'vacaciones', 'finiquito'] as const;
     const tab = params.get('tab') as typeof TABS[number] | null;
     if (tab && TABS.includes(tab)) setActiveTab(tab);
@@ -1280,7 +1292,7 @@ export function useDashboard() {
     isUploadModalOpen, setIsUploadModalOpen,
     uploadResult, setUploadResult,
     // Panel lateral
-    isPanelOpen, setIsPanelOpen,
+    isPanelOpen, setIsPanelOpen: abrirOCerrarPanel,
     panelMode, setPanelMode,
     selectedEmpleado,
     isValidRut, setIsValidRut,

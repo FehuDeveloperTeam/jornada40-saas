@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useDashboard } from '../hooks/useDashboard';
+import { rutaDesdeClasica } from '../hooks/usePanel';
 import StatsWidgets from '../components/dashboard/StatsWidgets';
 import EmpleadosTable from '../components/dashboard/EmpleadosTable';
 import ModalDescargaMasiva from '../components/dashboard/ModalDescargaMasiva';
@@ -12,6 +14,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import { formatRut } from '../utils/rutUtils';
 
 export default function Dashboard() {
+  const [params] = useSearchParams();
   const [showPreviredModal, setShowPreviredModal] = useState(false);
   const [showLibroModal, setShowLibroModal] = useState(false);
 
@@ -120,7 +123,14 @@ export default function Dashboard() {
     <div className="p-6 md:p-10 min-h-screen font-sans flex" style={{ background: 'var(--c-bg-app)' }} onClick={() => setOpenFilterDropdown(null)}>
       <div className={`max-w-7xl mx-auto w-full min-w-0 transition-all duration-300 ${isPanelOpen ? 'md:mr-[900px]' : ''}`}>
 
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-8 gap-3 flex-wrap">
+          <div className="flex items-center gap-5 flex-wrap">
+          <Link to={rutaDesdeClasica(params)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:brightness-110"
+            style={{ background: '#1d6fd8' }}>
+            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+            <span>{params.get('empleado') ? 'Volver a la carpeta' : 'Volver al panel nuevo'}</span>
+          </Link>
           <button onClick={volverAlLobby}
             className="flex items-center gap-2 text-sm font-medium transition-colors"
             style={{ color: 'var(--c-text-3)' }}
@@ -129,6 +139,7 @@ export default function Dashboard() {
             <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 transition-transform"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
             <span>Cambiar de Empresa</span>
           </button>
+          </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <img src="/favicon.svg" alt="Jornada40" className="w-8 h-8 rounded-lg" />
