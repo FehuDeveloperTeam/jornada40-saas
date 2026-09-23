@@ -307,6 +307,7 @@ export default function EmpleadoPanel({
             )}
             {activeTab === 'contratos' && (
               <TabContratos
+                conceptosPorTipo={conceptosPorTipo}
                 contratoData={contratoData}
                 setContratoData={setContratoData}
                 handleContratoChange={handleContratoChange}

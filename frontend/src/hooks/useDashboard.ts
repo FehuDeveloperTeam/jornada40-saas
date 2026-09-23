@@ -787,7 +787,12 @@ export function useDashboard() {
     resetFormularioLiquidacion();
     const config = selectedEmpleado?.contrato_activo?.comisiones_config || [];
     if (selectedEmpleado?.contrato_activo?.es_comisionista && config.length > 0) {
-      setComisionesList(config.map(c => ({ glosa: c.glosa, porcentaje: c.porcentaje, monto_vendido: 0, valor: 0 })));
+      // La categoría se guarda por concepto; el nombre sale del catálogo.
+      setComisionesList(config.map(c => ({
+        concepto: c.concepto ?? null,
+        glosa: conceptos.find(k => k.id === c.concepto)?.nombre ?? c.glosa ?? '',
+        porcentaje: c.porcentaje, monto_vendido: 0, valor: 0,
+      })));
     }
     setShowLiqForm(true);
   };

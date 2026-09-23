@@ -52,6 +52,7 @@ from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
 from django.conf import settings
 from django.utils import timezone
+from django.utils.text import slugify
 import datetime
 import io
 import zipfile
@@ -1469,6 +1470,21 @@ class ContratoViewSet(viewsets.ModelViewSet):
     def _build_contrato_context(self, contrato, es_plan_semilla):
         return _ctx_contrato(contrato, es_plan_semilla)
 
+    def perform_create(self, serializer):
+        self._guardar_normalizando(serializer)
+
+    def perform_update(self, serializer):
+        self._guardar_normalizando(serializer)
+
+    def _guardar_normalizando(self, serializer):
+        """Resuelve las categorías de comisión a conceptos del catálogo."""
+        contrato = serializer.save()
+        config = _normalizar_comisiones_config(
+            contrato.comisiones_config, contrato.empleado.empresa)
+        if config != contrato.comisiones_config:
+            contrato.comisiones_config = config
+            contrato.save(update_fields=['comisiones_config'])
+
     @action(detail=True, methods=['post'])
     def generar_contrato_pdf(self, request, pk=None):
         try:
@@ -1659,8 +1675,12 @@ def _formatear_valor_anexo(campo, valor) -> str:
     if campo == 'comisiones_config':
         if not valor:
             return 'sin comisiones'
+        ids = [c.get('concepto') for c in valor if c.get('concepto')]
+        nombres = {c.id: c.nombre
+                   for c in ConceptoRemuneracion.objects.filter(id__in=ids)}
         return ', '.join(
-            f"{c.get('glosa', '')} {c.get('porcentaje', 0)}%" for c in valor
+            f"{nombres.get(c.get('concepto'), c.get('glosa', ''))} "
+            f"{c.get('porcentaje', 0)}%" for c in valor
         )
     if isinstance(valor, bool):
         return 'Sí' if valor else 'No'
@@ -1723,6 +1743,9 @@ def _aplicar_anexo_a_contrato(anexo) -> bool:
                 valor_limpio = tipo(valor)
         except (TypeError, ValueError):
             continue
+        if campo == 'comisiones_config':
+            valor_limpio = _normalizar_comisiones_config(
+                valor_limpio, contrato.empleado.empresa)
         setattr(contrato, campo, valor_limpio)
         campos_actualizados.append(campo)
 
@@ -2055,6 +2078,82 @@ def _items_desde_payload(data) -> list:
     return items
 
 
+def _concepto_comision(nombre: str, empresa):
+    """Concepto de comisión de la empresa, creándolo si es la primera vez.
+
+    Las categorías de comisión son propias de cada empresa (Carrocería, Piezas
+    de motor), así que no pueden venir en el catálogo del sistema. Se crean al
+    vuelo para que configurar el contrato no obligue a pasar antes por el
+    mantenedor de conceptos.
+    """
+    nombre = nombre.strip()
+    existente = ConceptoRemuneracion.objects.filter(
+        empresa=empresa, tipo='COMISION', nombre__iexact=nombre).first()
+    if existente:
+        return existente
+
+    base = (slugify(nombre).upper().replace('-', '_') or 'COMISION')[:36]
+    codigo, sufijo = base, 1
+    while ConceptoRemuneracion.objects.filter(empresa=empresa, codigo=codigo).exists():
+        sufijo += 1
+        codigo = f'{base[:34]}_{sufijo}'
+
+    return ConceptoRemuneracion.objects.create(
+        empresa=empresa, tipo='COMISION', codigo=codigo, nombre=nombre)
+
+
+def _normalizar_comisiones_config(config, empresa) -> list:
+    """Deja cada categoría de comisión referenciada por concepto del catálogo.
+
+    Antes se identificaban por su glosa, así que renombrar una categoría
+    rompía la correspondencia con las liquidaciones ya emitidas y su comisión
+    pasaba a calcularse en cero. El id del concepto no cambia al renombrar.
+    """
+    normalizada = []
+    for entrada in (config or []):
+        if not isinstance(entrada, dict):
+            continue
+        porcentaje = float(entrada.get('porcentaje', 0) or 0)
+        nombre = str(entrada.get('glosa', '') or '').strip()
+
+        if nombre:
+            concepto = _concepto_comision(nombre, empresa)
+        elif entrada.get('concepto'):
+            concepto = ConceptoRemuneracion.objects.filter(
+                id=entrada['concepto'], tipo='COMISION').first()
+        else:
+            continue
+
+        if concepto is not None:
+            normalizada.append({'concepto': concepto.id, 'porcentaje': porcentaje})
+    return normalizada
+
+
+def _porcentajes_comision(config) -> dict:
+    """Porcentaje por categoría, indexado por concepto y también por nombre.
+
+    La doble clave permite resolver tanto los ítems nuevos (que traen el
+    concepto) como los emitidos antes del catálogo (que solo tienen glosa).
+    """
+    porcentajes = {}
+    ids = [c.get('concepto') for c in (config or []) if c.get('concepto')]
+    nombres = {c.id: c.nombre for c in ConceptoRemuneracion.objects.filter(id__in=ids)}
+
+    for entrada in (config or []):
+        if not isinstance(entrada, dict):
+            continue
+        porcentaje = float(entrada.get('porcentaje', 0) or 0)
+        concepto_id = entrada.get('concepto')
+        if concepto_id:
+            porcentajes[concepto_id] = porcentaje
+            if concepto_id in nombres:
+                porcentajes[nombres[concepto_id]] = porcentaje
+        glosa = str(entrada.get('glosa', '') or '').strip()
+        if glosa:
+            porcentajes[glosa] = porcentaje
+    return porcentajes
+
+
 def _conceptos_por_id(items) -> dict:
     """Conceptos referenciados por una lista de ítems, en una sola consulta."""
     ids = {item.get('concepto') for item in items if item.get('concepto')}
@@ -2097,10 +2196,7 @@ def _terminos_vigentes(contrato) -> dict:
         'tipo_contrato': contrato.tipo_contrato,
         'anticipo_quincena': (contrato.monto_quincena or 0) if contrato.tiene_quincena else 0,
         'valor_uf': obtener_uf(),
-        'porcentajes_comision': {
-            str(c.get('glosa', '')): float(c.get('porcentaje', 0))
-            for c in (contrato.comisiones_config or [])
-        },
+        'porcentajes_comision': _porcentajes_comision(contrato.comisiones_config),
     }
 
 
@@ -2118,10 +2214,13 @@ def _terminos_congelados(liquidacion, contrato) -> dict:
     if not liquidacion.sueldo_base_contrato:
         return _terminos_vigentes(contrato)
 
-    porcentajes = {
-        str(c.get('glosa', '')): float(c.get('porcentaje', 0))
-        for c in liquidacion.items_de('COMISION')
-    }
+    porcentajes = {}
+    for item in liquidacion.items_de('COMISION'):
+        porcentaje = float(item.get('porcentaje', 0) or 0)
+        if item.get('concepto'):
+            porcentajes[item['concepto']] = porcentaje
+        if item.get('glosa'):
+            porcentajes[str(item['glosa'])] = porcentaje
     # Una categoría agregada al contrato después de emitir esta liquidación
     # todavía no tiene porcentaje histórico: se toma el del contrato.
     for glosa, porcentaje in _terminos_vigentes(contrato)['porcentajes_comision'].items():
@@ -2186,12 +2285,14 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     # de los términos resueltos en el servidor (contrato vigente o los
     # congelados en la liquidación), así que no puede alterarse desde el
     # navegador. El input solo aporta el monto vendido del mes.
-    config_por_glosa = terminos['porcentajes_comision']
+    porcentajes_comision = terminos['porcentajes_comision']
     for item in items:
         if item.get('naturaleza') != 'COMISION':
             continue
         monto_vendido = int(item.get('monto_vendido', 0) or 0)
-        porcentaje = config_por_glosa.get(str(item.get('glosa', '')), 0)
+        # Por concepto primero; la glosa solo cubre lo emitido antes del catálogo.
+        porcentaje = porcentajes_comision.get(
+            item.get('concepto'), porcentajes_comision.get(str(item.get('glosa', '')), 0))
         item['monto_vendido'] = monto_vendido
         item['porcentaje'] = porcentaje
         item['valor'] = math.floor(monto_vendido * porcentaje / 100)

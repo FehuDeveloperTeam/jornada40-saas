@@ -1202,3 +1202,95 @@ class DetalleUnificadoTests(APITestCase):
         self.assertEqual(len(agrupados['imponibles']), 1)
         self.assertEqual(len(agrupados['no_imponibles']), 1)
         self.assertEqual(agrupados['descuentos'], [])
+
+
+class ComisionesCatalogoTests(APITestCase):
+    """Las categorías de comisión se identifican por concepto, no por glosa.
+
+    Identificarlas por nombre significaba que renombrar una categoría dejaba
+    huérfanas las liquidaciones ya emitidas y su comisión se recalculaba en
+    cero. El id del concepto no cambia al renombrar.
+    """
+
+    def setUp(self):
+        self.user, _, _, self.empresa = crear_usuario_completo(
+            'com_user', '16000000-1', '76600001-1')
+        self.client.force_authenticate(user=self.user)
+        self.empleado = crear_empleado(self.empresa, '11600001-1')
+
+    def _crear_contrato(self, categorias):
+        resp = self.client.post('/api/contratos/', {
+            'empleado': self.empleado.id, 'sueldo_base': 1_000_000,
+            'fecha_inicio': '2024-01-01', 'cargo': 'Vendedor',
+            'es_comisionista': True, 'comisiones_config': categorias,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        return Contrato.objects.get(id=resp.data['id'])
+
+    def test_guardar_el_contrato_crea_el_concepto_de_la_categoria(self):
+        from core.models import ConceptoRemuneracion
+        contrato = self._crear_contrato([{'glosa': 'Carrocería', 'porcentaje': 0.5}])
+
+        concepto = ConceptoRemuneracion.objects.get(
+            empresa=self.empresa, tipo='COMISION', nombre='Carrocería')
+        self.assertTrue(concepto.afecta_semana_corrida)
+        self.assertEqual(contrato.comisiones_config,
+                         [{'concepto': concepto.id, 'porcentaje': 0.5}])
+
+    def test_la_misma_categoria_no_se_duplica(self):
+        from core.models import ConceptoRemuneracion
+        self._crear_contrato([{'glosa': 'Carrocería', 'porcentaje': 0.5}])
+        otro = crear_empleado(self.empresa, '11600002-2')
+        self.client.post('/api/contratos/', {
+            'empleado': otro.id, 'sueldo_base': 900_000,
+            'fecha_inicio': '2024-01-01', 'cargo': 'Vendedor',
+            'es_comisionista': True,
+            'comisiones_config': [{'glosa': 'carrocería', 'porcentaje': 0.7}],
+        }, format='json')
+
+        self.assertEqual(ConceptoRemuneracion.objects.filter(
+            empresa=self.empresa, tipo='COMISION').count(), 1)
+
+    def test_renombrar_la_categoria_no_rompe_la_liquidacion_emitida(self):
+        """El caso que motivó el cambio."""
+        from core.models import ConceptoRemuneracion
+        contrato = self._crear_contrato([{'glosa': 'Carrocería', 'porcentaje': 0.5}])
+        concepto = ConceptoRemuneracion.objects.get(
+            empresa=self.empresa, tipo='COMISION', nombre='Carrocería')
+
+        liq = self.client.post('/api/liquidaciones/', {
+            'empleado': self.empleado.id, 'mes': 4, 'anio': 2025,
+            'dias_trabajados': 30,
+            'detalle_items': [{
+                'concepto': concepto.id, 'naturaleza': 'COMISION',
+                'glosa': 'Carrocería', 'monto_vendido': 4_000_000,
+            }],
+        }, format='json').data
+        comision = [i for i in liq['detalle_items'] if i['naturaleza'] == 'COMISION'][0]
+        self.assertEqual(comision['valor'], 20_000)
+
+        # Se renombra el concepto en el catálogo
+        concepto.nombre = 'Carrocería Pesada'
+        concepto.save(update_fields=['nombre'])
+
+        resp = self.client.patch(f'/api/liquidaciones/{liq["id"]}/',
+                                 {'dias_ausencia': 1}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        recalculada = [i for i in resp.data['detalle_items']
+                       if i['naturaleza'] == 'COMISION'][0]
+        # Antes esto daba 0 porque la glosa ya no calzaba con la del contrato
+        self.assertEqual(recalculada['porcentaje'], 0.5)
+        self.assertEqual(recalculada['valor'], 20_000)
+
+    def test_una_liquidacion_previa_al_catalogo_sigue_resolviendo_por_glosa(self):
+        """Compatibilidad con lo emitido antes de que existieran los conceptos."""
+        from core.views import _terminos_congelados
+        contrato = self._crear_contrato([{'glosa': 'Carrocería', 'porcentaje': 0.5}])
+        liq = Liquidacion.objects.create(
+            empleado=self.empleado, mes=1, anio=2025, sueldo_base_contrato=1_000_000,
+            detalle_items=[{'naturaleza': 'COMISION', 'glosa': 'Carrocería',
+                            'monto_vendido': 2_000_000, 'porcentaje': 0.5,
+                            'valor': 10_000}],
+        )
+        porcentajes = _terminos_congelados(liq, contrato)['porcentajes_comision']
+        self.assertEqual(porcentajes.get('Carrocería'), 0.5)

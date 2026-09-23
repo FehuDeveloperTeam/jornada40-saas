@@ -49,6 +49,7 @@ const valorInicialCampo = (tipo: CampoAnexo['tipo']) => {
 };
 
 type Props = {
+  conceptosPorTipo: UseDashboardReturn['conceptosPorTipo'];
   contratoData: UseDashboardReturn['contratoData'];
   setContratoData: UseDashboardReturn['setContratoData'];
   handleContratoChange: UseDashboardReturn['handleContratoChange'];
@@ -212,6 +213,7 @@ function FirmaBadge({
 }
 
 export default function TabContratos({
+  conceptosPorTipo,
   contratoData, setContratoData, handleContratoChange, guardarContrato, setHayCambiosContrato,
   funciones, setFunciones, clausulas, setClausulas,
   horario, setHorario, totalHorasCalculadas,
@@ -406,7 +408,8 @@ export default function TabContratos({
               ) : (
                 (contratoData.comisiones_config || []).map((item, index) => (
                   <div key={index} className="flex gap-4">
-                    <input type="text" placeholder="Categoría (Ej: Carrocería)" value={item.glosa}
+                    <input type="text" placeholder="Categoría (Ej: Carrocería)"
+                      value={item.glosa ?? conceptosPorTipo('COMISION').find(c => c.id === item.concepto)?.nombre ?? ''}
                       onChange={(e) => {
                         const config = [...(contratoData.comisiones_config || [])];
                         config[index] = { ...config[index], glosa: e.target.value };
@@ -756,7 +759,8 @@ export default function TabContratos({
                                   <div className="space-y-2">
                                     {((valor as ComisionConfig[]) || []).map((c, i) => (
                                       <div key={i} className="flex gap-2">
-                                        <input type="text" required placeholder="Categoría (Ej: Carrocería)" value={c.glosa}
+                                        <input type="text" required placeholder="Categoría (Ej: Carrocería)"
+                                          value={c.glosa ?? conceptosPorTipo('COMISION').find(k => k.id === c.concepto)?.nombre ?? ''}
                                           onChange={e => {
                                             const lista = [...(valor as ComisionConfig[])];
                                             lista[i] = { ...lista[i], glosa: e.target.value };

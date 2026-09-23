@@ -264,7 +264,11 @@ export interface HoraExtraItem {
 
 // Tasa de comisión configurada en el contrato (ej. "Carrocería" 0.5%)
 export interface ComisionConfig {
-    glosa: string;
+    /** Concepto del catálogo (tipo COMISION). Es la referencia estable:
+     *  renombrar la categoría no rompe las liquidaciones ya emitidas. */
+    concepto?: number | null;
+    /** Nombre escrito en el formulario. El backend lo resuelve a concepto. */
+    glosa?: string;
     porcentaje: number;
 }
 
