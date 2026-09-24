@@ -27,10 +27,11 @@ jornada40-saas/
 │   │   └── asgi.py
 │   ├── core/              # Single Django app containing all business logic
 │   │   ├── models.py      # All data models
-│   │   ├── views.py       # All ViewSets and custom API views
+│   │   ├── views/         # ViewSets y vistas, un módulo por tema (ver abajo)
 │   │   ├── serializers.py # All DRF serializers
 │   │   ├── urls.py        # API URL router
 │   │   ├── admin.py       # Django admin registration
+│   │   ├── tests/         # Pruebas por tema (test_*.py) y ayudantes en utiles.py
 │   │   ├── migrations/    # Database migrations
 │   │   └── templates/     # Email templates
 │   ├── templates/         # General Django templates
@@ -218,6 +219,23 @@ Custom endpoints:
 | GET | `/api/indicadores/` | UF, UTM and legal max weekly hours |
 | GET | `/api/parametros/vigentes/` | Current previsional parameters (read-only) |
 
+### Views package (`core/views/`)
+
+`core/views/__init__.py` re-exports every name, so `from core.views import X` keeps working (urls, admin, serializers, management commands). Modules, with no import cycles:
+
+| Module | Contents |
+|--------|----------|
+| `base` | Throttles, active plan and worker quota, dates, PDF helpers, contract context |
+| `feriado` | Chilean holidays, business days, vacation balance (Arts. 67–70) |
+| `parametros` | Versioned previsional parameters, AFP/AFC rates, daily indicators |
+| `calculo_liquidacion` | Payroll calculation (`_calcular_liquidacion`), concepts and commissions |
+| `previred` | Previred 105-field file (`_linea_previred`) |
+| `finiquitos` | Finiquito calculation and `FiniquitoViewSet` |
+| `documentos`, `vacaciones`, `empresas`, `empleados`, `contratos`, `conceptos`, `liquidaciones`, `firmas` | Their ViewSets (contracts also hold annexes; employees the bulk import) |
+| `suscripciones` | Plans, subscription, Reveniu checkout and webhook |
+| `cuentas` | Login, registration, RUT recovery, profile, network diagnostic |
+| `firma_publica` | Worker-facing signing flow |
+
 ---
 
 ## Data Models (core/models.py)
@@ -297,7 +315,7 @@ All shared types live in `src/types/index.ts`: `User`, `Empresa`, `Empleado`, `C
 
 ## PDF Generation
 
-PDFs are generated server-side in `core/views.py` using `xhtml2pdf`. The pattern is:
+PDFs are generated server-side in the `core/views/` modules using `xhtml2pdf`. The pattern is:
 
 1. Fetch required model data.
 2. Render an HTML template string (inline or from `templates/`) with context.
@@ -318,7 +336,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Archivo Previred
 
-- `GET /api/liquidaciones/exportar_previred/?mes=&anio=[&empresa=]` genera el **formato estándar de largo variable por separador, versión 100 (septiembre 2026)**: 105 campos por trabajador separados por `;`, Latin-1, fin de línea `\r\n`. La construcción está en `_linea_previred` (`core/views.py`), con el número de campo del documento oficial en cada `poner(n, …)`.
+- `GET /api/liquidaciones/exportar_previred/?mes=&anio=[&empresa=]` genera el **formato estándar de largo variable por separador, versión 100 (septiembre 2026)**: 105 campos por trabajador separados por `;`, Latin-1, fin de línea `\r\n`. La construcción está en `_linea_previred` (`core/views/previred.py`), con el número de campo del documento oficial en cada `poner(n, …)`.
 - Datos que lo alimentan: en `Empresa`, `mutual`, `tasa_accidentes`, `sucursal_mutual` y `ccaf`, editables en `/app/empresa` → Seguridad social. En `Empleado`, `isapre`, `numero_fun`, `tramo_asignacion_familiar` y las cargas, editables en la carpeta → Previsión y pago. La asignación familiar se toma de los ítems `ASIGNACION_FAMILIAR` de la liquidación.
 - Si falta un dato sin el cual Previred rechaza el archivo (sexo M/F, AFP, Isapre, tramo con asignación, 0 días sin movimiento), responde 400 con la lista por trabajador, en vez de un archivo inválido.
 - No cubre: régimen IPS (ex INP), pensionados, APV/APVC, licencias médicas con fechas (movimientos 3 y 6) ni líneas adicionales (tipo 01/02). Esos casos se informan directo en Previred.
@@ -393,7 +411,8 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests.py` (Django `APITestCase`, ~200 tests covering auth, tenant isolation, plan limits, payroll, finiquito, signing). Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~230 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
+- **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.
 
