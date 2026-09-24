@@ -57,6 +57,12 @@ export interface Empresa {
     firma_firmante_cargo: string;
     firma_configurada_en: string | null;
     firma_configurada: boolean;
+    // Seguridad social (archivo Previred): códigos de las tablas 19 y 18
+    mutual: '00' | '01' | '02' | '03';
+    /** Tasa total de accidentes (ej. "0.00930"); null = tasa base de los parámetros. */
+    tasa_accidentes: string | null;
+    sucursal_mutual: string;
+    ccaf: '00' | '01' | '02' | '03' | '04';
 }
 
 // Entrada de detalle para haberes o descuentos en una liquidación
@@ -176,6 +182,13 @@ export interface Empleado {
     tipo_cuenta: string | null;
     numero_cuenta: string | null;
     plan_isapre_uf: string; // DecimalField llega como string desde DRF
+    /** Código de la Isapre (tabla 16 de Previred); vacío si es Fonasa. */
+    isapre: string;
+    numero_fun: string;
+    tramo_asignacion_familiar: 'A' | 'B' | 'C' | 'D';
+    cargas_simples: number;
+    cargas_maternales: number;
+    cargas_invalidas: number;
     activo: boolean;
     creado_en: string;
     contrato_activo?: Contrato | null;

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion
 from dj_rest_auth.serializers import LoginSerializer, PasswordResetSerializer
@@ -41,6 +42,12 @@ class EmpresaSerializer(serializers.ModelSerializer):
     def get_firma_configurada(self, obj):
         return bool(obj.firma_imagen)
 
+    def validate_tasa_accidentes(self, tasa):
+        # Base 0,93 % + adicional (hasta 6,8 %) + Ley Sanna: nunca pasa de 10 %.
+        if tasa is not None and not (0 <= tasa <= Decimal('0.1')):
+            raise serializers.ValidationError('La tasa de accidentes va entre 0 % y 10 % (ej.: 0,0093 para 0,93 %).')
+        return tasa
+
     class Meta:
         model = Empresa
         fields = [
@@ -50,6 +57,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
             'activo', 'created_at',
             'firma_firmante_nombre', 'firma_firmante_cargo', 'firma_configurada_en',
             'firma_configurada',
+            'mutual', 'tasa_accidentes', 'sucursal_mutual', 'ccaf',
         ]
         read_only_fields = ('id', 'owner', 'activo', 'created_at',
                             'firma_imagen', 'firma_configurada_en', 'firma_configurada')
@@ -139,7 +147,8 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'direccion', 'comuna', 'numero_telefono', 'email',
             'departamento', 'cargo', 'sucursal',
             'horas_laborales', 'modalidad', 'sueldo_base', 'fecha_ingreso',
-            'afp', 'sistema_salud', 'plan_isapre_uf',
+            'afp', 'sistema_salud', 'plan_isapre_uf', 'isapre', 'numero_fun',
+            'tramo_asignacion_familiar', 'cargas_simples', 'cargas_maternales', 'cargas_invalidas',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',

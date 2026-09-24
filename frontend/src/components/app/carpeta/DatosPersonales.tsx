@@ -45,7 +45,16 @@ const SECCIONES: DefSeccion[] = [
   { clave: 'prevision', titulo: 'Previsión y pago', Icono: Landmark, campos: [
     { campo: 'afp', etiqueta: 'AFP', tipo: 'select', opciones: [['', 'Sin AFP'], ...AFPS.map((a): [string, string] => [a, capitalizar(a)])] },
     { campo: 'sistema_salud', etiqueta: 'Salud', tipo: 'select', opciones: [['FONASA', 'Fonasa'], ['ISAPRE', 'Isapre']] },
+    { campo: 'isapre', etiqueta: 'Isapre', tipo: 'select', mostrar: (b) => b.sistema_salud === 'ISAPRE', opciones: [
+      ['', 'Sin especificar'], ['01', 'Banmédica'], ['02', 'Consalud'], ['03', 'Vida Tres'], ['04', 'Colmena'], ['05', 'Cruz Blanca'],
+      ['10', 'Nueva Masvida'], ['11', 'Isalud'], ['12', 'Fundación'], ['25', 'Cruz del Norte'], ['28', 'Esencial']] },
     { campo: 'plan_isapre_uf', etiqueta: 'Plan Isapre (UF)', tipo: 'numero', mostrar: (b) => b.sistema_salud === 'ISAPRE' },
+    { campo: 'numero_fun', etiqueta: 'N° FUN (contrato Isapre)', mono: true, mostrar: (b) => b.sistema_salud === 'ISAPRE' },
+    { campo: 'tramo_asignacion_familiar', etiqueta: 'Tramo asignación familiar', tipo: 'select',
+      opciones: [['D', 'Sin derecho'], ['A', 'Primer tramo (A)'], ['B', 'Segundo tramo (B)'], ['C', 'Tercer tramo (C)']] },
+    { campo: 'cargas_simples', etiqueta: 'Cargas simples', tipo: 'numero', mostrar: (b) => b.tramo_asignacion_familiar !== 'D' },
+    { campo: 'cargas_maternales', etiqueta: 'Cargas maternales', tipo: 'numero', mostrar: (b) => b.tramo_asignacion_familiar !== 'D' },
+    { campo: 'cargas_invalidas', etiqueta: 'Cargas por invalidez', tipo: 'numero', mostrar: (b) => b.tramo_asignacion_familiar !== 'D' },
     { campo: 'forma_pago', etiqueta: 'Forma de pago', tipo: 'select', opciones: [['TRANSFERENCIA', 'Transferencia'], ['DEPOSITO', 'Depósito'], ['CHEQUE', 'Cheque'], ['EFECTIVO', 'Efectivo']] },
     { campo: 'banco', etiqueta: 'Banco', mostrar: (b) => ['TRANSFERENCIA', 'DEPOSITO'].includes(String(b.forma_pago)) },
     { campo: 'tipo_cuenta', etiqueta: 'Tipo de cuenta', tipo: 'select', mostrar: (b) => ['TRANSFERENCIA', 'DEPOSITO'].includes(String(b.forma_pago)),
@@ -53,6 +62,11 @@ const SECCIONES: DefSeccion[] = [
     { campo: 'numero_cuenta', etiqueta: 'Número de cuenta', mono: true, mostrar: (b) => ['TRANSFERENCIA', 'DEPOSITO'].includes(String(b.forma_pago)) },
   ] },
 ];
+
+// Campos que el backend guarda sin null: vacío es '' (texto) o 0 (cantidad).
+const VACIO_NO_NULO: Partial<Record<Campo, string | number>> = {
+  isapre: '', numero_fun: '', cargas_simples: 0, cargas_maternales: 0, cargas_invalidas: 0,
+};
 
 const CONTROL = 'w-full h-10 px-3 rounded-[8px] border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
 
@@ -91,7 +105,7 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
     setGuardando(true);
     setError('');
     const datos = Object.fromEntries(seccion.campos.filter((c) => !c.soloLectura)
-      .map((c) => [c.campo, borrador[c.campo] === '' ? null : borrador[c.campo]]));
+      .map((c) => [c.campo, borrador[c.campo] === '' ? (VACIO_NO_NULO[c.campo] ?? null) : borrador[c.campo]]));
     try {
       await client.patch(`/empleados/${empleado.id}/`, datos);
       await queryClient.invalidateQueries({ queryKey: ['empleados'] });

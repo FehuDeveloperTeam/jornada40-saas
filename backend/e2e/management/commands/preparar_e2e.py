@@ -91,16 +91,16 @@ class Command(BaseCommand):
                    for d in ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']}
         horario.update({d: {'activo': False, 'entrada': '09:00', 'salida': '18:00', 'colacion': 60} for d in ['sabado', 'domingo']})
         personas = [
-            (rut(11111112), 'MATÍAS IGNACIO', 'SOTO', 'MUÑOZ', 'ANALISTA CONTABLE', 1_250_000, 44, 'ORDINARIA', '2019-03-01', 'matias@example.com'),
-            (rut(13444555), 'CARLA ANDREA', 'PÉREZ', 'LAGOS', 'JEFA DE VENTAS', 2_100_000, 20, 'ART_22', '2021-07-15', 'carla@example.com'),
-            (rut(16777888), 'PEDRO', 'GONZÁLEZ', 'VERA', 'BODEGUERO', 620_000, 42, 'ORDINARIA', '2024-01-10', ''),
-            (rut(18222333), 'JAVIERA', 'ARAYA', None, 'VENDEDORA', 540_000, 24, 'PARCIAL', '2025-05-02', 'javiera@example.com'),
+            (rut(11111112), 'MATÍAS IGNACIO', 'SOTO', 'MUÑOZ', 'ANALISTA CONTABLE', 1_250_000, 44, 'ORDINARIA', '2019-03-01', 'matias@example.com', 'M'),
+            (rut(13444555), 'CARLA ANDREA', 'PÉREZ', 'LAGOS', 'JEFA DE VENTAS', 2_100_000, 20, 'ART_22', '2021-07-15', 'carla@example.com', 'F'),
+            (rut(16777888), 'PEDRO', 'GONZÁLEZ', 'VERA', 'BODEGUERO', 620_000, 42, 'ORDINARIA', '2024-01-10', '', 'M'),
+            (rut(18222333), 'JAVIERA', 'ARAYA', None, 'VENDEDORA', 540_000, 24, 'PARCIAL', '2025-05-02', 'javiera@example.com', 'F'),
         ]
         ids = []
-        for r, nom, ap, am, cargo, sueldo, horas, jornada, ingreso, mail in personas:
+        for r, nom, ap, am, cargo, sueldo, horas, jornada, ingreso, mail, sexo in personas:
             resp = api.post('/api/empleados/', {
                 'empresa': emp.id, 'rut': r, 'nombres': nom, 'apellido_paterno': ap, 'apellido_materno': am,
-                'cargo': cargo, 'fecha_ingreso': ingreso, 'sueldo_base': sueldo, 'email': mail or None,
+                'cargo': cargo, 'fecha_ingreso': ingreso, 'sueldo_base': sueldo, 'email': mail or None, 'sexo': sexo,
                 'afp': 'HABITAT', 'sistema_salud': 'FONASA', 'numero_telefono': '+56 9 1234 5678',
                 'direccion': 'AV. PROVIDENCIA 1234', 'comuna': 'PROVIDENCIA', 'nacionalidad': 'CHILENA'}, format='json')
             assert resp.status_code == 201, resp.data

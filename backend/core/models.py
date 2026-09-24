@@ -142,6 +142,28 @@ class Empresa(models.Model):
     rut_representante = models.CharField(max_length=20, blank=True, null=True)
     activo = models.BooleanField(default=True)
 
+    # --- SEGURIDAD SOCIAL (archivo Previred) ---
+    # Códigos de las tablas 19 y 18 del formato de 105 campos de Previred.
+    MUTUAL_CHOICES = [
+        ('00', 'ISL (sin mutual)'),
+        ('01', 'Asociación Chilena de Seguridad (ACHS)'),
+        ('02', 'Mutual de Seguridad CChC'),
+        ('03', 'Instituto de Seguridad del Trabajo (IST)'),
+    ]
+    CCAF_CHOICES = [
+        ('00', 'Sin caja de compensación'),
+        ('01', 'Los Andes'),
+        ('02', 'La Araucana'),
+        ('03', 'Los Héroes'),
+        ('04', '18 de Septiembre'),
+    ]
+    mutual = models.CharField(max_length=2, choices=MUTUAL_CHOICES, default='00')
+    # Tasa total de accidentes del trabajo (base + adicional + Ley Sanna) que
+    # informa la mutual o el ISL. Vacía = tasa base de los parámetros.
+    tasa_accidentes = models.DecimalField(max_digits=6, decimal_places=5, null=True, blank=True)
+    sucursal_mutual = models.CharField(max_length=3, blank=True, default='')
+    ccaf = models.CharField(max_length=2, choices=CCAF_CHOICES, default='00')
+
     # --- FIRMA ELECTRÓNICA DEL REPRESENTANTE LEGAL ---
     firma_imagen          = models.TextField(blank=True, default='')   # base64 PNG del canvas
     firma_firmante_nombre = models.CharField(max_length=200, blank=True, default='')
@@ -190,6 +212,20 @@ class Empleado(models.Model):
     
     # --- PLAN ISAPRE ---
     plan_isapre_uf = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    # Institución de salud: código de la tabla 16 del formato Previred.
+    ISAPRE_CHOICES = [
+        ('01', 'Banmédica'), ('02', 'Consalud'), ('03', 'Vida Tres'), ('04', 'Colmena'),
+        ('05', 'Cruz Blanca'), ('10', 'Nueva Masvida'), ('11', 'Isalud'), ('12', 'Fundación'),
+        ('25', 'Cruz del Norte'), ('28', 'Esencial'),
+    ]
+    isapre = models.CharField(max_length=2, choices=ISAPRE_CHOICES, blank=True, default='')
+    numero_fun = models.CharField(max_length=16, blank=True, default='')
+    # Asignación familiar (tabla 8 de Previred): el tramo lo fija el IPS según la renta.
+    TRAMO_ASIGNACION_CHOICES = [('A', 'Primer tramo'), ('B', 'Segundo tramo'), ('C', 'Tercer tramo'), ('D', 'Sin derecho')]
+    tramo_asignacion_familiar = models.CharField(max_length=1, choices=TRAMO_ASIGNACION_CHOICES, default='D')
+    cargas_simples = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(13)])
+    cargas_maternales = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(1)])
+    cargas_invalidas = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(1)])
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     

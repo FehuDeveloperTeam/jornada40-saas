@@ -54,6 +54,8 @@ export default function Empresa() {
 
       <DatosLegales key={empresa.id} empresa={empresa} avisar={avisar} />
 
+      <SeguridadSocial key={`ss-${empresa.id}`} empresa={empresa} avisar={avisar} />
+
       <Seccion titulo="Firma del empleador" accion={<Button variante="secundario" tamano="sm" onClick={() => setFirma(true)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>{empresa.firma_configurada ? 'Cambiar firma' : 'Configurar firma'}</Button>}>
         {empresa.firma_configurada ? (
           <p className="text-[13px] text-fg-2">
@@ -176,6 +178,73 @@ function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: stri
         <Campo etiqueta="Sucursal"><Input value={b.sucursal ?? ''} onChange={poner('sucursal')} /></Campo>
         <Campo etiqueta="Representante legal"><Input value={b.representante_legal ?? ''} onChange={poner('representante_legal')} /></Campo>
         <CampoRut etiqueta="RUT del representante" valor={b.rut_representante ?? ''} compacto onChange={(v) => setB((x) => ({ ...x, rut_representante: v }))} />
+      </div>
+    </Seccion>
+  );
+}
+
+const MUTUALES: [TEmpresa['mutual'], string][] = [
+  ['00', 'ISL (sin mutual)'], ['01', 'ACHS'], ['02', 'Mutual de Seguridad CChC'], ['03', 'IST'],
+];
+const CAJAS: [TEmpresa['ccaf'], string][] = [
+  ['00', 'Sin caja de compensación'], ['01', 'Los Andes'], ['02', 'La Araucana'], ['03', 'Los Héroes'], ['04', '18 de Septiembre'],
+];
+const SELECT = 'h-10 px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
+
+/** Mutual (o ISL), tasa de accidentes y caja de compensación: los pide el archivo Previred. */
+function SeguridadSocial({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: string) => void }) {
+  const queryClient = useQueryClient();
+  // La tasa se edita en porcentaje ("0,93") y se guarda como fracción ("0.0093").
+  const tasaInicial = empresa.tasa_accidentes != null ? decimalCL(Number(empresa.tasa_accidentes) * 100, 2) : '';
+  const inicial = { mutual: empresa.mutual ?? '00', ccaf: empresa.ccaf ?? '00', sucursal_mutual: empresa.sucursal_mutual ?? '', tasa: tasaInicial };
+  const [b, setB] = useState(inicial);
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const cambios = JSON.stringify(b) !== JSON.stringify(inicial);
+
+  const guardar = async () => {
+    const tasa = b.tasa.trim() ? Number(b.tasa.replace(/\./g, '').replace(',', '.')) : null;
+    if (tasa !== null && (Number.isNaN(tasa) || tasa < 0 || tasa > 10)) { setError('La tasa de accidentes va entre 0 % y 10 %.'); return; }
+    setGuardando(true);
+    setError('');
+    try {
+      await client.patch(`/empresas/${empresa.id}/`, {
+        mutual: b.mutual, ccaf: b.ccaf, sucursal_mutual: b.mutual === '00' ? '' : b.sucursal_mutual.trim(),
+        tasa_accidentes: tasa === null ? null : (tasa / 100).toFixed(5),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['empresas'] });
+      avisar('Datos de seguridad social guardados');
+    } catch {
+      setError('No pudimos guardar los datos de seguridad social.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <Seccion titulo="Seguridad social" nota="Los pide el archivo Previred. La tasa de accidentes es la total que te informa tu mutual o el ISL (base 0,93 % + adicional); si la dejas vacía se usa la base."
+      accion={cambios && (
+        <div className="flex gap-2">
+          <Button variante="secundario" tamano="sm" onClick={() => { setB(inicial); setError(''); }} disabled={guardando}>Descartar</Button>
+          <Button tamano="sm" onClick={guardar} cargando={guardando}>Guardar</Button>
+        </div>
+      )}>
+      {error && <AlertaError>{error}</AlertaError>}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,230px),1fr))] gap-3.5">
+        <Campo etiqueta="Mutual de seguridad">
+          <select className={SELECT} value={b.mutual} onChange={(e) => setB((x) => ({ ...x, mutual: e.target.value as TEmpresa['mutual'] }))}>
+            {MUTUALES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+          </select>
+        </Campo>
+        <Campo etiqueta="Tasa de accidentes (%)"><Input inputMode="decimal" placeholder="0,93" value={b.tasa} onChange={(e) => setB((x) => ({ ...x, tasa: e.target.value }))} /></Campo>
+        {b.mutual !== '00' && (
+          <Campo etiqueta="Sucursal para pago mutual"><Input value={b.sucursal_mutual} maxLength={3} onChange={(e) => setB((x) => ({ ...x, sucursal_mutual: e.target.value }))} /></Campo>
+        )}
+        <Campo etiqueta="Caja de compensación">
+          <select className={SELECT} value={b.ccaf} onChange={(e) => setB((x) => ({ ...x, ccaf: e.target.value as TEmpresa['ccaf'] }))}>
+            {CAJAS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+          </select>
+        </Campo>
       </div>
     </Seccion>
   );

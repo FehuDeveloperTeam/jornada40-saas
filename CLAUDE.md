@@ -316,6 +316,15 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Archivo Previred
+
+- `GET /api/liquidaciones/exportar_previred/?mes=&anio=[&empresa=]` genera el **formato estándar de largo variable por separador, versión 100 (septiembre 2026)**: 105 campos por trabajador separados por `;`, Latin-1, fin de línea `\r\n`. La construcción está en `_linea_previred` (`core/views.py`), con el número de campo del documento oficial en cada `poner(n, …)`.
+- Datos que lo alimentan: en `Empresa`, `mutual`, `tasa_accidentes`, `sucursal_mutual` y `ccaf`, editables en `/app/empresa` → Seguridad social. En `Empleado`, `isapre`, `numero_fun`, `tramo_asignacion_familiar` y las cargas, editables en la carpeta → Previsión y pago. La asignación familiar se toma de los ítems `ASIGNACION_FAMILIAR` de la liquidación.
+- Si falta un dato sin el cual Previred rechaza el archivo (sexo M/F, AFP, Isapre, tramo con asignación, 0 días sin movimiento), responde 400 con la lista por trabajador, en vez de un archivo inválido.
+- No cubre: régimen IPS (ex INP), pensionados, APV/APVC, licencias médicas con fechas (movimientos 3 y 6) ni líneas adicionales (tipo 01/02). Esos casos se informan directo en Previred.
+
+---
+
 ## Subscription & Payments
 
 - **Provider**: Reveniu (Chilean payment gateway) with Stripe as underlying processor.
