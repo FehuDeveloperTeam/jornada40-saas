@@ -13,7 +13,6 @@
     "@tanstack/react-query": "^5.90.21",
     "axios": "^1.18.0",
     "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
     "lucide-react": "^0.563.0",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.2.0",

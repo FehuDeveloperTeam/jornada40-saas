@@ -36,10 +36,9 @@ jornada40-saas/
 │   ├── templates/         # General Django templates
 │   ├── manage.py
 │   ├── requirements.txt
-│   ├── runtime.txt        # Python 3.14.2
-│   ├── Dockerfile
-│   ├── Procfile           # Railway process definition
-│   └── nixpacks.toml      # Nixpacks deploy config
+│   ├── runtime.txt        # Python 3.11 (referencia; manda el Dockerfile)
+│   ├── Dockerfile         # Lo que usa Railway para construir y arrancar
+│   └── Procfile           # No lo usa Railway (ver Deployment)
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/         # One file per route (page-based architecture)
@@ -73,14 +72,14 @@ jornada40-saas/
 | Server state | TanStack React Query | 5.x |
 | HTTP client | Axios | 1.13.5 |
 | Icons | Lucide React | 0.563.0 |
-| Charts | Recharts | 3.x |
 | Excel | xlsx / pandas / openpyxl | — |
 | Backend framework | Django | 5.2.11 |
 | REST API | Django REST Framework | 3.16.1 |
 | Auth | dj-rest-auth + simplejwt | — |
 | Database ORM | Django ORM (native) | — |
 | Email | Anymail (Resend backend) | — |
-| PDF generation | xhtml2pdf + reportlab | — |
+| PDF generation | xhtml2pdf + reportlab (server); pdf.js in the signing page | — |
+| Holidays | `holidays` (Chile calendar, feriado and semana corrida) | — |
 | Payments | Stripe + Reveniu webhooks | — |
 | Production web server | Gunicorn | 25.x |
 | Static files | WhiteNoise | 6.x |
@@ -185,7 +184,8 @@ gunicorn config.wsgi:application      # Production server (Railway uses Procfile
 | POST | `/api/auth/login/` | Login, sets JWT cookies |
 | POST | `/api/auth/logout/` | Logout, clears cookies |
 | GET | `/api/auth/user/` | Returns current user (used for session verification) |
-| POST | `/api/auth/password/reset/` | Request password reset email |
+| POST | `/api/auth/password/reset/` | Closed (410): recovery is by RUT only |
+| POST | `/api/auth/password/change/` | Change password (requires `old_password`) |
 | POST | `/api/auth/recuperar-por-rut/` | Recover account using Chilean RUT |
 
 ---
@@ -202,6 +202,11 @@ All API routes are prefixed with `/api/`. The DRF router registers these ViewSet
 | Legal Documents | `/api/documentos_legales/` | `DocumentoLegalViewSet` |
 | Payroll (Liquidaciones) | `/api/liquidaciones/` | `LiquidacionViewSet` |
 | Plans | `/api/planes/` | `PlanViewSet` |
+| Annexes | `/api/anexos_contrato/` | `AnexoContratoViewSet` |
+| Vacations | `/api/vacaciones/` | `VacacionViewSet` |
+| Finiquitos | `/api/finiquitos/` | `FiniquitoViewSet` |
+| Pay concepts | `/api/conceptos/` | `ConceptoRemuneracionViewSet` |
+| Signatures | `/api/firmas/` | `SolicitudFirmaViewSet` (public flow under `/api/firma-publica/<token>/…`) |
 
 Custom endpoints:
 
@@ -211,6 +216,8 @@ Custom endpoints:
 | POST | `/api/pagos/webhook/reveniu/` | Receive Reveniu payment webhooks |
 | GET | `/api/clientes/mi_suscripcion/` | Logged-in user's subscription status |
 | GET/PATCH | `/api/clientes/perfil/` | Logged-in user's profile |
+| GET | `/api/indicadores/` | UF, UTM and legal max weekly hours |
+| GET | `/api/parametros/vigentes/` | Current previsional parameters (read-only) |
 
 ---
 
@@ -313,10 +320,11 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 ## Subscription & Payments
 
 - **Provider**: Reveniu (Chilean payment gateway) with Stripe as underlying processor.
-- **Webhook endpoint**: `POST /api/pagos/webhook/reveniu/` — validated with `svix` library.
+- **Webhook endpoint**: `POST /api/pagos/webhook/reveniu/` — validated with the shared `X-Webhook-Token` header (`REVENIU_WEBHOOK_SECRET`, `hmac.compare_digest`).
 - **Checkout creation**: `POST /api/pagos/crear-checkout/` redirects user to Reveniu hosted page.
 - **Subscription states**: `TRIAL` → `ACTIVE` → `PAST_DUE` → `CANCELED`.
-- Plan limits (max companies, max workers) are enforced in ViewSet `create()` methods by checking `cliente.plan`.
+- Plan limits are enforced in the backend with the active plan (`_plan_activo`: `Cliente.plan` or the subscription's plan). Workers count only if `activo=True` (`_exigir_cupo_trabajador` on create and reactivation); features are gated by `Plan.nivel` (`_plan_permite`).
+- Known gaps: plan changes open a new Reveniu subscription without cancelling the previous one; no downgrade flow or payment history yet.
 
 ---
 
@@ -324,8 +332,8 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ### Backend (Railway)
 
-- **Procfile**: `web: python manage.py migrate && python manage.py shell -c "..." && gunicorn config.wsgi:application`
-- **Docker**: `Dockerfile` present for Railway builds.
+- **Build/start**: Railway uses `backend/Dockerfile` (Python 3.11): `migrate`, `createsuperuser --noinput || true`, then `gunicorn --workers 2 --threads 4 --timeout 60`. Deploys automatically on push to `main`.
+- `backend/Procfile` and the root `nixpacks.toml` are **not used** by Railway. Note: the plan seeding script lives only in the Procfile, so it does not run in production.
 - **Production detection**: Presence of `RAILWAY_ENVIRONMENT_NAME` env var flips `IS_PRODUCTION = True`.
 - **Static files**: Served via WhiteNoise middleware.
 - **Internal domain**: `https://jornada40-saas-production.up.railway.app` (Railway, no expuesto al público)
@@ -365,7 +373,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 - All user-visible text is in **Spanish** (Chilean Spanish). Do not introduce English strings into the UI.
 - RUT fields must be validated using the existing utilities before saving to the DB.
-- Dates and times use `America/Santiago` timezone. Use `date-fns` on the frontend and Django's timezone-aware datetimes on the backend.
+- Dates and times use `America/Santiago` timezone. On the frontend use the helpers in `src/utils/formato.ts` (`fechaLocal`, `fechaCL`, …) and `toLocaleString('es-CL', { timeZone: 'America/Santiago' })`; on the backend, Django's timezone-aware datetimes.
 - Keep the `activo` soft-delete pattern — set `activo = False` instead of deleting records.
 
 ---

@@ -1,4 +1,5 @@
-# 1. Usar Python
+# 1. Usar Python. Railway construye con este Dockerfile: la versión que manda
+#    es esta (runtime.txt se mantiene igual solo como referencia).
 FROM python:3.11-slim
 
 # 2. Configuración
