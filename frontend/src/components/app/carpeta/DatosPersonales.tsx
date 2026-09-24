@@ -35,12 +35,14 @@ const SECCIONES: DefSeccion[] = [
     { campo: 'comuna', etiqueta: 'Comuna', nombre: true },
   ] },
   { clave: 'laboral', titulo: 'Datos laborales', Icono: Briefcase, campos: [
+    { campo: 'ficha_numero', etiqueta: 'N° de ficha', tipo: 'numero' },
     { campo: 'cargo', etiqueta: 'Cargo', nombre: true },
     { campo: 'departamento', etiqueta: 'Departamento', nombre: true },
     { campo: 'sucursal', etiqueta: 'Sucursal', nombre: true },
     { campo: 'centro_costo', etiqueta: 'Centro de costo', nombre: true },
     { campo: 'modalidad', etiqueta: 'Modalidad', tipo: 'select', opciones: [['PRESENCIAL', 'Presencial'], ['REMOTO', 'Remoto'], ['HIBRIDO', 'Híbrido']] },
     { campo: 'fecha_ingreso', etiqueta: 'Fecha de ingreso', tipo: 'fecha' },
+    { campo: 'anios_previos_feriado', etiqueta: 'Años con otros empleadores (feriado progresivo, con certificado, máx. 10)', tipo: 'numero' },
   ] },
   { clave: 'prevision', titulo: 'Previsión y pago', Icono: Landmark, campos: [
     { campo: 'afp', etiqueta: 'AFP', tipo: 'select', opciones: [['', 'Sin AFP'], ...AFPS.map((a): [string, string] => [a, capitalizar(a)])] },
@@ -65,7 +67,7 @@ const SECCIONES: DefSeccion[] = [
 
 // Campos que el backend guarda sin null: vacío es '' (texto) o 0 (cantidad).
 const VACIO_NO_NULO: Partial<Record<Campo, string | number>> = {
-  isapre: '', numero_fun: '', cargas_simples: 0, cargas_maternales: 0, cargas_invalidas: 0,
+  isapre: '', numero_fun: '', cargas_simples: 0, cargas_maternales: 0, cargas_invalidas: 0, anios_previos_feriado: 0,
 };
 
 const CONTROL = 'w-full h-10 px-3 rounded-[8px] border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';

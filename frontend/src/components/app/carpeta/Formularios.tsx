@@ -10,6 +10,8 @@ import { cn } from '../../../utils/cn';
 import { capitalizar, clp, decimalCL } from '../../../utils/formato';
 import { CAUSALES, CAUSALES_CON_INDEMNIZACION, etiquetaCausal } from '../causales';
 import { TIPO_JORNADA } from '../trabajador';
+import { CAMPOS_ANEXO } from './utiles';
+import type { CampoAnexo } from './utiles';
 
 const CONTROL = 'h-10 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
 const hoyISO = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' });
@@ -46,22 +48,24 @@ function Acciones({ onCerrar, onGuardar, guardando, texto, deshabilitado }: {
 
 // ── Anexo de contrato ────────────────────────────────────────────────────────
 
-type CampoAnexo = 'cargo' | 'sueldo_base' | 'horas_semanales' | 'tipo_jornada' | 'gratificacion_legal' | 'tiene_quincena';
-const CAMPOS_ANEXO: [CampoAnexo, string][] = [
-  ['cargo', 'Cargo'], ['sueldo_base', 'Sueldo base'], ['horas_semanales', 'Horas semanales'],
-  ['tipo_jornada', 'Tipo de jornada'], ['gratificacion_legal', 'Gratificación legal'], ['tiene_quincena', 'Anticipo quincenal'],
-];
 
 /** Anexo de contrato (Art. 11). Los cambios estructurados se aplican al contrato cuando el trabajador lo firma. */
-export function DrawerAnexo({ empleado, onCerrar, avisar }: { empleado: Empleado; onCerrar: () => void; avisar: (t: string) => void }) {
+/** Título sugerido cuando el anexo se abre desde "Cambiar con anexo". */
+const TITULO_ANEXO: Partial<Record<CampoAnexo, string>> = {
+  sueldo_base: 'Modificación del sueldo base', horas_semanales: 'Modificación de la jornada',
+};
+
+export function DrawerAnexo({ empleado, onCerrar, avisar, preseleccion }: {
+  empleado: Empleado; onCerrar: () => void; avisar: (t: string) => void; preseleccion?: CampoAnexo;
+}) {
   const contrato = empleado.contrato_activo!;
   const queryClient = useQueryClient();
-  const [titulo, setTitulo] = useState('');
+  const [titulo, setTitulo] = useState(preseleccion ? TITULO_ANEXO[preseleccion] ?? '' : '');
   const [descripcion, setDescripcion] = useState('');
   const [fecha, setFecha] = useState(hoyISO());
   const [vigencia, setVigencia] = useState(hoyISO());
   const [clausulas, setClausulas] = useState<string[]>([]);
-  const [elegidos, setElegidos] = useState<CampoAnexo[]>([]);
+  const [elegidos, setElegidos] = useState<CampoAnexo[]>(preseleccion ? [preseleccion] : []);
   const [valores, setValores] = useState({
     cargo: contrato.cargo, sueldo_base: String(contrato.sueldo_base), horas_semanales: String(Number(contrato.horas_semanales)),
     tipo_jornada: contrato.tipo_jornada, gratificacion_legal: contrato.gratificacion_legal, tiene_quincena: contrato.tiene_quincena,

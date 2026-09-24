@@ -152,6 +152,19 @@ class EmpleadoSerializer(serializers.ModelSerializer):
     def validate_empresa(self, empresa):
         return _exigir_propia(self, empresa)
 
+    def validate(self, attrs):
+        # El N° de ficha se puede corregir, pero no repetir dentro de la empresa.
+        # Vacío vuelve a numerarse solo al guardar.
+        ficha = attrs.get('ficha_numero')
+        if ficha:
+            empresa = attrs.get('empresa') or getattr(self.instance, 'empresa', None)
+            repetida = Empleado.objects.filter(empresa=empresa, ficha_numero=ficha)
+            if self.instance:
+                repetida = repetida.exclude(pk=self.instance.pk)
+            if repetida.exists():
+                raise serializers.ValidationError({'ficha_numero': f'La ficha N° {ficha} ya está asignada a otro trabajador de la empresa.'})
+        return attrs
+
     class Meta:
         model = Empleado
         fields = [
@@ -162,13 +175,14 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'horas_laborales', 'modalidad', 'sueldo_base', 'fecha_ingreso',
             'afp', 'sistema_salud', 'plan_isapre_uf', 'isapre', 'numero_fun',
             'tramo_asignacion_familiar', 'cargas_simples', 'cargas_maternales', 'cargas_invalidas',
+            'anios_previos_feriado',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
             'contrato_activo',
             'tiene_rechazos_pendientes',
         ]
-        read_only_fields = ('id', 'ficha_numero', 'creado_en', 'contrato_activo',
+        read_only_fields = ('id', 'creado_en', 'contrato_activo',
                             'tiene_rechazos_pendientes')
 
 

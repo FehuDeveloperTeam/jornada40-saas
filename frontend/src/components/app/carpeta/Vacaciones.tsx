@@ -49,7 +49,9 @@ export function Vacaciones({ empleado, nivel, vacaciones, saldo, firmas, avisar 
         <Dato t="Devengados" v={saldo ? dias(saldo.dias_devengados) : '—'} />
         <Dato t="Usados" v={saldo ? dias(saldo.dias_usados) : '—'} />
         <Dato t="Progresivos" v={saldo ? dias(saldo.dias_progresivos) : '—'}
-          nota={saldo ? `${saldo.anos_servicio} ${saldo.anos_servicio === 1 ? 'año' : 'años'} de servicio` : undefined} />
+          nota={saldo ? `${saldo.anos_servicio} ${saldo.anos_servicio === 1 ? 'año' : 'años'} de servicio`
+            + (saldo.anios_previos_feriado ? ` + ${saldo.anios_previos_feriado} con otros empleadores` : '')
+            + (saldo.dias_progresivos_anuales ? ` · hoy ${saldo.dias_progresivos_anuales} por año` : '') : undefined} />
       </div>
 
       {saldo?.aviso_acumulacion && (

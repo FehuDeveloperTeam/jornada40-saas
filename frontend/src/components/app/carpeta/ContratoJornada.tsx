@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
@@ -59,7 +61,8 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
           <Dato t="Cargo" v={capitalizar(contrato.cargo) || '—'} />
           <Dato t="Inicio" v={fechaCL(contrato.fecha_inicio)} />
           <Dato t="Término" v={contrato.fecha_fin ? fechaCL(contrato.fecha_fin) : 'Sin fecha de término'} />
-          <Dato t="Sueldo base" v={clp(contrato.sueldo_base)} />
+          <Dato t="Sueldo base" v={clp(contrato.sueldo_base)}
+            extra={<Link to={rutaAccion(empleado.id, 'anexo', 'sueldo_base')} className="text-[12px] font-medium">Cambiar con anexo</Link>} />
           <Dato t="Gratificación" v={contrato.gratificacion_legal === 'ANUAL' ? 'Anual (art. 47)' : 'Mensual (art. 50)'} />
           <Dato t="Día de pago" v={`Día ${contrato.dia_pago} de cada mes`} />
           <Dato t="Anticipo" v={contrato.tiene_quincena ? `${clp(contrato.monto_quincena)} el día ${contrato.dia_quincena}` : 'Sin anticipo'} />
@@ -86,6 +89,9 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
             </span>
           </div>
           {contrato.tipo_jornada !== 'ART_22' && <BarraJornada horas={horas} maximo={maximo} />}
+          <Link to={rutaAccion(empleado.id, 'anexo', 'horas_semanales')} className="text-[12.5px] font-medium self-start">
+            Cambiar la jornada con anexo
+          </Link>
           <ListaAvisos avisos={contrato.avisos_jornada} />
           {contrato.jornada_personalizada && (
             <p className="text-[13px] text-fg-2 whitespace-pre-line">{contrato.jornada_personalizada}</p>
@@ -119,11 +125,12 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
   );
 }
 
-function Dato({ t, v }: { t: string; v: string }) {
+function Dato({ t, v, extra }: { t: string; v: string; extra?: ReactNode }) {
   return (
     <div className="flex flex-col gap-[5px] min-w-0">
       <dt className="text-[12px] text-fg-3">{t}</dt>
       <dd className="text-[14px] font-medium break-words">{v}</dd>
+      {extra}
     </div>
   );
 }

@@ -226,6 +226,9 @@ class Empleado(models.Model):
     cargas_simples = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(13)])
     cargas_maternales = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(1)])
     cargas_invalidas = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(1)])
+    # Feriado progresivo (Art. 68): años trabajados con empleadores anteriores
+    # que el trabajador acredita con certificado. La ley permite hacer valer hasta 10.
+    anios_previos_feriado = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(10)])
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     

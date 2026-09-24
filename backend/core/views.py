@@ -340,8 +340,11 @@ def calcular_saldo_vacaciones(empleado, hasta=None) -> dict:
 
     dias_base = 15 * anos_servicio
 
-    # Feriado progresivo: 1 día adicional por cada período completo de 3 años sobre 10
-    dias_progresivos = max(0, (anos_servicio - 10) // 3) if anos_servicio >= 10 else 0
+    # Feriado progresivo (Art. 68): con 10 años de trabajo (hasta 10 con
+    # empleadores anteriores, acreditados) se gana un día más por cada 3
+    # nuevos años. Se acumula año a año: cada período anual trae los días
+    # progresivos que correspondían en ese aniversario.
+    dias_progresivos = sum(_dias_progresivos_del_anio(empleado, k) for k in range(1, anos_servicio + 1))
 
     dias_devengados = dias_base + dias_progresivos
 
@@ -363,8 +366,23 @@ def calcular_saldo_vacaciones(empleado, hasta=None) -> dict:
         'dias_devengados':  dias_devengados,
         'dias_usados':      int(dias_usados),
         'dias_disponibles': disponibles,
-        **_aviso_acumulacion_feriado(empleado, anos_servicio, 15 + dias_progresivos, disponibles),
+        'dias_progresivos_anuales': _dias_progresivos_del_anio(empleado, anos_servicio),
+        'anios_previos_feriado': int(empleado.anios_previos_feriado or 0),
+        **_aviso_acumulacion_feriado(empleado, anos_servicio,
+                                     15 + _dias_progresivos_del_anio(empleado, anos_servicio), disponibles),
     }
+
+
+def _dias_progresivos_del_anio(empleado, anio_servicio: int) -> int:
+    """Días progresivos del período que se cumple en el aniversario N° anio_servicio.
+
+    Años de trabajo = años previos acreditados (máx. 10) + años con esta empresa.
+    Desde los 10, un día adicional por cada 3 años nuevos: 13 → 1, 16 → 2...
+    """
+    if anio_servicio < 1:
+        return 0
+    total = min(int(getattr(empleado, 'anios_previos_feriado', 0) or 0), 10) + anio_servicio
+    return max(0, (total - 10) // 3)
 
 
 def _aviso_acumulacion_feriado(empleado, anos_servicio, dias_por_periodo, disponibles) -> dict:
@@ -697,6 +715,12 @@ class VacacionViewSet(viewsets.ModelViewSet):
             )
 
 
+def _exigir_rut_representante(datos):
+    rut = str(datos.get('rut_representante') or '').strip()
+    if rut and not validar_rut(rut):
+        raise ValidationError({'error': 'El RUT del representante legal no es válido: revisa el dígito verificador.'})
+
+
 class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
@@ -754,7 +778,14 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
         rut_raw = self.request.data.get('rut', '')
         
-        # 3. REGLA DE NEGOCIO: No repetir RUT en el mismo panel
+        # 3. El servidor valida el dígito verificador igual que el formulario:
+        # una empresa con RUT mal escrito no se crea (después no se puede
+        # cambiar, porque los documentos quedan emitidos con ese RUT).
+        if not validar_rut(rut_raw):
+            raise ValidationError({'error': 'El RUT de la empresa no es válido: revisa el dígito verificador.'})
+        _exigir_rut_representante(self.request.data)
+
+        # 4. REGLA DE NEGOCIO: No repetir RUT en el mismo panel
         if rut_raw:
             rut_form = formatear_rut(rut_raw)
             if Empresa.objects.filter(rut=rut_form).exists():
@@ -772,14 +803,14 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             
     def perform_update(self, serializer):
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
+        # El RUT de la empresa no cambia después de creada: contratos,
+        # liquidaciones y firmas ya emitidos lo llevan. Otro RUT es otra empresa.
         rut_raw = self.request.data.get('rut', '')
-        
-        if rut_raw:
-            rut_form = formatear_rut(rut_raw)
-            if Empresa.objects.filter(owner=self.request.user, rut=rut_form).exclude(id=serializer.instance.id).exists():
-                raise ValidationError({'error': 'Ya tienes otra empresa registrada con este RUT.'})
-            datos_mayusculas['rut'] = rut_form
-            
+        if rut_raw and formatear_rut(rut_raw) != serializer.instance.rut:
+            raise ValidationError({'error': 'El RUT de la empresa no se puede cambiar. Si corresponde a otra '
+                                            'persona jurídica, crea una empresa nueva.'})
+        datos_mayusculas.pop('rut', None)
+        _exigir_rut_representante(self.request.data)
         serializer.save(**datos_mayusculas)
 
 # Columnas obligatorias para crear un trabajador desde la planilla. Al
@@ -3953,7 +3984,9 @@ def _feriado_proporcional_habiles(empleado, fecha_termino) -> float:
     if not empleado.fecha_ingreso or fecha_termino < empleado.fecha_ingreso:
         return 0.0
     tiempo = relativedelta(fecha_termino, empleado.fecha_ingreso)
-    return round((tiempo.months + tiempo.days / 30) * 15 / 12, 2)
+    # El año en curso devenga también sus días progresivos (Art. 68).
+    dias_anuales = 15 + _dias_progresivos_del_anio(empleado, tiempo.years + 1)
+    return round((tiempo.months + tiempo.days / 30) * dias_anuales / 12, 2)
 
 
 def _dias_corridos_de_feriado(fecha_termino, dias_habiles: float) -> float:

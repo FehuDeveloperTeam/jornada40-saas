@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, FolderDown, Lock } from 'lucide-react';
 import { Button, Chip, Modal } from '../../components/j40';
 import { DrawerAnexo, DrawerDocumento, DrawerVacacion } from '../../components/app/carpeta/Formularios';
+import { esCampoAnexo } from '../../components/app/carpeta/utiles';
 import type { TipoDocumento } from '../../components/app/carpeta/Formularios';
 import client from '../../api/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -57,6 +58,8 @@ export default function Carpeta() {
   const carpeta = useCarpeta(empleado?.id, nivel);
   const maximo = jornadaMaximaVigente();
   const pestanaParam = params.get('tab') as Pestana | null;
+  const tipoParam = params.get('tipo');
+  const tipoAnexo = esCampoAnexo(tipoParam) ? tipoParam : undefined;
   const accion = params.get('accion');
   const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaParam) ? pestanaParam! : 'resumen';
 
@@ -208,7 +211,10 @@ export default function Carpeta() {
         <Lateral empleado={empleado} documentos={documentos} nivel={nivel} />
       </div>
 
-      {accion === 'anexo' && empleado.contrato_activo && <DrawerAnexo empleado={empleado} onCerrar={cerrarAccion} avisar={avisar} />}
+      {accion === 'anexo' && empleado.contrato_activo && (
+        <DrawerAnexo empleado={empleado} onCerrar={cerrarAccion} avisar={avisar}
+          preseleccion={tipoAnexo} />
+      )}
       {accion === 'documento' && (
         <DrawerDocumento empleado={empleado} nivel={nivel} onCerrar={cerrarAccion} avisar={avisar}
           tipoInicial={(['AMONESTACION', 'CONSTANCIA', 'DESPIDO'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'AMONESTACION') as TipoDocumento} />

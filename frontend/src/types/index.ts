@@ -189,6 +189,8 @@ export interface Empleado {
     cargas_simples: number;
     cargas_maternales: number;
     cargas_invalidas: number;
+    /** Años con empleadores anteriores acreditados para el feriado progresivo (Art. 68, máx. 10). */
+    anios_previos_feriado: number;
     activo: boolean;
     creado_en: string;
     contrato_activo?: Contrato | null;
@@ -282,6 +284,9 @@ export interface SaldoVacaciones {
     dias_devengados: number;
     dias_usados: number;
     dias_disponibles: number;
+    /** Días progresivos que trae cada período en el año de servicio actual (Art. 68). */
+    dias_progresivos_anuales: number;
+    anios_previos_feriado: number;
     /** Solo con dos períodos o más pendientes (Art. 70). */
     periodos_acumulados?: number;
     aviso_acumulacion?: string;

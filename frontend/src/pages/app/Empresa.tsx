@@ -169,7 +169,8 @@ function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: stri
       {error && <AlertaError>{error}</AlertaError>}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,230px),1fr))] gap-3.5">
         <Campo etiqueta="Razón social"><Input value={b.nombre_legal ?? ''} onChange={poner('nombre_legal')} /></Campo>
-        <Campo etiqueta="RUT de la empresa"><Input mono value={empresa.rut} disabled readOnly /></Campo>
+        <Campo etiqueta="RUT de la empresa (no se puede cambiar)"><Input mono value={empresa.rut} disabled readOnly
+          title="Los documentos ya emitidos llevan este RUT. Si es otra persona jurídica, crea una empresa nueva." /></Campo>
         <Campo etiqueta="Nombre de fantasía"><Input value={b.alias ?? ''} onChange={poner('alias')} /></Campo>
         <Campo etiqueta="Giro"><Input value={b.giro ?? ''} onChange={poner('giro')} /></Campo>
         <Campo etiqueta="Dirección"><Input value={b.direccion ?? ''} onChange={poner('direccion')} /></Campo>

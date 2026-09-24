@@ -249,14 +249,15 @@ class SerializerReadOnlyTests(APITestCase):
         self.empleado = crear_empleado(self.empresa, '44400001-1', cargo='Contador')
         self.client.force_authenticate(user=self.user)
 
-    def test_ficha_numero_no_modificable(self):
-        ficha_original = self.empleado.ficha_numero
-        self.client.patch(
-            f'/api/empleados/{self.empleado.id}/',
-            {'ficha_numero': 9999}, format='json'
-        )
+    def test_ficha_numero_editable_sin_repetir(self):
+        resp = self.client.patch(f'/api/empleados/{self.empleado.id}/', {'ficha_numero': 9999}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
         self.empleado.refresh_from_db()
-        self.assertEqual(self.empleado.ficha_numero, ficha_original)
+        self.assertEqual(self.empleado.ficha_numero, 9999)
+        otro = crear_empleado(self.empresa, '55500001-4', cargo='Bodega')
+        resp = self.client.patch(f'/api/empleados/{otro.id}/', {'ficha_numero': 9999}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('ficha_numero', resp.data)
 
     def test_activo_si_es_modificable_para_desvincular(self):
         """'activo' debe ser escribible: es el toggle de desvinculación.
@@ -1642,6 +1643,23 @@ class AcumulacionFeriadoYTopeAniosTests(APITestCase):
     def test_un_periodo_sin_aviso(self, *_):
         self.assertNotIn('aviso_acumulacion', self._saldo(datetime.date(2025, 3, 1), datetime.date(2026, 9, 1)))
 
+    def test_progresivo_se_acumula_anio_a_anio(self, *_):
+        # 16 años: aniversarios 13, 14 y 15 dan 1 día cada uno y el 16 da 2 → 5 días.
+        s = self._saldo(datetime.date(2010, 3, 1), datetime.date(2026, 9, 1))
+        self.assertEqual((s['anos_servicio'], s['dias_progresivos'], s['dias_progresivos_anuales']), (16, 5, 2))
+        self.assertEqual(s['dias_devengados'], 16 * 15 + 5)
+
+    def test_anios_con_empleadores_anteriores_hasta_diez(self, *_):
+        from core.views import calcular_saldo_vacaciones
+        self.emp.anios_previos_feriado = 10
+        self.emp.fecha_ingreso = datetime.date(2022, 3, 1)
+        self.emp.save()
+        s = calcular_saldo_vacaciones(self.emp, hasta=datetime.date(2026, 9, 1))
+        # 10 previos + 4 con la empresa = 14: el aniversario 3 (13) y el 4 (14) dan 1 cada uno.
+        self.assertEqual((s['dias_progresivos'], s['dias_progresivos_anuales']), (2, 1))
+        r = self.client.patch(f'/api/empleados/{self.emp.id}/', {'anios_previos_feriado': 11}, format='json')
+        self.assertEqual(r.status_code, 400)   # la ley permite hacer valer hasta 10
+
     def test_contrato_anterior_a_1981_sin_tope_de_anios(self, *_):
         from core.views import _anios_indemnizacion
         self.assertEqual(_anios_indemnizacion(datetime.date(1980, 1, 1), datetime.date(2026, 9, 15)), 47)
@@ -1991,6 +2009,40 @@ class DiagnosticoRedTests(APITestCase):
             resp = self.client.get('/api/diagnostico/red/', HTTP_X_FORWARDED_FOR='1.2.3.4, 5.6.7.8')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['x_forwarded_for'], '1.2.3.4, 5.6.7.8')
+
+
+class RutEmpresaTests(APITestCase):
+    """El RUT de la empresa se valida en el servidor al crearla y no cambia después."""
+
+    def setUp(self):
+        self.user, _, plan, self.empresa = crear_usuario_completo('rut_owner', '21.000.000-3', '76.000.555-2')
+        Plan.objects.filter(pk=plan.pk).update(max_empresas=5)
+        self.user = User.objects.get(pk=self.user.pk)   # sin el plan en caché
+        self.client.force_authenticate(self.user)
+
+    def test_rut_con_digito_malo_no_crea_la_empresa(self, *_):
+        r = self.client.post('/api/empresas/', {'nombre_legal': 'Otra SpA', 'rut': '76.123.456-1'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('dígito verificador', r.data['error'])
+        self.assertFalse(Empresa.objects.filter(nombre_legal__iexact='Otra SpA').exists())
+
+    def test_rut_valido_crea_la_empresa(self, *_):
+        r = self.client.post('/api/empresas/', {'nombre_legal': 'Otra SpA', 'rut': '76.123.456-0'}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+
+    def test_representante_con_rut_malo_se_rechaza(self, *_):
+        r = self.client.post('/api/empresas/', {'nombre_legal': 'Otra SpA', 'rut': '76.123.456-0',
+                                                'rut_representante': '12.345.678-9'}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_rut_no_cambia_despues_de_creada(self, *_):
+        r = self.client.patch(f'/api/empresas/{self.empresa.id}/', {'rut': '76.123.456-0'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.empresa.refresh_from_db()
+        self.assertEqual(self.empresa.rut, '76.000.555-2')
+        # El resto de los datos sí se edita.
+        r = self.client.patch(f'/api/empresas/{self.empresa.id}/', {'giro': 'Comercio'}, format='json')
+        self.assertEqual(r.status_code, 200)
 
 
 class ArchivoPreviredTests(APITestCase):
