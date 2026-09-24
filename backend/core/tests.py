@@ -39,6 +39,15 @@ def crear_excel_bytes(filas=1):
     return buf
 
 
+
+def indicadores_fijos(objetivo):
+    """UF y UTM fijas en todos los módulos de vistas que las consultan."""
+    for modulo in ('calculo_liquidacion', 'finiquitos', 'liquidaciones', 'parametros', 'previred'):
+        objetivo = patch(f'core.views.{modulo}.obtener_uf', return_value=41057.20)(objetivo)
+    for modulo in ('calculo_liquidacion', 'finiquitos', 'parametros'):
+        objetivo = patch(f'core.views.{modulo}.obtener_utm', return_value=71721.0)(objetivo)
+    return objetivo
+
 def crear_usuario_completo(username, rut_cliente, rut_empresa, plan_semilla=False):
     """Crea user + Cliente + Plan + Suscripcion + Empresa listos para tests."""
     user = User.objects.create_user(
@@ -207,12 +216,12 @@ class WebhookSeguridadTests(APITestCase):
     URL = '/api/pagos/webhook/reveniu/'
 
     def test_sin_secret_configurado_retorna_503(self):
-        with patch('core.views.config', side_effect=_mock_config(None)):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config(None)):
             resp = self.client.post(self.URL, {}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
 
     def test_token_incorrecto_retorna_401(self):
-        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
             resp = self.client.post(
                 self.URL, {}, format='json',
                 HTTP_X_WEBHOOK_TOKEN='token-incorrecto'
@@ -220,7 +229,7 @@ class WebhookSeguridadTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_token_correcto_pasa_la_autenticacion(self):
-        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
             resp = self.client.post(
                 self.URL, {'event': 'ping'}, format='json',
                 HTTP_X_WEBHOOK_TOKEN='secret-real'
@@ -232,7 +241,7 @@ class WebhookSeguridadTests(APITestCase):
         ])
 
     def test_token_vacio_retorna_401(self):
-        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
             resp = self.client.post(self.URL, {}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -474,10 +483,10 @@ class FirmaConcurrenciaTests(APITestCase):
             expira_en=timezone.now() + timezone.timedelta(days=1),
         )
 
-    @patch('core.views.b2_client.eliminar_documento')
-    @patch('core.views.b2_client.subir_documento')
+    @patch('core.b2_client.eliminar_documento')
+    @patch('core.b2_client.subir_documento')
     @patch('core.pdf_firma.agregar_certificado_firma')
-    @patch('core.views.b2_client.descargar_documento')
+    @patch('core.b2_client.descargar_documento')
     def test_segunda_peticion_de_firma_es_rechazada(self, mock_descargar, mock_certificado, mock_subir, mock_eliminar):
         mock_descargar.return_value = b'%PDF-original'
         mock_certificado.return_value = b'%PDF-firmado'
@@ -498,9 +507,9 @@ class FirmaConcurrenciaTests(APITestCase):
         self.solicitud.refresh_from_db()
         self.assertEqual(self.solicitud.estado, 'FIRMADO')
 
-    @patch('core.views.b2_client.subir_documento', side_effect=Exception('B2 caído'))
+    @patch('core.b2_client.subir_documento', side_effect=Exception('B2 caído'))
     @patch('core.pdf_firma.agregar_certificado_firma')
-    @patch('core.views.b2_client.descargar_documento')
+    @patch('core.b2_client.descargar_documento')
     def test_falla_en_b2_revierte_a_pendiente(self, mock_descargar, mock_certificado, mock_subir):
         mock_descargar.return_value = b'%PDF-original'
         mock_certificado.return_value = b'%PDF-firmado'
@@ -1766,7 +1775,7 @@ class WebhookSinSuscripcionTests(APITestCase):
         semilla = Plan.objects.create(nombre='Semilla', precio=0, max_empresas=1, limite_trabajadores=3, nivel=1)
         pyme = Plan.objects.create(nombre='Pyme', precio=39990, max_empresas=3, limite_trabajadores=75, nivel=3)
         cliente = Cliente.objects.create(usuario=u, rut='12.345.678-5', nombres='A', plan=semilla)
-        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
             resp = self.client.post('/api/pagos/webhook/reveniu/', {
                 'event': 'payment_succeeded', 'custom_reference': f'{cliente.id}_{pyme.id}',
                 'subscription_id': 'sub_1',
@@ -1792,7 +1801,7 @@ class WebhookFormatoReveniuTests(APITestCase):
         self.cliente = Cliente.objects.create(usuario=self.user, rut='12.345.678-5', nombres='A', plan=self.semilla)
 
     def _avisar(self, evento, **data):
-        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
             return self.client.post(self.URL, {'event': evento, 'data': data}, format='json',
                                     HTTP_REVENIU_SECRET_KEY='secret-real')
 
@@ -2001,11 +2010,11 @@ class DiagnosticoRedTests(APITestCase):
     """El diagnóstico de red está apagado salvo que se encienda a propósito."""
 
     def test_apagado_por_defecto(self):
-        with patch('core.views.config', side_effect=_mock_config(None)):
+        with patch('core.views.cuentas.config', side_effect=_mock_config(None)):
             self.assertEqual(self.client.get('/api/diagnostico/red/').status_code, 404)
 
     def test_encendido_muestra_los_encabezados_del_solicitante(self):
-        with patch('core.views.config', side_effect=lambda k, default=None, **kw: '1' if k == 'DIAGNOSTICO_RED' else default):
+        with patch('core.views.cuentas.config', side_effect=lambda k, default=None, **kw: '1' if k == 'DIAGNOSTICO_RED' else default):
             resp = self.client.get('/api/diagnostico/red/', HTTP_X_FORWARDED_FOR='1.2.3.4, 5.6.7.8')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['x_forwarded_for'], '1.2.3.4, 5.6.7.8')
@@ -2488,7 +2497,7 @@ class ComprobanteFirmaTests(APITestCase):
         datos.update(extra)
         return SolicitudFirma.objects.create(**datos)
 
-    @patch('core.views._enviar_email_otp')
+    @patch('core.views.firma_publica._enviar_email_otp')
     def test_codigo_exige_rut_del_trabajador(self, _mail):
         s = self._solicitud()
         url = f'/api/firma-publica/{s.token}/solicitar-otp/'
@@ -2498,7 +2507,7 @@ class ComprobanteFirmaTests(APITestCase):
         self.assertIn('RUT no coincide', r.data['error'])
         self.assertEqual(self.client.post(url, {'rut': '123456785'}, format='json').status_code, 200)
 
-    @patch('core.views._enviar_email_otp')
+    @patch('core.views.firma_publica._enviar_email_otp')
     def test_tope_de_codigos_por_hora(self, _mail):
         from core.models import OTPFirma
         s = self._solicitud()
@@ -2509,10 +2518,10 @@ class ComprobanteFirmaTests(APITestCase):
         r = self.client.post(f'/api/firma-publica/{s.token}/solicitar-otp/', {'rut': '12.345.678-5'}, format='json')
         self.assertEqual(r.status_code, 429)
 
-    @patch('core.views._enviar_emails_firma_completada')
-    @patch('core.views.b2_client.eliminar_documento')
-    @patch('core.views.b2_client.subir_documento')
-    @patch('core.views.b2_client.descargar_documento')
+    @patch('core.views.firma_publica._enviar_emails_firma_completada')
+    @patch('core.b2_client.eliminar_documento')
+    @patch('core.b2_client.subir_documento')
+    @patch('core.b2_client.descargar_documento')
     def test_firma_asigna_folio_correlativo_y_huellas(self, descargar, _subir, _eliminar, _mails):
         import hashlib, io
         from pypdf import PdfReader
@@ -2638,8 +2647,7 @@ class CupoTrabajadoresTests(APITestCase):
         self.assertEqual(self.client.get('/api/clientes/mi_suscripcion/').data['trabajadores_actuales'], 3)
 
 
-@patch('core.views.obtener_utm', return_value=71721.0)
-@patch('core.views.obtener_uf', return_value=41057.20)
+@indicadores_fijos
 class FiniquitoLegalTests(APITestCase):
     """Finiquito según el Código del Trabajo; los montos legales no los fija el cliente."""
 
@@ -2765,8 +2773,7 @@ class MiCuentaYParametrosTests(APITestCase):
                                                              'new_password1': 'Otra-Clave-2027', 'new_password2': 'Otra-Clave-2027'}, format='json')
         self.assertEqual(r.status_code, 200, r.data)
 
-    @patch('core.views.obtener_utm', return_value=71721.0)
-    @patch('core.views.obtener_uf', return_value=41057.20)
+    @indicadores_fijos
     def test_parametros_vigentes_solo_lectura(self, *_):
         r = self.client.get('/api/parametros/vigentes/')
         self.assertEqual(r.status_code, 200)
@@ -2775,8 +2782,7 @@ class MiCuentaYParametrosTests(APITestCase):
         self.assertEqual(self.client.post('/api/parametros/vigentes/', {}).status_code, 405)
 
 
-@patch('core.views.obtener_utm', return_value=71721.0)
-@patch('core.views.obtener_uf', return_value=41057.20)
+@indicadores_fijos
 class CierreBackendTests(APITestCase):
     """Cierre del rediseño: PDF de contrato al día, montos de la carta y días de vacaciones del servidor."""
 
@@ -2821,8 +2827,7 @@ class CierreBackendTests(APITestCase):
         self.assertEqual(r.data['dias_habiles'], 5)
 
 
-@patch('core.views.obtener_utm', return_value=71721.0)
-@patch('core.views.obtener_uf', return_value=41057.20)
+@indicadores_fijos
 class BaseIndemnizacionArt172Tests(APITestCase):
     """Base de las indemnizaciones: todo lo que se paga mes a mes, lo variable promediado (Art. 172)."""
 
