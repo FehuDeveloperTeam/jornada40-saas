@@ -1566,6 +1566,88 @@ class JornadaMaximaTests(APITestCase):
         self.assertEqual(horas_por_dia(self._horario(['lunes']))['lunes'], 8)
 
 
+class AvisosSueldoYDistribucionTests(APITestCase):
+    """Sueldo bajo el mínimo de la jornada (Arts. 42 a y 44) y días de la distribución (Art. 28, 4x3)."""
+    HOY = datetime.date(2026, 9, 23)   # máximo vigente: 42 h
+    IMM = 553_553
+
+    def _codigos(self, tipo, horas, dias=(), por_dia=8.0, sueldo=None, fecha=None):
+        from core.jornada import avisos_jornada
+        salida = f'{9 + int(por_dia) + 1:02d}:{int(round((por_dia % 1) * 60)):02d}'
+        horario = {d: {'activo': True, 'entrada': '09:00', 'salida': salida, 'colacion': 60} for d in dias}
+        return [a['codigo'] for a in avisos_jornada(tipo, horas, horario, fecha=fecha or self.HOY,
+                                                     sueldo_base=sueldo, ingreso_minimo=self.IMM)]
+
+    def test_sueldo_bajo_el_minimo_completo(self):
+        self.assertIn('SUELDO_BAJO_MINIMO', self._codigos('ORDINARIA', 42, sueldo=500_000))
+        self.assertNotIn('SUELDO_BAJO_MINIMO', self._codigos('ORDINARIA', 42, sueldo=553_553))
+
+    def test_parcial_compara_con_el_minimo_proporcional(self):
+        # 21 de 42 h → mínimo 276.776
+        self.assertNotIn('SUELDO_BAJO_MINIMO', self._codigos('PARCIAL', 21, sueldo=280_000))
+        self.assertIn('SUELDO_BAJO_MINIMO', self._codigos('PARCIAL', 21, sueldo=250_000))
+
+    def test_art22_compara_con_el_minimo_completo(self):
+        self.assertIn('SUELDO_BAJO_MINIMO', self._codigos('ART_22', 20, sueldo=300_000))
+
+    def test_4x3_con_40_horas_se_permite_antes_de_2028(self):
+        cuatro = ['lunes', 'martes', 'miercoles', 'jueves']
+        self.assertNotIn('DIAS_BAJO_MINIMO', self._codigos('ORDINARIA', 40, cuatro, por_dia=10))
+        # 42 h en 4 días: el 4x3 anticipado exige 40 h o menos.
+        self.assertIn('DIAS_BAJO_MINIMO', self._codigos('ORDINARIA', 42, cuatro, por_dia=10.5))
+        # Desde 2028 el máximo es 40 h y el 4x3 rige para todos.
+        self.assertNotIn('DIAS_BAJO_MINIMO', self._codigos('ORDINARIA', 40, cuatro, por_dia=10,
+                                                            fecha=datetime.date(2028, 5, 1)))
+
+    def test_dias_fuera_de_rango(self):
+        siete = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+        self.assertIn('DIAS_SOBRE_6', self._codigos('ORDINARIA', 42, siete, por_dia=6))
+        self.assertIn('DIAS_BAJO_MINIMO', self._codigos('ORDINARIA', 30, ['lunes', 'martes', 'miercoles'], por_dia=10))
+        # La jornada parcial se reparte habitualmente en menos días: sin aviso.
+        self.assertNotIn('DIAS_BAJO_MINIMO', self._codigos('PARCIAL', 24, ['lunes', 'martes', 'miercoles']))
+
+    def test_api_evalua_el_sueldo_del_borrador(self):
+        from django.contrib.auth.models import User
+        self.client.force_authenticate(User.objects.create_user(username='x', password='x'))
+        resp = self.client.post('/api/contratos/evaluar-jornada/', {
+            'tipo_jornada': 'ORDINARIA', 'horas_semanales': 42, 'distribucion_horario': {}, 'sueldo_base': 400_000,
+        }, format='json')
+        self.assertIn('SUELDO_BAJO_MINIMO', [a['codigo'] for a in resp.data['avisos']])
+
+
+class AcumulacionFeriadoYTopeAniosTests(APITestCase):
+    """Art. 70 (acumulación de feriado, solo aviso) y contratos anteriores al 14-08-1981 (sin tope de 11 años)."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('art70_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+
+    def _saldo(self, ingreso, hasta):
+        from core.views import calcular_saldo_vacaciones
+        self.emp.fecha_ingreso = ingreso
+        self.emp.save()
+        return calcular_saldo_vacaciones(self.emp, hasta=hasta)
+
+    def test_dos_periodos_avisa_el_plazo_para_el_primero(self, *_):
+        s = self._saldo(datetime.date(2024, 3, 1), datetime.date(2026, 9, 1))
+        self.assertEqual(s['dias_disponibles'], 30)
+        self.assertIn('antes del 01-03-2027', s['aviso_acumulacion'])
+
+    def test_mas_de_dos_periodos_avisa_sin_descontar(self, *_):
+        s = self._saldo(datetime.date(2023, 3, 1), datetime.date(2026, 9, 1))
+        self.assertEqual(s['dias_disponibles'], 45)   # no se pierden
+        self.assertIn('más de dos períodos', s['aviso_acumulacion'])
+
+    def test_un_periodo_sin_aviso(self, *_):
+        self.assertNotIn('aviso_acumulacion', self._saldo(datetime.date(2025, 3, 1), datetime.date(2026, 9, 1)))
+
+    def test_contrato_anterior_a_1981_sin_tope_de_anios(self, *_):
+        from core.views import _anios_indemnizacion
+        self.assertEqual(_anios_indemnizacion(datetime.date(1980, 1, 1), datetime.date(2026, 9, 15)), 47)
+        self.assertEqual(_anios_indemnizacion(datetime.date(1981, 8, 14), datetime.date(2026, 9, 15)), 11)
+
+
 class AvisosJornadaApiTests(APITestCase):
     """Los avisos llegan en la API y guardar un contrato que incumple sigue permitido."""
 

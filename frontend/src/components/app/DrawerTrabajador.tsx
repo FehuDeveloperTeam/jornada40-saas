@@ -57,7 +57,7 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
   const horas = Number(f.horas) || 0;
   // Parcial: hasta 2/3 del máximo vigente (Art. 40 bis).
   const tipoJornada = horas > 0 && horas <= (maximo * 2) / 3 ? 'PARCIAL' : 'ORDINARIA';
-  const { avisos } = useAvisosJornada({ tipo_jornada: tipoJornada, horas_semanales: f.horas, distribucion_horario: {} });
+  const { avisos } = useAvisosJornada({ tipo_jornada: tipoJornada, horas_semanales: f.horas, distribucion_horario: {}, sueldo_base: f.sueldo.replace(/\D/g, '') });
 
   const cambiar = (campo: keyof Formulario) => (e: { target: { value: string } }) =>
     setF((d) => ({ ...d, [campo]: e.target.value }));

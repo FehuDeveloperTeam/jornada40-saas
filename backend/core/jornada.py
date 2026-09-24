@@ -28,6 +28,15 @@ MAXIMO_DIARIO = 10
 # ordinaria del Art. 22, así que el tope baja junto con el máximo semanal.
 FRACCION_JORNADA_PARCIAL = 2 / 3
 
+# Art. 28 (texto de la Ley 21.561): la jornada ordinaria se distribuye en no
+# menos de cuatro ni más de seis días. Rige desde la etapa de 40 h; antes, el
+# art. 8° transitorio permite los cuatro días solo si la jornada ya es de 40 h
+# o menos. Sin ese pacto, el mínimo es cinco días.
+MAXIMO_DIAS_SEMANA = 6
+MINIMO_DIAS_SEMANA = 5
+MINIMO_DIAS_4X3 = 4
+JORNADA_MAXIMA_4X3_ANTICIPADA = 40
+
 # Con cuánta anticipación se avisa la próxima reducción.
 DIAS_AVISO_PROXIMA_REDUCCION = 180
 
@@ -125,11 +134,48 @@ def _aviso(codigo, gravedad, titulo, detalle, recomendacion, articulo):
     }
 
 
-def avisos_jornada(tipo_jornada, horas_semanales, distribucion_horario, fecha=None) -> list:
+def aviso_sueldo_minimo(tipo_jornada, horas_semanales, sueldo_base, ingreso_minimo, fecha=None):
+    """Aviso si el sueldo base queda bajo el ingreso mínimo que corresponde a la jornada.
+
+    Art. 44: la remuneración mensual no puede ser inferior al ingreso mínimo;
+    con jornada menor a la máxima (parcial, Art. 40 bis) el mínimo es
+    proporcional a las horas pactadas. Art. 42 a): el sueldo base tampoco
+    puede ser menor. Un contrato Art. 22 no tiene horas: se compara con el
+    mínimo completo.
+    """
+    try:
+        sueldo = float(sueldo_base or 0)
+        minimo = float(ingreso_minimo or 0)
+        pactadas = float(horas_semanales or 0)
+    except (TypeError, ValueError):
+        return None
+    if sueldo <= 0 or minimo <= 0:
+        return None
+    maximo = jornada_maxima_vigente(fecha)
+    tipo = (tipo_jornada or 'ORDINARIA').upper()
+    proporcional = tipo != 'ART_22' and 0 < pactadas < maximo - _TOLERANCIA
+    exigido = minimo * pactadas / maximo if proporcional else minimo
+    if sueldo + 1 >= exigido:  # 1 peso de holgura por redondeo
+        return None
+    base = (f'el mínimo proporcional a {_fmt(pactadas)} h de {maximo} h es ${exigido:,.0f}'
+            if proporcional else f'el ingreso mínimo mensual es ${minimo:,.0f}').replace(',', '.')
+    return _aviso(
+        'SUELDO_BAJO_MINIMO', 'alta',
+        'Sueldo base bajo el ingreso mínimo',
+        f'El sueldo base pactado es ${sueldo:,.0f} y {base}.'.replace(',', '.'),
+        'Sube el sueldo base al mínimo que corresponde con un anexo de contrato. Si el trabajador es '
+        'menor de 18 o mayor de 65 años rige un ingreso mínimo menor: en ese caso revisa ese valor.',
+        'Código del Trabajo, Arts. 42 a), 44 y 40 bis',
+    )
+
+
+def avisos_jornada(tipo_jornada, horas_semanales, distribucion_horario, fecha=None,
+                   sueldo_base=None, ingreso_minimo=None) -> list:
     """Avisos de incumplimiento de jornada para un contrato (o un borrador).
 
     Recibe los campos sueltos y no el modelo para poder evaluar un contrato
-    mientras se edita, antes de guardarlo.
+    mientras se edita, antes de guardarlo. Con sueldo e ingreso mínimo
+    también avisa si el sueldo base queda bajo el mínimo de la jornada.
     """
     fecha = _hoy(fecha)
     vigente_desde, maximo = etapa_vigente(fecha)
@@ -143,6 +189,9 @@ def avisos_jornada(tipo_jornada, horas_semanales, distribucion_horario, fecha=No
     total_horario = sum(por_dia.values())
     avisos = []
     desde_txt = f' desde el {_fecha(vigente_desde)}' if vigente_desde else ''
+    sueldo = aviso_sueldo_minimo(tipo, pactadas, sueldo_base, ingreso_minimo, fecha)
+    if sueldo:
+        avisos.append(sueldo)
 
     if tipo == 'ART_22':
         # El Art. 22 inciso 2° excluye del límite de jornada a quien trabaja sin
@@ -216,6 +265,39 @@ def avisos_jornada(tipo_jornada, horas_semanales, distribucion_horario, fecha=No
                 f'La jornada ordinaria no puede superar 10 horas por día. Excede en: {dias}.',
                 'Redistribuye el horario para que ningún día pase de 10 horas.',
                 'Código del Trabajo, Art. 28',
+            ))
+
+    if tipo in _TIPOS_CON_TOPE_DIARIO and por_dia:
+        dias = len(por_dia)
+        cuatro_permitido = maximo <= JORNADA_MAXIMA_4X3_ANTICIPADA or (
+            0 < pactadas <= JORNADA_MAXIMA_4X3_ANTICIPADA + _TOLERANCIA)
+        minimo_dias = MINIMO_DIAS_4X3 if cuatro_permitido else MINIMO_DIAS_SEMANA
+        if dias > MAXIMO_DIAS_SEMANA:
+            avisos.append(_aviso(
+                'DIAS_SOBRE_6', 'alta',
+                'Jornada distribuida en más de seis días',
+                f'El horario reparte la jornada en {dias} días. La jornada ordinaria se distribuye '
+                f'en {minimo_dias} a {MAXIMO_DIAS_SEMANA} días, con al menos un día de descanso.',
+                'Deja al menos un día de descanso semanal en el horario.',
+                'Código del Trabajo, Arts. 28 y 35',
+            ))
+        elif dias < minimo_dias and tipo != 'PARCIAL':
+            # La jornada parcial (Art. 40 bis) se reparte habitualmente en menos días.
+            if dias == MINIMO_DIAS_4X3:
+                detalle = (f'El horario reparte la jornada en 4 días (sistema 4x3). Hasta el 26-04-2028 '
+                           f'solo se puede pactar con una jornada de {JORNADA_MAXIMA_4X3_ANTICIPADA} h o '
+                           f'menos, y este contrato pacta {_fmt(pactadas)} h.')
+                recomendacion = (f'Reduce la jornada a {JORNADA_MAXIMA_4X3_ANTICIPADA} h para pactar el 4x3, '
+                                 f'o distribúyela en 5 o 6 días.')
+            else:
+                detalle = (f'El horario reparte la jornada en {dias} '
+                           f'{"día" if dias == 1 else "días"}; el mínimo es {minimo_dias}.')
+                recomendacion = f'Distribuye la jornada en {minimo_dias} a {MAXIMO_DIAS_SEMANA} días.'
+            avisos.append(_aviso(
+                'DIAS_BAJO_MINIMO', 'alta',
+                'Distribución semanal con muy pocos días',
+                detalle, recomendacion,
+                'Código del Trabajo, Art. 28 · Ley 21.561, art. 8° transitorio',
             ))
 
     if tipo == 'PARCIAL':

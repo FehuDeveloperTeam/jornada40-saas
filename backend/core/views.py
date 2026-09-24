@@ -355,14 +355,37 @@ def calcular_saldo_vacaciones(empleado, hasta=None) -> dict:
         .aggregate(total=Sum('dias_habiles'))['total'] or 0
     )
 
+    disponibles = max(0, dias_devengados - int(dias_usados))
     return {
         'anos_servicio':    anos_servicio,
         'dias_base':        dias_base,
         'dias_progresivos': dias_progresivos,
         'dias_devengados':  dias_devengados,
         'dias_usados':      int(dias_usados),
-        'dias_disponibles': max(0, dias_devengados - int(dias_usados)),
+        'dias_disponibles': disponibles,
+        **_aviso_acumulacion_feriado(empleado, anos_servicio, 15 + dias_progresivos, disponibles),
     }
+
+
+def _aviso_acumulacion_feriado(empleado, anos_servicio, dias_por_periodo, disponibles) -> dict:
+    """Aviso del Art. 70: el feriado se acumula hasta dos períodos.
+
+    Con dos períodos pendientes, el empleador debe otorgar al menos el
+    primero antes de que se cumpla el año que da derecho a un tercero. Solo
+    avisa: los días pendientes no se pierden ni se descuentan del saldo.
+    """
+    if not dias_por_periodo or disponibles < 2 * dias_por_periodo:
+        return {}
+    proximo = empleado.fecha_ingreso + relativedelta(years=anos_servicio + 1)
+    if disponibles > 2 * dias_por_periodo:
+        texto = (f'Tiene {disponibles} días hábiles de feriado pendientes: más de dos períodos. '
+                 f'El Art. 70 permite acumular hasta dos; otórgale feriado cuanto antes. '
+                 f'Los días pendientes no se pierden.')
+    else:
+        texto = (f'Tiene dos períodos de feriado acumulados ({disponibles} días hábiles). Según el '
+                 f'Art. 70 debe tomar al menos el primero antes del {proximo:%d-%m-%Y}, cuando '
+                 f'cumple un nuevo año de servicio.')
+    return {'periodos_acumulados': round(disponibles / dias_por_periodo, 1), 'aviso_acumulacion': texto}
 
 
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
@@ -1614,6 +1637,8 @@ class ContratoViewSet(viewsets.ModelViewSet):
                 datos.get('tipo_jornada'),
                 datos.get('horas_semanales'),
                 datos.get('distribucion_horario'),
+                sueldo_base=datos.get('sueldo_base'),
+                ingreso_minimo=ingreso_minimo_vigente(),
             ),
         })
 
@@ -1720,6 +1745,12 @@ def indicadores_del_dia(request):
         'jornada_maxima_vigente': jornada_maxima_vigente(),
         'respaldo': bool(estado_indicadores()),
     })
+
+
+def ingreso_minimo_vigente() -> int:
+    """Ingreso mínimo mensual del período en curso (para los avisos de sueldo)."""
+    hoy = timezone.localdate()
+    return int(_parametros_previsionales(hoy.month, hoy.year)['ingreso_minimo_mensual'])
 
 
 @api_view(['GET'])
@@ -3869,6 +3900,9 @@ _TOPE_BASE_INDEMNIZACION_UF = 90
 # Tope de años de la indemnización por años de servicio (Art. 163 inc. 2°):
 # 330 días de remuneración para contratos posteriores al 14-08-1981.
 _TOPE_ANIOS_INDEMNIZACION = 11
+# Contratos vigentes desde antes del 14-08-1981 no tienen ese tope de años
+# (Código del Trabajo, art. 7° transitorio). El tope de 90 UF de la base sí rige.
+_FECHA_SIN_TOPE_ANIOS = datetime.date(1981, 8, 14)
 
 
 def _anios_indemnizacion(fecha_ingreso, fecha_termino) -> int:
@@ -3884,6 +3918,8 @@ def _anios_indemnizacion(fecha_ingreso, fecha_termino) -> int:
     # Fracción superior a seis meses: más de 6 meses cumplidos (6 meses y 1 día).
     if tiempo.months > 6 or (tiempo.months == 6 and tiempo.days > 0):
         anios += 1
+    if fecha_ingreso < _FECHA_SIN_TOPE_ANIOS:
+        return anios
     return min(anios, _TOPE_ANIOS_INDEMNIZACION)
 
 
@@ -4135,6 +4171,11 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
             f'La base usa {base_meses} {"liquidación" if base_meses == 1 else "liquidaciones"} de las tres que pide el Art. 172 '
             'para promediar lo variable; con menos meses no se distinguen bien los haberes esporádicos. Revísala.'),
         } if con_indemnizacion and base_meses < 3 else {}),
+        **({'aviso_anios_indemnizacion': (
+            f'Contrato anterior al 14-08-1981: la indemnización por años de servicio no tiene el tope '
+            f'de 11 años (art. 7° transitorio); se consideran los {anios} años.'),
+        } if con_indemnizacion and empleado.fecha_ingreso and empleado.fecha_ingreso < _FECHA_SIN_TOPE_ANIOS
+          and anios > _TOPE_ANIOS_INDEMNIZACION else {}),
         'afp_nombre': nombre_afp, 'afp': afp_monto, 'salud_nombre': salud_nombre, 'salud': salud_monto,
         'seguro_cesantia': afc_monto, 'impuesto_unico': impuesto,
         'gratificacion_modalidad': 'ANUAL' if grat_anual else 'MENSUAL',

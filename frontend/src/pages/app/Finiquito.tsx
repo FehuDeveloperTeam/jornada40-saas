@@ -356,6 +356,9 @@ function Calculo({ s }: { s: SimulacionFiniquito }) {
                 <p className="pt-1.5">Incluye lo que se paga cada mes, también colación y movilización; lo variable se promedia. Excluye horas extra, asignación familiar, aguinaldos y bonos esporádicos.</p>
               </details>
             )}
+            {d.aviso_anios_indemnizacion && (
+              <p className="flex gap-1.5 text-[11.5px] text-fg-3"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{d.aviso_anios_indemnizacion}</p>
+            )}
             {d.aviso_base_indemnizacion && (
               <p className="flex gap-1.5 text-[11.5px] text-warn"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{d.aviso_base_indemnizacion}</p>
             )}

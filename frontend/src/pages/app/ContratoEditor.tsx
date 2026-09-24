@@ -120,7 +120,7 @@ function Editor({ empleadoId }: { empleadoId: number }) {
   const conHorario = CON_HORARIO.includes(f.tipo_jornada);
   const { avisos, maximo } = useAvisosJornada({
     tipo_jornada: f.tipo_jornada, horas_semanales: f.horas_semanales,
-    distribucion_horario: conHorario ? f.distribucion_horario : null,
+    distribucion_horario: conHorario ? f.distribucion_horario : null, sueldo_base: f.sueldo_base,
   });
   const cambiar = <K extends keyof Formulario>(k: K, v: Formulario[K]) => setF((x) => ({ ...x, [k]: v }));
   const totalHorario = DIAS.reduce((s, [d]) => s + (f.distribucion_horario[d]?.activo ? horasDia(f.distribucion_horario[d]) : 0), 0);

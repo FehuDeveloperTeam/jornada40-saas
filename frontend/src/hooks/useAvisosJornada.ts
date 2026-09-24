@@ -6,6 +6,8 @@ interface Borrador {
   tipo_jornada?: string;
   horas_semanales?: string | number;
   distribucion_horario?: HorarioSemana | null;
+  /** Con el sueldo, el backend también avisa si queda bajo el ingreso mínimo de la jornada. */
+  sueldo_base?: string | number;
 }
 
 /**
@@ -15,10 +17,10 @@ interface Borrador {
  *
  * Espera 400 ms desde el último cambio para no consultar en cada tecla.
  */
-export function useAvisosJornada({ tipo_jornada, horas_semanales, distribucion_horario }: Borrador) {
+export function useAvisosJornada({ tipo_jornada, horas_semanales, distribucion_horario, sueldo_base }: Borrador) {
   const [avisos, setAvisos] = useState<AvisoJornada[]>([]);
   const [maximo, setMaximo] = useState<number | null>(null);
-  const clave = JSON.stringify([tipo_jornada, horas_semanales, distribucion_horario]);
+  const clave = JSON.stringify([tipo_jornada, horas_semanales, distribucion_horario, sueldo_base]);
 
   useEffect(() => {
     const control = new AbortController();
@@ -26,7 +28,7 @@ export function useAvisosJornada({ tipo_jornada, horas_semanales, distribucion_h
       try {
         const { data } = await client.post<{ avisos: AvisoJornada[]; jornada_maxima_vigente: number }>(
           '/contratos/evaluar-jornada/',
-          { tipo_jornada, horas_semanales, distribucion_horario },
+          { tipo_jornada, horas_semanales, distribucion_horario, sueldo_base },
           { signal: control.signal },
         );
         setAvisos(data.avisos);
@@ -37,7 +39,7 @@ export function useAvisosJornada({ tipo_jornada, horas_semanales, distribucion_h
       }
     }, 400);
     return () => { clearTimeout(espera); control.abort(); };
-    // `clave` resume los tres valores: evita consultar si el objeto cambió
+    // `clave` resume los valores: evita consultar si el objeto cambió
     // de identidad pero no de contenido.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clave]);

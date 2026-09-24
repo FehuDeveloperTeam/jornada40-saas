@@ -269,6 +269,9 @@ export interface SaldoVacaciones {
     dias_devengados: number;
     dias_usados: number;
     dias_disponibles: number;
+    /** Solo con dos períodos o más pendientes (Art. 70). */
+    periodos_acumulados?: number;
+    aviso_acumulacion?: string;
 }
 
 export interface HoraExtraItem {
@@ -389,6 +392,8 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
         base_indemnizacion_detalle: { glosa: string; monto: number }[];
         base_indemnizacion_meses: number;
         aviso_base_indemnizacion?: string;
+        /** Contrato anterior al 14-08-1981: sin tope de 11 años. */
+        aviso_anios_indemnizacion?: string;
         afp_nombre: string;
         afp: number;
         salud_nombre: string;

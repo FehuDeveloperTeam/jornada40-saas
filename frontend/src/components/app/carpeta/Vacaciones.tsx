@@ -1,4 +1,4 @@
-import { Download, Lock } from 'lucide-react';
+import { Download, Lock, TriangleAlert } from 'lucide-react';
 import { Button, Chip } from '../../j40';
 import type { TonoChip } from '../../j40';
 import { descargar } from '../../../api/descargas';
@@ -51,6 +51,12 @@ export function Vacaciones({ empleado, nivel, vacaciones, saldo, firmas, avisar 
         <Dato t="Progresivos" v={saldo ? dias(saldo.dias_progresivos) : '—'}
           nota={saldo ? `${saldo.anos_servicio} ${saldo.anos_servicio === 1 ? 'año' : 'años'} de servicio` : undefined} />
       </div>
+
+      {saldo?.aviso_acumulacion && (
+        <p className="flex gap-2 rounded-j40-card bg-warn-soft text-warn px-4 py-3 text-[13px]">
+          <TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{saldo.aviso_acumulacion}
+        </p>
+      )}
 
       <Seccion titulo="Registro de vacaciones y permisos"
         accion={<BotonEnlace a={rutaAccion(empleado.id, 'vacacion')}>Registrar vacaciones</BotonEnlace>}>

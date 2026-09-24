@@ -66,7 +66,9 @@ class ContratoSerializer(serializers.ModelSerializer):
         return jornada_maxima_vigente()
 
     def get_avisos_jornada(self, obj):
-        return avisos_jornada(obj.tipo_jornada, obj.horas_semanales, obj.distribucion_horario)
+        from .views import ingreso_minimo_vigente
+        return avisos_jornada(obj.tipo_jornada, obj.horas_semanales, obj.distribucion_horario,
+                              sueldo_base=obj.sueldo_base, ingreso_minimo=ingreso_minimo_vigente())
 
     def get_tiene_contrato_pdf(self, obj):
         return bool(obj.archivo_contrato)
