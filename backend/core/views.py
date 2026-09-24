@@ -1776,6 +1776,11 @@ def diagnostico_red(request):
         'x_forwarded_for': request.headers.get('x-forwarded-for'),
         'x_real_ip': request.headers.get('x-real-ip'),
         'x_vercel_forwarded_for': request.headers.get('x-vercel-forwarded-for'),
+        # Cloudflare (proxy delante de api.jornada40.cl) informa aquí la IP del visitante.
+        'cf_connecting_ip': request.headers.get('cf-connecting-ip'),
+        'true_client_ip': request.headers.get('true-client-ip'),
+        'cf_ray': request.headers.get('cf-ray'),
+        'host': request.get_host(),
         'ident_actual_drf': AnonRateThrottle().get_ident(request),
     })
 
