@@ -75,6 +75,9 @@ test('finiquito calculado por el servidor', async ({ page }) => {
   await page.getByLabel('Fecha de término').fill('2026-09-15');
   await expect(page.getByText(/8 años ×/)).toBeVisible();
   await expect(page.getByText('Sustitutiva del aviso previo', { exact: true })).toBeVisible();
+  // Base del Art. 172 con lo mensual de las liquidaciones sembradas.
+  await page.getByText(/Base de cálculo \(Art\. 172\)/).click();
+  await expect(page.getByText('Sueldo base', { exact: true })).toBeVisible();
   await page.getByText('Di el aviso por escrito').click();
   await expect(page.getByText('Se dio el aviso con 30 días')).toBeVisible();
   await page.getByRole('button', { name: 'Guardar borrador' }).click();
@@ -147,6 +150,7 @@ test('empresa, plan y cuenta', async ({ page }) => {
   await page.goto('/app/plan');
   await expect(page.getByRole('button', { name: /Subir a Corporativo/ })).toBeVisible();
   await expect(page.getByText(/este plan permite 3/)).toBeVisible();  // Semilla bloqueada por el uso
+  await expect(page.getByRole('heading', { name: 'Historial de pagos' })).toBeVisible();
 
   await page.goto('/app/cuenta');
   await page.getByLabel('Teléfono').fill('+56 9 7777 8888');

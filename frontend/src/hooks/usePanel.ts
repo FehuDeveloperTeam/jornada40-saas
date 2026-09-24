@@ -47,6 +47,17 @@ export interface Suscripcion {
   trabajadores_actuales: number;
   fecha_proximo_cobro: string | null;
   metodo_pago_glosa?: string | null;
+  /** Canceló la renovación en Reveniu: conserva el plan hasta el fin del período pagado. */
+  renovacion_cancelada?: boolean;
+  pagos?: PagoSuscripcion[];
+}
+
+export interface PagoSuscripcion {
+  id: number;
+  fecha: string | null;
+  monto: number;
+  plan: string | null;
+  orden: string;
 }
 
 /** Suscripción con el nivel del plan resuelto (el backend habilita por nivel). */

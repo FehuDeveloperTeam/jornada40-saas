@@ -344,6 +344,21 @@ function Calculo({ s }: { s: SimulacionFiniquito }) {
               nota={d.anios_indemnizacion ? `${d.anios_indemnizacion} ${d.anios_indemnizacion === 1 ? 'año' : 'años'} × ${clp(d.base_indemnizacion)}${d.base_indemnizacion_topada ? ' (tope 90 UF)' : ''}` : 'Menos de un año de contrato: no corresponde'} />
             <Linea t="Sustitutiva del aviso previo" v={s.indemnizacion_sustitutiva_aviso}
               nota={s.indemnizacion_sustitutiva_aviso ? 'Una remuneración: no se dio el aviso de 30 días' : 'Se dio el aviso con 30 días'} />
+            {d.base_indemnizacion_detalle?.length > 0 && (
+              <details className="text-[12px] text-fg-3">
+                <summary className="cursor-pointer">Base de cálculo (Art. 172): {clp(d.base_indemnizacion)}</summary>
+                <ul className="flex flex-col gap-0.5 pt-1.5 pl-3">
+                  {d.base_indemnizacion_detalle.map((l, i) => (
+                    <li key={i} className="flex justify-between gap-3"><span>{l.glosa}</span><span className="j40-num">{clp(l.monto)}</span></li>
+                  ))}
+                  {d.base_indemnizacion_topada && <li className="flex justify-between gap-3"><span>Tope 90 UF</span><span className="j40-num">{clp(d.tope_base_indemnizacion)}</span></li>}
+                </ul>
+                <p className="pt-1.5">Incluye lo que se paga cada mes, también colación y movilización; lo variable se promedia. Excluye horas extra, asignación familiar, aguinaldos y bonos esporádicos.</p>
+              </details>
+            )}
+            {d.aviso_base_indemnizacion && (
+              <p className="flex gap-1.5 text-[11.5px] text-warn"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{d.aviso_base_indemnizacion}</p>
+            )}
           </>
         )}
         {s.otros_haberes > 0 && <Linea t="Otros haberes" v={s.otros_haberes} />}

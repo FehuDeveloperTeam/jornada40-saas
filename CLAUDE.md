@@ -319,11 +319,14 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 ## Subscription & Payments
 
 - **Provider**: Reveniu (Chilean payment gateway) with Stripe as underlying processor.
-- **Webhook endpoint**: `POST /api/pagos/webhook/reveniu/` — validated with the shared `X-Webhook-Token` header (`REVENIU_WEBHOOK_SECRET`, `hmac.compare_digest`).
+- **Webhook endpoint**: `POST /api/pagos/webhook/reveniu/` — secret in the `Reveniu-Secret-Key` header (legacy `X-Webhook-Token` also accepted), checked against `REVENIU_WEBHOOK_SECRET` with `hmac.compare_digest`.
+- **Events** (payload `{"event", "data": {...}}`; the flat legacy format is also accepted): `subscription_activated` / `subscription_payment_succeeded` activate the plan; `subscription_renewal_cancelled` sets `fecha_cancelacion` (access kept until the paid period ends); `subscription_deactivated` sets `CANCELED` and moves `Cliente.plan` to the free base plan (nothing is deleted). Events from a subscription that is no longer the client's current one never change the plan.
+- **`EventoPasarela`** stores every notice as received (payment history on `/app/plan`, retries deduplicated by `buy_order`). The client is identified by `subscription_external_id`/`custom_reference` (`<cliente_id>_<plan_id>`) or by a known `gateway_subscription_id`; a notice that can't be matched is stored without a client, an email goes to `ALERTAS_PAGOS_EMAIL`, and it is linked by hand in the admin (choose cliente and plan, save → `aplicar_evento_pasarela`). A plan change (new Reveniu subscription) also emails a request to cancel the old one in Reveniu.
 - **Checkout creation**: `POST /api/pagos/crear-checkout/` redirects user to Reveniu hosted page.
 - **Subscription states**: `TRIAL` → `ACTIVE` → `PAST_DUE` → `CANCELED`.
 - Plan limits are enforced in the backend with the active plan (`_plan_activo`: `Cliente.plan` or the subscription's plan). Workers count only if `activo=True` (`_exigir_cupo_trabajador` on create and reactivation); features are gated by `Plan.nivel` (`_plan_permite`).
-- Known gaps: plan changes open a new Reveniu subscription without cancelling the previous one; no downgrade flow or payment history yet.
+- Previsional parameters (`ParametroPrevisional`, `TasaAFP`) are shared by all clients, maintained by Jornada40 in the Django admin, and read-only in the panel.
+- Known gaps: payment links don't carry an external id, so a first payment may need manual linking; the old subscription is cancelled by hand in Reveniu (no API integration yet); no proration (the Terms say so); downgrades go through support.
 
 ---
 

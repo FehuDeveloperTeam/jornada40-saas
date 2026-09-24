@@ -57,7 +57,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import validate_email
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
-from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito, ParametroPrevisional, TasaAFP, ConceptoRemuneracion
+from .models import Plan, Suscripcion, Cliente, Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, OTPFirma, VacacionEmpleado, Finiquito, ParametroPrevisional, TasaAFP, ConceptoRemuneracion, EventoPasarela
 from .serializers import PlanSerializer
 from django.contrib.auth.forms import PasswordResetForm
 from xhtml2pdf import pisa
@@ -3947,6 +3947,74 @@ def _gratificacion_anual_proporcional(empleado, sueldo_base, fecha_termino, suel
     return min(math.floor(devengado * 0.25), tope), meses, devengado, round(meses_trabajados, 2), tope
 
 
+# Haberes que el Art. 172 excluye de la base (asignación familiar legal,
+# aguinaldos) o que no remuneran servicios sino que reembolsan gastos o
+# cubren un beneficio legal (Art. 41 inc. 2°). Colación y movilización
+# pagadas cada mes sí entran: criterio mayoritario de la Corte Suprema.
+_EXCLUIDOS_BASE_INDEMNIZACION = {'ASIGNACION_FAMILIAR', 'AGUINALDO', 'VIATICO', 'PERDIDA_CAJA',
+                                 'DESGASTE_HERRAMIENTAS', 'SALA_CUNA'}
+
+
+def _base_indemnizacion_art172(empleado, sueldo_base, fecha_termino, gratificacion_mensual_pactada, tope_gratificacion):
+    """Última remuneración mensual para las indemnizaciones (Art. 172).
+
+    Sueldo base del contrato + los haberes que se pagan regularmente, tomados
+    de las últimas tres liquidaciones: lo fijo (bonos mensuales, colación,
+    movilización) y lo variable (comisiones, semana corrida, tratos) por su
+    promedio, como ordena el inciso 2°. Un haber que aparece en un solo mes
+    de tres es esporádico y queda fuera; las horas extra, siempre.
+    La gratificación mensual pactada se suma sobre esa base con su tope.
+
+    Devuelve (base sin tope, líneas del detalle, meses usados).
+    """
+    liquidaciones = list(Liquidacion.objects.filter(empleado=empleado)
+                         .filter(Q(anio__lt=fecha_termino.year) | Q(anio=fecha_termino.year, mes__lte=fecha_termino.month))
+                         .order_by('-anio', '-mes')[:3])
+    n = len(liquidaciones)
+    codigos = dict(ConceptoRemuneracion.objects.filter(
+        id__in={i.get('concepto') for l in liquidaciones for i in (l.detalle_items or []) if i.get('concepto')}
+    ).values_list('id', 'codigo'))
+
+    haberes = {}   # clave → [glosa, total, meses presente, variable, afecta gratificación]
+    for liq in liquidaciones:
+        vistos = set()
+        for item in liq.detalle_items or []:
+            naturaleza = item.get('naturaleza')
+            if naturaleza not in ('HABER_IMPONIBLE', 'HABER_NO_IMPONIBLE', 'COMISION'):
+                continue
+            if codigos.get(item.get('concepto')) in _EXCLUIDOS_BASE_INDEMNIZACION:
+                continue
+            clave = item.get('concepto') or (item.get('glosa') or '').strip().lower()
+            h = haberes.setdefault(clave, [item.get('glosa') or 'Haber', 0, 0, naturaleza == 'COMISION',
+                                           naturaleza != 'HABER_NO_IMPONIBLE'])
+            h[1] += int(item.get('valor') or 0)
+            if clave not in vistos:
+                h[2] += 1
+                vistos.add(clave)
+        if liq.semana_corrida:
+            h = haberes.setdefault('semana_corrida', ['Semana corrida', 0, 0, True, True])
+            h[1] += int(liq.semana_corrida)
+            h[2] += 1
+
+    lineas = [{'glosa': 'Sueldo base', 'monto': sueldo_base}]
+    afecto_gratificacion = sueldo_base
+    for glosa, total, presente, variable, afecta in haberes.values():
+        # Lo variable se promedia siempre; lo fijo solo si se repite.
+        if not variable and n > 1 and presente < 2:
+            continue
+        # Lo variable, promedio de los meses (inc. 2°); lo fijo, su monto mensual.
+        monto = math.floor(total / (n if variable else presente))
+        if monto <= 0:
+            continue
+        lineas.append({'glosa': f'{glosa} (promedio {n} {"mes" if n == 1 else "meses"})' if variable else glosa,
+                       'monto': monto})
+        if afecta:
+            afecto_gratificacion += monto
+    if gratificacion_mensual_pactada:
+        lineas.append({'glosa': 'Gratificación mensual', 'monto': min(math.floor(afecto_gratificacion * 0.25), tope_gratificacion)})
+    return sum(l['monto'] for l in lineas), lineas, n
+
+
 def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, causal_articulo,
                         aviso_previo_dado=False, otros_haberes=0, otros_descuentos=0):
     """Montos del finiquito y su detalle. Todo lo legal se calcula aquí.
@@ -3982,11 +4050,9 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     feriado = math.floor((sueldo_base / 30) * dias_corridos_feriado)
 
     # ── Indemnizaciones (Arts. 161, 162, 163, 163 bis y 172) ──────────────
-    # Base: última remuneración mensual. Se considera el sueldo base y la
-    # gratificación cuando se paga mes a mes; se excluyen horas extra y
-    # bonos esporádicos (Art. 172). Tope de 90 UF.
-    base_indemnizacion_sin_tope = sueldo_base + (min(math.floor(sueldo_base * 0.25), tope_gratificacion)
-                                                 if gratificacion_mensual_pactada else 0)
+    # Base: última remuneración mensual (Art. 172), con tope de 90 UF.
+    base_indemnizacion_sin_tope, base_lineas, base_meses = _base_indemnizacion_art172(
+        empleado, sueldo_base, fecha_termino, gratificacion_mensual_pactada, tope_gratificacion)
     tope_base = _tope_en_pesos(_TOPE_BASE_INDEMNIZACION_UF, valor_uf)
     base_indemnizacion = min(base_indemnizacion_sin_tope, tope_base)
     con_indemnizacion = causal_articulo in _CAUSALES_CON_INDEMNIZACION
@@ -4056,6 +4122,14 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
         'con_indemnizacion': con_indemnizacion, 'anios_indemnizacion': anios,
         'base_indemnizacion': base_indemnizacion, 'base_indemnizacion_topada': base_indemnizacion_sin_tope > tope_base,
         'tope_base_indemnizacion': tope_base,
+        'base_indemnizacion_detalle': base_lineas, 'base_indemnizacion_meses': base_meses,
+        **({'aviso_base_indemnizacion': (
+            'Sin liquidaciones emitidas: la base considera solo el sueldo base y la gratificación. '
+            'Si el trabajador recibe bonos, colación, movilización o comisiones, emite sus liquidaciones antes del finiquito.'
+            if base_meses == 0 else
+            f'La base usa {base_meses} {"liquidación" if base_meses == 1 else "liquidaciones"} de las tres que pide el Art. 172 '
+            'para promediar lo variable; con menos meses no se distinguen bien los haberes esporádicos. Revísala.'),
+        } if con_indemnizacion and base_meses < 3 else {}),
         'afp_nombre': nombre_afp, 'afp': afp_monto, 'salud_nombre': salud_nombre, 'salud': salud_monto,
         'seguro_cesantia': afc_monto, 'impuesto_unico': impuesto,
         'gratificacion_modalidad': 'ANUAL' if grat_anual else 'MENSUAL',
@@ -4811,6 +4885,14 @@ def mi_suscripcion(request):
         'trabajadores_actuales': trabajadores_actuales,
         'fecha_proximo_cobro': suscripcion.fecha_proximo_cobro.strftime('%Y-%m-%d') if suscripcion.fecha_proximo_cobro else None,
         'metodo_pago_glosa': suscripcion.metodo_pago_glosa,
+        # Canceló la renovación en Reveniu: conserva el plan hasta el fin del período pagado.
+        'renovacion_cancelada': suscripcion.estado == 'ACTIVE' and suscripcion.fecha_cancelacion is not None,
+        'pagos': [
+            {'id': e.id, 'fecha': e.fecha_pago.isoformat() if e.fecha_pago else None, 'monto': e.monto,
+             'plan': e.plan.nombre if e.plan else None, 'orden': e.orden_compra}
+            for e in cliente.eventos_pasarela.filter(evento__in=_EVENTOS_PAGO, monto__gt=0)
+                .select_related('plan').order_by('-fecha_pago', '-id')[:24]
+        ],
     }
 
     return Response(data, status=status.HTTP_200_OK)
@@ -4850,6 +4932,103 @@ def crear_checkout_reveniu(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+# Nombres de evento que documenta Reveniu, más los que esperaba la primera
+# versión de esta integración (se siguen aceptando).
+_EVENTOS_ACTIVACION = {'subscription_activated', 'subscription_created'}
+_EVENTOS_PAGO = {'subscription_payment_succeeded', 'payment_succeeded'}
+_EVENTO_RENOVACION_CANCELADA = 'subscription_renewal_cancelled'
+_EVENTO_DESACTIVADA = 'subscription_deactivated'
+
+
+def _referencia_cliente_plan(referencia):
+    """(cliente, plan) desde una referencia "<cliente_id>_<plan_id>", o (None, None)."""
+    try:
+        cliente_id, plan_id = str(referencia or '').split('_', 1)
+        return Cliente.objects.get(id=int(cliente_id)), Plan.objects.get(id=int(plan_id))
+    except (ValueError, Cliente.DoesNotExist, Plan.DoesNotExist):
+        return None, None
+
+
+def _plan_base():
+    """Plan al que vuelve una cuenta cuya suscripción pagada terminó (Semilla)."""
+    return Plan.objects.filter(activo=True).order_by('nivel', 'precio', 'id').first()
+
+
+def _avisar_pagos(asunto, cuerpo):
+    """Correo a Jornada40 por algo de la pasarela que requiere acción manual."""
+    destino = config('ALERTAS_PAGOS_EMAIL', default='contacto.jornada40@gmail.com')
+    try:
+        EmailMultiAlternatives(subject=f'[Jornada40 pagos] {asunto}', body=cuerpo,
+                               from_email=settings.DEFAULT_FROM_EMAIL, to=[destino]).send()
+    except Exception:
+        logger.exception('No se pudo enviar el aviso de pagos: %s', asunto)
+
+
+def aplicar_evento_pasarela(evento):
+    """Refleja un EventoPasarela ya asociado (cliente y, si activa, plan) en la suscripción.
+
+    Lo usa el webhook y también el admin, al asociar a mano un aviso que llegó
+    sin referencia. Devuelve True si cambió algo.
+    """
+    if evento.aplicado or not evento.cliente_id:
+        return False
+    cliente = evento.cliente
+    suscripcion = Suscripcion.objects.filter(cliente=cliente).first()
+    id_pasarela = evento.gateway_subscription_id
+    # Un aviso de otra suscripción de Reveniu (la anterior a un cambio de
+    # plan) no debe bajar ni cambiar la vigente.
+    es_la_vigente = not suscripcion or not suscripcion.gateway_subscription_id or \
+        not id_pasarela or suscripcion.gateway_subscription_id == id_pasarela
+
+    if evento.evento in _EVENTOS_ACTIVACION | _EVENTOS_PAGO:
+        plan = evento.plan or (suscripcion.plan if suscripcion and es_la_vigente else None)
+        if not plan:
+            return False
+        if suscripcion and suscripcion.gateway_subscription_id and id_pasarela and not es_la_vigente:
+            # Cambio de plan: Reveniu abrió otra suscripción y la anterior
+            # sigue cobrando hasta que alguien la cancele.
+            _avisar_pagos(
+                f'Cancelar la suscripción anterior de {cliente.rut}',
+                f'La cuenta {cliente.rut} pagó el plan {plan.nombre} con la suscripción de Reveniu '
+                f'{id_pasarela}. La suscripción anterior ({suscripcion.gateway_subscription_id}, plan '
+                f'{suscripcion.plan.nombre}) sigue activa en Reveniu: cancélala allí para no cobrar dos veces.')
+        if not suscripcion:
+            # Cuentas anteriores al cambio pueden no tener suscripción: un
+            # pago válido no puede perderse por eso.
+            suscripcion = Suscripcion(cliente=cliente, plan=plan)
+        suscripcion.plan = plan
+        suscripcion.estado = 'ACTIVE'
+        suscripcion.fecha_cancelacion = None
+        if id_pasarela:
+            suscripcion.gateway_subscription_id = id_pasarela
+        suscripcion.save()
+        # cliente.plan manda en los límites y los PDF: se sincroniza.
+        cliente.plan = plan
+        cliente.save(update_fields=['plan'])
+        if not evento.plan_id:
+            evento.plan = plan
+    elif evento.evento == _EVENTO_RENOVACION_CANCELADA:
+        # No se renovará, pero el período pagado se respeta: el acceso sigue
+        # hasta que Reveniu avise que la suscripción terminó.
+        if suscripcion and es_la_vigente:
+            suscripcion.fecha_cancelacion = timezone.now()
+            suscripcion.save(update_fields=['fecha_cancelacion'])
+    elif evento.evento == _EVENTO_DESACTIVADA:
+        if suscripcion and es_la_vigente:
+            base = _plan_base()
+            suscripcion.estado = 'CANCELED'
+            suscripcion.fecha_cancelacion = suscripcion.fecha_cancelacion or timezone.now()
+            suscripcion.save(update_fields=['estado', 'fecha_cancelacion'])
+            # Vuelve al plan gratuito: no se borra nada, solo rigen sus límites.
+            cliente.plan = base
+            cliente.save(update_fields=['plan'])
+    else:
+        return False
+    evento.aplicado = True
+    evento.save()
+    return True
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def webhook_reveniu(request):
@@ -4859,47 +5038,55 @@ def webhook_reveniu(request):
     if not webhook_secret:
         return Response({'error': 'Webhook no configurado'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    token_recibido = request.headers.get('X-Webhook-Token', '')
+    # Reveniu envía el secreto en Reveniu-Secret-Key; X-Webhook-Token es el
+    # encabezado que usaba la primera versión y se sigue aceptando.
+    token_recibido = request.headers.get('Reveniu-Secret-Key') or request.headers.get('X-Webhook-Token', '')
 
-    if not hmac.compare_digest(token_recibido, webhook_secret):
+    if not hmac.compare_digest(str(token_recibido), webhook_secret):
         return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
-    data = request.data
-    evento = data.get('event')
+    cuerpo = request.data if isinstance(request.data, dict) else {}
+    evento_nombre = str(cuerpo.get('event') or '')
+    # Reveniu anida los datos en "data"; la primera versión los esperaba planos.
+    data = cuerpo.get('data') if isinstance(cuerpo.get('data'), dict) else cuerpo
+    conocidos = _EVENTOS_ACTIVACION | _EVENTOS_PAGO | {_EVENTO_RENOVACION_CANCELADA, _EVENTO_DESACTIVADA}
+    if evento_nombre not in conocidos:
+        return Response(status=status.HTTP_200_OK)
 
-    if evento in ['subscription_created', 'payment_succeeded']:
-        custom_reference = data.get('custom_reference', '')
+    id_pasarela = str(data.get('subscription_id') or '')
+    orden = str(data.get('buy_order') or '')
+    # Reveniu reintenta los avisos: un pago ya registrado no se procesa dos veces.
+    if orden and EventoPasarela.objects.filter(evento=evento_nombre, orden_compra=orden).exists():
+        return Response(status=status.HTTP_200_OK)
 
-        if not custom_reference or '_' not in custom_reference:
-            return Response({'error': 'custom_reference inválido'}, status=status.HTTP_400_BAD_REQUEST)
+    cliente, plan = _referencia_cliente_plan(data.get('subscription_external_id') or data.get('custom_reference'))
+    if not cliente and id_pasarela:
+        conocida = Suscripcion.objects.filter(gateway_subscription_id=id_pasarela).select_related('cliente').first()
+        cliente = conocida.cliente if conocida else None
 
-        try:
-            cliente_id, plan_id = custom_reference.split('_', 1)
-            cliente_id = int(cliente_id)
-            plan_id = int(plan_id)
-        except (ValueError, AttributeError):
-            return Response({'error': 'Formato de custom_reference inválido'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        monto = int(round(float(data.get('amount') or 0)))
+    except (TypeError, ValueError):
+        monto = 0
+    try:
+        fecha_pago = datetime.datetime.strptime(str(data.get('issued_on')), '%d/%m/%Y').date()
+    except ValueError:
+        fecha_pago = timezone.localdate() if evento_nombre in _EVENTOS_PAGO else None
 
-        try:
-            cliente_pago = Cliente.objects.get(id=cliente_id)
-            plan_nuevo = Plan.objects.get(id=plan_id)
-        except (Cliente.DoesNotExist, Plan.DoesNotExist):
-            return Response({'error': 'Cliente o plan no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
-        # Cuentas anteriores al cambio pueden no tener suscripción: un pago
-        # válido no puede perderse por eso.
-        suscripcion, _ = Suscripcion.objects.get_or_create(
-            cliente=cliente_pago, defaults={'plan': plan_nuevo, 'estado': 'ACTIVE'})
+    evento = EventoPasarela.objects.create(
+        evento=evento_nombre, cliente=cliente, plan=plan, gateway_subscription_id=id_pasarela,
+        orden_compra=orden, monto=monto, fecha_pago=fecha_pago, datos=cuerpo)
 
-        suscripcion.plan = plan_nuevo
-        suscripcion.estado = 'ACTIVE'
-        suscripcion.gateway_subscription_id = str(data.get('subscription_id', ''))
-        suscripcion.save()
+    if not cliente:
+        _avisar_pagos(
+            f'Aviso de Reveniu sin cuenta asociada ({evento_nombre})',
+            f'Llegó "{evento_nombre}" de la suscripción de Reveniu {id_pasarela or "(sin id)"}'
+            f'{f" por ${monto:,}".replace(",", ".") if monto else ""} y no se pudo asociar a una cuenta.\n\n'
+            f'Asócialo en el admin: Eventos de la pasarela → evento #{evento.id} → elige cliente y plan y guarda. '
+            f'Desde ahí la suscripción queda vinculada y los próximos avisos se aplican solos.')
+        return Response({'estado': 'sin_asociar'}, status=status.HTTP_200_OK)
 
-        # Sincronizar también cliente.plan para que los PDFs y límites
-        # reflejen el plan activo sin depender de la Suscripcion.
-        suscripcion.cliente.plan = plan_nuevo
-        suscripcion.cliente.save(update_fields=['plan'])
-
+    aplicar_evento_pasarela(evento)
     return Response(status=status.HTTP_200_OK)
 
 @api_view(['POST'])

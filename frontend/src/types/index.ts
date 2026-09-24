@@ -385,6 +385,10 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
         base_indemnizacion: number;
         base_indemnizacion_topada: boolean;
         tope_base_indemnizacion: number;
+        /** Composición de la base (Art. 172): sueldo, haberes mensuales, variables promediados, gratificación. */
+        base_indemnizacion_detalle: { glosa: string; monto: number }[];
+        base_indemnizacion_meses: number;
+        aviso_base_indemnizacion?: string;
         afp_nombre: string;
         afp: number;
         salud_nombre: string;

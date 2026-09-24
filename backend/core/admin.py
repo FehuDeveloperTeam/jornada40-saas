@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
-                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion)
+                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -101,6 +101,29 @@ class PlanAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'precio', 'max_empresas', 'limite_trabajadores', 'activo')
     list_filter = ('activo',)
     search_fields = ('nombre',)
+
+@admin.register(Suscripcion)
+class SuscripcionAdmin(admin.ModelAdmin):
+    list_display = ('cliente', 'plan', 'estado', 'gateway_subscription_id', 'fecha_cancelacion')
+    list_filter = ('estado', 'plan')
+    search_fields = ('cliente__rut', 'gateway_subscription_id')
+
+
+@admin.register(EventoPasarela)
+class EventoPasarelaAdmin(admin.ModelAdmin):
+    """Avisos de Reveniu. Uno sin cliente se asocia eligiendo cliente y plan y guardando."""
+    list_display = ('recibido_en', 'evento', 'cliente', 'plan', 'monto', 'gateway_subscription_id', 'aplicado')
+    list_filter = ('evento', 'aplicado')
+    search_fields = ('cliente__rut', 'gateway_subscription_id', 'orden_compra')
+    readonly_fields = ('evento', 'gateway_subscription_id', 'orden_compra', 'monto', 'fecha_pago', 'datos', 'aplicado', 'recibido_en')
+    autocomplete_fields = ('cliente',)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        from .views import aplicar_evento_pasarela
+        if aplicar_evento_pasarela(obj):
+            self.message_user(request, 'Evento aplicado: la suscripción del cliente quedó actualizada.')
+
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):

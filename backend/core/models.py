@@ -675,6 +675,33 @@ class Suscripcion(models.Model):
         return self.estado in ['ACTIVE', 'TRIAL']
 
 
+class EventoPasarela(models.Model):
+    """Cada aviso recibido de la pasarela (Reveniu), tal como llegó.
+
+    Sirve de historial de pagos del cliente y de respaldo: un aviso que no se
+    pudo asociar a una cuenta queda aquí con cliente vacío, se avisa por
+    correo y se asocia a mano desde el admin, sin perder el pago.
+    """
+    evento = models.CharField(max_length=60)
+    cliente = models.ForeignKey(Cliente, on_delete=models.SET_NULL, null=True, blank=True, related_name='eventos_pasarela')
+    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, blank=True)
+    gateway_subscription_id = models.CharField(max_length=100, blank=True, default='')
+    orden_compra = models.CharField(max_length=100, blank=True, default='')
+    monto = models.IntegerField(default=0)
+    fecha_pago = models.DateField(null=True, blank=True)
+    datos = models.JSONField(default=dict, blank=True)
+    aplicado = models.BooleanField(default=False, help_text='Si ya se reflejó en la suscripción del cliente.')
+    recibido_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-recibido_en']
+        verbose_name = 'Evento de la pasarela'
+        verbose_name_plural = 'Eventos de la pasarela'
+
+    def __str__(self):
+        return f"{self.evento} · {self.gateway_subscription_id or 'sin suscripción'} · {self.recibido_en:%d-%m-%Y}"
+
+
 # ==========================================
 # 7. FIRMA ELECTRÓNICA
 # ==========================================

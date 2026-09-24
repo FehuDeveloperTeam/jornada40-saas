@@ -18,7 +18,7 @@ const SECCIONES: Seccion[] = [
                 lista: [
                   'Suscripciones: El Servicio se ofrece mediante planes de suscripción (ej. Semilla, Pyme, Corporativo) con cobro mensual o anual.',
                   'Renovación Automática: Los pagos se procesan a través de pasarelas de pago externas. Al suscribirse, el Cliente autoriza el cargo recurrente automático en su tarjeta al inicio de cada ciclo de facturación.',
-                  'Cambios de Plan: El Cliente puede cambiar de plan en cualquier momento. Los cobros se ajustarán de forma prorrateada en el siguiente ciclo.',
+                  'Cambios de Plan: El Cliente puede subir de plan en cualquier momento. El nuevo plan rige desde su pago; el período en curso del plan anterior no se prorratea ni se reembolsa. La baja de plan se programa para el siguiente cobro.',
                   'No Reembolsos: Los pagos realizados no son reembolsables. Si el Cliente cancela, mantendrá el acceso hasta el final del período ya pagado.',
                 ],
               },

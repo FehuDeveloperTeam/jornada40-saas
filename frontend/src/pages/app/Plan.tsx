@@ -51,6 +51,13 @@ export default function Plan() {
         </div>
       )}
 
+      {suscripcion.renovacion_cancelada && suscripcion.estado === 'ACTIVE' && (
+        <div className="flex items-center gap-3 rounded-j40-card px-4 py-3 bg-warn-soft text-warn">
+          <TriangleAlert className="size-5 shrink-0" strokeWidth={2} aria-hidden />
+          <p className="flex-1 text-[13px]">Cancelaste la renovación. Mantienes el plan {suscripcion.plan.nombre} hasta el fin del período pagado; después la cuenta pasa al plan gratuito sin borrar tus datos.</p>
+        </div>
+      )}
+
       <section className="bg-surface border border-line rounded-j40-card shadow-card p-[18px] grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-5">
         <div className="flex flex-col gap-1">
           <span className="text-[12px] text-fg-3">Plan actual</span>
@@ -100,6 +107,20 @@ export default function Plan() {
         Para bajar de plan, escríbenos a <a href="mailto:contacto.jornada40@gmail.com?subject=Cambio%20de%20plan">contacto.jornada40@gmail.com</a>:
         lo programamos para tu próximo cobro y te indicamos qué funciones dejarás de tener.
       </p>
+
+      <section className="bg-surface border border-line rounded-j40-card shadow-card p-[18px] flex flex-col gap-2">
+        <h2 className="text-[14px] font-semibold">Historial de pagos</h2>
+        {!suscripcion.pagos?.length ? <p className="text-[13px] text-fg-3">Aún no hay pagos registrados.</p> : (
+          <ul className="flex flex-col">
+            {suscripcion.pagos.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2 border-b border-line last:border-b-0 text-[13px]">
+                <span>{p.fecha ? fechaCL(p.fecha) : '—'} · Plan {p.plan ?? '—'}{p.orden && <span className="text-fg-3 j40-mono text-[12px]"> · orden {p.orden}</span>}</span>
+                <span className="font-medium j40-num">{formatearPrecio(p.monto)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {elegido && <Checkout plan={elegido} onCerrar={() => setElegido(null)} />}
     </div>

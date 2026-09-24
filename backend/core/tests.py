@@ -1678,6 +1678,92 @@ class WebhookSinSuscripcionTests(APITestCase):
         self.assertEqual(cliente.plan, pyme)
 
 
+class WebhookFormatoReveniuTests(APITestCase):
+    """Avisos con el formato que documenta Reveniu: evento + data anidada, secreto en Reveniu-Secret-Key."""
+    URL = '/api/pagos/webhook/reveniu/'
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Cliente, Plan
+        self.semilla = Plan.objects.create(nombre='Semilla', precio=0, max_empresas=1, limite_trabajadores=3, nivel=1)
+        self.starter = Plan.objects.create(nombre='Starter', precio=16990, max_empresas=1, limite_trabajadores=10, nivel=2)
+        self.pyme = Plan.objects.create(nombre='Pyme', precio=39990, max_empresas=3, limite_trabajadores=75, nivel=3)
+        self.user = User.objects.create_user(username='12.345.678-5', password='x')
+        self.cliente = Cliente.objects.create(usuario=self.user, rut='12.345.678-5', nombres='A', plan=self.semilla)
+
+    def _avisar(self, evento, **data):
+        with patch('core.views.config', side_effect=_mock_config('secret-real')):
+            return self.client.post(self.URL, {'event': evento, 'data': data}, format='json',
+                                    HTTP_REVENIU_SECRET_KEY='secret-real')
+
+    def _suscripcion(self):
+        from core.models import Suscripcion
+        self.cliente.refresh_from_db()
+        return Suscripcion.objects.get(cliente=self.cliente)
+
+    def test_activacion_con_referencia_externa(self):
+        resp = self._avisar('subscription_activated', subscription_id=1482,
+                            subscription_external_id=f'{self.cliente.id}_{self.pyme.id}')
+        self.assertEqual(resp.status_code, 200)
+        s = self._suscripcion()
+        self.assertEqual((s.plan, s.estado, s.gateway_subscription_id), (self.pyme, 'ACTIVE', '1482'))
+        self.assertEqual(self.cliente.plan, self.pyme)
+
+    def test_pagos_quedan_en_el_historial_sin_duplicar_reintentos(self):
+        self._avisar('subscription_activated', subscription_id=7, subscription_external_id=f'{self.cliente.id}_{self.starter.id}')
+        for _ in range(2):  # Reveniu reintenta el mismo aviso
+            self._avisar('subscription_payment_succeeded', subscription_id=7, subscription_external_id=None,
+                         buy_order=9001, issued_on='05/09/2026', gateway_response=0, amount=16990.0)
+        self.client.force_authenticate(self.user)
+        datos = self.client.get('/api/clientes/mi_suscripcion/').json()
+        self.assertEqual(datos['pagos'], [{'id': datos['pagos'][0]['id'], 'fecha': '2026-09-05', 'monto': 16990,
+                                           'plan': 'Starter', 'orden': '9001'}])
+
+    def test_renovacion_cancelada_mantiene_el_plan_hasta_desactivarse(self):
+        self._avisar('subscription_activated', subscription_id=7, subscription_external_id=f'{self.cliente.id}_{self.pyme.id}')
+        self._avisar('subscription_renewal_cancelled', subscription_id=7, subscription_external_id=None,
+                     cancelled_by='user', reason='precio')
+        s = self._suscripcion()
+        self.assertEqual((s.estado, self.cliente.plan), ('ACTIVE', self.pyme))
+        self.client.force_authenticate(self.user)
+        self.assertTrue(self.client.get('/api/clientes/mi_suscripcion/').json()['renovacion_cancelada'])
+
+        self._avisar('subscription_deactivated', subscription_id=7, subscription_external_id=None)
+        s = self._suscripcion()
+        self.assertEqual((s.estado, self.cliente.plan.nivel, self.cliente.plan.precio), ('CANCELED', 1, 0))
+
+    def test_desactivar_la_suscripcion_anterior_no_baja_el_plan_nuevo(self):
+        from django.core import mail
+        self._avisar('subscription_activated', subscription_id=7, subscription_external_id=f'{self.cliente.id}_{self.starter.id}')
+        self._avisar('subscription_activated', subscription_id=8, subscription_external_id=f'{self.cliente.id}_{self.pyme.id}')
+        # El cambio de plan avisa para cancelar la anterior en Reveniu.
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('7', mail.outbox[0].body)
+        self._avisar('subscription_deactivated', subscription_id=7, subscription_external_id=None)
+        s = self._suscripcion()
+        self.assertEqual((s.estado, s.gateway_subscription_id, self.cliente.plan), ('ACTIVE', '8', self.pyme))
+
+    def test_aviso_sin_cuenta_se_guarda_y_se_asocia_desde_el_admin(self):
+        from django.core import mail
+        from core.models import EventoPasarela
+        from core.views import aplicar_evento_pasarela
+        resp = self._avisar('subscription_payment_succeeded', subscription_id=55, subscription_external_id=None,
+                            buy_order=1, issued_on='01/09/2026', amount=39990)
+        self.assertEqual((resp.status_code, resp.json()), (200, {'estado': 'sin_asociar'}))
+        self.assertEqual(len(mail.outbox), 1)
+        evento = EventoPasarela.objects.get()
+        self.assertIsNone(evento.cliente)
+        # Asociación manual (lo que hace el admin al guardar).
+        evento.cliente, evento.plan = self.cliente, self.pyme
+        evento.save()
+        self.assertTrue(aplicar_evento_pasarela(evento))
+        s = self._suscripcion()
+        self.assertEqual((s.plan, s.gateway_subscription_id, self.cliente.plan), (self.pyme, '55', self.pyme))
+        # Desde ahí los avisos de esa suscripción se aplican solos.
+        self._avisar('subscription_deactivated', subscription_id=55, subscription_external_id=None)
+        self.assertEqual(self._suscripcion().estado, 'CANCELED')
+
+
 class RecuperacionSoloPorRutTests(APITestCase):
     """La recuperación es solo por RUT y no revela qué RUT tienen cuenta."""
 
@@ -2495,6 +2581,60 @@ class CierreBackendTests(APITestCase):
 
 @patch('core.views.obtener_utm', return_value=71721.0)
 @patch('core.views.obtener_uf', return_value=41057.20)
+class BaseIndemnizacionArt172Tests(APITestCase):
+    """Base de las indemnizaciones: todo lo que se paga mes a mes, lo variable promediado (Art. 172)."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('art172_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        self.emp.fecha_ingreso = datetime.date(2019, 3, 1)
+        self.emp.save()
+        Contrato.objects.filter(empleado=self.emp).delete()
+        Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', fecha_inicio='2019-03-01',
+                                sueldo_base=800_000, gratificacion_legal='MENSUAL')
+
+    def _simular(self):
+        r = self.client.post('/api/finiquitos/simular/', {
+            'empleado': self.emp.id, 'fecha_termino': '2026-09-15', 'dias_trabajados_ultimo_mes': 15,
+            'causal_articulo': '161_1'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        return r
+
+    def test_incluye_lo_mensual_y_promedia_lo_variable(self, *_):
+        from core.models import ConceptoRemuneracion
+        c = {k: ConceptoRemuneracion.objects.get(codigo=k, empresa=None).id for k in
+             ('COLACION', 'BONO_RESPONSABILIDAD', 'BONO_METAS', 'ASIGNACION_FAMILIAR', 'HORA_EXTRA_50')}
+        comisiones = {6: 60_000, 7: 90_000, 8: 150_000}
+        for mes, comision in comisiones.items():
+            items = [
+                {'concepto': c['COLACION'], 'glosa': 'Colación', 'naturaleza': 'HABER_NO_IMPONIBLE', 'valor': 50_000},
+                {'concepto': c['BONO_RESPONSABILIDAD'], 'glosa': 'Bono de responsabilidad', 'naturaleza': 'HABER_IMPONIBLE', 'valor': 100_000},
+                {'concepto': c['ASIGNACION_FAMILIAR'], 'glosa': 'Asignación familiar', 'naturaleza': 'HABER_NO_IMPONIBLE', 'valor': 20_000},
+                {'concepto': c['HORA_EXTRA_50'], 'glosa': 'Horas extras 50%', 'naturaleza': 'HORA_EXTRA', 'valor': 90_000},
+                {'concepto': None, 'glosa': 'Comisión ventas', 'naturaleza': 'COMISION', 'valor': comision},
+            ]
+            if mes == 7:  # bono de un solo mes: esporádico
+                items.append({'concepto': c['BONO_METAS'], 'glosa': 'Bono metas', 'naturaleza': 'HABER_IMPONIBLE', 'valor': 300_000})
+            Liquidacion.objects.create(empleado=self.emp, mes=mes, anio=2026, sueldo_base=800_000,
+                                       detalle_items=items, semana_corrida=30_000)
+        d = self._simular().data['detalle']
+        # 800.000 + colación 50.000 + bono 100.000 + comisiones 100.000 + semana corrida 30.000
+        # + gratificación: 25 % de 1.030.000 = 257.500, tope 4,75 × 553.553 / 12 = 219.114
+        self.assertEqual(d['base_indemnizacion'], 1_299_114)
+        glosas = [l['glosa'] for l in d['base_indemnizacion_detalle']]
+        self.assertIn('Colación', glosas)
+        self.assertNotIn('Bono metas', glosas)
+        self.assertFalse(any('familiar' in g or 'extras' in g for g in glosas))
+        self.assertEqual(d['base_indemnizacion_meses'], 3)
+        self.assertNotIn('aviso_base_indemnizacion', d)
+
+    def test_sin_liquidaciones_usa_el_contrato_y_avisa(self, *_):
+        d = self._simular().data['detalle']
+        self.assertEqual(d['base_indemnizacion'], 800_000 + 200_000)
+        self.assertIn('Sin liquidaciones', d['aviso_base_indemnizacion'])
+
+
 class GratificacionAnualFiniquitoTests(APITestCase):
     """Contrato con gratificación anual: el finiquito paga la proporcional del año (Art. 52, modalidad Art. 50)."""
 
