@@ -19,6 +19,8 @@ function jornadaCorta(t: Empleado, horas: number): string {
 
 type Filtro = 'todos' | 'alertas' | 'vacaciones';
 
+const SELECT = 'h-10 px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[13.5px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft max-w-[220px]';
+
 const COLUMNAS = 'grid-cols-[minmax(230px,2.2fr)_130px_minmax(110px,1fr)_110px_76px_96px_110px_150px]';
 
 /** Vacaciones aprobadas que incluyen el día de hoy. */
@@ -35,6 +37,8 @@ export default function Trabajadores() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [busqueda, setBusqueda] = useState('');
+  const cargo = params.get('cargo') ?? '';
+  const departamento = params.get('departamento') ?? '';
   const [expedientes, setExpedientes] = useState(false);
   const filtro = (params.get('filtro') as Filtro) || 'todos';
   const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2);
@@ -44,10 +48,24 @@ export default function Trabajadores() {
   const conAlertas = trabajadores.filter((t) => (t.contrato_activo?.avisos_jornada?.length ?? 0) > 0 || !t.contrato_activo);
   const conteo = { todos: trabajadores.length, alertas: conAlertas.length, vacaciones: enVacaciones.size };
 
+  // Opciones de los filtros: los valores que existen en la empresa, sin repetir.
+  const opcionesDe = (valores: (string | null)[]) =>
+    [...new Map(valores.filter((v): v is string => Boolean(v?.trim())).map((v) => [v.trim().toLowerCase(), v.trim()])).entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  const cargos = opcionesDe(trabajadores.map((t) => t.cargo));
+  const departamentos = opcionesDe(trabajadores.map((t) => t.departamento));
+  const filtrar = (clave: 'cargo' | 'departamento', valor: string) => {
+    const siguiente = new URLSearchParams(params);
+    if (valor) siguiente.set(clave, valor); else siguiente.delete(clave);
+    setParams(siguiente, { replace: true });
+  };
+
   const texto = busqueda.trim().toLowerCase();
   const rutBuscado = texto.replace(/[^0-9k]/g, '');
   const lista = trabajadores
     .filter((t) => filtro === 'todos' || (filtro === 'alertas' ? conAlertas.includes(t) : enVacaciones.has(t.id)))
+    .filter((t) => !cargo || (t.cargo ?? '').trim().toLowerCase() === cargo)
+    .filter((t) => !departamento || (t.departamento ?? '').trim().toLowerCase() === departamento)
     .filter((t) => !texto
       || `${t.nombres} ${t.apellido_paterno} ${t.apellido_materno ?? ''} ${t.cargo}`.toLowerCase().includes(texto)
       || (rutBuscado.length >= 3 && t.rut.replace(/[^0-9kK]/g, '').toLowerCase().includes(rutBuscado)))
@@ -107,12 +125,28 @@ export default function Trabajadores() {
             aria-label="Buscar trabajador" className="flex-1 min-w-0 border-0 outline-none bg-transparent text-fg text-[14px] placeholder:text-fg-3" />
         </label>
         <SegmentedControl etiqueta="Filtrar trabajadores" valor={filtro} className="overflow-x-auto"
-          onChange={(v) => setParams(v === 'todos' ? {} : { filtro: v }, { replace: true })}
+          onChange={(v) => {
+            const siguiente = new URLSearchParams(params);
+            if (v === 'todos') siguiente.delete('filtro'); else siguiente.set('filtro', v);
+            setParams(siguiente, { replace: true });
+          }}
           opciones={[
             { valor: 'todos', etiqueta: <>Todos <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.todos}</span></> },
             { valor: 'alertas', etiqueta: <>Con alertas <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.alertas}</span></> },
             { valor: 'vacaciones', etiqueta: <>De vacaciones <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.vacaciones}</span></> },
           ]} />
+        {cargos.length > 1 && (
+          <select aria-label="Filtrar por cargo" value={cargo} onChange={(e) => filtrar('cargo', e.target.value)} className={SELECT}>
+            <option value="">Todos los cargos</option>
+            {cargos.map(([v, t]) => <option key={v} value={v}>{capitalizar(t)}</option>)}
+          </select>
+        )}
+        {departamentos.length > 0 && (
+          <select aria-label="Filtrar por departamento" value={departamento} onChange={(e) => filtrar('departamento', e.target.value)} className={SELECT}>
+            <option value="">Todos los departamentos</option>
+            {departamentos.map(([v, t]) => <option key={v} value={v}>{capitalizar(t)}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Escritorio y tablet: tabla */}

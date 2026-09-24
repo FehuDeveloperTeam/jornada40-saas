@@ -78,6 +78,19 @@ class ContratoSerializer(serializers.ModelSerializer):
         return avisos_jornada(obj.tipo_jornada, obj.horas_semanales, obj.distribucion_horario,
                               sueldo_base=obj.sueldo_base, ingreso_minimo=ingreso_minimo_vigente())
 
+    def to_representation(self, obj):
+        datos = super().to_representation(obj)
+        # El contrato guarda cada comisión por concepto; se agrega el nombre
+        # para mostrarla (p. ej. al precargarla en una liquidación nueva).
+        config = datos.get('comisiones_config') or []
+        ids = [c.get('concepto') for c in config if isinstance(c, dict) and c.get('concepto')]
+        if ids:
+            nombres = dict(ConceptoRemuneracion.objects.filter(id__in=ids).values_list('id', 'nombre'))
+            datos['comisiones_config'] = [
+                {**c, 'glosa': c.get('glosa') or nombres.get(c.get('concepto'), '')} if isinstance(c, dict) else c
+                for c in config]
+        return datos
+
     def get_tiene_contrato_pdf(self, obj):
         return bool(obj.archivo_contrato)
 

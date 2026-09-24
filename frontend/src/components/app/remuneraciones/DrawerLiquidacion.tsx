@@ -36,6 +36,17 @@ function itemsDesde(liq: Liquidacion | undefined): ItemForm[] {
   }));
 }
 
+/**
+ * Liquidación nueva: parte con las comisiones pactadas en el contrato, a la
+ * espera del monto vendido del mes. El porcentaje lo aplica el backend.
+ */
+function comisionesDelContrato(empleado: Empleado): ItemForm[] {
+  return (empleado.contrato_activo?.comisiones_config ?? []).map((c, n) => ({
+    clave: n + 1, concepto: c.concepto ?? null, glosa: c.glosa || 'Comisión', naturaleza: 'COMISION' as TipoConcepto,
+    valor: '', horas: '', recargo: '50', montoVendido: '',
+  }));
+}
+
 function aEnviar(i: ItemForm): ItemEnviado {
   const base = { concepto: i.concepto, glosa: i.glosa, naturaleza: i.naturaleza };
   if (i.naturaleza === 'HORA_EXTRA') return { ...base, horas: Number(i.horas.replace(',', '.')) || 0, recargo: Number(i.recargo) || 50 };
@@ -57,7 +68,7 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
   const [licencia, setLicencia] = useState(String(existente?.dias_licencia ?? 0));
   const [ausencias, setAusencias] = useState(String(existente?.dias_ausencia ?? 0));
   const [noContratados, setNoContratados] = useState(String(existente?.dias_no_contratados ?? 0));
-  const [items, setItems] = useState<ItemForm[]>(() => itemsDesde(existente));
+  const [items, setItems] = useState<ItemForm[]>(() => (existente ? itemsDesde(existente) : comisionesDelContrato(empleado)));
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 

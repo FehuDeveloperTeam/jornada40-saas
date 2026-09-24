@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
 import { rutaLiquidacion } from '../../../hooks/usePanel';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../../types';
-import { clp, fechaCL, nombreMes, periodo } from '../../../utils/formato';
+import { clp, decimalCL, fechaCL, nombreMes, periodo } from '../../../utils/formato';
 import { BotonEnlace, ChipFirma, Seccion } from './comun';
 import { firmaDe } from './utiles';
 
@@ -18,6 +18,17 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
   const ultimas6 = ordenadas.slice(0, 6).reverse();
   const tope = Math.max(1, ...ultimas6.map((l) => l.total_haberes));
   const promedio = ultimas6.length ? ultimas6.reduce((s, l) => s + l.sueldo_liquido, 0) / ultimas6.length : 0;
+  // Tendencia: variación del líquido contra el mes anterior y contra el primero
+  // de la ventana, y los cambios de sueldo base (congelado en cada liquidación).
+  const variacion = (actual: number, antes: number) => (antes > 0 ? ((actual - antes) / antes) * 100 : null);
+  const [ultima, anterior] = ordenadas;
+  const vsAnterior = ultima && anterior ? variacion(ultima.sueldo_liquido, anterior.sueldo_liquido) : null;
+  const vsInicio = ultimas6.length > 2 ? variacion(ultimas6[ultimas6.length - 1].sueldo_liquido, ultimas6[0].sueldo_liquido) : null;
+  const cambiosBase = [...ordenadas].reverse().flatMap((l, n, xs) => {
+    const previa = xs[n - 1];
+    return previa && previa.sueldo_base_contrato > 0 && l.sueldo_base_contrato > 0 && l.sueldo_base_contrato !== previa.sueldo_base_contrato
+      ? [{ id: l.id, periodo: periodo(l.mes, l.anio), desde: previa.sueldo_base_contrato, hasta: l.sueldo_base_contrato }] : [];
+  }).reverse().slice(0, 3);
 
   const pdf = async (l: Liquidacion) => {
     const error = await descargar(`/liquidaciones/${l.id}/generar_pdf/`,
@@ -58,6 +69,18 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
           <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-brand-soft" />Total haberes</span>
           <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-brand" />Líquido</span>
         </div>
+        {(vsAnterior !== null || vsInicio !== null || cambiosBase.length > 0) && (
+          <div className="flex flex-col gap-1.5 px-[18px] pb-4 pt-3 border-t border-line text-[12.5px] text-fg-2">
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {vsAnterior !== null && <Tendencia etiqueta="Líquido vs. mes anterior" valor={vsAnterior} />}
+              {vsInicio !== null && <Tendencia etiqueta={`Líquido en ${ultimas6.length} meses`} valor={vsInicio} />}
+            </div>
+            {cambiosBase.map((c) => (
+              <span key={c.id}>Sueldo base: {clp(c.desde)} → <b className="font-semibold text-fg j40-num">{clp(c.hasta)}</b> desde {c.periodo}
+                {' '}({Math.round(((c.hasta - c.desde) / c.desde) * 1000) / 10 > 0 ? '+' : ''}{decimalCL(((c.hasta - c.desde) / c.desde) * 100, 1)} %)</span>
+            ))}
+          </div>
+        )}
       </Seccion>
 
       <Seccion titulo="Liquidaciones emitidas"
@@ -87,5 +110,17 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
         </div>
       </Seccion>
     </div>
+  );
+}
+
+function Tendencia({ etiqueta, valor }: { etiqueta: string; valor: number }) {
+  const Icono = valor < 0 ? TrendingDown : TrendingUp;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {etiqueta}:
+      <b className={`inline-flex items-center gap-1 font-semibold j40-num ${valor < 0 ? 'text-danger' : 'text-ok'}`}>
+        <Icono className="size-3.5" strokeWidth={2.2} aria-hidden />{valor > 0 ? '+' : ''}{decimalCL(valor, 1)} %
+      </b>
+    </span>
   );
 }
