@@ -2491,3 +2491,61 @@ class CierreBackendTests(APITestCase):
                                                   'estado': 'APROBADO'}, format='json')
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(r.data['dias_habiles'], 5)
+
+
+@patch('core.views.obtener_utm', return_value=71721.0)
+@patch('core.views.obtener_uf', return_value=41057.20)
+class GratificacionAnualFiniquitoTests(APITestCase):
+    """Contrato con gratificación anual: el finiquito paga la proporcional del año (Art. 52, modalidad Art. 50)."""
+
+    def setUp(self):
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('grat_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        self.emp.fecha_ingreso = datetime.date(2019, 3, 1); self.emp.afp = 'HABITAT'; self.emp.sistema_salud = 'FONASA'
+        self.emp.save()
+        Contrato.objects.filter(empleado=self.emp).delete()
+        Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', fecha_inicio='2019-03-01',
+                                sueldo_base=1_000_000, gratificacion_legal='ANUAL')
+
+    def _simular(self):
+        return self.client.post('/api/finiquitos/simular/', {
+            'empleado': self.emp.id, 'fecha_termino': '2026-09-15', 'dias_trabajados_ultimo_mes': 15,
+            'causal_articulo': '159_2'}, format='json')
+
+    def test_proporcional_con_tope(self, *_):
+        r = self._simular()
+        self.assertEqual(r.status_code, 200, r.data)
+        # Devengado: 8 × 1.000.000 + 500.000 = 8.500.000 → 25 % = 2.125.000; tope 4,75 × 553.553 × 8,5 / 12 = 1.862.475
+        self.assertEqual(r.data['detalle']['gratificacion_devengado_anio'], 8_500_000)
+        self.assertEqual(r.data['gratificacion_proporcional'], 1_862_475)
+        self.assertEqual(r.data['detalle']['gratificacion_modalidad'], 'ANUAL')
+        self.assertIn('Art. 47', r.data['detalle']['aviso_gratificacion'])
+
+    def test_impuesto_distribuido_no_en_un_solo_mes(self, *_):
+        from core.indicadores import calcular_impuesto_unico
+        r = self._simular()
+        grat = r.data['gratificacion_proporcional']
+        # Todo en el mes del término tributaría mucho más que repartido en los 9 meses devengados.
+        de_golpe = calcular_impuesto_unico((500_000 + grat) * 0.82, 71721.0)
+        self.assertLess(r.data['detalle']['impuesto_unico'], de_golpe)
+        self.assertGreater(r.data['detalle']['afp'], 0)
+
+    def test_usa_liquidaciones_del_anio(self, *_):
+        for mes in (1, 2):
+            Liquidacion.objects.create(empleado=self.emp, mes=mes, anio=2026, total_imponible=1_200_000, gratificacion=0,
+                                       sueldo_base=1_000_000, total_haberes=1_200_000, sueldo_liquido=1)
+        r = self._simular()
+        self.assertEqual(r.data['detalle']['gratificacion_devengado_anio'], 8_500_000 + 2 * 200_000)
+
+    def test_mensual_sin_cambios(self, *_):
+        Contrato.objects.filter(empleado=self.emp).update(gratificacion_legal='MENSUAL')
+        r = self._simular()
+        self.assertEqual(r.data['gratificacion_proporcional'], 125_000)   # 25 % de 500.000
+        self.assertNotIn('aviso_gratificacion', r.data['detalle'])
+
+
+class PlanesBaseMigracionTests(APITestCase):
+    def test_planes_base_existen(self):
+        self.assertEqual(sorted(Plan.objects.filter(nombre__in=['Semilla', 'Starter', 'Pyme', 'Corporativo'])
+                                .values_list('nivel', flat=True)), [1, 2, 3, 4])

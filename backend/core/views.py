@@ -3912,6 +3912,41 @@ def _dias_corridos_de_feriado(fecha_termino, dias_habiles: float) -> float:
     return corridos + fraccion
 
 
+def _gratificacion_anual_proporcional(empleado, sueldo_base, fecha_termino, sueldo_ultimo_mes, parametros):
+    """Gratificación proporcional del año en que termina un contrato con gratificación anual (Art. 52).
+
+    Se calcula con la modalidad del Art. 50: 25 % de las remuneraciones
+    devengadas en el año calendario hasta el término, con tope de 4,75
+    ingresos mínimos mensuales proporcional a los meses trabajados. Si la
+    empresa paga por utilidades (Art. 47), el monto debe ajustarse: se avisa.
+
+    Devuelve el monto y el detalle por mes (base imponible de cada mes), que
+    sirve para distribuir cotizaciones e impuesto en los meses devengados.
+    """
+    inicio = datetime.date(fecha_termino.year, 1, 1)
+    desde = max(inicio, empleado.fecha_ingreso) if empleado.fecha_ingreso else inicio
+    if desde > fecha_termino:
+        return 0, [], 0, 0.0, 0
+    liquidaciones = {l.mes: l for l in Liquidacion.objects.filter(
+        empleado=empleado, anio=fecha_termino.year, mes__gte=desde.month, mes__lt=fecha_termino.month)}
+    meses = []
+    for mes in range(desde.month, fecha_termino.month):
+        liq = liquidaciones.get(mes)
+        if liq:
+            base = int(liq.total_imponible or 0) - int(liq.gratificacion or 0)
+        elif mes == desde.month and desde.day > 1:
+            base = math.floor(sueldo_base / 30 * (31 - desde.day))  # ingreso a mitad de mes
+        else:
+            base = sueldo_base
+        meses.append((mes, max(base, 0)))
+    meses.append((fecha_termino.month, sueldo_ultimo_mes))
+    devengado = sum(b for _, b in meses)
+    tiempo = relativedelta(fecha_termino + datetime.timedelta(days=1), desde)
+    meses_trabajados = min(12.0, tiempo.years * 12 + tiempo.months + tiempo.days / 30)
+    tope = math.floor(parametros['factor_gratificacion'] * parametros['ingreso_minimo_mensual'] * meses_trabajados / 12)
+    return min(math.floor(devengado * 0.25), tope), meses, devengado, round(meses_trabajados, 2), tope
+
+
 def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, causal_articulo,
                         aviso_previo_dado=False, otros_haberes=0, otros_descuentos=0):
     """Montos del finiquito y su detalle. Todo lo legal se calcula aquí.
@@ -3932,8 +3967,12 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     # ── Remuneración del último mes ──────────────────────────────────────
     dias = max(0, min(30, int(dias_trabajados_ultimo_mes)))
     sueldo_proporcional = math.floor((sueldo_base / 30) * dias)
-    gratificacion = (min(math.floor(sueldo_proporcional * 0.25), tope_gratificacion)
-                     if gratificacion_mensual_pactada else 0)
+    grat_anual = None
+    if gratificacion_mensual_pactada:
+        gratificacion = min(math.floor(sueldo_proporcional * 0.25), tope_gratificacion)
+    else:
+        grat_anual = _gratificacion_anual_proporcional(empleado, sueldo_base, fecha_termino, sueldo_proporcional, parametros)
+        gratificacion = grat_anual[0]
 
     # ── Feriado: saldo de años cumplidos + proporcional del año en curso ──
     saldo = calcular_saldo_vacaciones(empleado, hasta=fecha_termino)['dias_disponibles']
@@ -3956,11 +3995,15 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     sustitutiva = base_indemnizacion if (con_indemnizacion and not aviso_previo_dado) else 0
 
     # ── Descuentos legales sobre la remuneración del último mes ───────────
-    imponible = sueldo_proporcional + gratificacion
-    renta_afp = min(imponible, _tope_en_pesos(parametros['tope_imponible_afp_uf'], valor_uf))
-    renta_afc = min(imponible, _tope_en_pesos(parametros['tope_imponible_afc_uf'], valor_uf))
+    # La gratificación anual no entra aquí: se distribuye más abajo.
+    imponible = sueldo_proporcional + (0 if grat_anual else gratificacion)
+    tope_afp = _tope_en_pesos(parametros['tope_imponible_afp_uf'], valor_uf)
+    tope_afc = _tope_en_pesos(parametros['tope_imponible_afc_uf'], valor_uf)
+    renta_afp = min(imponible, tope_afp)
+    renta_afc = min(imponible, tope_afc)
     nombre_afp = (empleado.afp or 'MODELO').upper()
-    afp_monto = math.floor(renta_afp * _tasas_afp(fecha_termino.month, fecha_termino.year).get(nombre_afp, 0.11))
+    tasa_afp = _tasas_afp(fecha_termino.month, fecha_termino.year).get(nombre_afp, 0.11)
+    afp_monto = math.floor(renta_afp * tasa_afp)
     salud_nombre = (empleado.sistema_salud or 'FONASA').upper()
     salud_monto = math.floor(renta_afp * parametros['tasa_salud'])
     if salud_nombre == 'ISAPRE' and empleado.plan_isapre_uf and float(empleado.plan_isapre_uf) > 0:
@@ -3968,7 +4011,25 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     anios_servicio = _anios_de_servicio(empleado, contrato, fecha_termino.month, fecha_termino.year)
     tasa_afc, _ = _tasas_afc(parametros, tipo_contrato, anios_servicio)
     afc_monto = math.floor(renta_afc * tasa_afc)
-    impuesto = calcular_impuesto_unico(max(imponible - afp_monto - salud_monto - afc_monto, 0), obtener_utm())
+    valor_utm = obtener_utm()
+    impuesto = calcular_impuesto_unico(max(imponible - afp_monto - salud_monto - afc_monto, 0), valor_utm)
+
+    if grat_anual and gratificacion:
+        # DL 3.500 Art. 28 y LIR Art. 46: una gratificación anual cotiza y
+        # tributa distribuida en los meses en que se devengó, con el tope y
+        # la tabla de cada mes; no toda de golpe en el mes del finiquito.
+        _, meses_grat, _, _, _ = grat_anual
+        cuota = gratificacion / len(meses_grat)
+        tasa_trab = tasa_afp + parametros['tasa_salud'] + tasa_afc
+        for _, base_mes in meses_grat:
+            cot_afp = min(cuota, max(tope_afp - base_mes, 0))
+            cot_afc = min(cuota, max(tope_afc - base_mes, 0))
+            afp_monto += math.floor(cot_afp * tasa_afp)
+            salud_monto += math.floor(cot_afp * parametros['tasa_salud'])
+            afc_monto += math.floor(cot_afc * tasa_afc)
+            tributable = base_mes * (1 - tasa_trab)
+            impuesto += max(calcular_impuesto_unico(tributable + cuota * (1 - tasa_trab), valor_utm)
+                            - calcular_impuesto_unico(tributable, valor_utm), 0)
     descuentos_prevision = afp_monto + salud_monto + afc_monto + impuesto
 
     otros_haberes = max(int(otros_haberes or 0), 0)
@@ -3997,6 +4058,14 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
         'tope_base_indemnizacion': tope_base,
         'afp_nombre': nombre_afp, 'afp': afp_monto, 'salud_nombre': salud_nombre, 'salud': salud_monto,
         'seguro_cesantia': afc_monto, 'impuesto_unico': impuesto,
+        'gratificacion_modalidad': 'ANUAL' if grat_anual else 'MENSUAL',
+        **({
+            'gratificacion_devengado_anio': grat_anual[2], 'gratificacion_meses': grat_anual[3],
+            'gratificacion_tope': grat_anual[4],
+            'aviso_gratificacion': ('Gratificación anual calculada con el Art. 50 (25 % de lo devengado en el año, '
+                                    'tope 4,75 ingresos mínimos proporcional). Si la empresa paga por utilidades '
+                                    '(Art. 47), el monto que corresponde puede ser distinto.'),
+        } if grat_anual else {}),
     }
     return montos, detalle
 

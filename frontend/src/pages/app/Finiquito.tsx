@@ -327,7 +327,15 @@ function Calculo({ s }: { s: SimulacionFiniquito }) {
     <>
       <Grupo titulo="Haberes">
         <Linea t={`Sueldo proporcional (${s.dias_trabajados_ultimo_mes} días)`} v={d.sueldo_proporcional} />
-        {s.gratificacion_proporcional > 0 && <Linea t="Gratificación proporcional" v={s.gratificacion_proporcional} />}
+        {s.gratificacion_proporcional > 0 && (
+          <Linea t={d.gratificacion_modalidad === 'ANUAL' ? 'Gratificación anual proporcional' : 'Gratificación proporcional'} v={s.gratificacion_proporcional}
+            nota={d.gratificacion_modalidad === 'ANUAL' && d.gratificacion_devengado_anio != null
+              ? `25 % de ${clp(d.gratificacion_devengado_anio)} devengados en el año, tope ${clp(d.gratificacion_tope ?? 0)} (${decimalCL(d.gratificacion_meses ?? 0, 1)} meses)`
+              : undefined} />
+        )}
+        {d.aviso_gratificacion && (
+          <p className="flex gap-1.5 text-[11.5px] text-warn"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{d.aviso_gratificacion}</p>
+        )}
         <Linea t="Feriado pendiente y proporcional" v={s.feriado_proporcional}
           nota={`${decimalCL(d.feriado_dias_habiles, 2)} días hábiles (${decimalCL(d.feriado_dias_saldo, 0)} de saldo + ${decimalCL(d.feriado_dias_proporcionales, 2)} proporcionales) → ${decimalCL(d.feriado_dias_corridos, 2)} corridos`} />
         {d.con_indemnizacion && (

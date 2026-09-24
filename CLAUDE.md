@@ -37,8 +37,7 @@ jornada40-saas/
 │   ├── manage.py
 │   ├── requirements.txt
 │   ├── runtime.txt        # Python 3.11 (referencia; manda el Dockerfile)
-│   ├── Dockerfile         # Lo que usa Railway para construir y arrancar
-│   └── Procfile           # No lo usa Railway (ver Deployment)
+│   └── Dockerfile         # Lo que usa Railway para construir y arrancar
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/         # One file per route (page-based architecture)
@@ -160,7 +159,7 @@ python manage.py makemigrations       # Generate new migrations after model chan
 python manage.py createsuperuser      # Create a Django admin user
 python manage.py collectstatic        # Gather static files (needed in production)
 python manage.py runserver            # Start dev server
-gunicorn config.wsgi:application      # Production server (Railway uses Procfile)
+gunicorn config.wsgi:application      # Production server (Railway starts it from the Dockerfile)
 ```
 
 ---
@@ -333,7 +332,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 ### Backend (Railway)
 
 - **Build/start**: Railway uses `backend/Dockerfile` (Python 3.11): `migrate`, `createsuperuser --noinput || true`, then `gunicorn --workers 2 --threads 4 --timeout 60`. Deploys automatically on push to `main`.
-- `backend/Procfile` and the root `nixpacks.toml` are **not used** by Railway. Note: the plan seeding script lives only in the Procfile, so it does not run in production.
+- Base plans (Semilla, Starter, Pyme, Corporativo) are created by migration `0048_planes_base` only if missing; prices and limits of existing plans are managed in the Django admin.
 - **Production detection**: Presence of `RAILWAY_ENVIRONMENT_NAME` env var flips `IS_PRODUCTION = True`.
 - **Static files**: Served via WhiteNoise middleware.
 - **Internal domain**: `https://jornada40-saas-production.up.railway.app` (Railway, no expuesto al público)

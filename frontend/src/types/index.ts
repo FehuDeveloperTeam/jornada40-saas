@@ -391,6 +391,12 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
         salud: number;
         seguro_cesantia: number;
         impuesto_unico: number;
+        gratificacion_modalidad: 'MENSUAL' | 'ANUAL';
+        /** Solo con gratificación anual (Art. 52, modalidad Art. 50). */
+        gratificacion_devengado_anio?: number;
+        gratificacion_meses?: number;
+        gratificacion_tope?: number;
+        aviso_gratificacion?: string;
     };
 }
 
