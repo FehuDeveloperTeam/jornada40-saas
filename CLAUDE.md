@@ -342,10 +342,11 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ### Frontend (Vercel)
 
-- **`vercel.json`**: Configura SPA rewrites y proxy `/api/*` → Railway backend.
+- **`vercel.json`**: solo headers de seguridad y el rewrite SPA (todo → `index.html`). **No hay proxy `/api`**: `jornada40.cl/api/...` devuelve la app de React.
 - **Domain**: `https://jornada40.cl`
 - **Build command**: `npm run build` (runs TypeScript check then Vite bundle).
-- **Proxy**: Vercel reescribe `jornada40.cl/api/*` al backend Railway; el frontend solo usa URLs relativas (`/api/...`).
+- **API**: el frontend llama al backend en su propio dominio (`https://api.jornada40.cl`, vía `VITE_API_URL`) con cookies cross-site (`SameSite=None`). Para abrir un endpoint del backend en el navegador, usar ese dominio.
+- **Static files**: `collectstatic` corre al construir la imagen (sin variables de Railway), así que el almacenamiento de estáticos va sin manifiesto (`CompressedStaticFilesStorage`); con manifiesto, el admin y la API navegable caían en 500.
 
 ---
 

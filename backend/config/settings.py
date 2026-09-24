@@ -104,7 +104,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# El almacenamiento de estáticos se define en STORAGES (más abajo). Va sin
+# manifiesto: collectstatic corre al construir la imagen, sin las variables
+# de Railway, y un manifiesto ausente hacía caer en 500 toda página HTML
+# (admin y API navegable).
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -298,7 +301,7 @@ if IS_DEPLOYED and B2_KEY_ID:
             },
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
     MEDIA_URL = config('B2_PUBLIC_URL', default='')
