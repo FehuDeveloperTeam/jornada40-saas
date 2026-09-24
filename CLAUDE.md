@@ -380,13 +380,14 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 ## Testing
 
 - **Backend:** `backend/core/tests.py` (Django `APITestCase`, ~200 tests covering auth, tenant isolation, plan limits, payroll, finiquito, signing). Run with `cd backend && python manage.py test core`.
-- **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass. End-to-end checks have been run manually with Playwright.
+- **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
+- **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.
 
 ---
 
 ## CI/CD
 
-No GitHub Actions or other CI pipelines are configured. Deployments are triggered manually via platform dashboards (Railway for backend, Vercel for frontend).
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request: backend (`makemigrations --check`, `manage.py test core`), frontend (`lint`, `build`) and, if both pass, the Playwright e2e suite. Deploys are separate: Railway auto-deploys `main` (backend), Vercel deploys the frontend.
 
 ---
 

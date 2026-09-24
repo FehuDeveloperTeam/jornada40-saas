@@ -12,3 +12,9 @@ dist/
 .vscode/
 # Archivos generados en local (PDF de liquidaciones, anexos, etc.)
 backend/media/
+
+# Pruebas de navegador (frontend/e2e): base y archivos generados
+backend/e2e.sqlite3*
+backend/e2e-archivos/
+frontend/test-results/
+frontend/playwright-report/
