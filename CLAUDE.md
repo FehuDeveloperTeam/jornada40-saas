@@ -338,6 +338,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - Base plans (Semilla, Starter, Pyme, Corporativo) are created by migration `0048_planes_base` only if missing; prices and limits of existing plans are managed in the Django admin.
 - **Production detection**: Presence of `RAILWAY_ENVIRONMENT_NAME` env var flips `IS_PRODUCTION = True`.
 - **Static files**: Served via WhiteNoise middleware.
+- **IP del visitante**: `api.jornada40.cl` pasa por Cloudflare (nube naranja) y luego por Railway. `REMOTE_ADDR` es interna (100.64.x) y `X-Forwarded-For` trae la IP de Cloudflare; Railway escribe `X-Real-IP` con la IP real y descarta la que mande el cliente. `core.middleware.IpRealMiddleware` la copia a `REMOTE_ADDR` y DRF usa `NUM_PROXIES = 0`: el límite de intentos y la auditoría de firma usan esa IP. `GET /api/diagnostico/red/` (solo con `DIAGNOSTICO_RED=1`) muestra los encabezados si hay que revisarlo.
 - **Internal domain**: `https://jornada40-saas-production.up.railway.app` (Railway, no expuesto al público)
 
 ### Frontend (Vercel)

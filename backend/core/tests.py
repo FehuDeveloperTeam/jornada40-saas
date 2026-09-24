@@ -1871,6 +1871,32 @@ class HorasExtraEnServidorTests(APITestCase):
         self.assertEqual(self.empleado.horas_laborales, 40)
 
 
+class IpRealTests(APITestCase):
+    """En Railway la IP del visitante sale de X-Real-IP, no de X-Forwarded-For (que trae la de Cloudflare)."""
+
+    def _ident(self, **encabezados):
+        from django.test import RequestFactory
+        from rest_framework.request import Request
+        from rest_framework.throttling import AnonRateThrottle
+        from core.middleware import IpRealMiddleware
+        req = RequestFactory().get('/api/planes/', REMOTE_ADDR='100.64.0.1', **encabezados)
+        IpRealMiddleware(lambda r: None)(req)
+        return AnonRateThrottle().get_ident(Request(req)), req.META['REMOTE_ADDR']
+
+    def test_en_railway_usa_x_real_ip_y_no_se_esquiva_con_x_forwarded_for(self):
+        with self.settings(IS_DEPLOYED=True):
+            a = self._ident(HTTP_X_REAL_IP='186.40.197.30', HTTP_X_FORWARDED_FOR='172.68.14.252, 152.233.76.11')
+            b = self._ident(HTTP_X_REAL_IP='186.40.197.30', HTTP_X_FORWARDED_FOR='9.9.9.9, 172.68.14.252, 152.233.76.11')
+        self.assertEqual(a, ('186.40.197.30', '186.40.197.30'))
+        self.assertEqual(b, a)
+
+    def test_valor_invalido_o_local_no_toca_remote_addr(self):
+        with self.settings(IS_DEPLOYED=True):
+            self.assertEqual(self._ident(HTTP_X_REAL_IP='no-es-ip')[1], '100.64.0.1')
+        with self.settings(IS_DEPLOYED=False):
+            self.assertEqual(self._ident(HTTP_X_REAL_IP='186.40.197.30')[1], '100.64.0.1')
+
+
 class DiagnosticoRedTests(APITestCase):
     """El diagnóstico de red está apagado salvo que se encienda a propósito."""
 

@@ -5462,9 +5462,9 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
 # ==========================================
 
 def _ip_desde_request(request) -> str:
-    """Extrae la IP real del firmante considerando proxies (Railway/Vercel)."""
-    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    return forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR', '')
+    """IP real del firmante. IpRealMiddleware ya la dejó en REMOTE_ADDR; el
+    primer valor de X-Forwarded-For era la IP de Cloudflare, no la del firmante."""
+    return request.META.get('REMOTE_ADDR', '')
 
 
 def _enviar_emails_firma_completada(

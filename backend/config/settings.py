@@ -49,6 +49,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'core.middleware.IpRealMiddleware',  # primero: todo lo demás ve la IP real
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -122,6 +123,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # La IP del visitante ya viene en REMOTE_ADDR (core.middleware.IpRealMiddleware):
+    # X-Forwarded-For no se usa porque trae la IP de Cloudflare.
+    'NUM_PROXIES': 0,
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
