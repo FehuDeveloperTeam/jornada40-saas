@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import client from '../../api/client';
+import { irAPagar } from '../../api/pagos';
+import type { Checkout as RespuestaCheckout } from '../../api/pagos';
 import {
   AlertaError, Button, CampoRut, Casilla, Field, Input, InputContrasena, MedidorContrasena, TarjetaOpcion,
 } from '../../components/j40';
@@ -136,10 +138,10 @@ export default function Registro() {
       // no crea ninguna: esta consulta la crea antes de ir a pagar. Sin ella,
       // el pago entraba pero el plan no se activaba.
       await client.get('/clientes/mi_suscripcion/');
-      const { data } = await client.post<{ url: string }>('/pagos/crear-checkout/', {
+      const { data } = await client.post<RespuestaCheckout>('/pagos/crear-checkout/', {
         plan_id: planElegido.id, ciclo: planElegido.precio_anual ? ciclo : 'mensual',
       });
-      window.location.href = data.url;
+      irAPagar(data);  // el pago se confirma por webhook
     } catch (err) {
       const detalle = isAxiosError(err) ? (err.response?.data as { error?: string } | undefined)?.error : undefined;
       setSinPago(detalle ?? 'El servicio de pago no respondió.');

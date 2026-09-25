@@ -117,11 +117,12 @@ class WebhookFormatoReveniuTests(APITestCase):
         s = self._suscripcion()
         self.assertEqual((s.estado, self.cliente.plan.nivel, self.cliente.plan.precio), ('CANCELED', 1, 0))
 
-    def test_desactivar_la_suscripcion_anterior_no_baja_el_plan_nuevo(self):
+    @patch('core.reveniu.requests.request', side_effect=__import__('requests').ConnectionError('sin red'))
+    def test_desactivar_la_suscripcion_anterior_no_baja_el_plan_nuevo(self, _api):
         from django.core import mail
         self._avisar('subscription_activated', subscription_id=7, subscription_external_id=f'{self.cliente.id}_{self.starter.id}')
         self._avisar('subscription_activated', subscription_id=8, subscription_external_id=f'{self.cliente.id}_{self.pyme.id}')
-        # El cambio de plan avisa para cancelar la anterior en Reveniu.
+        # La API de Reveniu no responde: se avisa por correo para cancelar la anterior a mano.
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('7', mail.outbox[0].body)
         self._avisar('subscription_deactivated', subscription_id=7, subscription_external_id=None)
@@ -317,7 +318,8 @@ class CambioDeCicloTests(APITestCase):
         with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
             return self.client.post(self.URL, {'event': evento, 'data': data}, format='json', HTTP_REVENIU_SECRET_KEY='secret-real')
 
-    def test_referencia_con_ciclo_anual(self):
+    @patch('core.reveniu.requests.request', side_effect=__import__('requests').ConnectionError('sin red'))
+    def test_referencia_con_ciclo_anual(self, _api):
         from django.core import mail
         from ..models import Suscripcion
         self._avisar('subscription_activated', subscription_id=11,
@@ -346,3 +348,78 @@ class CambioDeCicloTests(APITestCase):
         with patch('core.views.suscripciones.config', side_effect=config):
             r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
         self.assertIn(f'custom_reference={self.cliente.id}_{self.pyme.id}_anual', r.data['url'])
+
+
+
+class _RespuestaFalsa:
+    def __init__(self, datos, estado=200):
+        import json
+        self.status_code, self.content, self._datos = estado, json.dumps(datos).encode(), datos
+        self.text = self.content.decode()
+
+    def json(self):
+        return self._datos
+
+
+class ReveniuApiTests(APITestCase):
+    """Checkout por API (external_id propio) y cancelación automática de la suscripción anterior."""
+    LINK = 'https://app.reveniu.com/checkout-custom-link/SLUGPYME'
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.user, self.cliente, _, _ = crear_usuario_completo('api_owner', '21.000.000-3', '76.000.555-2')
+        self.pyme = Plan.objects.get(nombre='Pyme')
+        self.llamadas = []
+
+    def _config(self, clave, default=None, **kw):
+        return {'REVENIU_LINK_PYME_ANUAL': self.LINK, 'REVENIU_WEBHOOK_SECRET': 'secret-real'}.get(clave, default)
+
+    def _api(self, metodo, url, **kw):
+        self.llamadas.append((metodo, url, kw.get('json')))
+        if url.endswith('/api/v1/plans/'):
+            return _RespuestaFalsa({'data': [{'id': 99, 'slug': 'OTRO'}, {'id': 77, 'slug': 'SLUGPYME'}]})
+        if url.endswith('/api/v1/subscriptions/'):
+            return _RespuestaFalsa({'id': 555, 'completion_url': 'https://webpay.example/inscripcion', 'security_token': 'tok'})
+        if url.endswith('/disablerenew/'):
+            return _RespuestaFalsa({'result': True})
+        return _RespuestaFalsa({}, 404)
+
+    def test_checkout_por_api_con_external_id(self):
+        from ..models import IntentoPago
+        self.client.force_authenticate(self.user)
+        with patch('core.reveniu.config', side_effect=self._config), \
+             patch('core.views.suscripciones.config', side_effect=self._config), \
+             patch('core.reveniu.requests.request', side_effect=self._api):
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual((r.data['completion_url'], r.data['security_token']), ('https://webpay.example/inscripcion', 'tok'))
+        intento = IntentoPago.objects.get()
+        self.assertEqual((intento.ciclo, intento.gateway_subscription_id, intento.plan), ('ANUAL', '555', self.pyme))
+        creacion = [c for c in self.llamadas if c[0] == 'POST'][0]
+        self.assertEqual((creacion[2]['plan_id'], creacion[2]['external_id']), (77, intento.id))
+
+    def test_sin_api_usa_el_link_de_pago(self):
+        self.client.force_authenticate(self.user)
+        with patch('core.reveniu.config', side_effect=self._config), \
+             patch('core.views.suscripciones.config', side_effect=self._config), \
+             patch('core.reveniu.requests.request', side_effect=__import__('requests').ConnectionError('sin red')):
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
+        self.assertTrue(r.data['url'].startswith(self.LINK + '?'))
+
+    def test_pago_con_external_id_se_asocia_y_cancela_la_anterior_sola(self):
+        from django.core import mail
+        from ..models import IntentoPago, Suscripcion
+        Suscripcion.objects.filter(cliente=self.cliente).update(gateway_subscription_id='10', ciclo='MENSUAL')
+        intento = IntentoPago.objects.create(cliente=self.cliente, plan=self.pyme, ciclo='ANUAL', gateway_subscription_id='555')
+        with patch('core.reveniu.config', side_effect=self._config), \
+             patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')), \
+             patch('core.reveniu.requests.request', side_effect=self._api):
+            r = self.client.post('/api/pagos/webhook/reveniu/', {'event': 'subscription_activated', 'data': {
+                'subscription_id': 555, 'subscription_external_id': intento.id}}, format='json',
+                HTTP_REVENIU_SECRET_KEY='secret-real')
+        self.assertEqual(r.status_code, 200)
+        s = Suscripcion.objects.get(cliente=self.cliente)
+        self.assertEqual((s.plan, s.ciclo, s.gateway_subscription_id), (self.pyme, 'ANUAL', '555'))
+        self.assertIn(('POST', 'https://api.reveniu.com/api/v1/subscriptions/10/disablerenew/', None), self.llamadas)
+        self.assertEqual(len(mail.outbox), 0)   # se canceló sola: no hace falta el correo

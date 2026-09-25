@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
-from ..models import Plan, Suscripcion, Cliente, EventoPasarela
+from ..models import Cliente, EventoPasarela, IntentoPago, Plan, Suscripcion
 from ..serializers import PlanSerializer
 from django.conf import settings
 from django.utils import timezone
@@ -15,6 +15,7 @@ import hmac
 import urllib.parse
 from django.core.mail import EmailMultiAlternatives
 
+from .. import reveniu
 from .base import _plan_activo, _trabajadores_vigentes, logger
 
 
@@ -111,10 +112,25 @@ def crear_checkout_reveniu(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        nombre_url = urllib.parse.quote(f"{request.user.first_name} {request.user.last_name}".strip())
-        # La referencia lleva el ciclo para saber, al llegar el pago, si pasó a anual o a mensual.
-        url_pago = f"{link_base}?email={request.user.email}&name={nombre_url}&custom_reference={cliente.id}_{plan.id}_{ciclo}"
+        email = (getattr(cliente, 'correo', '') or request.user.email or '').strip()
+        nombre = f"{getattr(cliente, 'nombres', '') or request.user.first_name} {getattr(cliente, 'apellido_paterno', '') or request.user.last_name}".strip()
 
+        # 1) Por API: la suscripción nace con nuestro external_id (el intento),
+        #    así el pago se asocia solo a la cuenta, el plan y el ciclo.
+        intento = IntentoPago.objects.create(cliente=cliente, plan=plan, ciclo=ciclo.upper())
+        try:
+            creada = reveniu.crear_suscripcion(reveniu.id_plan_desde_link(link_base), email, nombre, intento.id)
+            intento.gateway_subscription_id = str(creada['id'])
+            intento.save(update_fields=['gateway_subscription_id'])
+            return Response({'completion_url': creada['completion_url'], 'security_token': creada.get('security_token', '')},
+                            status=status.HTTP_200_OK)
+        except reveniu.ErrorReveniu:
+            logger.exception('Checkout por API de Reveniu falló; se usa el link de pago')
+
+        # 2) Respaldo: el link de pago fijo, con la referencia en la URL.
+        nombre_url = urllib.parse.quote(nombre)
+        url_pago = (f"{link_base}?email={urllib.parse.quote(email)}&name={nombre_url}"
+                    f"&custom_reference={cliente.id}_{plan.id}_{ciclo}")
         return Response({'url': url_pago}, status=status.HTTP_200_OK)
 
     except Plan.DoesNotExist:
@@ -130,8 +146,20 @@ _EVENTO_RENOVACION_CANCELADA = 'subscription_renewal_cancelled'
 _EVENTO_DESACTIVADA = 'subscription_deactivated'
 
 
+def _intento_de(valor):
+    """El IntentoPago cuyo id viaja como external_id, si la referencia es un número."""
+    try:
+        return IntentoPago.objects.select_related('cliente', 'plan').get(id=int(str(valor).strip()))
+    except (TypeError, ValueError, IntentoPago.DoesNotExist):
+        return None
+
+
 def _referencia_cliente_plan(referencia):
-    """(cliente, plan) desde una referencia "<cliente_id>_<plan_id>[_<ciclo>]", o (None, None)."""
+    """(cliente, plan) desde el external_id de un intento, o una referencia
+    "<cliente_id>_<plan_id>[_<ciclo>]" de los links de pago; si no, (None, None)."""
+    intento = _intento_de(referencia) if '_' not in str(referencia or '') else None
+    if intento:
+        return intento.cliente, intento.plan
     try:
         cliente_id, plan_id = str(referencia or '').split('_')[:2]
         return Cliente.objects.get(id=int(cliente_id)), Plan.objects.get(id=int(plan_id))
@@ -142,7 +170,13 @@ def _referencia_cliente_plan(referencia):
 def _ciclo_del_evento(evento, plan):
     """MENSUAL o ANUAL según la referencia del checkout o, si no viene, el monto pagado."""
     datos = evento.datos.get('data') if isinstance(evento.datos.get('data'), dict) else evento.datos
-    partes = str(datos.get('subscription_external_id') or datos.get('custom_reference') or '').split('_')
+    referencia = datos.get('subscription_external_id') or datos.get('custom_reference') or ''
+    intento = _intento_de(referencia) if '_' not in str(referencia) else None
+    if intento is None and evento.gateway_subscription_id:
+        intento = IntentoPago.objects.filter(gateway_subscription_id=evento.gateway_subscription_id).first()
+    if intento:
+        return intento.ciclo
+    partes = str(referencia).split('_')
     if len(partes) >= 3 and partes[2].upper() in ('MENSUAL', 'ANUAL'):
         return partes[2].upper()
     if evento.monto and plan.precio_anual:
@@ -163,6 +197,23 @@ def _avisar_pagos(asunto, cuerpo):
                                from_email=settings.DEFAULT_FROM_EMAIL, to=[destino]).send()
     except Exception:
         logger.exception('No se pudo enviar el aviso de pagos: %s', asunto)
+
+
+def _cancelar_anterior(cliente, plan, evento, id_anterior, plan_anterior):
+    """Quita la renovación a la suscripción anterior en Reveniu; si no se puede, avisa por correo."""
+    ciclo = (_ciclo_del_evento(evento, plan) or '').lower() or 'ciclo sin informar'
+    try:
+        if reveniu.desactivar_renovacion(id_anterior):
+            logger.info('Renovación desactivada en Reveniu: suscripción %s de %s', id_anterior, cliente.rut)
+            return
+        motivo = 'Reveniu no confirmó la operación.'
+    except reveniu.ErrorReveniu as e:
+        motivo = str(e)
+    _avisar_pagos(
+        f'Cancelar la suscripción anterior de {cliente.rut}',
+        f'La cuenta {cliente.rut} pagó el plan {plan.nombre} ({ciclo}) con la suscripción de Reveniu '
+        f'{evento.gateway_subscription_id}. No se pudo quitar la renovación a la anterior ({id_anterior}, plan '
+        f'{plan_anterior}) por la API ({motivo}): cancélala en Reveniu para no cobrar dos veces.')
 
 
 def aplicar_evento_pasarela(evento):
@@ -186,13 +237,11 @@ def aplicar_evento_pasarela(evento):
         if not plan:
             return False
         if suscripcion and suscripcion.gateway_subscription_id and id_pasarela and not es_la_vigente:
-            # Cambio de plan: Reveniu abrió otra suscripción y la anterior
-            # sigue cobrando hasta que alguien la cancele.
-            _avisar_pagos(
-                f'Cancelar la suscripción anterior de {cliente.rut}',
-                f'La cuenta {cliente.rut} pagó el plan {plan.nombre} ({(_ciclo_del_evento(evento, plan) or "").lower() or "ciclo sin informar"}) con la suscripción de Reveniu '
-                f'{id_pasarela}. La suscripción anterior ({suscripcion.gateway_subscription_id}, plan '
-                f'{suscripcion.plan.nombre}) sigue activa en Reveniu: cancélala allí para no cobrar dos veces.')
+            # Cambio de plan o de ciclo: Reveniu abrió otra suscripción y la
+            # anterior seguiría cobrando. Se le quita la renovación (queda
+            # activa hasta su próximo cobro, sin doble cobro); si la API
+            # falla, se avisa por correo para hacerlo a mano.
+            _cancelar_anterior(cliente, plan, evento, suscripcion.gateway_subscription_id, suscripcion.plan.nombre)
         if not suscripcion:
             # Cuentas anteriores al cambio pueden no tener suscripción: un
             # pago válido no puede perderse por eso.
@@ -262,6 +311,11 @@ def webhook_reveniu(request):
         return Response(status=status.HTTP_200_OK)
 
     cliente, plan = _referencia_cliente_plan(data.get('subscription_external_id') or data.get('custom_reference'))
+    if not cliente and id_pasarela:
+        # Suscripción creada por API: el intento guardó su id al crearla.
+        intento = IntentoPago.objects.filter(gateway_subscription_id=id_pasarela).select_related('cliente', 'plan').first()
+        if intento:
+            cliente, plan = intento.cliente, intento.plan
     if not cliente and id_pasarela:
         conocida = Suscripcion.objects.filter(gateway_subscription_id=id_pasarela).select_related('cliente').first()
         cliente = conocida.cliente if conocida else None

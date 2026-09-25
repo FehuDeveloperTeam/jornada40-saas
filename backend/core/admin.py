@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
-                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela)
+                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -107,6 +107,15 @@ class SuscripcionAdmin(admin.ModelAdmin):
     list_display = ('cliente', 'plan', 'estado', 'gateway_subscription_id', 'fecha_cancelacion')
     list_filter = ('estado', 'plan')
     search_fields = ('cliente__rut', 'gateway_subscription_id')
+
+
+@admin.register(IntentoPago)
+class IntentoPagoAdmin(admin.ModelAdmin):
+    """Checkouts iniciados: su id es el external_id que Reveniu devuelve en los webhooks."""
+    list_display = ('creado_en', 'cliente', 'plan', 'ciclo', 'gateway_subscription_id')
+    list_filter = ('ciclo', 'plan')
+    search_fields = ('cliente__rut', 'gateway_subscription_id')
+    readonly_fields = ('cliente', 'plan', 'ciclo', 'gateway_subscription_id', 'creado_en')
 
 
 @admin.register(EventoPasarela)

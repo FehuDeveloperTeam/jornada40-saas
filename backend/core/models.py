@@ -730,6 +730,25 @@ class Suscripcion(models.Model):
         return self.estado in ['ACTIVE', 'TRIAL']
 
 
+class IntentoPago(models.Model):
+    """Un checkout iniciado desde Jornada40. Su id viaja a Reveniu como
+    external_id y vuelve en cada webhook: así el pago se asocia solo a la
+    cuenta, el plan y el ciclo, sin depender de datos que escriba el cliente."""
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='intentos_pago')
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT)
+    ciclo = models.CharField(max_length=10, choices=[('MENSUAL', 'Mensual'), ('ANUAL', 'Anual')], default='MENSUAL')
+    gateway_subscription_id = models.CharField(max_length=100, blank=True, default='')
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en']
+        verbose_name = 'Intento de pago'
+        verbose_name_plural = 'Intentos de pago'
+
+    def __str__(self):
+        return f"{self.cliente.rut} · {self.plan.nombre} {self.ciclo.lower()} · {self.creado_en:%d-%m-%Y}"
+
+
 class EventoPasarela(models.Model):
     """Cada aviso recibido de la pasarela (Reveniu), tal como llegó.
 

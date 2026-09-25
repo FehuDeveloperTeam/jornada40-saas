@@ -6,6 +6,8 @@ import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { INCLUYE_POR_NIVEL, NIVEL_DESTACADO } from '../../components/sitio/contenido';
 import client from '../../api/client';
+import { irAPagar } from '../../api/pagos';
+import type { Checkout as RespuestaCheckout } from '../../api/pagos';
 import { useEmpresaActiva } from '../../hooks/usePanel';
 import { formatearPrecio, precioCiclo, usePlanes } from '../../hooks/usePlanes';
 import type { Ciclo } from '../../hooks/usePlanes';
@@ -158,8 +160,8 @@ function Checkout({ plan, ciclo, cambioDeCiclo, onCerrar }: { plan: TPlan; ciclo
     setEstado('conectando');
     setError('');
     try {
-      const { data } = await client.post<{ url: string }>('/pagos/crear-checkout/', { plan_id: plan.id, ciclo: anual ? 'anual' : 'mensual' });
-      window.location.href = data.url;  // el pago se confirma por webhook al volver
+      const { data } = await client.post<RespuestaCheckout>('/pagos/crear-checkout/', { plan_id: plan.id, ciclo: anual ? 'anual' : 'mensual' });
+      irAPagar(data);  // el pago se confirma por webhook
     } catch (err) {
       setError((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos conectar con la pasarela de pago.');
       setEstado('resumen');
