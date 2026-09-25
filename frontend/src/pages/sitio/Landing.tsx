@@ -7,7 +7,9 @@ import {
   FUNCIONES, INCLUYE_POR_NIVEL, NIVEL_DESTACADO, SEGURIDAD, hitosLey, preguntasFrecuentes,
 } from '../../components/sitio/contenido';
 import { useTheme } from '../../hooks/useTheme';
-import { formatearPrecio, textoEmpresas, textoTrabajadores, usePlanes } from '../../hooks/usePlanes';
+import { formatearPrecio, precioCiclo, textoCiclo, textoEmpresas, textoTrabajadores, usePlanes } from '../../hooks/usePlanes';
+import type { Ciclo } from '../../hooks/usePlanes';
+import { SelectorCiclo } from '../../components/sitio/SelectorCiclo';
 import { cn } from '../../utils/cn';
 import { ETAPAS_LEY_40, diasHasta, jornadaMaximaVigente } from '../../utils/ley40';
 import panelClaro from '../../assets/sitio/panel-claro.webp';
@@ -211,13 +213,15 @@ function Seguridad() {
 function Precios() {
   const navigate = useNavigate();
   const { planes } = usePlanes();
+  const [ciclo, setCiclo] = useState<Ciclo>('mensual');
 
   return (
     <section id="precios" className={cn(CONTENEDOR, SEPARACION)}>
       <div className="flex flex-col gap-2.5 items-center text-center mb-9">
         <Eyebrow>Precios</Eyebrow>
         <h2 className={TITULO_SECCION}>Paga según el tamaño de tu equipo.</h2>
-        <p className="text-fg-2 text-[15px]">Precios mensuales en pesos chilenos. Cambia de plan cuando quieras.</p>
+        <p className="text-fg-2 text-[15px]">Precios en pesos chilenos. Cambia de plan cuando quieras.</p>
+        <SelectorCiclo valor={ciclo} onChange={setCiclo} className="mt-1" />
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,250px),1fr))] gap-3.5 items-stretch">
         {planes.map((plan) => {
@@ -239,13 +243,13 @@ function Precios() {
                 <span className="text-[12.5px] text-fg-3">{textoEmpresas(plan)} · {textoTrabajadores(plan)}</span>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-[34px] font-semibold tracking-[-0.03em] j40-num">{formatearPrecio(plan.precio)}</span>
-                <span className="text-[13px] text-fg-3">{gratis ? 'Gratis para siempre' : 'al mes'}</span>
+                <span className="text-[34px] font-semibold tracking-[-0.03em] j40-num">{formatearPrecio(precioCiclo(plan, ciclo))}</span>
+                <span className="text-[13px] text-fg-3">{textoCiclo(plan, ciclo)}</span>
               </div>
               <Button
                 variante={destacado ? 'primario' : 'secundario'}
                 className="h-11 rounded-[10px] text-[14px]"
-                onClick={() => navigate(`/register?plan=${plan.nivel}`)}
+                onClick={() => navigate(`/register?plan=${plan.nivel}${ciclo === 'anual' && !gratis ? '&ciclo=anual' : ''}`)}
               >
                 {gratis ? 'Comenzar gratis' : `Elegir ${plan.nombre}`}
               </Button>

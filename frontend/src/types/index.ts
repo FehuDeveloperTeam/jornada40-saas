@@ -13,6 +13,8 @@ export interface Plan {
     nombre: string;
     descripcion: string | null;
     precio: number;
+    /** Precio del pago anual; 0 si el plan no se vende anual. */
+    precio_anual: number;
     max_empresas: number;
     limite_trabajadores: number;
     /** 1 Semilla · 2 Starter · 3 Pyme · 4 Corporativo. El backend habilita

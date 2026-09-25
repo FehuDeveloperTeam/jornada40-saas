@@ -8,7 +8,9 @@ import {
 } from '../../components/j40';
 import { AuthLayout, EncabezadoForm } from '../../components/sitio/AuthLayout';
 import { useAuth } from '../../context/AuthContext';
-import { formatearPrecio, textoTrabajadores, usePlanes } from '../../hooks/usePlanes';
+import { formatearPrecio, precioCiclo, textoTrabajadores, usePlanes } from '../../hooks/usePlanes';
+import type { Ciclo } from '../../hooks/usePlanes';
+import { SelectorCiclo } from '../../components/sitio/SelectorCiclo';
 import type { Plan } from '../../types';
 import { cn } from '../../utils/cn';
 import { contrasenaAceptable } from '../../utils/contrasena';
@@ -67,6 +69,7 @@ export default function Registro() {
   // Si llega desde una tarjeta de precios trae ?plan=<nivel>; si no, parte en
   // el plan gratis, que es lo que promete el botón "Comenzar gratis".
   const [nivelPlan, setNivelPlan] = useState(() => Number(params.get('plan')) || 1);
+  const [ciclo, setCiclo] = useState<Ciclo>(() => (params.get('ciclo') === 'anual' ? 'anual' : 'mensual'));
   const [terminos, setTerminos] = useState(false);
   const [errorTerminos, setErrorTerminos] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -134,7 +137,7 @@ export default function Registro() {
       // el pago entraba pero el plan no se activaba.
       await client.get('/clientes/mi_suscripcion/');
       const { data } = await client.post<{ url: string }>('/pagos/crear-checkout/', {
-        plan_id: planElegido.id, ciclo: 'mensual',
+        plan_id: planElegido.id, ciclo: planElegido.precio_anual ? ciclo : 'mensual',
       });
       window.location.href = data.url;
     } catch (err) {
@@ -223,6 +226,7 @@ export default function Registro() {
           <EncabezadoForm titulo="Elige tu plan">
             Puedes cambiarlo cuando quieras. Si eliges un plan pagado, completarás el pago en Reveniu.
           </EncabezadoForm>
+          <SelectorCiclo valor={ciclo} onChange={setCiclo} className="self-start" />
           <div role="radiogroup" aria-label="Plan" className="flex flex-col gap-2">
             {planes.map((plan) => (
               <TarjetaOpcion key={plan.nivel}
@@ -231,7 +235,8 @@ export default function Registro() {
                 className="items-center gap-3 p-3.5 rounded-j40-card"
                 titulo={<span className="text-[14px] font-semibold">{plan.nombre}</span>}
                 detalle={<span className="text-[12px]">{textoTrabajadores(plan)}</span>}
-                extremo={<span className="text-[15px] font-semibold j40-num">{formatearPrecio(plan.precio)}</span>}
+                extremo={<span className="text-[15px] font-semibold j40-num">{formatearPrecio(precioCiclo(plan, ciclo))}
+                  {plan.precio > 0 && <span className="text-[11.5px] font-normal text-fg-3">{ciclo === 'anual' && plan.precio_anual ? ' /año' : ' /mes'}</span>}</span>}
               />
             ))}
           </div>

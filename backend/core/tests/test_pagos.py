@@ -276,3 +276,28 @@ class ConsolidarPlanesTests(APITestCase):
         self.assertIn(r.status_code, (200, 201), r.data)
         self.assertEqual(Plan.objects.count(), antes)   # no crea un "Semilla" duplicado
         self.assertEqual(Suscripcion.objects.get(cliente__rut='12.345.678-5').plan.nivel, 1)
+
+
+class PagoAnualTests(APITestCase):
+    """Cada plan pagado se vende mensual o anual; el anual parte en 10 × el mensual."""
+
+    def setUp(self):
+        self.user, _, _, _ = crear_usuario_completo('anual_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.pyme = Plan.objects.get(nombre='Pyme')
+
+    def test_precio_anual_inicial(self):
+        self.assertEqual(self.pyme.precio_anual, self.pyme.precio * 10)
+        self.assertEqual(Plan.objects.get(nombre='Semilla').precio_anual, 0)
+
+    def test_checkout_anual_usa_su_propio_link(self):
+        def config(clave, default=None, **kw):
+            return {'REVENIU_LINK_PYME_ANUAL': 'https://pago.example/anual'}.get(clave, default)
+        with patch('core.views.suscripciones.config', side_effect=config):
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
+            self.assertEqual(r.status_code, 200, r.data)
+            self.assertTrue(r.data['url'].startswith('https://pago.example/anual?'))
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'mensual'}, format='json')
+            self.assertIn('REVENIU_LINK_PYME_MENSUAL', r.data['error'])
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'semestral'}, format='json')
+            self.assertEqual(r.status_code, 400)

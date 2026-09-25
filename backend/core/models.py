@@ -11,6 +11,9 @@ class Plan(models.Model):
     nombre = models.CharField(max_length=50)
     descripcion = models.TextField(blank=True, null=True)
     precio = models.IntegerField(default=0)
+    # Precio del pago anual (0 = el plan no se vende anual). Parte en 10 × el
+    # mensual ("paga 10, usa 12") y se ajusta en el admin.
+    precio_anual = models.IntegerField(default=0)
     max_empresas = models.IntegerField(default=1)
     limite_trabajadores = models.IntegerField(default=5)
     # Nivel de plan: 1=Semilla, 2=Starter, 3=Pyme, 4=Corporativo

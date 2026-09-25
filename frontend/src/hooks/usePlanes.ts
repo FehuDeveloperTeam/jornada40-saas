@@ -10,10 +10,10 @@ import type { Plan } from '../types';
  * Procfile; si cambian allá, la API manda y esto solo se ve en una caída.
  */
 const PLANES_RESPALDO: Plan[] = [
-  { id: 0, nombre: 'Semilla', descripcion: null, precio: 0, max_empresas: 1, limite_trabajadores: 3, nivel: 1, activo: true },
-  { id: 0, nombre: 'Starter', descripcion: null, precio: 16990, max_empresas: 1, limite_trabajadores: 10, nivel: 2, activo: true },
-  { id: 0, nombre: 'Pyme', descripcion: null, precio: 39990, max_empresas: 3, limite_trabajadores: 75, nivel: 3, activo: true },
-  { id: 0, nombre: 'Corporativo', descripcion: null, precio: 89990, max_empresas: 10, limite_trabajadores: 250, nivel: 4, activo: true },
+  { id: 0, nombre: 'Semilla', descripcion: null, precio: 0, precio_anual: 0, max_empresas: 1, limite_trabajadores: 3, nivel: 1, activo: true },
+  { id: 0, nombre: 'Starter', descripcion: null, precio: 16990, precio_anual: 169900, max_empresas: 1, limite_trabajadores: 10, nivel: 2, activo: true },
+  { id: 0, nombre: 'Pyme', descripcion: null, precio: 39990, precio_anual: 399900, max_empresas: 3, limite_trabajadores: 75, nivel: 3, activo: true },
+  { id: 0, nombre: 'Corporativo', descripcion: null, precio: 89990, precio_anual: 899900, max_empresas: 10, limite_trabajadores: 250, nivel: 4, activo: true },
 ];
 
 /** Planes activos ordenados por nivel. `desdeApi` es falso mientras se usa el
@@ -47,4 +47,17 @@ export function textoTrabajadores(plan: Plan): string {
 
 export function textoEmpresas(plan: Plan): string {
   return plan.max_empresas === 1 ? '1 empresa' : `Hasta ${plan.max_empresas} empresas`;
+}
+
+export type Ciclo = 'mensual' | 'anual';
+
+/** Precio del plan en el ciclo elegido (el anual, si el plan lo tiene). */
+export function precioCiclo(plan: Plan, ciclo: Ciclo): number {
+  return ciclo === 'anual' && plan.precio_anual ? plan.precio_anual : plan.precio;
+}
+
+/** "al mes" / "al año", según el ciclo en que se muestra el precio. */
+export function textoCiclo(plan: Plan, ciclo: Ciclo): string {
+  if (!plan.precio) return 'Gratis para siempre';
+  return ciclo === 'anual' && plan.precio_anual ? 'al año' : 'al mes';
 }

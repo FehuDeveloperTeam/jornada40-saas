@@ -98,7 +98,7 @@ class TasaAFPAdmin(admin.ModelAdmin):
 # ==========================================
 @admin.register(Plan)
 class PlanAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'precio', 'max_empresas', 'limite_trabajadores', 'activo')
+    list_display = ('nombre', 'nivel', 'precio', 'precio_anual', 'max_empresas', 'limite_trabajadores', 'activo')
     list_filter = ('activo',)
     search_fields = ('nombre',)
 

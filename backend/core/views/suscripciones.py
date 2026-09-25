@@ -85,11 +85,15 @@ def mi_suscripcion(request):
 @permission_classes([IsAuthenticated])
 def crear_checkout_reveniu(request):
     plan_id = str(request.data.get('plan_id'))
-    ciclo = request.data.get('ciclo', 'mensual')  # 'mensual' o 'anual'
+    ciclo = str(request.data.get('ciclo') or 'mensual').lower()
+    if ciclo not in ('mensual', 'anual'):
+        return Response({'error': 'El ciclo de pago debe ser mensual o anual.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         plan = Plan.objects.get(id=plan_id)
         cliente = getattr(request.user, 'perfil_cliente', None)
+        if ciclo == 'anual' and not plan.precio_anual:
+            return Response({'error': f'El plan {plan.nombre} no tiene pago anual.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # REVENIU_LINK_<PLAN>_<CICLO>, p. ej. REVENIU_LINK_PYME_MENSUAL. Se
         # normaliza el nombre ("Plan Pyme" → PYME) para no depender de cómo

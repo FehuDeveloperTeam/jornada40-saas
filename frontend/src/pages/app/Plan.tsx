@@ -7,7 +7,9 @@ import { usePanelContexto } from '../../components/app/AppShell';
 import { INCLUYE_POR_NIVEL, NIVEL_DESTACADO } from '../../components/sitio/contenido';
 import client from '../../api/client';
 import { useEmpresaActiva } from '../../hooks/usePanel';
-import { formatearPrecio, usePlanes } from '../../hooks/usePlanes';
+import { formatearPrecio, precioCiclo, usePlanes } from '../../hooks/usePlanes';
+import type { Ciclo } from '../../hooks/usePlanes';
+import { SelectorCiclo } from '../../components/sitio/SelectorCiclo';
 import type { Plan as TPlan } from '../../types';
 import { cn } from '../../utils/cn';
 import { fechaCL } from '../../utils/formato';
@@ -27,6 +29,7 @@ export default function Plan() {
   const { planes } = usePlanes();
   const { empresas } = useEmpresaActiva();
   const [elegido, setElegido] = useState<TPlan | null>(null);
+  const [ciclo, setCiclo] = useState<Ciclo>('mensual');
 
   if (!suscripcion) return <p className="text-[14px] text-fg-3" role="status">Cargando…</p>;
   const actual = planes.find((p) => p.id === suscripcion.plan.id);
@@ -74,6 +77,7 @@ export default function Plan() {
         </div>
       </section>
 
+      <SelectorCiclo valor={ciclo} onChange={setCiclo} className="self-start" />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-3.5">
         {ordenados.map((p) => {
           const esActual = p.id === suscripcion.plan.id;
@@ -88,7 +92,7 @@ export default function Plan() {
                 {p.nivel === NIVEL_DESTACADO && !esActual && <Chip tono="marca">Más elegido</Chip>}
                 {esActual && <Chip tono="ok">Tu plan</Chip>}
               </div>
-              <span className="text-[22px] font-semibold j40-num">{p.precio ? formatearPrecio(p.precio) : 'Gratis'}<span className="text-[12.5px] font-normal text-fg-3"> {p.precio ? '/ mes' : ''}</span></span>
+              <span className="text-[22px] font-semibold j40-num">{p.precio ? formatearPrecio(precioCiclo(p, ciclo)) : 'Gratis'}<span className="text-[12.5px] font-normal text-fg-3"> {p.precio ? (ciclo === 'anual' && p.precio_anual ? '/ año' : '/ mes') : ''}</span></span>
               <span className="text-[12.5px] text-fg-2">Hasta {p.limite_trabajadores} trabajadores · {p.max_empresas} {p.max_empresas === 1 ? 'empresa' : 'empresas'}</span>
               <ul className="flex flex-col gap-1.5 flex-1">
                 {(INCLUYE_POR_NIVEL[p.nivel] ?? []).map((t) => (
@@ -122,7 +126,7 @@ export default function Plan() {
         )}
       </section>
 
-      {elegido && <Checkout plan={elegido} onCerrar={() => setElegido(null)} />}
+      {elegido && <Checkout plan={elegido} ciclo={ciclo} onCerrar={() => setElegido(null)} />}
     </div>
   );
 }
@@ -140,7 +144,8 @@ function Uso({ titulo, usado, limite }: { titulo: string; usado: number; limite:
   );
 }
 
-function Checkout({ plan, onCerrar }: { plan: TPlan; onCerrar: () => void }) {
+function Checkout({ plan, ciclo, onCerrar }: { plan: TPlan; ciclo: Ciclo; onCerrar: () => void }) {
+  const anual = ciclo === 'anual' && Boolean(plan.precio_anual);
   const [estado, setEstado] = useState<'resumen' | 'conectando'>('resumen');
   const [error, setError] = useState('');
 
@@ -148,7 +153,7 @@ function Checkout({ plan, onCerrar }: { plan: TPlan; onCerrar: () => void }) {
     setEstado('conectando');
     setError('');
     try {
-      const { data } = await client.post<{ url: string }>('/pagos/crear-checkout/', { plan_id: plan.id, ciclo: 'mensual' });
+      const { data } = await client.post<{ url: string }>('/pagos/crear-checkout/', { plan_id: plan.id, ciclo: anual ? 'anual' : 'mensual' });
       window.location.href = data.url;  // el pago se confirma por webhook al volver
     } catch (err) {
       setError((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos conectar con la pasarela de pago.');
@@ -157,7 +162,7 @@ function Checkout({ plan, onCerrar }: { plan: TPlan; onCerrar: () => void }) {
   };
 
   return (
-    <Modal abierto onCerrar={() => estado === 'resumen' && onCerrar()} titulo={`Plan ${plan.nombre}`} subtitulo="Pago mensual con Reveniu"
+    <Modal abierto onCerrar={() => estado === 'resumen' && onCerrar()} titulo={`Plan ${plan.nombre}`} subtitulo={`Pago ${anual ? 'anual' : 'mensual'} con Reveniu`}
       acciones={<>
         <Button variante="secundario" onClick={onCerrar} disabled={estado === 'conectando'}>Cancelar</Button>
         <Button onClick={pagar} cargando={estado === 'conectando'}>{estado === 'conectando' ? 'Conectando con Reveniu…' : 'Ir a pagar'}</Button>
@@ -165,7 +170,8 @@ function Checkout({ plan, onCerrar }: { plan: TPlan; onCerrar: () => void }) {
       <div className="flex flex-col gap-3">
         {error && <AlertaError>{error}</AlertaError>}
         <div className="flex justify-between text-[14px] rounded-[10px] bg-sunken px-3.5 py-3">
-          <span>Plan {plan.nombre} · mensual</span><span className="font-semibold j40-num">{formatearPrecio(plan.precio)}</span>
+          <span>Plan {plan.nombre} · {anual ? 'anual (2 meses gratis)' : 'mensual'}</span>
+          <span className="font-semibold j40-num">{formatearPrecio(precioCiclo(plan, anual ? 'anual' : 'mensual'))}</span>
         </div>
         <p className="text-[13px] text-fg-2">
           Te llevamos a Reveniu para pagar. Cuando el pago se confirme, los nuevos límites y funciones quedan activos en tu cuenta.

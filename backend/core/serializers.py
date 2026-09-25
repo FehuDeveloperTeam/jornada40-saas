@@ -298,8 +298,8 @@ class ConceptoRemuneracionSerializer(serializers.ModelSerializer):
 class PlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Plan
-        fields = ['id', 'nombre', 'descripcion', 'precio', 'max_empresas', 'limite_trabajadores', 'nivel', 'activo']
-        read_only_fields = ('id', 'nombre', 'descripcion', 'precio', 'max_empresas', 'limite_trabajadores', 'nivel', 'activo')
+        fields = ['id', 'nombre', 'descripcion', 'precio', 'precio_anual', 'max_empresas', 'limite_trabajadores', 'nivel', 'activo']
+        read_only_fields = ('id', 'nombre', 'descripcion', 'precio', 'precio_anual', 'max_empresas', 'limite_trabajadores', 'nivel', 'activo')
 
 
 class SolicitudFirmaSerializer(serializers.ModelSerializer):
