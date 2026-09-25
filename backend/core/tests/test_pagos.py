@@ -1,8 +1,9 @@
 """Planes, cupos, permisos por plan y webhook de Reveniu."""
 from unittest.mock import patch
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
-from ..models import Empleado, Plan
+from ..models import Empleado, IntentoPago, Plan
 
 from .utiles import _mock_config, crear_empleado, crear_usuario_completo
 
@@ -443,3 +444,117 @@ class ReveniuApiTests(APITestCase):
         self.assertEqual(r.status_code, 503)
         self.assertFalse([c for c in self.llamadas if c[0] == 'POST'])     # no se creó ninguna suscripción
         self.assertIn('mal configurado', mail.outbox[0].subject)
+
+
+@patch('core.reveniu.obtener_suscripcion', return_value={'id': 10, 'next_due': '2026-10-25T15:00:00Z'})
+class BajarPlanTests(APITestCase):
+    """Bajar de plan: mismo cobro en Reveniu con monto menor; el plan cambia en el próximo cobro."""
+    URL_WEBHOOK = '/api/pagos/webhook/reveniu/'
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from ..models import Suscripcion
+        user, self.cliente, _, _ = crear_usuario_completo('baja_owner', '21.000.000-3', '76.000.555-2')
+        self.pyme = Plan.objects.get(nombre='Pyme')
+        self.starter = Plan.objects.get(nombre='Starter')
+        self.semilla = Plan.objects.get(nombre='Semilla')
+        Suscripcion.objects.filter(cliente=self.cliente).update(plan=self.pyme, gateway_subscription_id='10',
+                                                                ciclo='MENSUAL', estado='ACTIVE')
+        self.cliente.plan = self.pyme
+        self.cliente.save(update_fields=['plan'])
+        self.intento = IntentoPago.objects.create(cliente=self.cliente, plan=self.pyme, ciclo='MENSUAL',
+                                                  gateway_subscription_id='10')
+        self.user = User.objects.get(pk=user.pk)
+        self.client.force_authenticate(self.user)
+
+    def _suscripcion(self):
+        from ..models import Suscripcion
+        return Suscripcion.objects.get(cliente=self.cliente)
+
+    def _pago(self, orden, monto):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
+            return self.client.post(self.URL_WEBHOOK, {'event': 'subscription_payment_succeeded', 'data': {
+                'subscription_id': 10, 'subscription_external_id': str(self.intento.id), 'buy_order': orden,
+                'issued_on': '25/10/2026', 'amount': monto}}, format='json', HTTP_REVENIU_SECRET_KEY='secret-real')
+
+    @patch('core.reveniu.cambiar_monto')
+    def test_baja_programada_rige_desde_el_proximo_cobro(self, cambiar, _obtener):
+        r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.starter.id}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        cambiar.assert_called_once_with('10', self.starter.precio)
+        s = self._suscripcion()
+        self.assertEqual((s.plan, s.plan_programado), (self.pyme, self.starter))
+        datos = self.client.get('/api/clientes/mi_suscripcion/').data
+        self.assertEqual(datos['plan']['nombre'], 'Pyme')     # hasta el cobro, sigue en Pyme
+        self.assertEqual(datos['cambio_programado'], {'plan': {'id': self.starter.id, 'nombre': 'Starter'},
+                                                      'desde': '2026-10-25'})
+        # El aviso del cobro trae el intento original (Pyme), pero rige lo programado.
+        self._pago('900', self.starter.precio)
+        s = self._suscripcion()
+        self.assertEqual((s.plan, s.plan_programado), (self.starter, None))
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.plan, self.starter)
+        # Las renovaciones siguientes no lo devuelven a Pyme.
+        self._pago('901', self.starter.precio)
+        self.assertEqual(self._suscripcion().plan, self.starter)
+
+    @patch('core.reveniu.cambiar_monto')
+    def test_no_baja_si_excede_los_limites(self, cambiar, _obtener):
+        Plan.objects.filter(pk=self.starter.pk).update(limite_trabajadores=1)
+        from .utiles import crear_empleado
+        from ..models import Empresa
+        empresa = Empresa.objects.get(owner=self.user)
+        crear_empleado(empresa, '12.345.678-5')
+        crear_empleado(empresa, '9.876.543-3')
+        r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.starter.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('2 trabajadores', r.data['error'])
+        cambiar.assert_not_called()
+
+    @patch('core.reveniu.cambiar_monto', side_effect=__import__('core.reveniu', fromlist=['x']).ErrorReveniu('caída'))
+    def test_si_reveniu_falla_no_queda_programado(self, _cambiar, _obtener):
+        r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.starter.id}, format='json')
+        self.assertEqual(r.status_code, 503)
+        self.assertIsNone(self._suscripcion().plan_programado)
+
+    @patch('core.reveniu.cambiar_monto')
+    def test_deshacer_la_baja_restaura_el_monto(self, cambiar, _obtener):
+        self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.starter.id}, format='json')
+        r = self.client.post('/api/pagos/cancelar-cambio/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(cambiar.call_args_list[-1].args, ('10', self.pyme.precio))
+        self.assertIsNone(self._suscripcion().plan_programado)
+
+    @patch('core.reveniu.desactivar_renovacion', return_value=True)
+    def test_bajar_a_semilla_quita_la_renovacion(self, desactivar, _obtener):
+        r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.semilla.id}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        desactivar.assert_called_once_with('10')
+        s = self._suscripcion()
+        self.assertEqual(s.plan, self.pyme)            # el período pagado se respeta
+        self.assertIsNotNone(s.fecha_cancelacion)
+
+    def test_subir_no_se_hace_por_aca(self, _obtener):
+        corp = Plan.objects.get(nombre='Corporativo')
+        r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': corp.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    @patch('core.reveniu.reactivar_renovacion')
+    def test_reanudar_sin_cobro_nuevo(self, reactivar, _obtener):
+        from ..models import Suscripcion
+        Suscripcion.objects.filter(cliente=self.cliente).update(fecha_cancelacion=timezone.now())
+        r = self.client.post('/api/pagos/reanudar/')
+        self.assertEqual(r.status_code, 200, r.data)
+        reactivar.assert_called_once_with('10')
+        self.assertIsNone(self._suscripcion().fecha_cancelacion)
+
+    @patch('core.reveniu.reactivar_renovacion', side_effect=Exception('no'))
+    def test_reanudar_si_falla_avisa_al_equipo(self, _reactivar, _obtener):
+        from django.core import mail
+        from ..models import Suscripcion
+        Suscripcion.objects.filter(cliente=self.cliente).update(fecha_cancelacion=timezone.now())
+        r = self.client.post('/api/pagos/reanudar/')
+        self.assertEqual(r.status_code, 503)
+        self.assertIsNotNone(self._suscripcion().fecha_cancelacion)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('10', mail.outbox[0].body)

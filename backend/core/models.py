@@ -721,6 +721,10 @@ class Suscripcion(models.Model):
     gateway_customer_id = models.CharField(max_length=100, blank=True, null=True, help_text="ID del cliente en la pasarela")
     gateway_subscription_id = models.CharField(max_length=100, blank=True, null=True, help_text="ID de la suscripción/tarjeta")
     metodo_pago_glosa = models.CharField(max_length=50, blank=True, null=True, help_text="Ej: Visa terminada en 4242 o Fintoc Banco de Chile")
+    # Bajada de plan: Reveniu ya cobra el monto nuevo desde el próximo cobro;
+    # el plan cambia cuando llega el aviso de ese pago.
+    plan_programado = models.ForeignKey(Plan, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                        help_text='Plan que rige desde el próximo cobro (bajada de plan).')
 
     def __str__(self):
         return f"{self.cliente.rut} - {self.plan.nombre} ({self.estado})"

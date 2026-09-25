@@ -59,7 +59,7 @@ export function preguntasFrecuentes(hoy: Date = new Date()): { pregunta: string;
     { pregunta: '¿Tengo que rehacer todos los contratos?', respuesta: 'No. Solo los contratos que superan el máximo vigente necesitan un anexo de jornada. Jornada40 los identifica y genera el anexo con la nueva distribución de horario.' },
     { pregunta: '¿Qué tipo de firma electrónica usan?', respuesta: 'Firma electrónica simple: el trabajador abre un enlace personal, verifica su identidad con un código enviado a su correo y firma. El documento firmado queda en su carpeta con el registro de la operación.' },
     { pregunta: '¿Puedo cargar a mi equipo desde Excel?', respuesta: 'Sí, desde el plan Pyme. Descarga la planilla, complétala con tus trabajadores y súbela. Validamos cada RUT y te mostramos las filas con errores antes de guardar.' },
-    { pregunta: '¿Puedo cambiar de plan después?', respuesta: 'Sí, puedes subir o bajar de plan cuando quieras desde Plan y facturación. El cambio se refleja en el siguiente cobro.' },
+    { pregunta: '¿Puedo cambiar de plan después?', respuesta: 'Sí, desde Plan y facturación. Al subir, el plan nuevo rige desde el pago. Al bajar, mantienes tu plan hasta el próximo cobro y desde ahí pagas el plan menor, con la misma tarjeta.' },
   ];
 }
 

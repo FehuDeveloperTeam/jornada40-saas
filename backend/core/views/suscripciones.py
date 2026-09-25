@@ -70,6 +70,11 @@ def mi_suscripcion(request):
         # Canceló la renovación en Reveniu: conserva el plan hasta el fin del período pagado.
         'renovacion_cancelada': suscripcion.estado == 'ACTIVE' and suscripcion.fecha_cancelacion is not None,
         'ciclo': suscripcion.ciclo.lower(),
+        # Bajada de plan programada para el próximo cobro.
+        'cambio_programado': ({'plan': {'id': suscripcion.plan_programado.id, 'nombre': suscripcion.plan_programado.nombre},
+                               'desde': suscripcion.fecha_proximo_cobro.strftime('%Y-%m-%d')
+                               if suscripcion.fecha_proximo_cobro else None}
+                              if suscripcion.plan_programado_id else None),
         'pagos': [
             {'id': e.id, 'fecha': e.fecha_pago.isoformat() if e.fecha_pago else None, 'monto': e.monto,
              'plan': e.plan.nombre if e.plan else None, 'orden': e.orden_compra}
@@ -247,6 +252,14 @@ def aplicar_evento_pasarela(evento):
 
     if evento.evento in _EVENTOS_ACTIVACION | _EVENTOS_PAGO:
         plan = evento.plan or (suscripcion.plan if suscripcion and es_la_vigente else None)
+        # Renovación de la misma suscripción de Reveniu: el plan no cambia (la
+        # referencia del checkout original sigue diciendo el plan de entonces),
+        # salvo una bajada programada, que rige justo desde este cobro.
+        renovacion = bool(suscripcion and suscripcion.gateway_subscription_id and id_pasarela
+                          and suscripcion.gateway_subscription_id == id_pasarela)
+        if renovacion:
+            plan = suscripcion.plan_programado or suscripcion.plan
+            evento.plan = plan
         if not plan:
             return False
         if suscripcion and suscripcion.gateway_subscription_id and id_pasarela and not es_la_vigente:
@@ -260,6 +273,7 @@ def aplicar_evento_pasarela(evento):
             # pago válido no puede perderse por eso.
             suscripcion = Suscripcion(cliente=cliente, plan=plan)
         suscripcion.plan = plan
+        suscripcion.plan_programado = None  # aplicada, o reemplazada por un plan nuevo
         suscripcion.estado = 'ACTIVE'
         suscripcion.fecha_cancelacion = None
         suscripcion.ciclo = _ciclo_del_evento(evento, plan) or suscripcion.ciclo or 'MENSUAL'
@@ -271,6 +285,8 @@ def aplicar_evento_pasarela(evento):
         cliente.save(update_fields=['plan'])
         if not evento.plan_id:
             evento.plan = plan
+        if evento.evento in _EVENTOS_PAGO:
+            _actualizar_proximo_cobro(suscripcion)
     elif evento.evento == _EVENTO_RENOVACION_CANCELADA:
         # No se renovará, pero el período pagado se respeta: el acceso sigue
         # hasta que Reveniu avise que la suscripción terminó.
@@ -357,3 +373,165 @@ def webhook_reveniu(request):
 
     aplicar_evento_pasarela(evento)
     return Response(status=status.HTTP_200_OK)
+
+
+# ==========================================
+# BAJAR DE PLAN Y REANUDAR LA RENOVACIÓN
+# ==========================================
+
+def _actualizar_proximo_cobro(suscripcion):
+    """Fecha del próximo cobro según Reveniu (no crítico: sin ella se muestra un texto genérico)."""
+    if not suscripcion.gateway_subscription_id:
+        return
+    try:
+        proximo = reveniu.obtener_suscripcion(suscripcion.gateway_subscription_id).get('next_due')
+        fecha = datetime.datetime.fromisoformat(str(proximo).replace('Z', '+00:00')) if proximo else None
+    except Exception:
+        logger.exception('No se pudo leer el próximo cobro de la suscripción %s', suscripcion.gateway_subscription_id)
+        return
+    if fecha:
+        suscripcion.fecha_proximo_cobro = fecha
+        suscripcion.save(update_fields=['fecha_proximo_cobro'])
+
+
+def _suscripcion_pagada(request):
+    """(cliente, suscripción) de una cuenta con plan pagado vigente, o una Response de error."""
+    cliente = getattr(request.user, 'perfil_cliente', None)
+    suscripcion = Suscripcion.objects.filter(cliente=cliente).select_related('plan', 'plan_programado').first() \
+        if cliente else None
+    if not suscripcion or suscripcion.estado != 'ACTIVE' or not suscripcion.plan.precio:
+        return None, Response({'error': 'Tu cuenta no tiene un plan pagado vigente.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not suscripcion.gateway_subscription_id:
+        return None, Response({'error': 'No encontramos tu suscripción en Reveniu. Escríbenos y lo resolvemos.'},
+                              status=status.HTTP_400_BAD_REQUEST)
+    return cliente, suscripcion
+
+
+def _precio_del_ciclo(plan, ciclo):
+    return plan.precio_anual if ciclo == 'ANUAL' else plan.precio
+
+
+def _excesos(user, plan):
+    """Lo que la cuenta tiene por sobre los límites de un plan (textos), o []."""
+    from ..models import Empresa
+    excesos = []
+    trabajadores = _trabajadores_vigentes(user)
+    if plan.limite_trabajadores and trabajadores > plan.limite_trabajadores:
+        excesos.append(f'{trabajadores} trabajadores vigentes (el plan {plan.nombre} permite {plan.limite_trabajadores})')
+    empresas = Empresa.objects.filter(owner=user, activo=True).count()
+    if plan.max_empresas and empresas > plan.max_empresas:
+        excesos.append(f'{empresas} empresas activas (el plan {plan.nombre} permite {plan.max_empresas})')
+    return excesos
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def bajar_plan(request):
+    """Programa el paso a un plan menor desde el próximo cobro.
+
+    A un plan pagado: se baja el monto de la misma suscripción de Reveniu (sin
+    otra tarjeta ni doble cobro) y el plan cambia al llegar el aviso de ese
+    cobro. A Semilla: se quita la renovación; el plan pagado sigue hasta el
+    fin del período y después la cuenta pasa a Semilla sin borrar nada.
+    """
+    cliente, suscripcion = _suscripcion_pagada(request)
+    if not cliente:
+        return suscripcion
+    try:
+        nuevo = Plan.objects.get(id=request.data.get('plan_id'), activo=True)
+    except (Plan.DoesNotExist, ValueError, TypeError):
+        return Response({'error': 'Plan no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+    actual = suscripcion.plan
+    if nuevo.nivel >= actual.nivel:
+        return Response({'error': 'Para subir de plan, elígelo y paga desde Plan y facturación.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    if suscripcion.fecha_cancelacion:
+        return Response({'error': 'Tu plan ya no se renovará. Reanúdalo antes de cambiarlo.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    if not nuevo.precio:
+        try:
+            if not reveniu.desactivar_renovacion(suscripcion.gateway_subscription_id):
+                raise reveniu.ErrorReveniu('Reveniu no confirmó la operación.')
+        except Exception:
+            logger.exception('No se pudo quitar la renovación de %s', suscripcion.gateway_subscription_id)
+            _avisar_pagos(f'Pasar a Semilla a {cliente.rut}',
+                          f'La cuenta {cliente.rut} pidió pasar a Semilla. Quítale la renovación a su suscripción '
+                          f'{suscripcion.gateway_subscription_id} en Reveniu.')
+            return Response({'error': 'No pudimos registrar el cambio ahora. Ya avisamos al equipo: te escribiremos '
+                                      'para confirmarlo.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        suscripcion.fecha_cancelacion = timezone.now()
+        suscripcion.plan_programado = None
+        suscripcion.save(update_fields=['fecha_cancelacion', 'plan_programado'])
+        _actualizar_proximo_cobro(suscripcion)
+        return Response({'mensaje': f'Tu plan {actual.nombre} sigue hasta el fin del período pagado; después pasas a {nuevo.nombre}.'})
+
+    excesos = _excesos(request.user, nuevo)
+    if excesos:
+        return Response({'error': f'Antes de pasar a {nuevo.nombre} debes ajustar tu cuenta: tienes '
+                                  f'{" y ".join(excesos)}. Desvincula trabajadores o desactiva empresas y vuelve a intentarlo.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    monto = _precio_del_ciclo(nuevo, suscripcion.ciclo)
+    if not monto:
+        return Response({'error': f'El plan {nuevo.nombre} no tiene pago {suscripcion.ciclo.lower()}.'},
+                        status=status.HTTP_400_BAD_REQUEST)
+    try:
+        reveniu.cambiar_monto(suscripcion.gateway_subscription_id, monto)
+    except Exception:
+        logger.exception('No se pudo cambiar el monto de %s', suscripcion.gateway_subscription_id)
+        return Response({'error': 'No pudimos programar el cambio en este momento. Intenta de nuevo en unos minutos '
+                                  'o escríbenos.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    suscripcion.plan_programado = nuevo
+    suscripcion.save(update_fields=['plan_programado'])
+    _actualizar_proximo_cobro(suscripcion)
+    return Response({'mensaje': f'Listo: desde el próximo cobro pasas al plan {nuevo.nombre}.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cancelar_cambio_plan(request):
+    """Deshace una bajada programada: el próximo cobro vuelve al monto del plan actual."""
+    cliente, suscripcion = _suscripcion_pagada(request)
+    if not cliente:
+        return suscripcion
+    if not suscripcion.plan_programado_id:
+        return Response({'error': 'No tienes un cambio de plan programado.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        reveniu.cambiar_monto(suscripcion.gateway_subscription_id,
+                              _precio_del_ciclo(suscripcion.plan, suscripcion.ciclo))
+    except Exception:
+        logger.exception('No se pudo restaurar el monto de %s', suscripcion.gateway_subscription_id)
+        return Response({'error': 'No pudimos deshacer el cambio en este momento. Intenta de nuevo en unos minutos.'},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    suscripcion.plan_programado = None
+    suscripcion.save(update_fields=['plan_programado'])
+    return Response({'mensaje': f'Sigues en el plan {suscripcion.plan.nombre}.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reanudar_renovacion(request):
+    """Vuelve a renovar el plan a quien canceló la renovación, sin un cobro
+    nuevo: la misma suscripción sigue cobrando en su fecha. Si Reveniu no lo
+    confirma, se avisa al equipo para hacerlo a mano (nunca se abre otra
+    suscripción, que cobraría de nuevo el período ya pagado)."""
+    cliente, suscripcion = _suscripcion_pagada(request)
+    if not cliente:
+        return suscripcion
+    if not suscripcion.fecha_cancelacion:
+        return Response({'error': 'Tu plan ya se renueva automáticamente.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        reveniu.reactivar_renovacion(suscripcion.gateway_subscription_id)
+    except Exception:
+        logger.exception('No se pudo reactivar la renovación de %s', suscripcion.gateway_subscription_id)
+        _avisar_pagos(f'Reanudar la renovación de {cliente.rut}',
+                      f'La cuenta {cliente.rut} pidió reanudar su plan {suscripcion.plan.nombre} '
+                      f'({suscripcion.ciclo.lower()}). La API no lo confirmó: reactiva la renovación de la '
+                      f'suscripción {suscripcion.gateway_subscription_id} en Reveniu y quita la fecha de '
+                      f'cancelación en el admin.')
+        return Response({'error': 'No pudimos reanudarla automáticamente. Ya avisamos al equipo: la dejaremos '
+                                  'renovándose sin cobrarte de nuevo y te confirmaremos por correo.'},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    suscripcion.fecha_cancelacion = None
+    suscripcion.save(update_fields=['fecha_cancelacion'])
+    return Response({'mensaje': f'Tu plan {suscripcion.plan.nombre} vuelve a renovarse automáticamente.'})

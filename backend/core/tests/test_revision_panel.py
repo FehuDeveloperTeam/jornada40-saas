@@ -152,3 +152,46 @@ class ProrrateoIngresoTests(APITestCase):
         r = self._simular(7)
         self.assertEqual(r.status_code, 400)
         self.assertIn('empieza', r.data['error'])
+
+
+class ExtractorContratoTests(APITestCase):
+    """Lectura de contratos escaneados con Gemini (simulado)."""
+
+    def _respuesta(self, texto):
+        return type('R', (), {'text': texto})()
+
+    def test_si_el_modelo_no_existe_usa_el_de_respaldo_y_valida_el_rut(self):
+        from google.genai import errors
+        from django.test import override_settings
+        from ..extractor_contrato import extraer_campos_contrato
+        llamadas = []
+
+        def generar(model, **_):
+            llamadas.append(model)
+            if model == 'modelo-retirado':
+                raise errors.ClientError(404, {'error': {'code': 404, 'message': 'no existe', 'status': 'NOT_FOUND'}})
+            return self._respuesta('{"rut": "12345678-5", "sueldo_base": 900000, "extra": "x"}')
+
+        with override_settings(GEMINI_API_KEY='k', GEMINI_MODEL='modelo-retirado'), \
+                patch('core.extractor_contrato.genai.Client') as cliente:
+            cliente.return_value.models.generate_content.side_effect = generar
+            campos = extraer_campos_contrato(b'%PDF', 'application/pdf')
+        self.assertEqual(llamadas, ['modelo-retirado', 'gemini-2.5-flash'])
+        self.assertEqual((campos['rut'], campos['sueldo_base']), ('12.345.678-5', 900000))
+        self.assertNotIn('extra', campos)
+
+        with override_settings(GEMINI_API_KEY='k'), patch('core.extractor_contrato.genai.Client') as cliente:
+            cliente.return_value.models.generate_content.return_value = self._respuesta('{"rut": "12345678-9"}')
+            self.assertIsNone(extraer_campos_contrato(b'%PDF', 'application/pdf')['rut'])   # DV incorrecto
+
+    def test_sin_clave_el_mensaje_no_es_tecnico(self):
+        from django.test import override_settings
+        user, _, _, empresa = crear_usuario_completo('rev_ia', '21.000.000-3', '76.000.555-2')
+        emp = crear_empleado(empresa, '12.345.678-5')
+        self.client.force_authenticate(user)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        archivo = SimpleUploadedFile('c.pdf', b'%PDF-1.4', content_type='application/pdf')
+        with override_settings(GEMINI_API_KEY=None):
+            r = self.client.post(f'/api/empleados/{emp.id}/digitalizar_contrato/', {'file': archivo}, format='multipart')
+        self.assertEqual(r.status_code, 502)
+        self.assertNotIn('GEMINI', r.data['error'])

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Check, CreditCard, Info, RotateCcw, TriangleAlert } from 'lucide-react';
 import { AlertaError, Button, Chip, Modal } from '../../components/j40';
@@ -26,14 +27,46 @@ const AVISO: Record<string, { texto: string; accion: string; clase: string }> = 
   CANCELED: { texto: 'Tu suscripción está cancelada. Reactívala para volver a emitir documentos.', accion: 'Reactivar', clase: 'bg-danger-soft text-danger' },
 };
 
-/** Qué se va a pagar: un plan nuevo, el mismo en otro ciclo, o reanudar el mismo tras cancelar la renovación. */
-interface Eleccion { plan: TPlan; ciclo: Ciclo; modo: 'nuevo' | 'ciclo' | 'reanudar' }
+/** Qué se va a pagar: un plan nuevo o el mismo en otro ciclo. */
+interface Eleccion { plan: TPlan; ciclo: Ciclo; modo: 'nuevo' | 'ciclo' }
+
+const errorDe = (err: unknown, porDefecto: string) =>
+  (isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || porDefecto;
+
+/** Lo que se deja de tener al pasar de un nivel a otro menor. */
+function funcionesQueSePierden(desde: number, hasta: number): string[] {
+  const perdidas: string[] = [];
+  for (let n = hasta + 1; n <= desde; n++) {
+    for (const f of INCLUYE_POR_NIVEL[n] ?? []) {
+      if (f.startsWith('Todo lo de')) { if (n === 2) perdidas.push('Documentos sin la marca Jornada40'); }
+      else perdidas.push(f);
+    }
+  }
+  return perdidas;
+}
 
 export default function Plan() {
-  const { suscripcion, trabajadores, nivel, maxEmpresas, errorSuscripcion, reintentarSuscripcion } = usePanelContexto();
+  const { suscripcion, trabajadores, nivel, maxEmpresas, errorSuscripcion, reintentarSuscripcion, avisar } = usePanelContexto();
   const { planes } = usePlanes();
   const { empresas } = useEmpresaActiva();
+  const queryClient = useQueryClient();
   const [eleccion, setEleccion] = useState<Eleccion | null>(null);
+  const [bajada, setBajada] = useState<TPlan | null>(null);
+  const [procesando, setProcesando] = useState(false);
+
+  /** Reanudar la renovación o deshacer una bajada: operaciones sin pago, directo con Reveniu. */
+  const operar = async (ruta: string, porDefecto: string) => {
+    setProcesando(true);
+    try {
+      const { data } = await client.post<{ mensaje: string }>(ruta);
+      avisar(data.mensaje);
+      await queryClient.invalidateQueries({ queryKey: ['mi_suscripcion'] });
+    } catch (err) {
+      avisar(errorDe(err, porDefecto), 'error');
+    } finally {
+      setProcesando(false);
+    }
+  };
   // Parte en el ciclo de la suscripción; al elegir el otro se puede cambiar de ciclo.
   const [cicloElegido, setCiclo] = useState<Ciclo | null>(null);
   const cicloActual: Ciclo = suscripcion?.ciclo === 'anual' ? 'anual' : 'mensual';
@@ -99,14 +132,24 @@ export default function Plan() {
             {suscripcion.fecha_proximo_cobro ? ` hasta el ${fechaCL(suscripcion.fecha_proximo_cobro)}` : ' hasta el fin del período pagado'};
             después la cuenta pasa al plan gratuito sin borrar tus datos.
           </p>
-          {actual && actual.precio > 0 && (
-            // Suscribirse de nuevo cobraría otra vez el período ya pagado: la
-            // renovación se reactiva en Reveniu, por ahora a pedido.
-            <a className="text-[13px] font-medium text-brand-text underline"
-              href={`mailto:contacto.jornada40@gmail.com?subject=${encodeURIComponent(`Reanudar renovación del plan ${actual.nombre}`)}`}>
-              Escríbenos para reanudarla
-            </a>
-          )}
+          {/* Reactiva la misma suscripción: no hay un cobro nuevo por el período ya pagado. */}
+          <Button tamano="sm" cargando={procesando} onClick={() => operar('/pagos/reanudar/', 'No pudimos reanudar tu plan.')}>
+            Reanudar
+          </Button>
+        </div>
+      )}
+
+      {suscripcion.cambio_programado && (
+        <div className="flex flex-wrap items-center gap-3 rounded-j40-card px-4 py-3 bg-brand-soft text-brand-text">
+          <Info className="size-5 shrink-0" strokeWidth={2} aria-hidden />
+          <p className="flex-1 min-w-[220px] text-[13px]">
+            Desde {suscripcion.cambio_programado.desde ? `el ${fechaCL(suscripcion.cambio_programado.desde)}` : 'tu próximo cobro'} pasas
+            al plan {suscripcion.cambio_programado.plan.nombre}. Hasta entonces mantienes {suscripcion.plan.nombre} con todas sus funciones.
+          </p>
+          <Button tamano="sm" variante="secundario" cargando={procesando}
+            onClick={() => operar('/pagos/cancelar-cambio/', 'No pudimos deshacer el cambio.')}>
+            Mantener {suscripcion.plan.nombre}
+          </Button>
         </div>
       )}
 
@@ -155,20 +198,26 @@ export default function Plan() {
                   <li key={t} className="flex gap-2 text-[12.5px] text-fg-2"><Check className="size-4 text-ok shrink-0" strokeWidth={2.5} aria-hidden />{t}</li>
                 ))}
               </ul>
-              {excede && !esActual && <p className="text-[12px] text-danger">{excede}</p>}
+              {excede && !esActual && (pagado && !p.precio
+                // Pasar al plan gratuito siempre se puede (es no renovar): solo se advierte.
+                ? <p className="text-[12px] text-fg-3">{excede} Podrás seguir usando lo que tienes, pero no agregar más.</p>
+                : <p className="text-[12px] text-danger">{excede}</p>)}
               {esActual && p.precio > 0 && p.precio_anual > 0 && ciclo !== cicloActual
                 ? <Button onClick={() => elegir(p, 'ciclo')}>Cambiar a {ciclo}</Button>
                 : esActual ? <Button variante="secundario" disabled>Plan actual{p.precio ? ` · ${cicloActual}` : ''}</Button>
                 : sube || (volvioAGratis && p.precio > 0) ? <Button onClick={() => elegir(p)}>{volvioAGratis ? `Elegir ${p.nombre}` : `Subir a ${p.nombre}`}</Button>
-                  : <Button variante="secundario" disabled title="Bajar de plan aún se gestiona con soporte">Bajar de plan</Button>}
+                  : !pagado ? null
+                  : suscripcion.cambio_programado?.plan.id === p.id ? <Button variante="secundario" disabled>Programado</Button>
+                  : <Button variante="secundario" onClick={() => setBajada(p)}
+                      disabled={Boolean(excede && p.precio) || Boolean(suscripcion.renovacion_cancelada) || Boolean(suscripcion.cambio_programado)}
+                      title={suscripcion.renovacion_cancelada ? 'Reanuda tu plan para cambiarlo'
+                        : suscripcion.cambio_programado ? 'Ya tienes un cambio programado' : undefined}>
+                      {p.precio ? `Bajar a ${p.nombre}` : `Pasar a ${p.nombre}`}
+                    </Button>}
             </section>
           );
         })}
       </div>
-      <p className="text-[12px] text-fg-3">
-        Para bajar de plan, escríbenos a <a href="mailto:contacto.jornada40@gmail.com?subject=Cambio%20de%20plan">contacto.jornada40@gmail.com</a>:
-        lo programamos para tu próximo cobro y te indicamos qué funciones dejarás de tener.
-      </p>
 
       <section className="bg-surface border border-line rounded-j40-card shadow-card p-[18px] flex flex-col gap-2">
         <h2 className="text-[14px] font-semibold">Historial de pagos</h2>
@@ -185,6 +234,9 @@ export default function Plan() {
       </section>
 
       {eleccion && <Checkout plan={eleccion.plan} ciclo={eleccion.ciclo} modo={eleccion.modo} onCerrar={() => setEleccion(null)} />}
+      {bajada && <Bajada plan={bajada} nombreActual={suscripcion.plan.nombre} nivelActual={nivel} ciclo={cicloActual}
+        proximoCobro={suscripcion.fecha_proximo_cobro} onCerrar={() => setBajada(null)}
+        onListo={(mensaje) => { setBajada(null); avisar(mensaje); void queryClient.invalidateQueries({ queryKey: ['mi_suscripcion'] }); }} />}
     </div>
   );
 }
@@ -214,7 +266,7 @@ function Checkout({ plan, ciclo, modo, onCerrar }: { plan: TPlan; ciclo: Ciclo; 
       const { data } = await client.post<RespuestaCheckout>('/pagos/crear-checkout/', { plan_id: plan.id, ciclo: anual ? 'anual' : 'mensual' });
       irAPagar(data);  // el pago se confirma por webhook
     } catch (err) {
-      setError((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos conectar con la pasarela de pago.');
+      setError(errorDe(err, 'No pudimos conectar con la pasarela de pago.'));
       setEstado('resumen');
     }
   };
@@ -232,12 +284,65 @@ function Checkout({ plan, ciclo, modo, onCerrar }: { plan: TPlan; ciclo: Ciclo; 
           <span className="font-semibold j40-num">{formatearPrecio(precioCiclo(plan, anual ? 'anual' : 'mensual'))}</span>
         </div>
         <p className="text-[13px] text-fg-2">
-          {modo === 'reanudar'
-            ? `Te llevamos a Reveniu para suscribirte de nuevo al plan ${plan.nombre}, con cobro ${anual ? 'anual' : 'mensual'}. Cuando el pago se confirme, tu plan sigue renovándose. El cobro parte al confirmar el pago: el período que ya pagaste no se prorratea ni se reembolsa.`
-            : modo === 'ciclo'
+          {modo === 'ciclo'
             ? `Te llevamos a Reveniu para pagar el ${anual ? 'año' : 'mes'}. Cuando se confirme, cancelamos tu suscripción ${anual ? 'mensual' : 'anual'} anterior en Reveniu. El período en curso no se prorratea ni se reembolsa.`
             : 'Te llevamos a Reveniu para pagar. Cuando el pago se confirme, los nuevos límites y funciones quedan activos en tu cuenta.'}
         </p>
+      </div>
+    </Modal>
+  );
+}
+
+function Bajada({ plan, nombreActual, nivelActual, ciclo, proximoCobro, onCerrar, onListo }: {
+  plan: TPlan; nombreActual: string; nivelActual: number; ciclo: Ciclo; proximoCobro: string | null;
+  onCerrar: () => void; onListo: (mensaje: string) => void;
+}) {
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const gratis = !plan.precio;
+  const cuando = proximoCobro ? `el ${fechaCL(proximoCobro)}` : 'tu próximo cobro';
+  const perdidas = funcionesQueSePierden(nivelActual, plan.nivel);
+
+  const confirmar = async () => {
+    setEnviando(true);
+    setError('');
+    try {
+      const { data } = await client.post<{ mensaje: string }>('/pagos/bajar-plan/', { plan_id: plan.id });
+      onListo(data.mensaje);
+    } catch (err) {
+      setError(errorDe(err, 'No pudimos programar el cambio.'));
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <Modal abierto onCerrar={() => !enviando && onCerrar()} titulo={gratis ? `Pasar a ${plan.nombre}` : `Bajar a ${plan.nombre}`}
+      subtitulo={`Rige desde ${cuando}`}
+      acciones={<>
+        <Button variante="secundario" onClick={onCerrar} disabled={enviando}>Volver</Button>
+        <Button onClick={confirmar} cargando={enviando}>Confirmar cambio</Button>
+      </>}>
+      <div className="flex flex-col gap-3 text-[13px] text-fg-2">
+        {error && <AlertaError>{error}</AlertaError>}
+        {gratis ? (
+          <p>Tu plan {nombreActual} no se renovará: lo mantienes hasta {cuando} y después la cuenta pasa a {plan.nombre}, sin
+            cobros y sin borrar tus datos. Si tienes más trabajadores o empresas de los que permite, no podrás agregar nuevos.</p>
+        ) : (
+          <>
+            <div className="flex justify-between text-[14px] text-fg rounded-[10px] bg-sunken px-3.5 py-3">
+              <span>Plan {plan.nombre} · {ciclo}</span>
+              <span className="font-semibold j40-num">{formatearPrecio(precioCiclo(plan, ciclo))}</span>
+            </div>
+            <p>Hasta {cuando} sigues con {nombreActual} y todas sus funciones. Desde ese cobro, Reveniu te cobra el monto
+              de {plan.nombre} con la misma tarjeta, sin volver a inscribirla. El período en curso no se prorratea ni se reembolsa.</p>
+          </>
+        )}
+        {perdidas.length > 0 && (
+          <div>
+            <p className="font-medium text-fg">Dejarás de tener:</p>
+            <ul className="list-disc pl-5 mt-1">{perdidas.map((f) => <li key={f}>{f}</li>)}</ul>
+          </div>
+        )}
       </div>
     </Modal>
   );

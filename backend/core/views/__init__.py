@@ -139,8 +139,11 @@ from .suscripciones import (  # noqa: F401
     _plan_base,
     _referencia_cliente_plan,
     aplicar_evento_pasarela,
+    bajar_plan,
+    cancelar_cambio_plan,
     crear_checkout_reveniu,
     mi_suscripcion,
+    reanudar_renovacion,
     webhook_reveniu,
 )
 from .cuentas import (  # noqa: F401

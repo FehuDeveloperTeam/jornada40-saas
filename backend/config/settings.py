@@ -292,6 +292,8 @@ PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 # ALMACENAMIENTO DE ARCHIVOS (PDFs, contratos)
 # ==========================================
 GEMINI_API_KEY     = config('GEMINI_API_KEY',     default=None)
+# Modelo para leer contratos escaneados; si no existe se usan los de respaldo (core/extractor_contrato.py).
+GEMINI_MODEL       = config('GEMINI_MODEL',       default='gemini-2.5-flash')
 
 B2_KEY_ID          = config('B2_KEY_ID',          default=None)
 B2_APPLICATION_KEY = config('B2_APPLICATION_KEY', default=None)

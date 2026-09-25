@@ -128,3 +128,33 @@ def desactivar_renovacion(subscription_id) -> bool:
     """
     datos = _llamar('POST', f'/api/v1/subscriptions/{subscription_id}/disablerenew/')
     return datos.get('result', True) is not False
+
+
+def obtener_suscripcion(subscription_id) -> dict:
+    """Detalle de una suscripción: status, plan_amount, next_due, is_auto_renew…"""
+    datos = _llamar('GET', f'/api/v1/subscriptions/{subscription_id}/')
+    if not isinstance(datos, dict) or not datos.get('id'):
+        raise ErrorReveniu('Reveniu no devolvió la suscripción.')
+    return datos
+
+
+def cambiar_monto(subscription_id, monto: int) -> None:
+    """Cambia el monto de los próximos cobros de la suscripción (bajar de plan
+    sin inscribir otra tarjeta ni abrir otra suscripción). Verificado en el sandbox."""
+    datos = _llamar('POST', f'/api/v1/subscriptions/{subscription_id}/amount/', json={'amount': int(monto)})
+    if datos.get('result') is not True:
+        raise ErrorReveniu('Reveniu no confirmó el cambio de monto.')
+
+
+def reactivar_renovacion(subscription_id) -> None:
+    """Vuelve a dejar renovable una suscripción a la que se le quitó la
+    renovación, sin cobro inmediato: /extend/ con auto_renew. Reveniu solo la
+    acepta sobre suscripciones vigentes, así que se comprueba el resultado
+    leyendo la suscripción; si no quedó renovable, falla con ErrorReveniu."""
+    datos = _llamar('POST', '/api/v1/subscriptions/extend/',
+                    json={'subs': [int(subscription_id)], 'cicles': 1, 'auto_renew': True})
+    exitosas = [str(s) for s in (datos.get('success_changes') or [])]
+    if str(subscription_id) not in exitosas:
+        raise ErrorReveniu('Reveniu no pudo reactivar la renovación de la suscripción.')
+    if obtener_suscripcion(subscription_id).get('is_auto_renew') is not True:
+        raise ErrorReveniu('Reveniu aceptó la extensión, pero la suscripción no quedó renovable.')

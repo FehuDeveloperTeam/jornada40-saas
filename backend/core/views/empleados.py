@@ -733,7 +733,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='digitalizar_contrato')
     def digitalizar_contrato(self, request, pk=None):
-        from ..extractor_contrato import extraer_campos_contrato
+        from ..extractor_contrato import ExtraccionNoDisponible, extraer_campos_contrato
 
         archivo = request.FILES.get('file')
         if not archivo:
@@ -757,7 +757,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         try:
             campos = extraer_campos_contrato(archivo.read(), mime)
-        except RuntimeError as e:
+        except ExtraccionNoDisponible as e:
             return Response({'error': str(e)}, status=502)
         except Exception:
             logger.exception('Digitalización de contrato falló')

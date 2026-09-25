@@ -104,7 +104,7 @@ class PlanAdmin(admin.ModelAdmin):
 
 @admin.register(Suscripcion)
 class SuscripcionAdmin(admin.ModelAdmin):
-    list_display = ('cliente', 'plan', 'estado', 'gateway_subscription_id', 'fecha_cancelacion')
+    list_display = ('cliente', 'plan', 'plan_programado', 'ciclo', 'estado', 'gateway_subscription_id', 'fecha_cancelacion')
     list_filter = ('estado', 'plan')
     search_fields = ('cliente__rut', 'gateway_subscription_id')
 

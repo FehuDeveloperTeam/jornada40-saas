@@ -51,6 +51,8 @@ export interface Suscripcion {
   ciclo?: 'mensual' | 'anual';
   /** Canceló la renovación en Reveniu: conserva el plan hasta el fin del período pagado. */
   renovacion_cancelada?: boolean;
+  /** Bajada de plan programada: rige desde el próximo cobro. */
+  cambio_programado?: { plan: { id: number; nombre: string }; desde: string | null } | null;
   pagos?: PagoSuscripcion[];
 }
 

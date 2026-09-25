@@ -347,6 +347,12 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Digitalización de contratos (Gemini)
+
+- `POST /api/empleados/{id}/digitalizar_contrato/` (PDF/JPG/PNG, 20 MB) → `core/extractor_contrato.py`: `GEMINI_API_KEY`, model `GEMINI_MODEL` (default `gemini-2.5-flash`; on a 404 it falls back to `gemini-flash-latest`), 45 s timeout. The answer is filtered to the expected keys and a RUT with a wrong check digit is dropped. Errors raise `ExtraccionNoDisponible` with a user-facing message (502). The editor fills the contract fields and only shows the worker's personal data for confirmation. `google-genai` is pinned to 1.75.0 (1.16.0 was yanked).
+
+---
+
 ## Archivo Previred
 
 - `GET /api/liquidaciones/exportar_previred/?mes=&anio=[&empresa=]` genera el **formato estándar de largo variable por separador, versión 100 (septiembre 2026)**: 105 campos por trabajador separados por `;`, Latin-1, fin de línea `\r\n`. La construcción está en `_linea_previred` (`core/views/previred.py`), con el número de campo del documento oficial en cada `poner(n, …)`.
@@ -368,8 +374,10 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - Plans: one set, **Semilla (1), Starter (2), Pyme (3), Corporativo (4)**; features are gated only by `Plan.nivel` (`_plan_permite`), never by name. Migration `0052_consolidar_planes` moved clients of the legacy "Plan Semilla/Pyme/Corporativo" (which had `nivel=1`) to their equivalent and deactivated them. Registration assigns the active plan with `nivel=1`; `mi_suscripcion` returns the plan the backend uses (`_plan_activo`) with `nivel` and `max_empresas`, and the panel takes the level from there. Reveniu links: `REVENIU_LINK_<PLAN>_<CICLO>` with the plan name normalized and `CICLO` = `MENSUAL` or `ANUAL` (e.g. `REVENIU_LINK_STARTER_MENSUAL`, `REVENIU_LINK_PYME_ANUAL`). `Plan.precio_anual` (0 = not sold yearly; initial value 10 × monthly, "2 meses gratis") is editable in the admin; landing, registration and `/app/plan` share `SelectorCiclo`. `Suscripcion.ciclo` (MENSUAL/ANUAL) comes from the checkout reference (`<cliente>_<plan>_<ciclo>`) or, failing that, the amount paid; on `/app/plan` the current plan offers "Cambiar a anual/mensual", and the old Reveniu subscription is flagged for cancellation like a plan change.
 - Worker quota (`_trabajadores_vigentes` / `_exigir_cupo_trabajador`): active workers **plus those dismissed during the current month** (`Empleado.fecha_desvinculacion`, set when `activo` goes False). A dismissed worker frees the slot the following month; reactivating someone dismissed this month needs no extra slot.
 - Previsional parameters (`ParametroPrevisional`, `TasaAFP`) are shared by all clients, maintained by Jornada40 in the Django admin, and read-only in the panel.
-- "Reanudar" after cancelling the renewal is by email for now: a new checkout would charge the period already paid. Reveniu offers `POST /api/v1/subscriptions/extend/` (with `auto_renew`) and `POST /api/v1/subscriptions/{id}/amount/`; to be used (after sandbox tests) for resuming and downgrades.
-- Known gaps: only when the API fails (link fallback) can a first payment arrive unidentified and need manual linking; no proration (the Terms say so); downgrades go through support.
+- **Downgrade** (`POST /api/pagos/bajar-plan/ {plan_id}`, only to a lower `nivel`): to a paid plan, the same Reveniu subscription gets `POST /api/v1/subscriptions/{id}/amount/` (verified in the sandbox) with the new plan's price for the current cycle, and `Suscripcion.plan_programado` is set; it applies on the next payment notice. Refused (400) if the account exceeds the new plan's workers/companies. To Semilla: `disablerenew` + `fecha_cancelacion` (paid plan kept until the period ends). `POST /api/pagos/cancelar-cambio/` restores the amount. `mi_suscripcion.cambio_programado` feeds the banner on `/app/plan`.
+- **Renewal rule**: a payment notice from the client's current Reveniu subscription (same `gateway_subscription_id`) never changes the plan (its checkout reference still names the original plan), except `plan_programado`, which takes effect then. Every payment refreshes `fecha_proximo_cobro` from `GET /api/v1/subscriptions/{id}/` (`next_due`).
+- **Resume** (`POST /api/pagos/reanudar/`): `POST /api/v1/subscriptions/extend/ {subs, cicles: 1, auto_renew: true}` and then checks `is_auto_renew` on the subscription; Reveniu only accepts it on live subscriptions (an abandoned one fails, verified in the sandbox). If not confirmed, it emails the team to do it by hand. Never a new checkout (it would charge the paid period again).
+- Known gaps: only when the API fails (link fallback) can a first payment arrive unidentified and need manual linking; no proration (the Terms say so); `extend` on an active subscription is untested in the sandbox (Transbank's test card doesn't enroll), which is why its result is verified.
 
 ---
 
