@@ -84,6 +84,28 @@ class ParametroPrevisional(models.Model):
         return f"Parámetros desde {self.vigente_desde}{estado}"
 
 
+class TramoAsignacionFamiliar(models.Model):
+    """Monto por carga de la asignación familiar según tramo de ingreso (Ley
+    18.987 y sus reajustes; la SUSESO publica cada cambio). Versionado por
+    fecha, como los demás parámetros: una liquidación usa el que regía en su
+    período. El tramo del trabajador lo determina el IPS; aquí solo el monto."""
+    TRAMOS = [('A', 'Primer tramo'), ('B', 'Segundo tramo'), ('C', 'Tercer tramo')]
+    vigente_desde = models.DateField()
+    tramo = models.CharField(max_length=1, choices=TRAMOS)
+    monto = models.PositiveIntegerField(help_text='Monto mensual por carga (las cargas por invalidez reciben el doble).')
+    renta_hasta = models.PositiveIntegerField(help_text='Ingreso mensual máximo del beneficiario para este tramo.')
+    fuente = models.CharField(max_length=200, blank=True, default='')
+
+    class Meta:
+        ordering = ['-vigente_desde', 'tramo']
+        constraints = [models.UniqueConstraint(fields=['vigente_desde', 'tramo'], name='tramo_af_unico')]
+        verbose_name = 'Tramo de asignación familiar'
+        verbose_name_plural = 'Tramos de asignación familiar'
+
+    def __str__(self):
+        return f'Tramo {self.tramo} desde {self.vigente_desde}: ${self.monto:,}'.replace(',', '.')
+
+
 class TasaAFP(models.Model):
     """Tasa de cotización de cada AFP, versionada por período."""
     nombre = models.CharField(max_length=50)

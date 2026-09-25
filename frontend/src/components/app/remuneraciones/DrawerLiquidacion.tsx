@@ -28,8 +28,12 @@ const soloDigitos = (v: string) => v.replace(/\D/g, '');
 const recargoDe = (c: ConceptoRemuneracion) => c.codigo.match(/(\d{2,3})$/)?.[1] ?? '50';
 const miles = (v: string) => (v ? Number(v).toLocaleString('es-CL') : '');
 
+/** La asignación familiar la calcula el servidor desde el tramo y las cargas: no es un ítem del formulario. */
+const esAsignacionFamiliar = (i: { calculado?: boolean; glosa?: string }) =>
+  Boolean(i.calculado) || /^asignaci[oó]n familiar$/i.test((i.glosa ?? '').trim());
+
 function itemsDesde(liq: Liquidacion | undefined): ItemForm[] {
-  return (liq?.detalle_items ?? []).map((i, n) => ({
+  return (liq?.detalle_items ?? []).filter((i) => !esAsignacionFamiliar(i)).map((i, n) => ({
     clave: n + 1, concepto: i.concepto ?? null, glosa: i.glosa, naturaleza: i.naturaleza,
     valor: String(i.valor ?? ''), horas: i.horas != null ? String(i.horas) : '',
     recargo: i.recargo != null ? String(i.recargo) : '50', montoVendido: i.monto_vendido != null ? String(i.monto_vendido) : '',
@@ -136,7 +140,8 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
   const sim = simulacion.data;
   const valorCalculado = (i: number) => sim?.detalle_items?.[i]?.valor;
   const nombre = capitalizar(`${empleado.nombres} ${empleado.apellido_paterno}`);
-  const disponibles = (conceptos.data ?? []).filter((c) => c.activo);
+  const disponibles = (conceptos.data ?? []).filter((c) => c.activo && !(c.es_del_sistema && c.codigo === 'ASIGNACION_FAMILIAR'));
+  const asignacion = sim?.detalle_items?.find((i) => i.calculado);
 
   return (
     <Drawer abierto={abierto} onCerrar={onCerrar}
@@ -200,6 +205,10 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
               </label>
             </div>
 
+            <p className="text-[12px] text-fg-3">
+              La asignación familiar la calcula el sistema con el tramo y las cargas del trabajador
+              {asignacion ? `: ${clp(asignacion.valor)} (tramo ${asignacion.tramo}, ${clp(asignacion.monto_carga ?? 0)} por carga)` : ''}.
+            </p>
             {items.length === 0 && (
               <p className="text-[13px] text-fg-3 rounded-[10px] border border-dashed border-line px-3.5 py-3">
                 Sin haberes ni descuentos variables este mes.

@@ -344,6 +344,10 @@ export interface ItemLiquidacion {
     recargo?: number;
     monto_vendido?: number;
     porcentaje?: number;
+    /** Calculado por el sistema (asignación familiar): no se edita ni se envía. */
+    calculado?: boolean;
+    tramo?: string;
+    monto_carga?: number;
 }
 
 export interface ComisionItem {

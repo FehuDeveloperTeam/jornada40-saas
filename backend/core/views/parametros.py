@@ -2,7 +2,7 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from ..models import ParametroPrevisional, TasaAFP
+from ..models import ParametroPrevisional, TasaAFP, TramoAsignacionFamiliar
 from django.utils import timezone
 import datetime
 import math
@@ -64,6 +64,8 @@ def parametros_vigentes(request):
         'utm': obtener_utm(),
         'jornada_maxima_vigente': jornada_maxima_vigente(),
         'advertencias': advertencias_parametros(hoy.month, hoy.year),
+        'asignacion_familiar': [{'tramo': t, 'monto': m, 'renta_hasta': h}
+                                for t, (m, h) in sorted((tramos_asignacion_familiar(hoy.month, hoy.year) or {}).items())],
     })
 
 
@@ -220,3 +222,45 @@ def _tasas_afp(mes=None, anio=None) -> dict:
     for fila in filas:
         tasas[fila.nombre.upper()] = float(fila.tasa)
     return tasas or dict(_TASAS_AFP_RESPALDO)
+
+
+# ==========================================
+# ASIGNACIÓN FAMILIAR (DFL 150 de 1981, Ley 18.987)
+# ==========================================
+# Se paga completa si el trabajador tuvo remuneración imponible por 25 días o
+# más en el mes; si no, en proporción a esos días sobre 30 (DT, consulta
+# "asignación familiar y jornada parcial"). Durante una licencia médica la
+# paga igual el empleador (SUSESO): los días de subsidio cuentan.
+_DIAS_ASIGNACION_COMPLETA = 25
+
+
+def tramos_asignacion_familiar(mes=None, anio=None):
+    """{'A': (monto, renta_hasta), 'B': …, 'C': …} vigentes en el período, o
+    None si no hay tabla cargada para esa fecha (entonces no se calcula)."""
+    referencia = _fecha_referencia(mes, anio)
+    ultima = (TramoAsignacionFamiliar.objects.filter(vigente_desde__lte=referencia)
+              .order_by('-vigente_desde').values_list('vigente_desde', flat=True).first())
+    if ultima is None:
+        return None
+    return {t.tramo: (t.monto, t.renta_hasta) for t in TramoAsignacionFamiliar.objects.filter(vigente_desde=ultima)}
+
+
+def asignacion_familiar(empleado, mes, anio, dias_con_remuneracion):
+    """(monto, detalle) de la asignación familiar del mes, o None si no hay
+    tabla para el período. El tramo lo informa el IPS y queda en la ficha."""
+    tramos = tramos_asignacion_familiar(mes, anio)
+    if tramos is None:
+        return None
+    tramo = getattr(empleado, 'tramo_asignacion_familiar', 'D') or 'D'
+    simples = int(getattr(empleado, 'cargas_simples', 0) or 0)
+    maternales = int(getattr(empleado, 'cargas_maternales', 0) or 0)
+    invalidas = int(getattr(empleado, 'cargas_invalidas', 0) or 0)
+    if tramo not in tramos or not (simples + maternales + invalidas):
+        return 0, None
+    monto_carga = tramos[tramo][0]
+    # Las cargas por invalidez reciben el doble (el "duplo" de la tabla SUSESO).
+    completo = monto_carga * (simples + maternales + 2 * invalidas)
+    dias = max(0, min(30, int(dias_con_remuneracion)))
+    monto = completo if dias >= _DIAS_ASIGNACION_COMPLETA else math.floor(completo * dias / 30)
+    return monto, {'tramo': tramo, 'monto_carga': monto_carga, 'cargas': simples + maternales,
+                   'cargas_invalidez': invalidas, 'dias': dias}

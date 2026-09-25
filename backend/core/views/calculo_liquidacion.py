@@ -14,7 +14,7 @@ from num2words import num2words
 
 from .base import logger
 from .feriado import _contar_domingos_y_festivos
-from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tasas_afp, _tope_en_pesos
+from .parametros import _anios_de_servicio, _parametros_previsionales, asignacion_familiar, _tasas_afc, _tasas_afp, _tope_en_pesos
 
 
 # Naturaleza previsional de cada tipo de partida. Se usa para los ítems que
@@ -359,6 +359,21 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         item['recargo'] = recargo
         # Redondeo al entero más cercano, igual que la vista previa del panel.
         item['valor'] = math.floor(valor_hora_ordinaria * (1 + recargo / 100) * horas + 0.5)
+
+    # 2d. ASIGNACIÓN FAMILIAR (monto legal: no se acepta desde el cliente)
+    # Con tabla de tramos para el período, se calcula desde el tramo y las
+    # cargas del trabajador y reemplaza cualquier monto ingresado. Sin tabla
+    # (períodos antiguos), se conserva lo que se ingresó.
+    dias_con_remuneracion = 30 - dias_ausencia - dias_no_contratados
+    calculo_af = asignacion_familiar(empleado, mes, anio, dias_con_remuneracion)
+    if calculo_af is not None:
+        concepto_af = ConceptoRemuneracion.objects.filter(empresa__isnull=True, codigo='ASIGNACION_FAMILIAR').first()
+        items = [i for i in items if getattr(conceptos.get(i.get('concepto')), 'codigo', None) != 'ASIGNACION_FAMILIAR']
+        monto_af, detalle_af = calculo_af
+        if monto_af > 0 and concepto_af is not None:
+            conceptos[concepto_af.id] = concepto_af
+            items.append({'concepto': concepto_af.id, 'glosa': concepto_af.nombre, 'naturaleza': concepto_af.tipo,
+                          'valor': monto_af, 'calculado': True, **detalle_af})
 
     # La naturaleza previsional la define el concepto; los ítems anteriores al
     # catálogo no lo tienen y usan la congelada en el propio ítem.

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
-                     RegistroDT)
+                     RegistroDT, TramoAsignacionFamiliar)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -174,3 +174,12 @@ class RegistroDTAdmin(admin.ModelAdmin):
     """Constancias de registro en Mi DT (contratos, anexos y términos)."""
     list_display = ('empresa', 'clave', 'registrado_en', 'creado_en')
     search_fields = ('empresa__rut', 'clave')
+
+
+@admin.register(TramoAsignacionFamiliar)
+class TramoAsignacionFamiliarAdmin(admin.ModelAdmin):
+    """Monto por carga de la asignación familiar. Cuando la SUSESO publique un
+    reajuste, se agregan los tres tramos con su fecha de vigencia."""
+    list_display = ('vigente_desde', 'tramo', 'monto', 'renta_hasta', 'fuente')
+    list_filter = ('vigente_desde',)
+    ordering = ('-vigente_desde', 'tramo')

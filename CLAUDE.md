@@ -362,6 +362,13 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Asignación familiar
+
+- Computed in `_calcular_liquidacion` (step 2d) with `asignacion_familiar()` (`views/parametros.py`): amount per carga of the worker's tramo (A/B/C, informed by the IPS and stored on `Empleado`) × (simples + maternales + **2 × inválidas**, the SUSESO "duplo"). Paid in full with 25 or more days of taxable pay in the month, otherwise proportional over 30; licencia days count (the employer pays it during the subsidy), absences and days outside the contract don't.
+- Amounts by period in `TramoAsignacionFamiliar` (admin; seed in migration 0063 with the SUSESO tables from May 2025, Jan 2026 and May 2026, Ley 21.830). When a period has a table, any manual `ASIGNACION_FAMILIAR` item is replaced by the computed one (flag `calculado`); without a table (older periods) the entered amount is kept. The payslip drawer doesn't offer it as a concept. When the SUSESO publishes a new reajuste, add the three tramos with their `vigente_desde` in the admin.
+
+---
+
 ## Libro de Remuneraciones Electrónico (LRE)
 
 - `GET /api/liquidaciones/revisar_lre/?empresa=&mes=&anio=` → `{trabajadores, faltan, avisos}` and `GET …/exportar_lre/` → `rutempleador_aaaamm.csv` (Pyme+; Remuneraciones → "Libro electrónico DT", a modal that reviews before downloading). Due in Mi DT within the first 15 days of the next month (Art. 62 bis).
@@ -460,7 +467,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.
