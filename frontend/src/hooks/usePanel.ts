@@ -48,6 +48,8 @@ export interface Suscripcion {
   trabajadores_actuales: number;
   fecha_proximo_cobro: string | null;
   metodo_pago_glosa?: string | null;
+  /** Ciclo del cobro vigente. */
+  ciclo?: 'mensual' | 'anual';
   /** Canceló la renovación en Reveniu: conserva el plan hasta el fin del período pagado. */
   renovacion_cancelada?: boolean;
   pagos?: PagoSuscripcion[];

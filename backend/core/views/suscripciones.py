@@ -20,7 +20,7 @@ from .base import _plan_activo, _trabajadores_vigentes, logger
 
 # Endpoint para listar los planes activos en la BD
 class PlanViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Plan.objects.filter(activo=True)
+    queryset = Plan.objects.filter(activo=True).order_by('nivel', 'id')
     serializer_class = PlanSerializer
     permission_classes = [AllowAny] 
 
@@ -67,6 +67,7 @@ def mi_suscripcion(request):
         'metodo_pago_glosa': suscripcion.metodo_pago_glosa,
         # Canceló la renovación en Reveniu: conserva el plan hasta el fin del período pagado.
         'renovacion_cancelada': suscripcion.estado == 'ACTIVE' and suscripcion.fecha_cancelacion is not None,
+        'ciclo': suscripcion.ciclo.lower(),
         'pagos': [
             {'id': e.id, 'fecha': e.fecha_pago.isoformat() if e.fecha_pago else None, 'monto': e.monto,
              'plan': e.plan.nombre if e.plan else None, 'orden': e.orden_compra}
@@ -111,7 +112,8 @@ def crear_checkout_reveniu(request):
             )
 
         nombre_url = urllib.parse.quote(f"{request.user.first_name} {request.user.last_name}".strip())
-        url_pago = f"{link_base}?email={request.user.email}&name={nombre_url}&custom_reference={cliente.id}_{plan.id}"
+        # La referencia lleva el ciclo para saber, al llegar el pago, si pasó a anual o a mensual.
+        url_pago = f"{link_base}?email={request.user.email}&name={nombre_url}&custom_reference={cliente.id}_{plan.id}_{ciclo}"
 
         return Response({'url': url_pago}, status=status.HTTP_200_OK)
 
@@ -129,12 +131,23 @@ _EVENTO_DESACTIVADA = 'subscription_deactivated'
 
 
 def _referencia_cliente_plan(referencia):
-    """(cliente, plan) desde una referencia "<cliente_id>_<plan_id>", o (None, None)."""
+    """(cliente, plan) desde una referencia "<cliente_id>_<plan_id>[_<ciclo>]", o (None, None)."""
     try:
-        cliente_id, plan_id = str(referencia or '').split('_', 1)
+        cliente_id, plan_id = str(referencia or '').split('_')[:2]
         return Cliente.objects.get(id=int(cliente_id)), Plan.objects.get(id=int(plan_id))
     except (ValueError, Cliente.DoesNotExist, Plan.DoesNotExist):
         return None, None
+
+
+def _ciclo_del_evento(evento, plan):
+    """MENSUAL o ANUAL según la referencia del checkout o, si no viene, el monto pagado."""
+    datos = evento.datos.get('data') if isinstance(evento.datos.get('data'), dict) else evento.datos
+    partes = str(datos.get('subscription_external_id') or datos.get('custom_reference') or '').split('_')
+    if len(partes) >= 3 and partes[2].upper() in ('MENSUAL', 'ANUAL'):
+        return partes[2].upper()
+    if evento.monto and plan.precio_anual:
+        return 'ANUAL' if evento.monto >= plan.precio_anual * 0.9 else 'MENSUAL'
+    return None
 
 
 def _plan_base():
@@ -177,7 +190,7 @@ def aplicar_evento_pasarela(evento):
             # sigue cobrando hasta que alguien la cancele.
             _avisar_pagos(
                 f'Cancelar la suscripción anterior de {cliente.rut}',
-                f'La cuenta {cliente.rut} pagó el plan {plan.nombre} con la suscripción de Reveniu '
+                f'La cuenta {cliente.rut} pagó el plan {plan.nombre} ({(_ciclo_del_evento(evento, plan) or "").lower() or "ciclo sin informar"}) con la suscripción de Reveniu '
                 f'{id_pasarela}. La suscripción anterior ({suscripcion.gateway_subscription_id}, plan '
                 f'{suscripcion.plan.nombre}) sigue activa en Reveniu: cancélala allí para no cobrar dos veces.')
         if not suscripcion:
@@ -187,6 +200,7 @@ def aplicar_evento_pasarela(evento):
         suscripcion.plan = plan
         suscripcion.estado = 'ACTIVE'
         suscripcion.fecha_cancelacion = None
+        suscripcion.ciclo = _ciclo_del_evento(evento, plan) or suscripcion.ciclo or 'MENSUAL'
         if id_pasarela:
             suscripcion.gateway_subscription_id = id_pasarela
         suscripcion.save()

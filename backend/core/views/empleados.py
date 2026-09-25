@@ -170,7 +170,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         )
         qs = Empleado.objects.filter(empresa__owner=self.request.user).annotate(
             tiene_rechazos_pendientes=Exists(rechazos_qs)
-        )
+        ).order_by('apellido_paterno', 'nombres', 'id')
         # El panel pide los trabajadores de la empresa activa; sin el
         # parámetro se mantienen todos los del usuario (panel anterior).
         empresa_id = self.request.query_params.get('empresa')

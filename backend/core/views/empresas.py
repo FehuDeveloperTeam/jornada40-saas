@@ -25,8 +25,8 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.query_params.get('incluir_inactivas') == 'true':
-            return Empresa.objects.filter(owner=self.request.user)
-        return Empresa.objects.filter(owner=self.request.user, activo=True)
+            return Empresa.objects.filter(owner=self.request.user).order_by('id')
+        return Empresa.objects.filter(owner=self.request.user, activo=True).order_by('id')
     
     @action(detail=True, methods=['post'])
     def reactivar(self, request, pk=None):

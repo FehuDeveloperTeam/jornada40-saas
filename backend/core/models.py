@@ -711,6 +711,8 @@ class Suscripcion(models.Model):
     
     # Ciclo de vida
     estado = models.CharField(max_length=20, choices=ESTADOS_SUSCRIPCION, default='TRIAL')
+    # Ciclo del cobro vigente: se deduce del pago (monto o referencia del checkout).
+    ciclo = models.CharField(max_length=10, choices=[('MENSUAL', 'Mensual'), ('ANUAL', 'Anual')], default='MENSUAL')
     fecha_inicio = models.DateTimeField(auto_now_add=True)
     fecha_proximo_cobro = models.DateTimeField(null=True, blank=True)
     fecha_cancelacion = models.DateTimeField(null=True, blank=True)

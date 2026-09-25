@@ -301,3 +301,48 @@ class PagoAnualTests(APITestCase):
             self.assertIn('REVENIU_LINK_PYME_MENSUAL', r.data['error'])
             r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'semestral'}, format='json')
             self.assertEqual(r.status_code, 400)
+
+
+class CambioDeCicloTests(APITestCase):
+    """Pasar del mensual al anual del mismo plan: la suscripción queda anual y se avisa cancelar la mensual."""
+    URL = '/api/pagos/webhook/reveniu/'
+
+    def setUp(self):
+        from ..models import Suscripcion
+        self.user, self.cliente, _, _ = crear_usuario_completo('ciclo_owner', '21.000.000-3', '76.000.555-2')
+        self.pyme = Plan.objects.get(nombre='Pyme')
+        Suscripcion.objects.filter(cliente=self.cliente).update(plan=self.pyme, gateway_subscription_id='10', ciclo='MENSUAL')
+
+    def _avisar(self, evento, **data):
+        with patch('core.views.suscripciones.config', side_effect=_mock_config('secret-real')):
+            return self.client.post(self.URL, {'event': evento, 'data': data}, format='json', HTTP_REVENIU_SECRET_KEY='secret-real')
+
+    def test_referencia_con_ciclo_anual(self):
+        from django.core import mail
+        from ..models import Suscripcion
+        self._avisar('subscription_activated', subscription_id=11,
+                     subscription_external_id=f'{self.cliente.id}_{self.pyme.id}_anual')
+        s = Suscripcion.objects.get(cliente=self.cliente)
+        self.assertEqual((s.ciclo, s.gateway_subscription_id), ('ANUAL', '11'))
+        self.assertEqual(len(mail.outbox), 1)          # cancelar la mensual (10) en Reveniu
+        self.assertIn('10', mail.outbox[0].body)
+        from django.contrib.auth.models import User
+        self.client.force_authenticate(User.objects.get(pk=self.user.pk))   # sin la suscripción en caché
+        self.assertEqual(self.client.get('/api/clientes/mi_suscripcion/').data['ciclo'], 'anual')
+
+    def test_sin_referencia_se_deduce_del_monto(self):
+        from ..models import Suscripcion
+        self._avisar('subscription_payment_succeeded', subscription_id=10, subscription_external_id=None,
+                     buy_order=5, issued_on='01/10/2026', amount=self.pyme.precio_anual)
+        self.assertEqual(Suscripcion.objects.get(cliente=self.cliente).ciclo, 'ANUAL')
+        self._avisar('subscription_payment_succeeded', subscription_id=10, subscription_external_id=None,
+                     buy_order=6, issued_on='01/11/2026', amount=self.pyme.precio)
+        self.assertEqual(Suscripcion.objects.get(cliente=self.cliente).ciclo, 'MENSUAL')
+
+    def test_checkout_lleva_el_ciclo_en_la_referencia(self):
+        def config(clave, default=None, **kw):
+            return {'REVENIU_LINK_PYME_ANUAL': 'https://pago.example/anual'}.get(clave, default)
+        self.client.force_authenticate(self.user)
+        with patch('core.views.suscripciones.config', side_effect=config):
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
+        self.assertIn(f'custom_reference={self.cliente.id}_{self.pyme.id}_anual', r.data['url'])

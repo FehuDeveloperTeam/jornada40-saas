@@ -29,7 +29,10 @@ export default function Plan() {
   const { planes } = usePlanes();
   const { empresas } = useEmpresaActiva();
   const [elegido, setElegido] = useState<TPlan | null>(null);
-  const [ciclo, setCiclo] = useState<Ciclo>('mensual');
+  // Parte en el ciclo de la suscripción; al elegir el otro se puede cambiar de ciclo.
+  const [cicloElegido, setCiclo] = useState<Ciclo | null>(null);
+  const cicloActual: Ciclo = suscripcion?.ciclo === 'anual' ? 'anual' : 'mensual';
+  const ciclo = cicloElegido ?? cicloActual;
 
   if (!suscripcion) return <p className="text-[14px] text-fg-3" role="status">Cargando…</p>;
   const actual = planes.find((p) => p.id === suscripcion.plan.id);
@@ -100,7 +103,9 @@ export default function Plan() {
                 ))}
               </ul>
               {excede && !esActual && <p className="text-[12px] text-danger">{excede}</p>}
-              {esActual ? <Button variante="secundario" disabled>Plan actual</Button>
+              {esActual && p.precio > 0 && p.precio_anual > 0 && ciclo !== cicloActual
+                ? <Button onClick={() => setElegido(p)}>Cambiar a {ciclo}</Button>
+                : esActual ? <Button variante="secundario" disabled>Plan actual{p.precio ? ` · ${cicloActual}` : ''}</Button>
                 : sube ? <Button onClick={() => setElegido(p)}>Subir a {p.nombre}</Button>
                   : <Button variante="secundario" disabled title="Bajar de plan aún se gestiona con soporte">Bajar de plan</Button>}
             </section>
@@ -126,7 +131,7 @@ export default function Plan() {
         )}
       </section>
 
-      {elegido && <Checkout plan={elegido} ciclo={ciclo} onCerrar={() => setElegido(null)} />}
+      {elegido && <Checkout plan={elegido} ciclo={ciclo} cambioDeCiclo={elegido.id === suscripcion.plan.id} onCerrar={() => setElegido(null)} />}
     </div>
   );
 }
@@ -144,7 +149,7 @@ function Uso({ titulo, usado, limite }: { titulo: string; usado: number; limite:
   );
 }
 
-function Checkout({ plan, ciclo, onCerrar }: { plan: TPlan; ciclo: Ciclo; onCerrar: () => void }) {
+function Checkout({ plan, ciclo, cambioDeCiclo, onCerrar }: { plan: TPlan; ciclo: Ciclo; cambioDeCiclo: boolean; onCerrar: () => void }) {
   const anual = ciclo === 'anual' && Boolean(plan.precio_anual);
   const [estado, setEstado] = useState<'resumen' | 'conectando'>('resumen');
   const [error, setError] = useState('');
@@ -174,7 +179,9 @@ function Checkout({ plan, ciclo, onCerrar }: { plan: TPlan; ciclo: Ciclo; onCerr
           <span className="font-semibold j40-num">{formatearPrecio(precioCiclo(plan, anual ? 'anual' : 'mensual'))}</span>
         </div>
         <p className="text-[13px] text-fg-2">
-          Te llevamos a Reveniu para pagar. Cuando el pago se confirme, los nuevos límites y funciones quedan activos en tu cuenta.
+          {cambioDeCiclo
+            ? `Te llevamos a Reveniu para pagar el ${anual ? 'año' : 'mes'}. Cuando se confirme, cancelamos tu suscripción ${anual ? 'mensual' : 'anual'} anterior en Reveniu. El período en curso no se prorratea ni se reembolsa.`
+            : 'Te llevamos a Reveniu para pagar. Cuando el pago se confirme, los nuevos límites y funciones quedan activos en tu cuenta.'}
         </p>
       </div>
     </Modal>
