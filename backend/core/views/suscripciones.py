@@ -119,12 +119,21 @@ def crear_checkout_reveniu(request):
         #    así el pago se asocia solo a la cuenta, el plan y el ciclo.
         intento = IntentoPago.objects.create(cliente=cliente, plan=plan, ciclo=ciclo.upper())
         try:
-            creada = reveniu.crear_suscripcion(reveniu.id_plan_desde_link(link_base), email, nombre, intento.id)
+            plan_reveniu = reveniu.plan_desde_link(link_base)
+            reveniu.exigir_frecuencia(plan_reveniu, ciclo)
+            creada = reveniu.crear_suscripcion(plan_reveniu['id'], email, nombre, intento.id)
             intento.gateway_subscription_id = str(creada['id'])
             intento.save(update_fields=['gateway_subscription_id'])
             return Response({'completion_url': creada['completion_url'], 'security_token': creada.get('security_token', '')},
                             status=status.HTTP_200_OK)
-        except reveniu.ErrorReveniu:
+        except reveniu.PlanMalConfigurado as e:
+            # El link fijo apunta al mismo plan mal configurado: no se cobra.
+            _avisar_pagos('Plan de Reveniu mal configurado', f'{e} Corrígelo en Reveniu; mientras, ese pago queda detenido.')
+            return Response({'error': 'El pago de este plan no está disponible en este momento. Ya avisamos al equipo; '
+                                      'intenta más tarde o escríbenos.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception:
+            # Cualquier otra falla de la API (caída, respuesta inesperada) no
+            # puede impedir el pago: se sigue con el link fijo.
             logger.exception('Checkout por API de Reveniu falló; se usa el link de pago')
 
         # 2) Respaldo: el link de pago fijo, con la referencia en la URL.
@@ -207,7 +216,7 @@ def _cancelar_anterior(cliente, plan, evento, id_anterior, plan_anterior):
             logger.info('Renovación desactivada en Reveniu: suscripción %s de %s', id_anterior, cliente.rut)
             return
         motivo = 'Reveniu no confirmó la operación.'
-    except reveniu.ErrorReveniu as e:
+    except Exception as e:  # cualquier falla de la API termina en el correo de aviso
         motivo = str(e)
     _avisar_pagos(
         f'Cancelar la suscripción anterior de {cliente.rut}',

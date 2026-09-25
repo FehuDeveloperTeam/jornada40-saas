@@ -371,6 +371,7 @@ class ReveniuApiTests(APITestCase):
         self.user, self.cliente, _, _ = crear_usuario_completo('api_owner', '21.000.000-3', '76.000.555-2')
         self.pyme = Plan.objects.get(nombre='Pyme')
         self.llamadas = []
+        self.frecuencia = '4'   # anual, como corresponde al link REVENIU_LINK_PYME_ANUAL
 
     def _config(self, clave, default=None, **kw):
         return {'REVENIU_LINK_PYME_ANUAL': self.LINK, 'REVENIU_WEBHOOK_SECRET': 'secret-real'}.get(clave, default)
@@ -378,7 +379,9 @@ class ReveniuApiTests(APITestCase):
     def _api(self, metodo, url, **kw):
         self.llamadas.append((metodo, url, kw.get('json')))
         if url.endswith('/api/v1/plans/'):
-            return _RespuestaFalsa({'data': [{'id': 99, 'slug': 'OTRO'}, {'id': 77, 'slug': 'SLUGPYME'}]})
+            # Formato real de la API (verificado en el sandbox): paginado.
+            return _RespuestaFalsa({'data': {'next': None, 'total_pages': 1, 'results': [
+                {'id': 99, 'slug': 'OTRO', 'frequency': '3'}, {'id': 77, 'slug': 'SLUGPYME', 'frequency': self.frecuencia}]}})
         if url.endswith('/api/v1/subscriptions/'):
             return _RespuestaFalsa({'id': 555, 'completion_url': 'https://webpay.example/inscripcion', 'security_token': 'tok'})
         if url.endswith('/disablerenew/'):
@@ -423,3 +426,16 @@ class ReveniuApiTests(APITestCase):
         self.assertEqual((s.plan, s.ciclo, s.gateway_subscription_id), (self.pyme, 'ANUAL', '555'))
         self.assertIn(('POST', 'https://api.reveniu.com/api/v1/subscriptions/10/disablerenew/', None), self.llamadas)
         self.assertEqual(len(mail.outbox), 0)   # se canceló sola: no hace falta el correo
+
+
+    def test_plan_anual_configurado_como_mensual_no_cobra(self):
+        from django.core import mail
+        self.frecuencia = '3'   # en Reveniu quedó mensual
+        self.client.force_authenticate(self.user)
+        with patch('core.reveniu.config', side_effect=self._config), \
+             patch('core.views.suscripciones.config', side_effect=self._config), \
+             patch('core.reveniu.requests.request', side_effect=self._api):
+            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
+        self.assertEqual(r.status_code, 503)
+        self.assertFalse([c for c in self.llamadas if c[0] == 'POST'])     # no se creó ninguna suscripción
+        self.assertIn('mal configurado', mail.outbox[0].subject)

@@ -50,20 +50,59 @@ def _llamar(metodo: str, ruta: str, **kwargs):
         raise ErrorReveniu('Reveniu respondió algo que no es JSON.') from e
 
 
-def id_plan_desde_link(link: str) -> int:
-    """Id del plan de Reveniu al que apunta un link de pago (el link lleva el slug del plan)."""
+# Frecuencia del plan en Reveniu (docs: Variables → Intervalos): "3" mensual, "4" anual.
+FRECUENCIA_POR_CICLO = {'MENSUAL': '3', 'ANUAL': '4'}
+
+
+class PlanMalConfigurado(ErrorReveniu):
+    """El plan de Reveniu no cobra con la frecuencia del ciclo que se vende."""
+
+
+def plan_desde_link(link: str) -> dict:
+    """{id, frequency, title} del plan de Reveniu al que apunta un link de pago
+    (el link lleva el slug del plan)."""
     clave_cache = f'reveniu-plan-{link}'
     guardado = cache.get(clave_cache)
     if guardado:
         return guardado
-    datos = _llamar('GET', '/api/v1/plans/')
-    planes = datos.get('data', datos) if isinstance(datos, dict) else datos
-    for plan in planes or []:
+    for plan in _planes():
         slug = str(plan.get('slug') or '')
         if slug and slug in link:
-            cache.set(clave_cache, int(plan['id']), 60 * 60)
-            return int(plan['id'])
+            datos = {'id': int(plan['id']), 'frequency': str(plan.get('frequency') or ''), 'title': plan.get('title') or ''}
+            cache.set(clave_cache, datos, 60 * 60)
+            return datos
     raise ErrorReveniu('No se encontró en Reveniu el plan del link de pago configurado.')
+
+
+def id_plan_desde_link(link: str) -> int:
+    return plan_desde_link(link)['id']
+
+
+def exigir_frecuencia(plan: dict, ciclo: str) -> None:
+    """Evita cobrar un plan anual cada mes (o al revés) si en Reveniu quedó mal configurado."""
+    esperada = FRECUENCIA_POR_CICLO.get(ciclo.upper())
+    if esperada and plan.get('frequency') and plan['frequency'] != esperada:
+        raise PlanMalConfigurado(
+            f'El plan "{plan.get("title")}" de Reveniu cobra con frecuencia {plan["frequency"]} y se vende como '
+            f'{ciclo.lower()} (debería ser {esperada}).')
+
+
+def _planes():
+    """Todos los planes del comercio. La API los entrega paginados:
+    {"data": {"results": [...], "next": ..., "total_pages": N}}."""
+    pagina, total = 1, 1
+    while pagina <= total and pagina <= 20:
+        datos = _llamar('GET', '/api/v1/plans/', params={'page': pagina} if pagina > 1 else None)
+        cuerpo = datos.get('data', datos) if isinstance(datos, dict) else datos
+        if isinstance(cuerpo, dict):
+            yield from (p for p in cuerpo.get('results') or [] if isinstance(p, dict))
+            total = int(cuerpo.get('total_pages') or 1)
+        elif isinstance(cuerpo, list):
+            yield from (p for p in cuerpo if isinstance(p, dict))
+            return
+        else:
+            raise ErrorReveniu('Respuesta inesperada al listar los planes de Reveniu.')
+        pagina += 1
 
 
 def crear_suscripcion(plan_id: int, email: str, nombre: str, external_id: int) -> dict:
