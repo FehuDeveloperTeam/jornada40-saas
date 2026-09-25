@@ -45,7 +45,10 @@
 
     <p>Se acuerda el siguiente Anexo al Contrato de Trabajo celebrado con fecha <span class="bold">{{ contrato.fecha_inicio }}</span>:</p>
 
-    {% if anexo.descripcion %}
+    {% if anexo.tipo == 'CONSENTIMIENTO_ELECTRONICO' %}
+    <h2>Documentación laboral electrónica</h2>
+    <p>{% include "clausula_consentimiento_electronico.html" %}</p>
+    {% elif anexo.descripcion %}
     <h2>Antecedentes</h2>
     <p>{{ anexo.descripcion|linebreaks }}</p>
     {% endif %}

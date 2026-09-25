@@ -163,6 +163,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 contrato=contrato_obj, documento_legal=doc_legal_obj, anexo_contrato=anexo_obj,
                 liquidacion=liquidacion_obj, vacacion=vacacion_obj, finiquito=finiquito_obj,
                 email_firmante=email_trabajador, b2_key_temporal=key,
+                # El contrato lleva la cláusula de documentación electrónica; el
+                # anexo de autorización es esa misma cláusula.
+                incluye_consentimiento=tipo_doc == 'CONTRATO' or bool(
+                    anexo_obj and anexo_obj.tipo == 'CONSENTIMIENTO_ELECTRONICO'),
             )
         except Exception:
             logger.exception('No se pudo registrar la solicitud de firma')

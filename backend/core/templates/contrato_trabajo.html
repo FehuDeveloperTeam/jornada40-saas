@@ -91,8 +91,10 @@
     El Empleador pagará la Gratificación Legal en su modalidad <span class="bold">{% if contrato.gratificacion_legal == 'MENSUAL' %}Mensual (Art. 50 del Código del Trabajo){% else %}Anual (Art. 47 del Código del Trabajo){% endif %}</span>. De las remuneraciones se deducirán los impuestos, cotizaciones previsionales de AFP ({{ empleado.afp|default:"_____" }}) y Salud ({{ empleado.sistema_salud|default:"_____" }}).
     </p>
 
+    <p><span class="bold">CUARTO. Documentación laboral electrónica:</span> {% include "clausula_consentimiento_electronico.html" %}</p>
+
     {% if contrato.clausulas_especiales %}
-    <p><span class="bold">CUARTO. Cláusulas Especiales:</span> Las partes acuerdan además:
+    <p><span class="bold">QUINTO. Cláusulas Especiales:</span> Las partes acuerdan además:
         <ul>
         {% for clausula in contrato.clausulas_especiales %}
             <li>{{ clausula }}</li>
@@ -101,7 +103,7 @@
     </p>
     {% endif %}
 
-    <p><span class="bold">{% if contrato.clausulas_especiales %}QUINTO{% else %}CUARTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ fecha_inicio_texto }}</span> y tendrá el carácter de {{ tipo_contrato_texto|lower }}.
+    <p><span class="bold">{% if contrato.clausulas_especiales %}SEXTO{% else %}QUINTO{% endif %}. Vigencia:</span> El presente contrato comenzará a regir el <span class="bold">{{ fecha_inicio_texto }}</span> y tendrá el carácter de {{ tipo_contrato_texto|lower }}.
     {% if contrato.tipo_contrato == 'PLAZO_FIJO' and contrato.fecha_fin %}
         El contrato terminará el día <span class="bold">{{ fecha_fin_texto }}</span>.
     {% endif %}

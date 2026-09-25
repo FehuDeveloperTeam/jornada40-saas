@@ -589,6 +589,12 @@ def firma_publica_firmar(request, token):
                 solicitud.anexo_contrato_id,
             )
 
+    # ── Consentimiento para la documentación electrónica (Dictamen 0789/15) ─
+    if solicitud.incluye_consentimiento and not empleado.consentimiento_electronico_en:
+        empleado.consentimiento_electronico_en = firmado_en
+        empleado.consentimiento_electronico_via = 'CONTRATO' if solicitud.tipo_documento == 'CONTRATO' else 'ANEXO'
+        empleado.save(update_fields=['consentimiento_electronico_en', 'consentimiento_electronico_via'])
+
     # ── Emails de confirmación (no críticos) ────────────────────────────────
     try:
         _enviar_emails_firma_completada(solicitud, empleado, empresa, pdf_firmado_bytes)

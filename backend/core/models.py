@@ -235,6 +235,16 @@ class Empleado(models.Model):
     # Día en que se desvinculó. Un desvinculado sigue ocupando cupo del plan
     # hasta fin de ese mes (ver _trabajadores_que_ocupan_cupo).
     fecha_desvinculacion = models.DateField(null=True, blank=True)
+    # Declaraciones del registro de contrato en la DT (Mi DT): discapacidad
+    # certificada por la COMPIN (Ley 20.422) y pensión de invalidez (DL 3.500).
+    discapacidad = models.BooleanField(default=False)
+    pension_invalidez = models.BooleanField(default=False)
+    # Consentimiento expreso para la documentación laboral electrónica
+    # (Dictamen DT 0789/15): cláusula del contrato, anexo firmado o papel.
+    VIAS_CONSENTIMIENTO = [('CONTRATO', 'Cláusula del contrato'), ('ANEXO', 'Anexo firmado'),
+                           ('PAPEL', 'Firmado en papel')]
+    consentimiento_electronico_en = models.DateTimeField(null=True, blank=True)
+    consentimiento_electronico_via = models.CharField(max_length=10, choices=VIAS_CONSENTIMIENTO, blank=True, default='')
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     
@@ -449,6 +459,9 @@ class ConceptoRemuneracion(models.Model):
 # ==========================================
 class AnexoContrato(models.Model):
     contrato = models.ForeignKey(Contrato, on_delete=models.CASCADE, related_name='anexos')
+    TIPOS = [('GENERAL', 'Modificación del contrato'),
+             ('CONSENTIMIENTO_ELECTRONICO', 'Autorización de documentación electrónica')]
+    tipo = models.CharField(max_length=30, choices=TIPOS, default='GENERAL')
     titulo = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
     clausulas_modificadas = models.JSONField(default=list, blank=True)
@@ -647,6 +660,22 @@ class Liquidacion(models.Model):
 # ==========================================
 # 6. FINIQUITO
 # ==========================================
+class RegistroDT(models.Model):
+    """Constancia de que un contrato, anexo o término quedó registrado en Mi DT
+    (Ley 21.327). `clave` identifica lo registrado: CONTRATO:<id>,
+    ANEXO:<id>, ANEXO40H:<solicitud>, TERMINO:<finiquito> o TERMINO_EMP:<empleado>."""
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='registros_dt')
+    clave = models.CharField(max_length=40)
+    registrado_en = models.DateField()
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['empresa', 'clave'], name='registro_dt_unico')]
+
+    def __str__(self):
+        return f'{self.clave} registrado el {self.registrado_en}'
+
+
 class Finiquito(models.Model):
     CAUSAL_ARTICULO_CHOICES = DocumentoLegal.CAUSAL_ARTICULO_CHOICES
 
@@ -839,6 +868,10 @@ class SolicitudFirma(models.Model):
     folio            = models.CharField(max_length=20, blank=True, default='')
     hash_original    = models.CharField(max_length=64, blank=True, default='')
     hash_firmado     = models.CharField(max_length=64, blank=True, default='')
+    # El PDF a firmar contiene el consentimiento para la documentación
+    # electrónica (cláusula del contrato o anexo de autorización): al firmarse
+    # queda registrado en el trabajador.
+    incluye_consentimiento = models.BooleanField(default=False)
 
     creado_en        = models.DateTimeField(auto_now_add=True)
     actualizado_en   = models.DateTimeField(auto_now=True)

@@ -176,6 +176,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'afp', 'sistema_salud', 'plan_isapre_uf', 'isapre', 'numero_fun',
             'tramo_asignacion_familiar', 'cargas_simples', 'cargas_maternales', 'cargas_invalidas',
             'anios_previos_feriado', 'fecha_desvinculacion',
+            'discapacidad', 'pension_invalidez', 'consentimiento_electronico_en', 'consentimiento_electronico_via',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
@@ -183,7 +184,8 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'tiene_rechazos_pendientes',
         ]
         read_only_fields = ('id', 'creado_en', 'contrato_activo', 'fecha_desvinculacion',
-                            'tiene_rechazos_pendientes')
+                            'tiene_rechazos_pendientes', 'consentimiento_electronico_en',
+                            'consentimiento_electronico_via')
 
 
 class AnexoContratoSerializer(serializers.ModelSerializer):
@@ -193,12 +195,13 @@ class AnexoContratoSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnexoContrato
         fields = [
-            'id', 'contrato', 'titulo', 'descripcion',
+            'id', 'contrato', 'tipo', 'titulo', 'descripcion',
             'clausulas_modificadas', 'fecha_emision',
             'cambios', 'vigencia_desde', 'aplicado', 'aplicado_en',
             'archivo_pdf', 'creado_en',
         ]
-        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'aplicado', 'aplicado_en')
+        # El anexo de consentimiento lo crea el sistema con su texto fijo.
+        read_only_fields = ('id', 'tipo', 'archivo_pdf', 'creado_en', 'aplicado', 'aplicado_en')
 
 
 class DocumentoLegalSerializer(serializers.ModelSerializer):

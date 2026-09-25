@@ -731,6 +731,25 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = 'attachment; filename="Anexos_Masivos_40h.zip"'
         return response
 
+    @action(detail=True, methods=['post'])
+    def consentimiento(self, request, pk=None):
+        """Consentimiento para la documentación electrónica firmado en papel
+        ({fecha}) o su revocación por escrito ({revocar: true})."""
+        from .direccion_trabajo import marcar_consentimiento
+        empleado = self.get_object()
+        if request.data.get('revocar'):
+            marcar_consentimiento(empleado, '', None)
+            return Response(self.get_serializer(empleado).data)
+        try:
+            fecha = datetime.date.fromisoformat(str(request.data.get('fecha') or ''))
+        except ValueError:
+            return Response({'error': 'Indica la fecha en que el trabajador firmó la autorización.'}, status=400)
+        if fecha > timezone.localdate():
+            return Response({'error': 'La fecha no puede ser futura.'}, status=400)
+        momento = timezone.make_aware(datetime.datetime.combine(fecha, datetime.time(12)))
+        marcar_consentimiento(empleado, 'PAPEL', momento)
+        return Response(self.get_serializer(empleado).data)
+
     @action(detail=True, methods=['post'], url_path='digitalizar_contrato')
     def digitalizar_contrato(self, request, pk=None):
         from ..extractor_contrato import ExtraccionNoDisponible, extraer_campos_contrato

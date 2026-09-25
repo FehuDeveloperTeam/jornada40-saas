@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
-                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago)
+                     ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
+                     RegistroDT)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -167,3 +168,9 @@ class AnexoContratoAdmin(admin.ModelAdmin):
     list_display = ('titulo', 'contrato', 'fecha_emision', 'creado_en')
     list_filter = ('fecha_emision',)
     search_fields = ('titulo', 'contrato__empleado__rut', 'contrato__empleado__apellido_paterno')
+
+@admin.register(RegistroDT)
+class RegistroDTAdmin(admin.ModelAdmin):
+    """Constancias de registro en Mi DT (contratos, anexos y términos)."""
+    list_display = ('empresa', 'clave', 'registrado_en', 'creado_en')
+    search_fields = ('empresa__rut', 'clave')

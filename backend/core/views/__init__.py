@@ -168,3 +168,8 @@ from .firma_publica import (  # noqa: F401
     firma_publica_solicitar_otp,
     firma_publica_verificar_otp,
 )
+from .direccion_trabajo import (  # noqa: F401
+    RegistroDTViewSet,
+    items_registro,
+    resumen_consentimiento,
+)
