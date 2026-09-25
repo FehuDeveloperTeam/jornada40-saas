@@ -8,7 +8,8 @@ from rest_framework.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpResponse
 from django.template.loader import render_to_string, get_template
-from ..models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma
+from django.utils import timezone
+from ..models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado
 from xhtml2pdf import pisa
 import datetime
 import io
@@ -23,7 +24,10 @@ from django.db.models import Max, Exists, OuterRef
 from django.core.files.base import ContentFile
 from ..serializers import EmpleadoSerializer
 
-from .base import _ctx_contrato, _es_plan_semilla, _exigir_cupo_trabajador, _limite_trabajadores, _plan_permite, estandarizar_fecha, logger
+from .documentos import pdf_anexo_contrato, pdf_documento_legal
+from .finiquitos import pdf_finiquito
+from .vacaciones import pdf_vacacion
+from .base import _ctx_contrato, _es_plan_semilla, _exigir_cupo_trabajador, _limite_trabajadores, _plan_permite, _trabajadores_vigentes, estandarizar_fecha, logger, pdf_firmado
 
 
 # Columnas obligatorias para crear un trabajador desde la planilla. Al
@@ -55,7 +59,7 @@ def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
     empleados_bd = Empleado.objects.filter(empresa=empresa)
     mapa = {limpiar_rut(e.rut): e for e in empleados_bd}
     siguiente_ficha = (empleados_bd.aggregate(Max('ficha_numero'))['ficha_numero__max'] or 0) + 1
-    total_actual = Empleado.objects.filter(empresa__owner=empresa.owner, activo=True).count()
+    total_actual = _trabajadores_vigentes(empresa.owner)
     maximo_legal = jornada_maxima_vigente()
     vistos = set()
     resultados = []
@@ -201,7 +205,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         # Reactivar a un desvinculado vuelve a ocupar cupo del plan.
         if serializer.validated_data.get('activo') is True and not serializer.instance.activo:
-            _exigir_cupo_trabajador(self.request.user)
+            _exigir_cupo_trabajador(self.request.user, reactivando=serializer.instance)
         datos_mayusculas = {k: (v.upper() if isinstance(v, str) else v) for k, v in serializer.validated_data.items()}
 
         empresa_destino = serializer.validated_data.get('empresa', serializer.instance.empresa)
@@ -411,7 +415,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         # --- LÓGICA PARA LIQUIDACIONES (MES ACTUAL) ---
         elif tipo_documento == 'liquidacion_actual':
-            hoy = datetime.date.today()
+            hoy = timezone.localdate()
             try:
                 liquidacion = Liquidacion.objects.get(empleado=empleado, mes=hoy.month, anio=hoy.year)
             except Liquidacion.DoesNotExist:
@@ -512,62 +516,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     # HELPERS PDF PARA DOCUMENTOS LEGALES Y ANEXOS
     # ====================================================
     def _pdf_para_documento_legal(self, doc, es_plan_semilla):
-        empleado = doc.empleado
-        empresa = empleado.empresa
-        meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-        hoy = doc.fecha_emision
-        fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-        ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
-        context = {
-            'documento': doc, 'empleado': empleado, 'empresa': empresa,
-            'fecha_actual': fecha_espanol, 'ciudad': ciudad,
-            'es_plan_semilla': es_plan_semilla,
-        }
-        if doc.tipo == 'DESPIDO':
-            codigo = doc.causal_articulo or ''
-            causal_label, causal_descripcion, requiere_indemnizacion = self._CAUSAL_INFO.get(
-                codigo, (doc.causal_legal or '—', '', False)
-            )
-            def _fmt(v):
-                return f'$ {v:,}'.replace(',', '.') if v else '$ 0'
-            fecha_ult = None
-            if doc.fecha_ultimo_dia:
-                f = doc.fecha_ultimo_dia
-                fecha_ult = f"{f.day:02d} de {meses[f.month - 1]} de {f.year}"
-            try:
-                contrato_cargo = doc.empleado.contrato.cargo
-            except Exception:
-                contrato_cargo = None
-            context.update({
-                'causal_label': causal_label,
-                'causal_descripcion': causal_descripcion,
-                'requiere_indemnizacion': requiere_indemnizacion,
-                'monto_anos_texto': _fmt(doc.monto_indemnizacion_anos or 0),
-                'monto_sustitutiva_texto': _fmt(doc.monto_indemnizacion_sustitutiva or 0),
-                'monto_total_texto': _fmt((doc.monto_indemnizacion_anos or 0) + (doc.monto_indemnizacion_sustitutiva or 0)),
-                'fecha_ultimo_dia_texto': fecha_ult,
-                'contrato_cargo': contrato_cargo,
-            })
-            html = render_to_string('carta_despido.html', context)
-        else:
-            html = render_to_string('documento_legal.html', context)
-        return self._html_a_pdf(html, f'{doc.tipo}_{empleado.rut}_{doc.fecha_emision}')
+        return pdf_documento_legal(doc, es_plan_semilla)
 
     def _pdf_para_anexo_contrato(self, anexo, es_plan_semilla):
-        contrato = anexo.contrato
-        empleado = contrato.empleado
-        empresa = empleado.empresa
-        meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-        hoy = anexo.fecha_emision
-        fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-        ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
-        context = {
-            'anexo': anexo, 'contrato': contrato, 'empleado': empleado, 'empresa': empresa,
-            'fecha_actual': fecha_espanol, 'ciudad': ciudad,
-            'es_plan_semilla': es_plan_semilla,
-        }
-        html = render_to_string('anexo_contrato.html', context)
-        return self._html_a_pdf(html, f'AnexoContrato_{empleado.rut}_{hoy}')
+        return pdf_anexo_contrato(anexo, es_plan_semilla)
 
     # ====================================================
     # ENDPOINT: DESCARGA MASIVA Y EXPEDIENTES (ZIP)
@@ -615,78 +567,72 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             zip_buffer = io.BytesIO()
 
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+
+                def agregar(ruta, generar, tipo_firma, **documento):
+                    """Agrega un documento: el firmado si el trabajador lo firmó, si no el emitido."""
+                    try:
+                        firmado = pdf_firmado(tipo_firma, **documento)
+                        pdf = firmado or generar()
+                    except Exception:
+                        logger.exception('No se pudo agregar %s al ZIP', ruta)
+                        return
+                    if firmado:
+                        ruta = ruta[:-4] + '_firmado.pdf'
+                    zip_file.writestr(ruta, pdf)
+
                 for emp in empleados:
                     rut_limpio = emp.rut.replace("-", "").replace(".", "")
                     carpeta = f"{rut_limpio}_{emp.nombres}_{emp.apellido_paterno}".replace(" ", "_")
+                    contrato_emp = Contrato.objects.filter(empleado=emp).first()
 
-                    if 'contrato' in documentos:
-                        try:
-                            pdf = self._obtener_o_generar_documento(emp, 'contrato', request.user)
-                            zip_file.writestr(f"{carpeta}/Contrato.pdf", pdf)
-                        except Exception:
-                            pass
+                    if 'contrato' in documentos and contrato_emp:
+                        agregar(f"{carpeta}/Contrato.pdf",
+                                lambda: self._obtener_o_generar_documento(emp, 'contrato', request.user),
+                                'CONTRATO', contrato=contrato_emp)
 
-                    if 'anexo_40h' in documentos:
-                        try:
-                            pdf = self._obtener_o_generar_documento(emp, 'anexo_40h', request.user)
-                            zip_file.writestr(f"{carpeta}/Anexo_Ley_40h.pdf", pdf)
-                        except Exception:
-                            pass
+                    if 'anexo_40h' in documentos and contrato_emp:
+                        agregar(f"{carpeta}/Anexo_Ley_40h.pdf",
+                                lambda: self._obtener_o_generar_documento(emp, 'anexo_40h', request.user),
+                                'ANEXO_40H', contrato=contrato_emp)
 
                     if 'liquidaciones' in documentos and cantidad_liquidaciones > 0:
-                        liq_qs = Liquidacion.objects.filter(empleado=emp).order_by('-anio', '-mes')[:cantidad_liquidaciones]
-                        for liq in liq_qs:
-                            try:
-                                pdf = self._obtener_o_generar_documento(emp, f'liquidacion_historica_{liq.mes}_{liq.anio}', request.user)
-                                zip_file.writestr(f"{carpeta}/Liquidaciones/Liq_{meses_corto[liq.mes - 1]}_{liq.anio}.pdf", pdf)
-                            except Exception:
-                                pass
+                        for liq in Liquidacion.objects.filter(empleado=emp).order_by('-anio', '-mes')[:cantidad_liquidaciones]:
+                            agregar(f"{carpeta}/Liquidaciones/Liq_{meses_corto[liq.mes - 1]}_{liq.anio}.pdf",
+                                    lambda liq=liq: self._obtener_o_generar_documento(
+                                        emp, f'liquidacion_historica_{liq.mes}_{liq.anio}', request.user),
+                                    'LIQUIDACION', liquidacion=liq)
 
-                    if 'amonestaciones' in documentos:
-                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='AMONESTACION').order_by('fecha_emision'):
-                            try:
-                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
-                                zip_file.writestr(f"{carpeta}/Amonestaciones/Amonestacion_{doc.fecha_emision}.pdf", pdf)
-                            except Exception:
-                                pass
+                    for clave, tipo, subcarpeta, prefijo in (
+                            ('amonestaciones', 'AMONESTACION', 'Amonestaciones', 'Amonestacion'),
+                            ('despidos', 'DESPIDO', 'Terminos_Contrato', 'Termino'),
+                            ('mutuo_acuerdo', 'MUTUO_ACUERDO', 'Renuncias', 'Renuncia'),
+                            ('constancias', 'CONSTANCIA', 'Constancias', 'Constancia')):
+                        if clave in documentos:
+                            for doc in DocumentoLegal.objects.filter(empleado=emp, tipo=tipo).order_by('fecha_emision'):
+                                agregar(f"{carpeta}/{subcarpeta}/{prefijo}_{doc.fecha_emision}.pdf",
+                                        lambda doc=doc: self._pdf_para_documento_legal(doc, es_semilla),
+                                        tipo, documento_legal=doc)
 
-                    if 'despidos' in documentos:
-                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='DESPIDO').order_by('fecha_emision'):
-                            try:
-                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
-                                zip_file.writestr(f"{carpeta}/Terminos_Contrato/Termino_{doc.fecha_emision}.pdf", pdf)
-                            except Exception:
-                                pass
+                    if 'anexos_contrato' in documentos and contrato_emp:
+                        for anexo in AnexoContrato.objects.filter(contrato=contrato_emp).order_by('fecha_emision'):
+                            titulo_corto = anexo.titulo[:30].replace(" ", "_")
+                            agregar(f"{carpeta}/Anexos_Contrato/Anexo_{anexo.fecha_emision}_{titulo_corto}.pdf",
+                                    lambda anexo=anexo: self._pdf_para_anexo_contrato(anexo, es_semilla),
+                                    'ANEXO_CONTRATO', anexo_contrato=anexo)
 
-                    if 'mutuo_acuerdo' in documentos:
-                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='MUTUO_ACUERDO').order_by('fecha_emision'):
-                            try:
-                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
-                                zip_file.writestr(f"{carpeta}/Renuncias/Renuncia_{doc.fecha_emision}.pdf", pdf)
-                            except Exception:
-                                pass
+                    if 'vacaciones' in documentos:
+                        for vac in VacacionEmpleado.objects.filter(empleado=emp).order_by('fecha_inicio'):
+                            agregar(f"{carpeta}/Vacaciones/Vacacion_{vac.fecha_inicio}.pdf",
+                                    lambda vac=vac: pdf_vacacion(vac, es_semilla),
+                                    'VACACION', vacacion=vac)
 
-                    if 'constancias' in documentos:
-                        for doc in DocumentoLegal.objects.filter(empleado=emp, tipo='CONSTANCIA').order_by('fecha_emision'):
-                            try:
-                                pdf = self._pdf_para_documento_legal(doc, es_semilla)
-                                zip_file.writestr(f"{carpeta}/Constancias/Constancia_{doc.fecha_emision}.pdf", pdf)
-                            except Exception:
-                                pass
-
-                    if 'anexos_contrato' in documentos:
-                        contrato_emp = Contrato.objects.filter(empleado=emp).first()
-                        if contrato_emp:
-                            for anexo in AnexoContrato.objects.filter(contrato=contrato_emp).order_by('fecha_emision'):
-                                try:
-                                    pdf = self._pdf_para_anexo_contrato(anexo, es_semilla)
-                                    titulo_corto = anexo.titulo[:30].replace(" ", "_")
-                                    zip_file.writestr(f"{carpeta}/Anexos_Contrato/Anexo_{anexo.fecha_emision}_{titulo_corto}.pdf", pdf)
-                                except Exception:
-                                    pass
+                    if 'finiquitos' in documentos:
+                        for fin in Finiquito.objects.filter(empleado=emp).order_by('fecha_termino'):
+                            agregar(f"{carpeta}/Finiquito/Finiquito_{fin.fecha_termino}.pdf",
+                                    lambda fin=fin: pdf_finiquito(fin), 'FINIQUITO', finiquito=fin)
 
             zip_buffer.seek(0)
-            nombre_zip = f"Expedientes_{empresa.nombre_legal.replace(' ', '_')}_{datetime.date.today()}.zip"
+            nombre_zip = f"Expedientes_{empresa.nombre_legal.replace(' ', '_')}_{timezone.localdate()}.zip"
             response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
             response['Content-Disposition'] = f'attachment; filename="{nombre_zip}"'
             response['Access-Control-Expose-Headers'] = 'Content-Disposition'
@@ -728,7 +674,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         try: s_base = int(str(empleado.sueldo_base).strip()) if empleado.sueldo_base else 0
                         except: s_base = 0
                         
-                        f_inicio = empleado.fecha_ingreso if isinstance(empleado.fecha_ingreso, datetime.date) else datetime.date.today()
+                        f_inicio = empleado.fecha_ingreso if isinstance(empleado.fecha_ingreso, datetime.date) else timezone.localdate()
                         c_cargo = str(empleado.cargo).strip().upper() if empleado.cargo else 'NO ESPECIFICADO'
                         
                         try:
@@ -747,7 +693,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                             contrato.sueldo_base = s_base
 
                     meses_zip = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-                    hoy_zip = datetime.date.today()
+                    hoy_zip = timezone.localdate()
                     fecha_zip = f"{hoy_zip.day:02d} de {meses_zip[hoy_zip.month - 1]} de {hoy_zip.year}"
                     ciudad_zip = str(
                         getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or

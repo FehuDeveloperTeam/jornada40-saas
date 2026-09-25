@@ -18,6 +18,7 @@ type Filtro = 'todas' | Estado;
 
 const ESTADO: Record<Estado, { texto: string; tono: TonoChip }> = {
   PENDIENTE: { texto: 'Pendiente', tono: 'aviso' },
+  PROCESANDO: { texto: 'Procesando', tono: 'aviso' },
   FIRMADO: { texto: 'Firmado', tono: 'ok' },
   RECHAZADO: { texto: 'Rechazado', tono: 'peligro' },
   EXPIRADO: { texto: 'Expirado', tono: 'neutro' },
@@ -71,11 +72,21 @@ export default function Firmas() {
     }
   };
 
-  const descargar = (f: SolicitudFirma) => accion(`d${f.id}`, async () => {
-    // El backend entrega un enlace temporal al PDF firmado guardado.
-    const { data } = await client.post<{ url: string }>(`/firmas/${f.id}/descargar/`);
-    window.open(data.url, '_blank', 'noopener');
-  }, 'Abriendo el PDF firmado');
+  const descargar = (f: SolicitudFirma) => {
+    // La pestaña se abre en el clic (si se abre después de esperar la
+    // respuesta, el navegador la bloquea como ventana emergente).
+    const ventana = window.open('', '_blank');
+    return accion(`d${f.id}`, async () => {
+      try {
+        // El backend entrega un enlace temporal al PDF firmado guardado.
+        const { data } = await client.post<{ url: string }>(`/firmas/${f.id}/descargar/`);
+        if (ventana) { ventana.opener = null; ventana.location.href = data.url; } else window.location.href = data.url;
+      } catch (err) {
+        ventana?.close();
+        throw err;
+      }
+    }, 'Abriendo el PDF firmado');
+  };
 
   return (
     <div className="flex flex-col gap-[18px] max-w-[1440px] mx-auto">
@@ -180,7 +191,7 @@ export default function Firmas() {
         {!firmas.isLoading && visibles.length === 0 && (
           <p className="px-[18px] py-8 text-center text-[13px] text-fg-3">
             {deEmpresa.length === 0
-              ? 'Todavía no envías documentos a firma. Hazlo desde la carpeta del trabajador, en Documentos.'
+              ? 'Todavía no envías documentos a firma. Las liquidaciones del mes se envían de una vez desde Remuneraciones; los demás documentos, desde la carpeta del trabajador, en Documentos.'
               : 'Ninguna solicitud coincide con el filtro.'}
           </p>
         )}

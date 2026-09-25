@@ -43,7 +43,8 @@ export function useEmpresaActiva() {
 
 export interface Suscripcion {
   estado: 'ACTIVE' | 'TRIAL' | 'PAST_DUE' | 'CANCELED';
-  plan: { id: number; nombre: string; precio: number; limite_trabajadores: number };
+  /** Plan con que el backend decide funciones y límites (incluye su nivel). */
+  plan: { id: number; nombre: string; precio: number; limite_trabajadores: number; max_empresas?: number; nivel?: number };
   trabajadores_actuales: number;
   fecha_proximo_cobro: string | null;
   metodo_pago_glosa?: string | null;
@@ -60,18 +61,22 @@ export interface PagoSuscripcion {
   orden: string;
 }
 
-/** Suscripción con el nivel del plan resuelto (el backend habilita por nivel). */
+/**
+ * Suscripción con el nivel del plan. El nivel viene del backend (el mismo con
+ * que habilita funciones); antes se buscaba el plan en la lista de planes a la
+ * venta y, si no estaba ahí, caía a nivel 1 y bloqueaba funciones pagadas.
+ */
 export function useSuscripcion() {
   const { planes } = usePlanes();
   const consulta = useQuery({
     queryKey: ['mi_suscripcion'],
     queryFn: async () => (await client.get<Suscripcion>('/clientes/mi_suscripcion/')).data,
   });
-  const plan = planes.find((p) => p.id === consulta.data?.plan.id);
+  const listado = planes.find((p) => p.id === consulta.data?.plan.id);
   return {
     suscripcion: consulta.data,
-    nivel: plan?.nivel ?? 1,
-    maxEmpresas: plan?.max_empresas ?? 1,
+    nivel: consulta.data?.plan.nivel ?? listado?.nivel ?? 1,
+    maxEmpresas: consulta.data?.plan.max_empresas ?? listado?.max_empresas ?? 1,
     cargando: consulta.isLoading,
   };
 }

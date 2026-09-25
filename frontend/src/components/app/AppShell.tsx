@@ -21,6 +21,7 @@ import { DrawerTrabajador } from './DrawerTrabajador';
 interface PanelContexto {
   empresa: Empresa;
   nivel: number;
+  maxEmpresas: number;
   suscripcion: Suscripcion | undefined;
   trabajadores: Empleado[];
   cargandoTrabajadores: boolean;
@@ -115,13 +116,14 @@ export default function AppShell() {
   const contexto = useMemo<PanelContexto | null>(() => empresa && ({
     empresa,
     nivel,
+    maxEmpresas,
     suscripcion,
     trabajadores: trabajadores.data ?? [],
     cargandoTrabajadores: trabajadores.isLoading,
     agregarTrabajador: () => { setAperturaDrawer((n) => n + 1); setDrawerTrabajador(true); },
     avisar,
     cambiarEmpresa: cambiar,
-  }), [empresa, nivel, suscripcion, trabajadores.data, trabajadores.isLoading, avisar, cambiar]);
+  }), [empresa, nivel, maxEmpresas, suscripcion, trabajadores.data, trabajadores.isLoading, avisar, cambiar]);
 
   if (!contexto) {
     return (

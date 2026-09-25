@@ -334,6 +334,15 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Documentos firmados
+
+- A document with a `SolicitudFirma` in `FIRMADO` is **always** delivered in its signed version (from B2, `b2_key_firmado`): every download endpoint and the ZIPs call `pdf_firmado(tipo, **documento)` (`core/views/base.py`) first and only regenerate from the template if there is no signature. Responses carry `X-Documento-Firmado` and a `_firmado.pdf` filename.
+- One PDF function per document type, shared by download, signing and ZIPs: `pdf_documento_legal`, `pdf_anexo_contrato` (`views/documentos.py`), `pdf_vacacion` (`views/vacaciones.py`), `pdf_finiquito` (`views/finiquitos.py`), `_pdf_liquidacion` (`views/calculo_liquidacion.py`).
+- `POST /api/firmas/solicitar_liquidaciones/ {empresa, mes, anio}` sends every payslip of the period without a pending/processing/signed request (used by Remuneraciones → "Enviar N a firma"); workers without email are reported, not blocking.
+- Times shown to users (emails, reports) use `timezone.localtime()` / `timezone.localdate()` (Chile), never UTC.
+
+---
+
 ## Archivo Previred
 
 - `GET /api/liquidaciones/exportar_previred/?mes=&anio=[&empresa=]` genera el **formato estándar de largo variable por separador, versión 100 (septiembre 2026)**: 105 campos por trabajador separados por `;`, Latin-1, fin de línea `\r\n`. La construcción está en `_linea_previred` (`core/views/previred.py`), con el número de campo del documento oficial en cada `poner(n, …)`.
@@ -351,7 +360,8 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - **`EventoPasarela`** stores every notice as received (payment history on `/app/plan`, retries deduplicated by `buy_order`). The client is identified by `subscription_external_id`/`custom_reference` (`<cliente_id>_<plan_id>`) or by a known `gateway_subscription_id`; a notice that can't be matched is stored without a client, an email goes to `ALERTAS_PAGOS_EMAIL`, and it is linked by hand in the admin (choose cliente and plan, save → `aplicar_evento_pasarela`). A plan change (new Reveniu subscription) also emails a request to cancel the old one in Reveniu.
 - **Checkout creation**: `POST /api/pagos/crear-checkout/` redirects user to Reveniu hosted page.
 - **Subscription states**: `TRIAL` → `ACTIVE` → `PAST_DUE` → `CANCELED`.
-- Plan limits are enforced in the backend with the active plan (`_plan_activo`: `Cliente.plan` or the subscription's plan). Workers count only if `activo=True` (`_exigir_cupo_trabajador` on create and reactivation); features are gated by `Plan.nivel` (`_plan_permite`).
+- Plans: one set, **Semilla (1), Starter (2), Pyme (3), Corporativo (4)**; features are gated only by `Plan.nivel` (`_plan_permite`), never by name. Migration `0052_consolidar_planes` moved clients of the legacy "Plan Semilla/Pyme/Corporativo" (which had `nivel=1`) to their equivalent and deactivated them. Registration assigns the active plan with `nivel=1`; `mi_suscripcion` returns the plan the backend uses (`_plan_activo`) with `nivel` and `max_empresas`, and the panel takes the level from there. Reveniu links: `REVENIU_LINK_<PLAN>_<CICLO>` with the plan name normalized (e.g. `REVENIU_LINK_STARTER_MENSUAL`).
+- Worker quota (`_trabajadores_vigentes` / `_exigir_cupo_trabajador`): active workers **plus those dismissed during the current month** (`Empleado.fecha_desvinculacion`, set when `activo` goes False). A dismissed worker frees the slot the following month; reactivating someone dismissed this month needs no extra slot.
 - Previsional parameters (`ParametroPrevisional`, `TasaAFP`) are shared by all clients, maintained by Jornada40 in the Django admin, and read-only in the panel.
 - Known gaps: payment links don't carry an external id, so a first payment may need manual linking; the old subscription is cancelled by hand in Reveniu (no API integration yet); no proration (the Terms say so); downgrades go through support.
 

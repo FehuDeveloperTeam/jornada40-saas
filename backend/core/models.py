@@ -229,6 +229,9 @@ class Empleado(models.Model):
     # Feriado progresivo (Art. 68): años trabajados con empleadores anteriores
     # que el trabajador acredita con certificado. La ley permite hacer valer hasta 10.
     anios_previos_feriado = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(10)])
+    # Día en que se desvinculó. Un desvinculado sigue ocupando cupo del plan
+    # hasta fin de ese mes (ver _trabajadores_que_ocupan_cupo).
+    fecha_desvinculacion = models.DateField(null=True, blank=True)
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     
@@ -246,6 +249,14 @@ class Empleado(models.Model):
             else:
                 self.ficha_numero = 1
                 
+        # Fecha de desvinculación: se marca al desactivar y se limpia al reactivar.
+        if not self.activo and self.fecha_desvinculacion is None:
+            self.fecha_desvinculacion = timezone.localdate()
+        elif self.activo and self.fecha_desvinculacion is not None:
+            self.fecha_desvinculacion = None
+        if kwargs.get('update_fields') is not None and 'activo' in kwargs['update_fields']:
+            kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'fecha_desvinculacion'})
+
         # Finalmente, ejecutamos el guardado normal de Django
         super(Empleado, self).save(*args, **kwargs)
 

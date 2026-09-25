@@ -4,23 +4,31 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import viewsets
 from django.template.loader import render_to_string
-from ..models import Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, SolicitudFirma, VacacionEmpleado, Finiquito
+from django.db.models import Exists, OuterRef
+from django.utils import timezone
+from ..models import AnexoContrato, Contrato, DocumentoLegal, Empleado, Empresa, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado
 from django.conf import settings
-import datetime
-import math
 from num2words import num2words
-from html import escape as _esc
 from ..serializers import SolicitudFirmaSerializer
 from .. import b2_client
 from django.core.mail import EmailMultiAlternatives
 import uuid as uuid_mod
 
-from .base import _MESES, _ctx_contrato, _es_plan_semilla, _html_a_pdf_bytes
+from .documentos import pdf_anexo_contrato, pdf_documento_legal
+from .finiquitos import pdf_finiquito
+from .vacaciones import pdf_vacacion
+from .base import _ctx_contrato, _es_plan_semilla, _html_a_pdf_bytes, logger
 
 
 # ==========================================
 # FIRMA ELECTRÓNICA
 # ==========================================
+
+class _ErrorFirma(Exception):
+    def __init__(self, mensaje, estado=400):
+        super().__init__(mensaje)
+        self.mensaje, self.estado = mensaje, estado
+
 
 class SolicitudFirmaViewSet(viewsets.GenericViewSet):
     serializer_class = SolicitudFirmaSerializer
@@ -58,72 +66,94 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         except Empleado.DoesNotExist:
             return Response({'error': 'Trabajador no encontrado.'}, status=404)
 
-        empresa = empleado.empresa
+        try:
+            solicitud = self._crear_solicitud(request.user, empleado, tipo_doc, contrato_id, doc_legal_id, anexo_id,
+                                              liquidacion_id, vacacion_id, finiquito_id)
+        except _ErrorFirma as e:
+            return Response({'error': e.mensaje}, status=e.estado)
+        return Response(SolicitudFirmaSerializer(solicitud).data, status=201)
 
+    @action(detail=False, methods=['post'], url_path='solicitar_liquidaciones')
+    def solicitar_liquidaciones(self, request):
+        """Envía a firma todas las liquidaciones de una empresa y período que
+        aún no tienen una firma pendiente, en proceso o completa.
+
+        No se detiene por un trabajador sin correo: lo informa y sigue.
+        """
+        try:
+            mes = int(request.data.get('mes'))
+            anio = int(request.data.get('anio'))
+            empresa = Empresa.objects.get(id=request.data.get('empresa'), owner=request.user)
+        except (TypeError, ValueError, Empresa.DoesNotExist):
+            return Response({'error': 'Indica una empresa y un período válidos.'}, status=400)
         if not empresa.firma_imagen:
-            return Response(
-                {'error': 'La empresa no tiene firma del empleador configurada. Configúrela en el Lobby de Empresas.'},
-                status=400
-            )
+            return Response({'error': 'Configura la firma del empleador (Firma electrónica) antes de enviar documentos a firma.'},
+                            status=400)
+        vigentes = SolicitudFirma.objects.filter(liquidacion=OuterRef('pk'),
+                                                 estado__in=['PENDIENTE', 'PROCESANDO', 'FIRMADO'])
+        liquidaciones = (Liquidacion.objects.filter(empleado__empresa=empresa, mes=mes, anio=anio)
+                         .annotate(con_firma=Exists(vigentes)).filter(con_firma=False)
+                         .select_related('empleado').order_by('empleado__apellido_paterno'))
+        enviadas, omitidas = 0, []
+        for liq in liquidaciones:
+            emp = liq.empleado
+            try:
+                self._crear_solicitud(request.user, emp, 'LIQUIDACION', liquidacion_id=liq.id)
+                enviadas += 1
+            except _ErrorFirma as e:
+                omitidas.append({'empleado': emp.id, 'nombre': f'{emp.nombres} {emp.apellido_paterno}'.strip(),
+                                 'motivo': e.mensaje})
+        return Response({'enviadas': enviadas, 'omitidas': omitidas})
 
+    def _crear_solicitud(self, user, empleado, tipo_doc, contrato_id=None, doc_legal_id=None, anexo_id=None,
+                         liquidacion_id=None, vacacion_id=None, finiquito_id=None):
+        """Genera el PDF, lo sube, crea la solicitud y avisa al trabajador. Lanza _ErrorFirma."""
+        empresa = empleado.empresa
+        if not empresa.firma_imagen:
+            raise _ErrorFirma('La empresa no tiene firma del empleador configurada. Configúrala en Firma electrónica.')
         email_trabajador = empleado.email
         if not email_trabajador:
-            return Response(
-                {'error': 'El trabajador no tiene email registrado. Agréguelo en Datos Generales antes de enviar a firma.'},
-                status=400
-            )
-
-        es_plan_semilla = _es_plan_semilla(request.user)
+            raise _ErrorFirma('El trabajador no tiene correo registrado. Agrégalo en sus datos antes de enviar a firma.')
 
         try:
             pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj, finiquito_obj = self._generar_pdf_firma(
                 empleado, empresa, tipo_doc,
                 contrato_id, doc_legal_id, anexo_id,
-                liquidacion_id, vacacion_id, finiquito_id, es_plan_semilla
+                liquidacion_id, vacacion_id, finiquito_id, _es_plan_semilla(user)
             )
         except Exception as e:
-            return Response({'error': str(e)}, status=400)
+            raise _ErrorFirma(str(e))
 
         key = b2_client.key_pendiente(empresa.id, str(uuid_mod.uuid4()))
         try:
             b2_client.subir_documento(pdf_bytes, key)
         except RuntimeError as e:
-            return Response({'error': str(e)}, status=503)
+            raise _ErrorFirma(str(e), 503)
         except Exception:
-            return Response({'error': 'Error al subir el documento al almacenamiento.'}, status=500)
+            raise _ErrorFirma('Error al subir el documento al almacenamiento.', 500)
 
         # El anexo se enlaza explícitamente porque al firmarse aplica sus
         # cambios al contrato, y hay que saber cuál fue.
         anexo_obj = None
         if tipo_doc == 'ANEXO_CONTRATO' and anexo_id:
-            anexo_obj = AnexoContrato.objects.filter(
-                id=anexo_id, contrato__empleado=empleado
-            ).first()
+            anexo_obj = AnexoContrato.objects.filter(id=anexo_id, contrato__empleado=empleado).first()
 
         try:
             solicitud = SolicitudFirma.objects.create(
-                empleado=empleado,
-                empresa=empresa,
-                tipo_documento=tipo_doc,
-                contrato=contrato_obj,
-                documento_legal=doc_legal_obj,
-                anexo_contrato=anexo_obj,
-                liquidacion=liquidacion_obj,
-                vacacion=vacacion_obj,
-                finiquito=finiquito_obj,
-                email_firmante=email_trabajador,
-                b2_key_temporal=key,
+                empleado=empleado, empresa=empresa, tipo_documento=tipo_doc,
+                contrato=contrato_obj, documento_legal=doc_legal_obj, anexo_contrato=anexo_obj,
+                liquidacion=liquidacion_obj, vacacion=vacacion_obj, finiquito=finiquito_obj,
+                email_firmante=email_trabajador, b2_key_temporal=key,
             )
         except Exception as e:
             b2_client.eliminar_documento(key)
-            return Response({'error': f'Error al registrar la solicitud: {e}'}, status=500)
+            raise _ErrorFirma(f'Error al registrar la solicitud: {e}', 500)
 
         try:
             self._enviar_email_firma(solicitud, empleado, empresa)
         except Exception:
-            pass
-
-        return Response(SolicitudFirmaSerializer(solicitud).data, status=201)
+            logger.exception('No se pudo enviar el correo de firma de la solicitud %s', solicitud.pk)
+        return solicitud
 
     @action(detail=True, methods=['patch'])
     def cancelar(self, request, pk=None):
@@ -170,9 +200,6 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                            contrato_id, doc_legal_id, anexo_id,
                            liquidacion_id, vacacion_id, finiquito_id, es_plan_semilla):
         """Genera el PDF a firmar y retorna (pdf_bytes, contrato, doc_legal, liquidacion, vacacion, finiquito)."""
-        ciudad = str(
-            getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago'
-        ).strip().title()
 
         if tipo_doc == 'CONTRATO':
             try:
@@ -206,13 +233,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 ).order_by('-fecha_emision').first()
                 if not doc:
                     raise Exception(f'No se encontró documento de tipo {tipo_doc}.')
-            hoy = doc.fecha_emision
-            fecha_es = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
-            ctx = {'documento': doc, 'empleado': empleado, 'empresa': empresa,
-                   'fecha_actual': fecha_es, 'ciudad': ciudad,
-                   'es_plan_semilla': es_plan_semilla}
-            html = render_to_string('documento_legal.html', ctx)
-            return _html_a_pdf_bytes(html, f'{doc.tipo}_{empleado.rut}'), None, doc, None, None, None
+            return pdf_documento_legal(doc, es_plan_semilla), None, doc, None, None, None
 
         if tipo_doc == 'DESPIDO':
             if doc_legal_id:
@@ -226,7 +247,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 ).order_by('-fecha_emision').first()
                 if not doc:
                     raise Exception('No se encontró carta de despido.')
-            pdf_bytes = self._pdf_para_documento_legal(doc, es_plan_semilla)
+            pdf_bytes = pdf_documento_legal(doc, es_plan_semilla)
             return pdf_bytes, None, doc, None, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
@@ -237,13 +258,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 anexo = AnexoContrato.objects.get(id=anexo_id, contrato=contrato)
             except (Contrato.DoesNotExist, AnexoContrato.DoesNotExist):
                 raise Exception('Anexo de contrato no encontrado.')
-            hoy = anexo.fecha_emision
-            fecha_es = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
-            ctx = {'anexo': anexo, 'contrato': contrato, 'empleado': empleado,
-                   'empresa': empresa, 'fecha_actual': fecha_es, 'ciudad': ciudad,
-                   'es_plan_semilla': es_plan_semilla}
-            html = render_to_string('anexo_contrato.html', ctx)
-            return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}'), contrato, None, None, None, None
+            return pdf_anexo_contrato(anexo, es_plan_semilla), contrato, None, None, None, None
 
         if tipo_doc == 'LIQUIDACION':
             if not liquidacion_id:
@@ -285,20 +300,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 vac = VacacionEmpleado.objects.get(id=vacacion_id, empleado=empleado)
             except VacacionEmpleado.DoesNotExist:
                 raise Exception('Comprobante de vacaciones no encontrado.')
-            hoy = datetime.date.today()
-            fecha_hoy = f"{hoy.day:02d} de {self.MESES[hoy.month - 1]} de {hoy.year}"
-            def _fmt(f):
-                return f"{f.day:02d} de {self.MESES[f.month - 1]} de {f.year}" if f else '—'
-            ctx = {
-                'vacacion': vac, 'empleado': empleado, 'empresa': empresa,
-                'fecha_actual': fecha_hoy,
-                'fecha_inicio_texto': _fmt(vac.fecha_inicio),
-                'fecha_fin_texto': _fmt(vac.fecha_fin),
-                'ciudad': ciudad,
-                'es_plan_semilla': es_plan_semilla,
-            }
-            html = render_to_string('comprobante_vacaciones.html', ctx)
-            return _html_a_pdf_bytes(html, f'Vacacion_{empleado.rut}'), None, None, None, vac, None
+            # La misma plantilla y fecha que la descarga del comprobante.
+            return pdf_vacacion(vac, es_plan_semilla), None, None, None, vac, None
 
         if tipo_doc == 'FINIQUITO':
             if not finiquito_id:
@@ -308,93 +311,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             except Finiquito.DoesNotExist:
                 raise Exception('Finiquito no encontrado.')
 
-            def _fmt_fin(f):
-                if not f:
-                    return '—'
-                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
-
-            ciudad_fin = (getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
-            causal_label = fin.get_causal_articulo_display() if fin.causal_articulo else '—'
-            sueldo_prop = math.floor((fin.sueldo_base / 30) * fin.dias_trabajados_ultimo_mes)
-            _f_ciudad     = _esc(ciudad_fin)
-            _f_causal     = _esc(causal_label)
-            _f_nom_legal  = _esc(empresa.nombre_legal or '')
-            _f_rut_emp    = _esc(empresa.rut or '')
-            _f_trab_nomb  = _esc(f"{empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''}")
-            _f_trab_firma = _esc(f"{empleado.nombres} {empleado.apellido_paterno}")
-            _f_rut_trab   = _esc(empleado.rut or '')
-            _f_cargo      = _esc(empleado.cargo or '—')
-            _f_depto      = _esc(empleado.departamento or '—')
-            _f_modalidad  = _esc(fin.get_modalidad_display())
-            html = f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8"/>
-<style>
-  @page {{ size: letter; margin: 2cm 2.5cm; }}
-  body {{ font-family: Arial, sans-serif; font-size: 10pt; color: #111; line-height: 1.5; }}
-  h1 {{ font-size: 14pt; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }}
-  h2 {{ font-size: 10pt; text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }}
-  .seccion {{ margin-bottom: 16px; }}
-  .seccion-titulo {{ font-size: 9pt; font-weight: bold; text-transform: uppercase;
-                     letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
-                     padding-bottom: 3px; margin-bottom: 8px; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
-  table td {{ padding: 4px 6px; vertical-align: top; }}
-  table td:last-child {{ text-align: right; font-weight: bold; }}
-  .total-row td {{ border-top: 2px solid #333; font-weight: bold; font-size: 11pt; padding-top: 8px; }}
-  .firma-bloque {{ margin-top: 60px; display: flex; justify-content: space-between; }}
-  .firma-item {{ text-align: center; width: 44%; }}
-  .firma-linea {{ border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 9pt; }}
-  p {{ margin: 4px 0; }}
-  .aviso {{ font-size: 8pt; color: #666; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; }}
-</style>
-</head>
-<body>
-<h1>Finiquito de Contrato de Trabajo</h1>
-<h2>{_f_ciudad}, {_fmt_fin(fin.fecha_emision)}</h2>
-<div class="seccion">
-  <div class="seccion-titulo">Partes</div>
-  <p><strong>Empleador:</strong> {_f_nom_legal} — RUT {_f_rut_emp}</p>
-  <p><strong>Trabajador:</strong> {_f_trab_nomb} — RUT {_f_rut_trab}</p>
-  <p><strong>Cargo:</strong> {_f_cargo} &nbsp;|&nbsp; <strong>Departamento:</strong> {_f_depto}</p>
-  <p><strong>Fecha de ingreso:</strong> {_fmt_fin(empleado.fecha_ingreso)} &nbsp;|&nbsp;
-     <strong>Fecha de término:</strong> {_fmt_fin(fin.fecha_termino)}</p>
-  <p><strong>Causal de término:</strong> {_f_causal}</p>
-</div>
-<div class="seccion">
-  <div class="seccion-titulo">Liquidación Final</div>
-  <table>
-    <tr><td>Sueldo base proporcional ({fin.dias_trabajados_ultimo_mes} días)</td><td>${sueldo_prop:,.0f}</td></tr>
-    <tr><td>Gratificación proporcional</td><td>${fin.gratificacion_proporcional:,.0f}</td></tr>
-    <tr><td>Feriado proporcional</td><td>${fin.feriado_proporcional:,.0f}</td></tr>
-    {f'<tr><td>Indemnización por años de servicio</td><td>${fin.indemnizacion_anos_servicio:,.0f}</td></tr>' if fin.indemnizacion_anos_servicio else ''}
-    {f'<tr><td>Indemnización sustitutiva de aviso previo</td><td>${fin.indemnizacion_sustitutiva_aviso:,.0f}</td></tr>' if fin.indemnizacion_sustitutiva_aviso else ''}
-    {f'<tr><td>Otros haberes</td><td>${fin.otros_haberes:,.0f}</td></tr>' if fin.otros_haberes else ''}
-    <tr><td>Descuentos previsionales</td><td>-${fin.descuentos_prevision:,.0f}</td></tr>
-    {f'<tr><td>Otros descuentos</td><td>-${fin.otros_descuentos:,.0f}</td></tr>' if fin.otros_descuentos else ''}
-    <tr class="total-row"><td>TOTAL A PAGAR</td><td>${fin.total_a_pagar:,.0f}</td></tr>
-  </table>
-</div>
-<div class="seccion">
-  <div class="seccion-titulo">Declaración del Trabajador</div>
-  <p>El trabajador declara haber recibido a su entera satisfacción la suma indicada como total a pagar,
-  y nada más tiene que reclamar al empleador, quedando ambas partes en paz y a finiquito.</p>
-  <p>Modalidad de suscripción: <strong>{_f_modalidad}</strong></p>
-</div>
-<div class="firma-bloque">
-  <div class="firma-item">
-    <div class="firma-linea"><strong>{_f_nom_legal}</strong><br/>RUT {_f_rut_emp}<br/>Empleador</div>
-  </div>
-  <div class="firma-item">
-    <div class="firma-linea"><strong>{_f_trab_firma}</strong><br/>RUT {_f_rut_trab}<br/>Trabajador</div>
-  </div>
-</div>
-<p class="aviso">Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de Chile.
-  Generado por Jornada40 · {_fmt_fin(fin.fecha_emision)}.</p>
-</body>
-</html>"""
-            return _html_a_pdf_bytes(html, f'Finiquito_{empleado.rut}'), None, None, None, None, fin
+            # La misma plantilla que la descarga (antes había una copia que ya difería).
+            return pdf_finiquito(fin), None, None, None, None, fin
 
         raise Exception(f'Tipo de documento no soportado: {tipo_doc}')
 
@@ -413,7 +331,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
         firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"
         nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
-        expira_fecha     = solicitud.expira_en.strftime('%d/%m/%Y')
+        expira_fecha     = timezone.localtime(solicitud.expira_en).strftime('%d/%m/%Y')
 
         texto_plano = (
             f"Hola {nombre_trabajador},\n\n"

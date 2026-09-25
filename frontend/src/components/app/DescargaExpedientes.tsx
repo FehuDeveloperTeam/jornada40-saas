@@ -9,6 +9,7 @@ const TIPOS: [string, string][] = [
   ['contrato', 'Contrato'], ['anexo_40h', 'Anexo Ley 40 horas'], ['anexos_contrato', 'Anexos de contrato'],
   ['liquidaciones', 'Liquidaciones'], ['amonestaciones', 'Amonestaciones'], ['constancias', 'Constancias'],
   ['despidos', 'Cartas de término'], ['mutuo_acuerdo', 'Términos por mutuo acuerdo'],
+  ['vacaciones', 'Comprobantes de vacaciones'], ['finiquitos', 'Finiquitos'],
 ];
 const MAX_TRABAJADORES = 50;  // límite del backend por descarga
 

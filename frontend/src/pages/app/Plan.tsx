@@ -23,7 +23,7 @@ const AVISO: Record<string, { texto: string; accion: string; clase: string }> = 
 };
 
 export default function Plan() {
-  const { suscripcion, trabajadores } = usePanelContexto();
+  const { suscripcion, trabajadores, nivel, maxEmpresas } = usePanelContexto();
   const { planes } = usePlanes();
   const { empresas } = useEmpresaActiva();
   const [elegido, setElegido] = useState<TPlan | null>(null);
@@ -65,7 +65,7 @@ export default function Plan() {
           <span className="text-[13px] text-fg-2 j40-num">{suscripcion.plan.precio ? `${formatearPrecio(suscripcion.plan.precio)} al mes` : 'Gratis'}</span>
         </div>
         <Uso titulo="Trabajadores vigentes" usado={usoTrabajadores} limite={suscripcion.plan.limite_trabajadores} />
-        <Uso titulo="Empresas" usado={usoEmpresas} limite={actual?.max_empresas ?? 1} />
+        <Uso titulo="Empresas" usado={usoEmpresas} limite={maxEmpresas} />
         <div className="flex flex-col gap-1">
           <span className="text-[12px] text-fg-3">Próximo cobro</span>
           <span className="text-[14px] font-medium">{suscripcion.fecha_proximo_cobro ? fechaCL(suscripcion.fecha_proximo_cobro) : '—'}</span>
@@ -77,7 +77,7 @@ export default function Plan() {
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-3.5">
         {ordenados.map((p) => {
           const esActual = p.id === suscripcion.plan.id;
-          const sube = !actual || p.nivel > actual.nivel;
+          const sube = p.nivel > nivel;
           const excede = usoTrabajadores > p.limite_trabajadores ? `Tienes ${usoTrabajadores} trabajadores vigentes; este plan permite ${p.limite_trabajadores}.`
             : usoEmpresas > p.max_empresas ? `Tienes ${usoEmpresas} empresas; este plan permite ${p.max_empresas}.` : '';
           return (

@@ -128,19 +128,13 @@ def registrar_cliente(request):
                 email=email
             )
 
-            plan_semilla, creado = Plan.objects.get_or_create(
-                nombre='Semilla',
-                defaults={
-                    'max_empresas': 1,
-                    'limite_trabajadores': 3,
-                    'precio': 0,
-                    'nivel': 1,
-                    'activo': True,
-                }
-            )
-            if not creado and plan_semilla.nivel != 1:
-                plan_semilla.nivel = 1
-                plan_semilla.save(update_fields=['nivel'])
+            # El plan gratuito se busca por nivel, no por nombre: con el
+            # nombre exacto "Semilla" el registro creaba un plan duplicado
+            # cuando el existente se llamaba distinto.
+            plan_semilla = Plan.objects.filter(activo=True, nivel=1).order_by('precio', 'id').first()
+            if plan_semilla is None:
+                plan_semilla = Plan.objects.create(nombre='Semilla', max_empresas=1, limite_trabajadores=3,
+                                                   precio=0, nivel=1, activo=True)
             
             # 2. Creamos el perfil en core_cliente 
             cliente = Cliente.objects.create(

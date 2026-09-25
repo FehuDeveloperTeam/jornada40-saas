@@ -19,7 +19,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from ..serializers import LiquidacionSerializer
 
-from .base import _es_plan_semilla, _plan_permite, logger
+from .base import _es_plan_semilla, _plan_permite, logger, pdf_firmado, respuesta_pdf
 from .calculo_liquidacion import _calcular_liquidacion, _pdf_liquidacion, _terminos_congelados, _terminos_vigentes, _validar_conceptos
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tope_en_pesos
 from .previred import _linea_previred, _tasa_accidentes
@@ -198,13 +198,14 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             liquidacion = self.get_object()
+            nombre_archivo = f'Liquidacion_{liquidacion.mes}_{liquidacion.anio}_{liquidacion.empleado.rut}.pdf'
+            firmado = pdf_firmado('LIQUIDACION', liquidacion=liquidacion)
+            if firmado:
+                return respuesta_pdf(firmado, nombre_archivo, firmado=True)
             pdf = _pdf_liquidacion(liquidacion, _es_plan_semilla(request.user))
             if pdf is None:
                 return Response({'error': 'Error al generar PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            response = HttpResponse(pdf, content_type='application/pdf')
-            nombre_archivo = f'Liquidacion_{liquidacion.mes}_{liquidacion.anio}_{liquidacion.empleado.rut}.pdf'
-            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
-            return response
+            return respuesta_pdf(pdf, nombre_archivo)
         except Exception as e:
             logger.exception('Error al generar PDF de liquidación')
             return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -234,11 +235,14 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
             for liq in liquidaciones:
-                pdf = _pdf_liquidacion(liq, False)
+                # La firmada, si el trabajador la firmó; si no, la emitida.
+                firmado = pdf_firmado('LIQUIDACION', liquidacion=liq)
+                pdf = firmado or _pdf_liquidacion(liq, False)
                 if pdf is None:
                     continue
                 emp = liq.empleado
-                nombre = f"Liquidacion_{emp.rut.replace('.', '')}_{emp.apellido_paterno}_{anio}-{mes:02d}.pdf".replace(' ', '_')
+                sufijo = '_firmada' if firmado else ''
+                nombre = f"Liquidacion_{emp.rut.replace('.', '')}_{emp.apellido_paterno}_{anio}-{mes:02d}{sufijo}.pdf".replace(' ', '_')
                 zf.writestr(nombre, pdf)
         response = HttpResponse(buffer.getvalue(), content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="Liquidaciones_{empresa.rut}_{anio}-{mes:02d}.zip"'
@@ -425,7 +429,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 'filas':        filas,
                 'totales':      totales,
                 'totales_fmt':  totales_fmt,
-                'fecha_emision': timezone.now().date().strftime('%d/%m/%Y'),
+                'fecha_emision': timezone.localdate().strftime('%d/%m/%Y'),
                 'n_trabajadores': len(filas),
             }
             template = get_template('libro_remuneraciones.html')
@@ -779,7 +783,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             ws.row_dimensions[1].height = 28
 
             ws.merge_cells('A2:G2')
-            ws['A2'].value = f'Generado el {timezone.now().date().strftime("%d/%m/%Y")} · {len(empresas_list)} empresa(s) · {kpis["trabajadores"]} trabajadore(s)'
+            ws['A2'].value = f'Generado el {timezone.localdate().strftime("%d/%m/%Y")} · {len(empresas_list)} empresa(s) · {kpis["trabajadores"]} trabajadore(s)'
             ws['A2'].font  = Font(size=9, color='888888')
             ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
             ws.row_dimensions[2].height = 16
@@ -896,7 +900,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 'empresas':        empresas_list,
                 'evolucion':       evolucion,
                 'n_empresas':      len(empresas_list),
-                'fecha_emision':   timezone.now().date().strftime('%d/%m/%Y'),
+                'fecha_emision':   timezone.localdate().strftime('%d/%m/%Y'),
             }
             template = get_template('consolidado_remuneraciones.html')
             html = template.render(context)

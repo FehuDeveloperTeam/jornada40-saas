@@ -14,7 +14,8 @@ from ..jornada import avisos_jornada, jornada_maxima_vigente
 from django.core.files.base import ContentFile
 from ..serializers import ContratoSerializer, AnexoContratoSerializer
 
-from .base import _MESES, _ctx_contrato, _es_plan_semilla
+from .base import _MESES, _ctx_contrato, _es_plan_semilla, pdf_firmado, respuesta_pdf
+from .documentos import pdf_anexo_contrato
 from .calculo_liquidacion import _normalizar_comisiones_config
 from .parametros import ingreso_minimo_vigente
 
@@ -111,6 +112,9 @@ class ContratoViewSet(viewsets.ModelViewSet):
         try:
             contrato = self.get_object()
             nombre = f"Contrato_{contrato.empleado.rut}.pdf"
+            firmado = pdf_firmado('CONTRATO', contrato=contrato)
+            if firmado:
+                return respuesta_pdf(firmado, nombre, firmado=True)
             # Sin PDF guardado (nuevo o recién editado) se genera en el momento.
             datos = (contrato.archivo_contrato.read() if contrato.archivo_contrato
                      else self._pdf_de_contrato(contrato, 'contrato_trabajo.html', 'archivo_contrato', nombre))
@@ -144,6 +148,9 @@ class ContratoViewSet(viewsets.ModelViewSet):
         try:
             contrato = self.get_object()
             nombre = f"Anexo_40h_{contrato.empleado.rut}.pdf"
+            firmado = pdf_firmado('ANEXO_40H', contrato=contrato)
+            if firmado:
+                return respuesta_pdf(firmado, nombre, firmado=True)
             datos = (contrato.archivo_anexo_40h.read() if contrato.archivo_anexo_40h
                      else self._pdf_de_contrato(contrato, 'anexo_40h.html', 'archivo_anexo_40h', nombre))
             response = HttpResponse(datos, content_type='application/pdf')
@@ -361,34 +368,10 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             anexo = self.get_object()
-            contrato = anexo.contrato
-            empleado = contrato.empleado
-            empresa = empleado.empresa
-            es_plan_semilla = _es_plan_semilla(request.user)
-
-            meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-            hoy = anexo.fecha_emision
-            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-            ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
-
-            context = {
-                'anexo': anexo,
-                'contrato': contrato,
-                'empleado': empleado,
-                'empresa': empresa,
-                'fecha_actual': fecha_espanol,
-                'ciudad': ciudad,
-                'es_plan_semilla': es_plan_semilla,
-            }
-            template = get_template('anexo_contrato.html')
-            html = template.render(context)
-
-            response = HttpResponse(content_type='application/pdf')
-            nombre = f"Anexo_{empleado.rut}_{hoy}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
-            pisa_status = pisa.CreatePDF(html, dest=response)
-            if pisa_status.err:
-                return Response({'error': 'Error generando PDF'}, status=500)
-            return response
+            nombre = f"Anexo_{anexo.contrato.empleado.rut}_{anexo.fecha_emision}.pdf"
+            firmado = pdf_firmado('ANEXO_CONTRATO', anexo_contrato=anexo)
+            if firmado:
+                return respuesta_pdf(firmado, nombre, firmado=True)
+            return respuesta_pdf(pdf_anexo_contrato(anexo, _es_plan_semilla(request.user)), nombre)
         except Exception as e:
             return Response({'error': str(e)}, status=500)

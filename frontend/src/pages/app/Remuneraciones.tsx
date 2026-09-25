@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
-  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Lock, Shapes, Upload,
+  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Lock, Send, Shapes, Upload,
 } from 'lucide-react';
 import { Button, Chip, Modal } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
@@ -52,6 +52,29 @@ export default function Remuneraciones() {
   const emitidas = liquidaciones.data ?? [];
   const firmaDeLiq = (l: Liquidacion | undefined) => (l ? firmaDe(firmas.data, 'liquidacion', l.id) : undefined);
   const firmadas = emitidas.filter((l) => firmaDeLiq(l)?.estado === 'FIRMADO').length;
+  // Emitidas que nunca se enviaron a firma, o cuya firma no llegó a completarse.
+  const sinEnviar = emitidas.filter((l) => {
+    const f = firmaDeLiq(l);
+    return !f || ['RECHAZADO', 'EXPIRADO', 'CANCELADO'].includes(f.estado);
+  });
+  const [confirmarFirma, setConfirmarFirma] = useState(false);
+  const [enviandoFirma, setEnviandoFirma] = useState(false);
+  const enviarAFirma = async () => {
+    setEnviandoFirma(true);
+    try {
+      const { data } = await client.post<{ enviadas: number; omitidas: { nombre: string; motivo: string }[] }>(
+        '/firmas/solicitar_liquidaciones/', { empresa: empresa.id, mes, anio });
+      await queryClient.invalidateQueries({ queryKey: ['firmas'] });
+      const omitidas = data.omitidas.length
+        ? ` · ${data.omitidas.length} sin enviar (${capitalizar(data.omitidas[0].nombre)}: ${data.omitidas[0].motivo})` : '';
+      avisar(`${data.enviadas} ${data.enviadas === 1 ? 'liquidación enviada' : 'liquidaciones enviadas'} a firma${omitidas}`);
+      setConfirmarFirma(false);
+    } catch (err) {
+      avisar((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos enviar a firma.');
+    } finally {
+      setEnviandoFirma(false);
+    }
+  };
   const suma = (f: (l: Liquidacion) => number) => emitidas.reduce((s, l) => s + (f(l) || 0), 0);
 
   const irA = (delta: number) => {
@@ -99,7 +122,7 @@ export default function Remuneraciones() {
 
   const pasos = [
     { titulo: 'Emisión', detalle: `${emitidas.length} de ${emitidas.length + pendientes.length} liquidaciones`, hecho: pendientes.length === 0 && emitidas.length > 0 },
-    { titulo: 'Firma del trabajador', detalle: `${firmadas} de ${emitidas.length} firmadas`, hecho: emitidas.length > 0 && firmadas === emitidas.length },
+    { titulo: 'Firma del trabajador', detalle: `${firmadas} de ${emitidas.length} firmadas${sinEnviar.length ? ` · ${sinEnviar.length} sin enviar` : ''}`, hecho: emitidas.length > 0 && firmadas === emitidas.length },
     { titulo: 'Previred y pago', detalle: `Pago hasta el 13-${String(mes === 12 ? 1 : mes + 1).padStart(2, '0')}`, hecho: false },
   ];
   const actual = pasos.findIndex((p) => !p.hecho);
@@ -169,15 +192,22 @@ export default function Remuneraciones() {
             <h2 className="text-[14px] font-semibold">Liquidaciones del período</h2>
             <span className="text-[12px] text-fg-3">{filas.length} trabajadores · los montos los calcula el servidor al emitir</span>
           </div>
+          <div className="flex gap-2 flex-wrap">
+          {sinEnviar.length > 0 && (
+            <Button variante={pendientes.length ? 'secundario' : 'primario'} tamano="sm" iconoInicio={<Send className="size-4" strokeWidth={2} />}
+              onClick={() => setConfirmarFirma(true)}>Enviar {sinEnviar.length} a firma</Button>
+          )}
           {pendientes.length > 0 && (
             <Button tamano="sm" onClick={() => setConfirmarMasivo(true)}>Emitir {pendientes.length} pendiente{pendientes.length === 1 ? '' : 's'}</Button>
           )}
+          </div>
         </div>
 
         {/* Escritorio: tabla */}
-        <div className="hidden min-[720px]:block overflow-x-auto" role="table" aria-label="Liquidaciones del período">
+        {/* La tabla desplaza dentro de su marco para que los títulos queden fijos. */}
+        <div className="hidden min-[720px]:block overflow-auto max-h-[calc(100dvh-240px)]" role="table" aria-label="Liquidaciones del período">
           <div className="min-w-[960px]">
-            <div role="row" className={cn('grid gap-3 px-[18px] py-2.5 text-[11.5px] font-medium text-fg-3 uppercase tracking-[0.04em] border-b border-line', COLUMNAS)}>
+            <div role="row" className={cn('sticky top-0 z-10 bg-surface grid gap-3 px-[18px] py-2.5 text-[11.5px] font-medium text-fg-3 uppercase tracking-[0.04em] border-b border-line', COLUMNAS)}>
               <span role="columnheader">Trabajador</span><span role="columnheader">Días</span>
               <span role="columnheader" className="text-right">Imponible</span><span role="columnheader" className="text-right">Haberes</span>
               <span role="columnheader" className="text-right">Descuentos</span><span role="columnheader" className="text-right">Líquido</span>
@@ -225,6 +255,18 @@ export default function Remuneraciones() {
         <p className="text-[13.5px] text-fg-2">
           Se emiten con asistencia completa (30 días) y sin haberes variables. Después puedes abrir cada una para
           registrar licencias, ausencias, horas extra o bonos: al guardar se recalcula.
+        </p>
+      </Modal>
+
+      <Modal abierto={confirmarFirma} onCerrar={() => !enviandoFirma && setConfirmarFirma(false)}
+        titulo={`Enviar ${sinEnviar.length} ${sinEnviar.length === 1 ? 'liquidación' : 'liquidaciones'} a firma`} subtitulo={periodo(mes, anio)}
+        acciones={<>
+          <Button variante="secundario" onClick={() => setConfirmarFirma(false)} disabled={enviandoFirma}>Cancelar</Button>
+          <Button onClick={enviarAFirma} cargando={enviandoFirma}>{enviandoFirma ? 'Enviando…' : 'Enviar a firma'}</Button>
+        </>}>
+        <p className="text-[13.5px] text-fg-2">
+          Cada trabajador recibe un correo para revisar y firmar su liquidación. Las ya firmadas o con firma pendiente no
+          se reenvían, y si a alguien le falta el correo te lo indicamos al terminar.
         </p>
       </Modal>
     </div>

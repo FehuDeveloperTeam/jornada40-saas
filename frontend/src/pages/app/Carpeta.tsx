@@ -37,7 +37,8 @@ const PESTANAS: { clave: Pestana; texto: string }[] = [
 ];
 
 // Todo lo que el backend sabe empaquetar en el expediente ZIP.
-const DOCUMENTOS_ZIP = ['contrato', 'anexo_40h', 'liquidaciones', 'amonestaciones', 'despidos', 'mutuo_acuerdo', 'constancias', 'anexos_contrato'];
+// Los documentos firmados van en su versión firmada (lo resuelve el backend).
+const DOCUMENTOS_ZIP = ['contrato', 'anexo_40h', 'liquidaciones', 'amonestaciones', 'despidos', 'mutuo_acuerdo', 'constancias', 'anexos_contrato', 'vacaciones', 'finiquitos'];
 
 export default function Carpeta() {
   const { id } = useParams();
@@ -231,8 +232,8 @@ export default function Carpeta() {
         </>}>
         <p className="text-[13.5px] text-fg-2">
           {empleado.activo
-            ? 'Deja de ocupar cupo en tu plan y no aparecerá en los procesos del mes. Su carpeta y documentos se conservan. Si aún no lo haces, emite el finiquito.'
-            : 'Vuelve a ocupar un cupo de tu plan y aparece de nuevo en los procesos del mes.'}
+            ? 'No aparecerá en los procesos del mes y su carpeta y documentos se conservan. Sigue ocupando su cupo del plan hasta fin de mes; se libera el mes siguiente. Si aún no lo haces, emite el finiquito.'
+            : 'Vuelve a aparecer en los procesos del mes. Si se desvinculó este mes ya ocupa su cupo; si fue antes, ocupa uno nuevo.'}
         </p>
       </Modal>
     </div>

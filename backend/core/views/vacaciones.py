@@ -5,13 +5,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
-from django.http import HttpResponse
 from django.template.loader import get_template
 from ..models import Empleado, VacacionEmpleado
-from xhtml2pdf import pisa
 import datetime
 
-from .base import _MESES, _es_plan_semilla, _plan_permite
+from .base import _MESES, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _calcular_dias_habiles_vacacion, calcular_saldo_vacaciones
 
 
@@ -96,47 +94,40 @@ class VacacionViewSet(viewsets.ModelViewSet):
         try:
             vacacion = self.get_object()
             empleado = vacacion.empleado
-            empresa  = vacacion.empresa
             es_semilla = _es_plan_semilla(request.user)
+            firmado = pdf_firmado('VACACION', vacacion=vacacion)
+            if firmado:
+                return respuesta_pdf(firmado, f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf', firmado=True)
 
-            hoy = datetime.date.today()
-            fecha_hoy_texto = f"{hoy.day:02d} de {_MESES[hoy.month - 1]} de {hoy.year}"
-
-            def _fmt_fecha(f):
-                if not f:
-                    return '—'
-                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
-
-            context = {
-                'vacacion':          vacacion,
-                'empleado':          empleado,
-                'empresa':           empresa,
-                'fecha_actual':      fecha_hoy_texto,
-                'fecha_inicio_texto': _fmt_fecha(vacacion.fecha_inicio),
-                'fecha_fin_texto':    _fmt_fecha(vacacion.fecha_fin),
-                'ciudad': str(
-                    getattr(empresa, 'ciudad', '') or
-                    getattr(empresa, 'comuna', '') or
-                    getattr(empleado, 'comuna', '') or 'Santiago'
-                ).strip().title(),
-                'es_plan_semilla': es_semilla,
-            }
-
-            template = get_template('comprobante_vacaciones.html')
-            html = template.render(context)
-
-            response = HttpResponse(content_type='application/pdf')
-            nombre = f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf'
-            response['Content-Disposition'] = f'attachment; filename="{nombre}"'
-
-            pisa_status = pisa.CreatePDF(html, dest=response)
-            if pisa_status.err:
-                return HttpResponse('Error al generar el PDF.', status=500)
-
-            return response
+            return respuesta_pdf(pdf_vacacion(vacacion, es_semilla), f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf')
 
         except Exception as e:
             return Response(
                 {'error': f'Error al generar PDF: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+def pdf_vacacion(vacacion, es_semilla) -> bytes:
+    """Comprobante de vacaciones. Lleva la fecha en que se registró, no la de
+    hoy: descargarlo otro día debe dar el mismo documento."""
+    from django.utils import timezone
+    empleado = vacacion.empleado
+    empresa = vacacion.empresa
+    emitido = timezone.localtime(vacacion.creado_en).date() if vacacion.creado_en else timezone.localdate()
+
+    def _fmt_fecha(f):
+        return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}" if f else '—'
+
+    context = {
+        'vacacion': vacacion, 'empleado': empleado, 'empresa': empresa,
+        'fecha_actual': _fmt_fecha(emitido),
+        'fecha_inicio_texto': _fmt_fecha(vacacion.fecha_inicio),
+        'fecha_fin_texto': _fmt_fecha(vacacion.fecha_fin),
+        'ciudad': str(getattr(empresa, 'ciudad', '') or getattr(empresa, 'comuna', '')
+                      or getattr(empleado, 'comuna', '') or 'Santiago').strip().title(),
+        'es_plan_semilla': es_semilla,
+    }
+    return _html_a_pdf_bytes(get_template('comprobante_vacaciones.html').render(context),
+                             f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}')
+

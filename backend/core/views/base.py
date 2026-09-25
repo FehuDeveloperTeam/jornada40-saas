@@ -2,6 +2,8 @@
 from rest_framework.exceptions import ValidationError
 from rest_framework.throttling import AnonRateThrottle
 from ..models import Plan, Empleado
+from django.db.models import Q
+from django.utils import timezone
 from xhtml2pdf import pisa
 import datetime
 import io
@@ -96,7 +98,7 @@ def estandarizar_fecha(fecha_valor):
         try:
             dt = datetime.datetime.strptime(fecha_str, fmt).date()
             # Ajuste para años de 2 dígitos (ej: 92 -> 1992 en vez de 2092)
-            if dt.year > datetime.date.today().year + 10:
+            if dt.year > timezone.localdate().year + 10:
                 dt = dt.replace(year=dt.year - 100)
             return dt
         except ValueError:
@@ -127,21 +129,35 @@ def _limite_trabajadores(user) -> int:
     return plan.limite_trabajadores if plan else 3
 
 
+def _desvinculado_este_mes(empleado) -> bool:
+    fecha = getattr(empleado, 'fecha_desvinculacion', None)
+    hoy = timezone.localdate()
+    return bool(fecha and (fecha.year, fecha.month) == (hoy.year, hoy.month))
+
+
 def _trabajadores_vigentes(user) -> int:
-    """Cuenta de trabajadores activos en todas las empresas del usuario.
+    """Trabajadores que ocupan cupo del plan en todas las empresas del usuario.
 
-    Los desvinculados (activo=False) no ocupan cupo: con borrado lógico, si
-    contaran, una empresa que despide nunca podría volver a contratar.
+    Cuentan los vigentes y los desvinculados durante el mes en curso: un
+    desvinculado libera su cupo recién el mes siguiente. Así se permite la
+    rotación normal de personal, pero no desvincular y agregar a otro en el
+    mismo mes para trabajar con más personas de las que permite el plan.
     """
-    return Empleado.objects.filter(empresa__owner=user, activo=True).count()
+    hoy = timezone.localdate()
+    return Empleado.objects.filter(empresa__owner=user).filter(
+        Q(activo=True) | Q(activo=False, fecha_desvinculacion__year=hoy.year, fecha_desvinculacion__month=hoy.month)
+    ).count()
 
 
-def _exigir_cupo_trabajador(user):
+def _exigir_cupo_trabajador(user, reactivando=None):
+    # Quien se desvinculó este mes todavía ocupa su cupo: reactivarlo no suma.
+    if reactivando is not None and _desvinculado_este_mes(reactivando):
+        return
     limite = _limite_trabajadores(user)
     if _trabajadores_vigentes(user) >= limite:
         raise ValidationError({'error': (
-            f'Tu plan permite {limite} trabajadores vigentes y ya los tienes todos. '
-            f'Mejora tu plan o desvincula a alguien para agregar otro.')})
+            f'Tu plan permite {limite} trabajadores y ya los ocupas todos. Los desvinculados este mes '
+            f'siguen ocupando su cupo hasta fin de mes. Mejora tu plan para agregar a otro.')})
 
 
 def _nivel_plan(user) -> int:
@@ -185,7 +201,7 @@ def _ctx_contrato(contrato, es_plan_semilla: bool) -> dict:
     """Construye el contexto completo para el template contrato_trabajo.html."""
     empleado = contrato.empleado
     empresa = empleado.empresa
-    hoy = datetime.date.today()
+    hoy = timezone.localdate()
     fecha_espanol = f"{hoy.day:02d} de {_MESES[hoy.month - 1]} de {hoy.year}"
     comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
     ciudad = str(comuna_emp or getattr(empleado, 'comuna', '') or 'Santiago').strip().title()
@@ -226,3 +242,38 @@ def _ctx_contrato(contrato, es_plan_semilla: bool) -> dict:
         'monto_quincena_texto': fmt_pesos(contrato.monto_quincena),
         'horario_formateado': horario_formateado,
     }
+
+
+def pdf_firmado(tipo_documento, **documento):
+    """Bytes del PDF firmado de un documento, o None si no tiene firma completa.
+
+    Un documento firmado se entrega siempre en su versión firmada (la que
+    lleva la firma del trabajador y el certificado): es la que vale ante una
+    fiscalización. Regenerarlo desde la plantilla daría otro documento, con la
+    fecha de hoy y sin firmas. Ej.: pdf_firmado('LIQUIDACION', liquidacion=liq).
+    """
+    from ..models import SolicitudFirma
+    from .. import b2_client
+    tipos = tipo_documento if isinstance(tipo_documento, (list, tuple, set)) else [tipo_documento]
+    solicitud = (SolicitudFirma.objects.filter(estado='FIRMADO', tipo_documento__in=tipos, **documento)
+                 .exclude(b2_key_firmado='').order_by('-firmado_en', '-id').first())
+    if solicitud is None:
+        return None
+    try:
+        return b2_client.descargar_documento(solicitud.b2_key_firmado)
+    except Exception:
+        logger.exception('No se pudo descargar el PDF firmado de la solicitud %s', solicitud.pk)
+        return None
+
+
+def respuesta_pdf(pdf_bytes, nombre, firmado=False):
+    """HttpResponse de un PDF; si es la versión firmada lo indica en el nombre y en un encabezado."""
+    from django.http import HttpResponse
+    if firmado and nombre.lower().endswith('.pdf') and not nombre.lower().endswith('_firmado.pdf'):
+        nombre = nombre[:-4] + '_firmado.pdf'
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+    response['X-Documento-Firmado'] = '1' if firmado else '0'
+    response['Access-Control-Expose-Headers'] = 'Content-Disposition, X-Documento-Firmado'
+    return response
+

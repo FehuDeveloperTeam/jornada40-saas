@@ -309,7 +309,7 @@ def _enviar_emails_firma_completada(
     }
     tipo_label        = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
     nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
-    firmado_str       = solicitud.firmado_en.strftime('%d/%m/%Y a las %H:%M') + ' UTC'
+    firmado_str       = timezone.localtime(solicitud.firmado_en).strftime('%d/%m/%Y a las %H:%M') + ' (hora de Chile)'
     nombre_pdf        = f"{tipo_label.replace(' ', '_')}_{empleado.rut}_firmado.pdf"
 
     # ── Email al trabajador ──────────────────────────────────────────────────

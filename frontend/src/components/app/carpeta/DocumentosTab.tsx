@@ -91,8 +91,10 @@ export function DocumentosTab({ empleado, documentos, nivel, avisar }: {
               </Button>
             )}
             {d.pdf && (
-              <Button variante="fantasma" tamano="sm" onClick={() => pdf(d)} aria-label={`Descargar ${d.titulo}`}
-                iconoInicio={<Download className="size-4" strokeWidth={2} />}>PDF</Button>
+              <Button variante="fantasma" tamano="sm" onClick={() => pdf(d)}
+                aria-label={`Descargar ${d.titulo}${d.firma?.estado === 'FIRMADO' ? ' firmado' : ''}`}
+                title={d.firma?.estado === 'FIRMADO' ? 'Descarga la versión firmada por el trabajador' : undefined}
+                iconoInicio={<Download className="size-4" strokeWidth={2} />}>{d.firma?.estado === 'FIRMADO' ? 'PDF firmado' : 'PDF'}</Button>
             )}
           </div>
         ))}

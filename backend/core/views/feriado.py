@@ -1,4 +1,5 @@
 """Feriados legales, días hábiles y saldo de vacaciones (Arts. 67 a 70)."""
+from django.utils import timezone
 from ..models import VacacionEmpleado
 import datetime
 import functools
@@ -71,7 +72,7 @@ def calcular_saldo_vacaciones(empleado, hasta=None) -> dict:
         dias_usados         — suma de días_hábiles de registros APROBADO
         dias_disponibles    — devengados − usados (mínimo 0)
     """
-    hoy = hasta or datetime.date.today()
+    hoy = hasta or timezone.localdate()
     anos_servicio = relativedelta(hoy, empleado.fecha_ingreso).years if empleado.fecha_ingreso <= hoy else 0
 
     dias_base = 15 * anos_servicio

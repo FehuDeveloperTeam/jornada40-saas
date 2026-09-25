@@ -175,14 +175,14 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'horas_laborales', 'modalidad', 'sueldo_base', 'fecha_ingreso',
             'afp', 'sistema_salud', 'plan_isapre_uf', 'isapre', 'numero_fun',
             'tramo_asignacion_familiar', 'cargas_simples', 'cargas_maternales', 'cargas_invalidas',
-            'anios_previos_feriado',
+            'anios_previos_feriado', 'fecha_desvinculacion',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
             'contrato_activo',
             'tiene_rechazos_pendientes',
         ]
-        read_only_fields = ('id', 'creado_en', 'contrato_activo',
+        read_only_fields = ('id', 'creado_en', 'contrato_activo', 'fecha_desvinculacion',
                             'tiene_rechazos_pendientes')
 
 

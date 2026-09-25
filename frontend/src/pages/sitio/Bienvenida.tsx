@@ -70,7 +70,7 @@ export default function Bienvenida() {
   });
   const suscripcion = useQuery({
     queryKey: ['mi_suscripcion'],
-    queryFn: async () => (await client.get<{ plan: { id: number; nombre: string } }>('/clientes/mi_suscripcion/')).data,
+    queryFn: async () => (await client.get<{ plan: { id: number; nombre: string; nivel?: number } }>('/clientes/mi_suscripcion/')).data,
   });
 
   // El onboarding es para cuentas nuevas: con empresas ya creadas no aplica.
@@ -80,7 +80,7 @@ export default function Bienvenida() {
 
   const planActual = planes.find((p) => p.id === suscripcion.data?.plan.id);
   const nombrePlan = suscripcion.data?.plan.nombre ?? registro?.plan;
-  const permiteCargaMasiva = (planActual?.nivel ?? 1) >= NIVEL_CARGA_MASIVA;
+  const permiteCargaMasiva = (suscripcion.data?.plan.nivel ?? planActual?.nivel ?? 1) >= NIVEL_CARGA_MASIVA;
 
   const irAlPanel = () => {
     if (empresaId !== null) {

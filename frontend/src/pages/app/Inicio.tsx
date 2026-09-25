@@ -106,6 +106,17 @@ export default function Inicio() {
       t.push({ clave: `p${f.id}`, Icono: Clock, tono: 'aviso', titulo: `Firma por vencer · ${nombre(f.empleado)}`,
         detalle: `El enlace vence el ${fechaCL(f.expira_en)}.`, accion: 'Ver', a: `/app/trabajadores/${f.empleado}?tab=documentos` });
     }
+    // Liquidaciones del mes emitidas que nadie ha enviado a firma (o cuya firma no se completó).
+    const conFirmaActiva = new Set(firmasEmpresa
+      .filter((f) => f.tipo_documento === 'LIQUIDACION' && ['PENDIENTE', 'PROCESANDO', 'FIRMADO'].includes(f.estado))
+      .map((f) => f.liquidacion));
+    const sinEnviar = (liquidacionesMes.data ?? []).filter((l) => !conFirmaActiva.has(l.id)).length;
+    if (sinEnviar) {
+      t.push({ clave: 'liq-sin-firma', Icono: FileSignature, tono: 'aviso',
+        titulo: `${sinEnviar} ${sinEnviar === 1 ? 'liquidación' : 'liquidaciones'} del mes sin enviar a firma`,
+        detalle: 'Envíalas de una vez desde Remuneraciones: el trabajador recibe un correo para firmar.',
+        accion: 'Enviar a firma', a: '/app/remuneraciones' });
+    }
     return t;
   })();
 

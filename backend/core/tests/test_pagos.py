@@ -2,7 +2,7 @@
 from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
-from ..models import Plan
+from ..models import Empleado, Plan
 
 from .utiles import _mock_config, crear_empleado, crear_usuario_completo
 
@@ -189,7 +189,7 @@ class PermisosPorPlanTests(APITestCase):
 
 
 class CupoTrabajadoresTests(APITestCase):
-    """El límite de trabajadores del plan rige al crear uno a uno y cuenta solo a los vigentes."""
+    """Cupo del plan: vigentes y desvinculados del mes en curso (liberan su cupo el mes siguiente)."""
 
     def setUp(self):
         self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo(
@@ -201,21 +201,78 @@ class CupoTrabajadoresTests(APITestCase):
         return self.client.post('/api/empleados/', {'empresa': self.empresa.id, 'rut': rut, 'nombres': 'A', 'apellido_paterno': 'B',
                                                     'cargo': 'C', 'fecha_ingreso': '2025-01-01'}, format='json')
 
+    def _desvincular(self, e):
+        r = self.client.patch(f'/api/empleados/{e.id}/', {'activo': False}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        e.refresh_from_db()
+        return e
+
     def test_no_se_supera_el_limite(self):
         r = self._crear()
         self.assertEqual(r.status_code, 400)
-        self.assertIn('3 trabajadores vigentes', r.data['error'])
+        self.assertIn('3 trabajadores', r.data['error'])
 
-    def test_desvinculados_no_ocupan_cupo(self):
-        e = self.emps[0]; e.activo = False; e.save()
+    def test_desvincular_no_libera_el_cupo_en_el_mismo_mes(self):
+        from django.utils import timezone
+        e = self._desvincular(self.emps[0])
+        self.assertEqual(e.fecha_desvinculacion, timezone.localdate())
+        self.assertEqual(self._crear().status_code, 400)     # rotar dentro del mes no suma cupo
+        self.assertEqual(self.client.get('/api/clientes/mi_suscripcion/').data['trabajadores_actuales'], 3)
+        # Reactivarlo en el mismo mes sí se puede: ya ocupaba su cupo.
+        r = self.client.patch(f'/api/empleados/{e.id}/', {'activo': True}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        e.refresh_from_db()
+        self.assertIsNone(e.fecha_desvinculacion)
+
+    def test_el_mes_siguiente_el_cupo_queda_libre(self):
+        import datetime
+        e = self._desvincular(self.emps[0])
+        Empleado.objects.filter(pk=e.pk).update(fecha_desvinculacion=e.fecha_desvinculacion - datetime.timedelta(days=40))
         self.assertEqual(self._crear().status_code, 201)
-        # Ahora está lleno: reactivar al desvinculado no se permite.
+        # Ahora está lleno: reactivar al desvinculado de un mes anterior exige cupo.
         r = self.client.patch(f'/api/empleados/{e.id}/', {'activo': True}, format='json')
         self.assertEqual(r.status_code, 400)
-        self.assertEqual(self.client.get('/api/clientes/mi_suscripcion/').data['trabajadores_actuales'], 3)
 
 
 class PlanesBaseMigracionTests(APITestCase):
     def test_planes_base_existen(self):
         self.assertEqual(sorted(Plan.objects.filter(nombre__in=['Semilla', 'Starter', 'Pyme', 'Corporativo'])
                                 .values_list('nivel', flat=True)), [1, 2, 3, 4])
+
+
+class ConsolidarPlanesTests(APITestCase):
+    """Los planes antiguos ("Plan Pyme", con nivel 1) pasan sus clientes al plan equivalente y se desactivan."""
+
+    def test_clientes_de_planes_antiguos_quedan_en_el_equivalente(self):
+        import importlib
+        from django.apps import apps
+        from ..models import Cliente, Suscripcion
+        migracion = importlib.import_module('core.migrations.0052_consolidar_planes')
+        antiguo = Plan.objects.create(nombre='Plan Pyme', precio=29990, limite_trabajadores=40, nivel=1)
+        user, cliente, _, _ = crear_usuario_completo('legacy', '21.000.000-3', '76.000.555-2')
+        Cliente.objects.filter(pk=cliente.pk).update(plan=antiguo)
+        Suscripcion.objects.filter(cliente=cliente).update(plan=antiguo)
+
+        migracion.consolidar(apps, None)
+
+        pyme = Plan.objects.get(nombre='Pyme')
+        cliente.refresh_from_db()
+        antiguo.refresh_from_db()
+        self.assertEqual((cliente.plan, Suscripcion.objects.get(cliente=cliente).plan, pyme.nivel), (pyme, pyme, 3))
+        self.assertFalse(antiguo.activo)
+        # El panel recibe el nivel del plan que usa el backend.
+        self.client.force_authenticate(user)
+        plan = self.client.get('/api/clientes/mi_suscripcion/').data['plan']
+        self.assertEqual((plan['nombre'], plan['nivel'], plan['max_empresas']), ('Pyme', 3, pyme.max_empresas))
+        self.assertEqual(sorted(p['nivel'] for p in self.client.get('/api/planes/').data['results']), [1, 2, 3, 4])
+
+    def test_registro_usa_el_plan_gratuito_por_nivel(self):
+        from ..models import Suscripcion
+        Plan.objects.filter(nombre='Semilla').update(nombre='Plan Semilla')
+        antes = Plan.objects.count()
+        r = self.client.post('/api/auth/register/', {
+            'rut': '12.345.678-5', 'password': 'Clave-Segura-2026', 'email': 'nuevo@correo.cl',
+            'nombres': 'Ana', 'apellido_paterno': 'Rojas', 'tipo_cliente': 'PERSONA'}, format='json')
+        self.assertIn(r.status_code, (200, 201), r.data)
+        self.assertEqual(Plan.objects.count(), antes)   # no crea un "Semilla" duplicado
+        self.assertEqual(Suscripcion.objects.get(cliente__rut='12.345.678-5').plan.nivel, 1)

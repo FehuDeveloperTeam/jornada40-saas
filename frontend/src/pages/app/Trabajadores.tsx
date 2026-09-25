@@ -17,7 +17,7 @@ function jornadaCorta(t: Empleado, horas: number): string {
   return horas ? `${horas} h` : '—';
 }
 
-type Filtro = 'todos' | 'alertas' | 'vacaciones';
+type Filtro = 'todos' | 'alertas' | 'vacaciones' | 'desvinculados';
 
 const SELECT = 'h-10 px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[13.5px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft max-w-[220px]';
 
@@ -45,8 +45,11 @@ export default function Trabajadores() {
   const enVacaciones = useMemo(() => deVacacionesHoy(vacaciones.data), [vacaciones.data]);
   const maximo = jornadaMaximaVigente();
 
-  const conAlertas = trabajadores.filter((t) => (t.contrato_activo?.avisos_jornada?.length ?? 0) > 0 || !t.contrato_activo);
-  const conteo = { todos: trabajadores.length, alertas: conAlertas.length, vacaciones: enVacaciones.size };
+  // "Vigentes" es la vista por defecto; los desvinculados tienen la suya.
+  const vigentes = trabajadores.filter((t) => t.activo);
+  const desvinculados = trabajadores.filter((t) => !t.activo);
+  const conAlertas = vigentes.filter((t) => (t.contrato_activo?.avisos_jornada?.length ?? 0) > 0 || !t.contrato_activo);
+  const conteo = { todos: vigentes.length, alertas: conAlertas.length, vacaciones: enVacaciones.size, desvinculados: desvinculados.length };
 
   // Opciones de los filtros: los valores que existen en la empresa, sin repetir.
   const opcionesDe = (valores: (string | null)[]) =>
@@ -63,7 +66,9 @@ export default function Trabajadores() {
   const texto = busqueda.trim().toLowerCase();
   const rutBuscado = texto.replace(/[^0-9k]/g, '');
   const lista = trabajadores
-    .filter((t) => filtro === 'todos' || (filtro === 'alertas' ? conAlertas.includes(t) : enVacaciones.has(t.id)))
+    .filter((t) => filtro === 'desvinculados' ? !t.activo
+      : filtro === 'todos' ? t.activo
+        : filtro === 'alertas' ? conAlertas.includes(t) : enVacaciones.has(t.id))
     .filter((t) => !cargo || (t.cargo ?? '').trim().toLowerCase() === cargo)
     .filter((t) => !departamento || (t.departamento ?? '').trim().toLowerCase() === departamento)
     .filter((t) => !texto
@@ -100,7 +105,7 @@ export default function Trabajadores() {
         <div>
           <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">Trabajadores</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">
-            {conteo.todos} {conteo.todos === 1 ? 'trabajador' : 'trabajadores'} · {capitalizar(empresa.nombre_legal)}
+            {conteo.todos} {conteo.todos === 1 ? 'trabajador vigente' : 'trabajadores vigentes'}{conteo.desvinculados ? ` · ${conteo.desvinculados} desvinculado${conteo.desvinculados === 1 ? '' : 's'}` : ''} · {capitalizar(empresa.nombre_legal)}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -131,9 +136,10 @@ export default function Trabajadores() {
             setParams(siguiente, { replace: true });
           }}
           opciones={[
-            { valor: 'todos', etiqueta: <>Todos <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.todos}</span></> },
+            { valor: 'todos', etiqueta: <>Vigentes <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.todos}</span></> },
             { valor: 'alertas', etiqueta: <>Con alertas <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.alertas}</span></> },
             { valor: 'vacaciones', etiqueta: <>De vacaciones <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.vacaciones}</span></> },
+            { valor: 'desvinculados', etiqueta: <>Desvinculados <span className="ml-1.5 text-[11.5px] text-fg-3">{conteo.desvinculados}</span></> },
           ]} />
         {cargos.length > 1 && (
           <select aria-label="Filtrar por cargo" value={cargo} onChange={(e) => filtrar('cargo', e.target.value)} className={SELECT}>
@@ -150,9 +156,9 @@ export default function Trabajadores() {
       </div>
 
       {/* Escritorio y tablet: tabla */}
-      <div className="hidden min-[720px]:block rounded-j40-card border border-line bg-surface shadow-card overflow-x-auto">
+      <div className="hidden min-[720px]:block rounded-j40-card border border-line bg-surface shadow-card overflow-auto max-h-[calc(100dvh-230px)]">
         <div className="min-w-[980px]" role="table" aria-label="Trabajadores">
-          <div role="row" className={cn('grid gap-3 px-[18px] py-[11px] text-[11.5px] font-medium text-fg-3 bg-surface-2 border-b border-line', COLUMNAS)}>
+          <div role="row" className={cn('sticky top-0 z-10 grid gap-3 px-[18px] py-[11px] text-[11.5px] font-medium text-fg-3 bg-surface-2 border-b border-line', COLUMNAS)}>
             {['Trabajador', 'RUT', 'Departamento', 'Contrato', 'Jornada', 'Ingreso'].map((c) => <span key={c} role="columnheader">{c}</span>)}
             <span role="columnheader" className="text-right">Sueldo base</span>
             <span role="columnheader">Estado</span>

@@ -191,6 +191,8 @@ export interface Empleado {
     cargas_invalidas: number;
     /** Años con empleadores anteriores acreditados para el feriado progresivo (Art. 68, máx. 10). */
     anios_previos_feriado: number;
+    /** Día en que se desvinculó (ocupa cupo hasta fin de ese mes). */
+    fecha_desvinculacion?: string | null;
     activo: boolean;
     creado_en: string;
     contrato_activo?: Contrato | null;
@@ -439,7 +441,7 @@ export interface SolicitudFirma {
     finiquito: number | null;
     tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION' | 'VACACION' | 'FINIQUITO';
     token: string;
-    estado: 'PENDIENTE' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
+    estado: 'PENDIENTE' | 'PROCESANDO' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;
     ip_firmante: string | null;
     enviado_en: string;

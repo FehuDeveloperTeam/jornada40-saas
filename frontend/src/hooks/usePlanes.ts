@@ -26,8 +26,13 @@ export function usePlanes() {
     retry: 1,
   });
 
-  const planes = [...(consulta.data?.length ? consulta.data : PLANES_RESPALDO)]
-    .sort((a, b) => a.nivel - b.nivel);
+  // Uno por nivel: si en la base quedara un plan duplicado, el sitio no lo
+  // muestra dos veces (las tarjetas se eligen por nivel).
+  const porNivel = new Map<number, Plan>();
+  for (const p of [...(consulta.data?.length ? consulta.data : PLANES_RESPALDO)].sort((a, b) => a.id - b.id)) {
+    if (!porNivel.has(p.nivel)) porNivel.set(p.nivel, p);
+  }
+  const planes = [...porNivel.values()].sort((a, b) => a.nivel - b.nivel);
 
   return { planes, cargando: consulta.isLoading, desdeApi: Boolean(consulta.data?.length) };
 }

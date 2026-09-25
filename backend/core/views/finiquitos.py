@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import NotFound, ValidationError
-from django.http import HttpResponse
+from django.utils import timezone
 from ..models import Empleado, Contrato, Liquidacion, SolicitudFirma, Finiquito, ConceptoRemuneracion
 from xhtml2pdf import pisa
 import datetime
@@ -17,7 +17,7 @@ from html import escape as _esc
 from django.db.models import Q
 from ..serializers import FiniquitoSerializer
 
-from .base import _MESES, _plan_permite
+from .base import _MESES, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _dias_progresivos_del_anio, _es_dia_habil_feriado, calcular_saldo_vacaciones
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tasas_afp, _tope_en_pesos
 
@@ -393,9 +393,9 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
         empleado, fecha_termino, entrada = self._entrada(request)
         montos, _ = self._calcular(empleado, fecha_termino, entrada)
         try:
-            fecha_emision = datetime.date.fromisoformat(str(request.data.get('fecha_emision', datetime.date.today().isoformat())))
+            fecha_emision = datetime.date.fromisoformat(str(request.data.get('fecha_emision', timezone.localdate().isoformat())))
         except (ValueError, TypeError):
-            fecha_emision = datetime.date.today()
+            fecha_emision = timezone.localdate()
         finiquito = Finiquito.objects.create(
             empleado=empleado,
             documento_legal_id=request.data.get('documento_legal') or None,
@@ -438,34 +438,47 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
     def generar_pdf(self, request, pk=None):
         try:
             finiquito = self.get_object()
-            empleado  = finiquito.empleado
-            empresa   = empleado.empresa
+            nombre = f'finiquito_{finiquito.empleado.rut}_{finiquito.fecha_termino}.pdf'
+            firmado = pdf_firmado('FINIQUITO', finiquito=finiquito)
+            if firmado:
+                return respuesta_pdf(firmado, nombre, firmado=True)
+            return respuesta_pdf(pdf_finiquito(finiquito), nombre)
+        except Finiquito.DoesNotExist:
+            return Response({'error': 'Finiquito no encontrado.'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
-            def _fmt(f):
-                if not f:
-                    return '—'
-                return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
 
-            ciudad = (getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
-            causal_label = finiquito.get_causal_articulo_display() if finiquito.causal_articulo else '—'
+def html_finiquito(finiquito) -> str:
+    """HTML del finiquito: una sola plantilla para la descarga y para la firma."""
+    empleado  = finiquito.empleado
+    empresa   = empleado.empresa
 
-            sueldo_prop = math.floor(
-                (finiquito.sueldo_base / 30) * finiquito.dias_trabajados_ultimo_mes
-            )
+    def _fmt(f):
+        if not f:
+            return '—'
+        return f"{f.day:02d} de {_MESES[f.month - 1]} de {f.year}"
 
-            # Escapar campos de texto para prevenir inyección HTML/CSS en el PDF
-            _ciudad      = _esc(ciudad)
-            _causal      = _esc(causal_label)
-            _nom_legal   = _esc(empresa.nombre_legal or '')
-            _rut_emp     = _esc(empresa.rut or '')
-            _trab_nombre = _esc(f"{empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''}")
-            _trab_firma  = _esc(f"{empleado.nombres} {empleado.apellido_paterno}")
-            _rut_trab    = _esc(empleado.rut or '')
-            _cargo       = _esc(empleado.cargo or '—')
-            _depto       = _esc(empleado.departamento or '—')
-            _modalidad   = _esc(finiquito.get_modalidad_display())
+    ciudad = (getattr(empresa, 'comuna', '') or 'Santiago').strip().title()
+    causal_label = finiquito.get_causal_articulo_display() if finiquito.causal_articulo else '—'
 
-            html = f"""<!DOCTYPE html>
+    sueldo_prop = math.floor(
+        (finiquito.sueldo_base / 30) * finiquito.dias_trabajados_ultimo_mes
+    )
+
+    # Escapar campos de texto para prevenir inyección HTML/CSS en el PDF
+    _ciudad      = _esc(ciudad)
+    _causal      = _esc(causal_label)
+    _nom_legal   = _esc(empresa.nombre_legal or '')
+    _rut_emp     = _esc(empresa.rut or '')
+    _trab_nombre = _esc(f"{empleado.nombres} {empleado.apellido_paterno} {empleado.apellido_materno or ''}")
+    _trab_firma  = _esc(f"{empleado.nombres} {empleado.apellido_paterno}")
+    _rut_trab    = _esc(empleado.rut or '')
+    _cargo       = _esc(empleado.cargo or '—')
+    _depto       = _esc(empleado.departamento or '—')
+    _modalidad   = _esc(finiquito.get_modalidad_display())
+
+    html = f"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
@@ -477,13 +490,13 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
   h2 {{ font-size: 10pt; text-align: center; color: #555; margin-top: 0; margin-bottom: 20px; }}
   .seccion {{ margin-bottom: 16px; }}
   .seccion-titulo {{ font-size: 9pt; font-weight: bold; text-transform: uppercase;
-                     letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
-                     padding-bottom: 3px; margin-bottom: 8px; }}
+             letter-spacing: 1px; color: #555; border-bottom: 1px solid #ccc;
+             padding-bottom: 3px; margin-bottom: 8px; }}
   table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
   table td {{ padding: 4px 6px; vertical-align: top; }}
   table td:last-child {{ text-align: right; font-weight: bold; }}
   .total-row td {{ border-top: 2px solid #333; font-weight: bold; font-size: 11pt;
-                   padding-top: 8px; }}
+           padding-top: 8px; }}
   .firma-bloque {{ margin-top: 60px; display: flex; justify-content: space-between; }}
   .firma-item {{ text-align: center; width: 44%; }}
   .firma-linea {{ border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 9pt; }}
@@ -556,20 +569,11 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
 
 </body>
 </html>"""
+    return html
 
-            buffer = io.BytesIO()
-            pisa_status = pisa.CreatePDF(html, dest=buffer)
-            if pisa_status.err:
-                return Response({'error': 'Error al generar el PDF.'}, status=500)
 
-            buffer.seek(0)
-            response = HttpResponse(buffer.read(), content_type='application/pdf')
-            response['Content-Disposition'] = (
-                f'attachment; filename="finiquito_{empleado.rut}_{finiquito.fecha_termino}.pdf"'
-            )
-            return response
-
-        except Finiquito.DoesNotExist:
-            return Response({'error': 'Finiquito no encontrado.'}, status=404)
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
+def pdf_finiquito(finiquito) -> bytes:
+    buffer = io.BytesIO()
+    if pisa.CreatePDF(html_finiquito(finiquito), dest=buffer).err:
+        raise Exception('Error al generar el PDF del finiquito.')
+    return buffer.getvalue()

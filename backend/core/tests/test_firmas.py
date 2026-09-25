@@ -153,3 +153,69 @@ class ComprobanteFirmaTests(APITestCase):
         # El enlace ya firmado muestra el comprobante.
         info = self.client.get(f'/api/firma-publica/{s.token}/').data
         self.assertEqual(info['folio'], folios[1])
+
+
+class DocumentoFirmadoTests(APITestCase):
+    """Un documento firmado se descarga siempre en su versión firmada (la que vale ante la DT)."""
+
+    def setUp(self):
+        from ..models import Empleado, Empresa, Liquidacion
+        self.user, _, _, self.empresa = crear_usuario_completo('firmado_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        Empleado.objects.filter(pk=self.emp.pk).update(email='t@correo.cl')
+        Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
+        self.liq = Liquidacion.objects.create(empleado=self.emp, mes=8, anio=2026, total_imponible=1000,
+                                              sueldo_liquido=900, total_haberes=1000)
+
+    @patch('core.b2_client.descargar_documento', return_value=b'%PDF-firmado')
+    def test_liquidacion_firmada_se_descarga_firmada(self, _descargar):
+        url = f'/api/liquidaciones/{self.liq.id}/generar_pdf/'
+        r = self.client.get(url)
+        self.assertEqual(r['X-Documento-Firmado'], '0')   # sin firma: la emitida
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, liquidacion=self.liq,
+                                      tipo_documento='LIQUIDACION', estado='FIRMADO',
+                                      b2_key_firmado='firmados/x.pdf', firmado_en=timezone.now())
+        r = self.client.get(url)
+        self.assertEqual((r.status_code, r.content, r['X-Documento-Firmado']), (200, b'%PDF-firmado', '1'))
+        self.assertIn('_firmado.pdf', r['Content-Disposition'])
+
+    @patch('core.b2_client.subir_documento')
+    def test_carta_de_termino_se_envia_a_firma(self, *_):
+        from ..models import DocumentoLegal, Plan
+        Plan.objects.filter(pk=self.user.perfil_cliente.suscripcion_activa.plan_id).update(nivel=2)
+        doc = DocumentoLegal.objects.create(empleado=self.emp, tipo='DESPIDO', causal_articulo='161_1',
+                                            hechos='Reestructuración', fecha_ultimo_dia='2026-09-30',
+                                            fecha_emision='2026-09-01')
+        r = self.client.post('/api/firmas/solicitar/', {'empleado_id': self.emp.id, 'tipo_documento': 'DESPIDO',
+                                                        'documento_legal_id': doc.id}, format='json')
+        self.assertNotIn('attribute', str(getattr(r, 'data', '')))
+        self.assertIn(r.status_code, (200, 201), getattr(r, 'data', None))
+
+
+class EnvioMasivoLiquidacionesTests(APITestCase):
+    """Remuneraciones envía a firma todas las liquidaciones del período de una vez."""
+
+    def setUp(self):
+        from ..models import Empleado, Empresa, Liquidacion
+        self.user, _, _, self.empresa = crear_usuario_completo('masivo_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
+        self.con_correo = crear_empleado(self.empresa, '12.345.678-5')
+        self.sin_correo = crear_empleado(self.empresa, '9.876.543-3')
+        Empleado.objects.filter(pk=self.con_correo.pk).update(email='t@correo.cl')
+        for e in (self.con_correo, self.sin_correo):
+            Liquidacion.objects.create(empleado=e, mes=8, anio=2026, total_imponible=1000, sueldo_liquido=900, total_haberes=1000)
+
+    @patch('core.b2_client.subir_documento')
+    def test_envia_las_pendientes_y_explica_las_omitidas(self, _subir):
+        datos = {'empresa': self.empresa.id, 'mes': 8, 'anio': 2026}
+        r = self.client.post('/api/firmas/solicitar_liquidaciones/', datos, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['enviadas'], 1)
+        self.assertEqual(len(r.data['omitidas']), 1)
+        self.assertIn('correo', r.data['omitidas'][0]['motivo'])
+        # Repetir no duplica la que ya está pendiente.
+        r = self.client.post('/api/firmas/solicitar_liquidaciones/', datos, format='json')
+        self.assertEqual(r.data['enviadas'], 0)
+        self.assertEqual(SolicitudFirma.objects.filter(tipo_documento='LIQUIDACION').count(), 1)

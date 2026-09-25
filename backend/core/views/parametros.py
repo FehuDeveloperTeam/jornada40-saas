@@ -109,7 +109,7 @@ def _anios_de_servicio(empleado, contrato, mes, anio) -> int:
     try:
         mes, anio = int(mes), int(anio)
     except (TypeError, ValueError):
-        fin = datetime.date.today()
+        fin = timezone.localdate()
     else:
         fin = datetime.date(anio + (mes == 12), mes % 12 + 1, 1) - datetime.timedelta(days=1)
     return fin.year - inicio.year - ((fin.month, fin.day) < (inicio.month, inicio.day))
@@ -141,7 +141,7 @@ def _fecha_referencia(mes, anio) -> datetime.date:
     try:
         return datetime.date(int(anio), int(mes), 1)
     except (TypeError, ValueError):
-        return datetime.date.today()
+        return timezone.localdate()
 
 
 def _parametros_previsionales(mes=None, anio=None) -> dict:

@@ -9,12 +9,13 @@ from ..serializers import PlanSerializer
 from django.conf import settings
 from django.utils import timezone
 import datetime
+import re
 from decouple import config
 import hmac
 import urllib.parse
 from django.core.mail import EmailMultiAlternatives
 
-from .base import _trabajadores_vigentes, logger
+from .base import _plan_activo, _trabajadores_vigentes, logger
 
 
 # Endpoint para listar los planes activos en la BD
@@ -35,7 +36,7 @@ def mi_suscripcion(request):
     try:
         suscripcion = cliente.suscripcion_activa
     except Suscripcion.DoesNotExist:
-        plan_asignado = cliente.plan if cliente.plan else Plan.objects.first()
+        plan_asignado = cliente.plan or Plan.objects.filter(activo=True, nivel=1).order_by('precio', 'id').first()
         suscripcion = Suscripcion.objects.create(
             cliente=cliente,
             plan=plan_asignado,
@@ -46,14 +47,20 @@ def mi_suscripcion(request):
     trabajadores_actuales = _trabajadores_vigentes(request.user)
 
     # 3. Armar la respuesta exacta que espera Suscripcion.tsx
+    # El plan que se informa es el mismo con que el backend decide funciones
+    # y límites (_plan_activo), con su nivel: así el panel no depende de
+    # encontrarlo en la lista de planes a la venta.
+    plan = _plan_activo(request.user) or suscripcion.plan
     data = {
         'estado': suscripcion.estado,
         'plan': {
-            'id': suscripcion.plan.id,
-            'nombre': suscripcion.plan.nombre,
-            'precio': suscripcion.plan.precio,
-            'limite_trabajadores': suscripcion.plan.limite_trabajadores,
-            'descripcion': suscripcion.plan.descripcion,
+            'id': plan.id,
+            'nombre': plan.nombre,
+            'precio': plan.precio,
+            'limite_trabajadores': plan.limite_trabajadores,
+            'max_empresas': plan.max_empresas,
+            'nivel': plan.nivel,
+            'descripcion': plan.descripcion,
         },
         'trabajadores_actuales': trabajadores_actuales,
         'fecha_proximo_cobro': suscripcion.fecha_proximo_cobro.strftime('%Y-%m-%d') if suscripcion.fecha_proximo_cobro else None,
@@ -84,8 +91,12 @@ def crear_checkout_reveniu(request):
         plan = Plan.objects.get(id=plan_id)
         cliente = getattr(request.user, 'perfil_cliente', None)
 
-        nombre_plan = plan.nombre.upper()
-        ciclo_upper = ciclo.upper()
+        # REVENIU_LINK_<PLAN>_<CICLO>, p. ej. REVENIU_LINK_PYME_MENSUAL. Se
+        # normaliza el nombre ("Plan Pyme" → PYME) para no depender de cómo
+        # se escribió en el admin.
+        nombre_plan = re.sub(r'^PLAN\s+', '', plan.nombre.strip().upper())
+        nombre_plan = re.sub(r'\W+', '_', nombre_plan).strip('_')
+        ciclo_upper = str(ciclo).upper()
         env_key = f'REVENIU_LINK_{nombre_plan}_{ciclo_upper}'
         link_base = config(env_key, default=None)
 

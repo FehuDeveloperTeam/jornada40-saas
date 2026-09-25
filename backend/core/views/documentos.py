@@ -5,14 +5,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
-from django.http import HttpResponse
-from django.template.loader import get_template
-from ..models import DocumentoLegal
-from xhtml2pdf import pisa
+from django.template.loader import render_to_string
+from ..models import Contrato, DocumentoLegal
 import datetime
 from ..serializers import DocumentoLegalSerializer
 
-from .base import _es_plan_semilla, _plan_permite
+from .base import _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .finiquitos import _CAUSALES_CON_INDEMNIZACION, _calcular_finiquito
 
 
@@ -123,76 +121,74 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
         documento = self.get_object()
         if documento.tipo == 'DESPIDO' and not _plan_permite(request.user, 2):
             return Response({'error': self._MENSAJE_CARTA_TERMINO}, status=status.HTTP_403_FORBIDDEN)
+        nombre = f'{documento.tipo}_{documento.empleado.rut}.pdf'
+        firmado = pdf_firmado(documento.tipo, documento_legal=documento)
+        if firmado:
+            return respuesta_pdf(firmado, nombre, firmado=True)
         try:
-            empleado = documento.empleado
-            empresa = empleado.empresa
-
-            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-            hoy = documento.fecha_emision
-            fecha_espanol = f"{hoy.day:02d} de {meses[hoy.month - 1]} de {hoy.year}"
-
-            comuna_emp = getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or ''
-            comuna_empl = getattr(empleado, 'comuna', '') or ''
-            ciudad_segura = str(comuna_emp or comuna_empl or 'Santiago').strip().title()
-            es_plan_semilla = _es_plan_semilla(request.user)
-
-            context = {
-                'documento': documento,
-                'empleado': empleado,
-                'empresa': empresa,
-                'fecha_actual': fecha_espanol,
-                'ciudad': ciudad_segura,
-                'es_plan_semilla': es_plan_semilla,
-            }
-
-            if documento.tipo == 'DESPIDO':
-                # Contexto enriquecido para carta_despido.html
-                codigo = documento.causal_articulo or ''
-                causal_label, causal_descripcion, requiere_indemnizacion = self._CAUSAL_INFO.get(
-                    codigo, (documento.causal_legal or '—', '', False)
-                )
-                def _fmt_pesos(v):
-                    if not v:
-                        return '$ 0'
-                    return f'$ {v:,}'.replace(',', '.')
-                monto_anos  = documento.monto_indemnizacion_anos or 0
-                monto_sust  = documento.monto_indemnizacion_sustitutiva or 0
-                # Cargo desde contrato si existe
-                try:
-                    contrato_cargo = documento.empleado.contrato.cargo
-                except Exception:
-                    contrato_cargo = None
-                # Fecha último día en español
-                fecha_ultimo_dia_texto = None
-                if documento.fecha_ultimo_dia:
-                    f = documento.fecha_ultimo_dia
-                    fecha_ultimo_dia_texto = f"{f.day:02d} de {meses[f.month - 1]} de {f.year}"
-                context.update({
-                    'causal_label': causal_label,
-                    'causal_descripcion': causal_descripcion,
-                    'requiere_indemnizacion': requiere_indemnizacion,
-                    'monto_anos_texto': _fmt_pesos(monto_anos),
-                    'monto_sustitutiva_texto': _fmt_pesos(monto_sust),
-                    'monto_total_texto': _fmt_pesos(monto_anos + monto_sust),
-                    'fecha_ultimo_dia_texto': fecha_ultimo_dia_texto,
-                    'contrato_cargo': contrato_cargo,
-                })
-                template = get_template('carta_despido.html')
-            else:
-                template = get_template('documento_legal.html')
-
-            html = template.render(context)
-
-            response = HttpResponse(content_type='application/pdf')
-            nombre_archivo = f'{documento.tipo}_{empleado.rut}.pdf'
-            response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
-
-            pisa_status = pisa.CreatePDF(html, dest=response)
-
-            if pisa_status.err:
-                return HttpResponse('Error al generar el PDF.', status=500)
-            
-            return response
-
+            pdf = pdf_documento_legal(documento, _es_plan_semilla(request.user))
         except Exception as e:
             return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return respuesta_pdf(pdf, nombre)
+
+
+_MESES_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
+             "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+
+def _fecha_es(f):
+    return f"{f.day:02d} de {_MESES_ES[f.month - 1]} de {f.year}" if f else None
+
+
+def pdf_documento_legal(documento, es_plan_semilla) -> bytes:
+    """PDF de un documento legal (amonestación, constancia o carta de término).
+
+    Una sola fuente para la descarga, el envío a firma y los expedientes ZIP:
+    antes cada uno tenía su copia y dos de ellas fallaban con la carta de término.
+    """
+    empleado = documento.empleado
+    empresa = empleado.empresa
+    ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '')
+                 or getattr(empleado, 'comuna', '') or 'Santiago').strip().title()
+    context = {
+        'documento': documento, 'empleado': empleado, 'empresa': empresa,
+        'fecha_actual': _fecha_es(documento.fecha_emision), 'ciudad': ciudad,
+        'es_plan_semilla': es_plan_semilla,
+    }
+    if documento.tipo == 'DESPIDO':
+        causal_label, causal_descripcion, requiere_indemnizacion = DocumentoLegalViewSet._CAUSAL_INFO.get(
+            documento.causal_articulo or '', (documento.causal_legal or '—', '', False))
+        def _pesos(v):
+            return f'$ {v:,}'.replace(',', '.') if v else '$ 0'
+        monto_anos = documento.monto_indemnizacion_anos or 0
+        monto_sust = documento.monto_indemnizacion_sustitutiva or 0
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+        context.update({
+            'causal_label': causal_label,
+            'causal_descripcion': causal_descripcion,
+            'requiere_indemnizacion': requiere_indemnizacion,
+            'monto_anos_texto': _pesos(monto_anos),
+            'monto_sustitutiva_texto': _pesos(monto_sust),
+            'monto_total_texto': _pesos(monto_anos + monto_sust),
+            'fecha_ultimo_dia_texto': _fecha_es(documento.fecha_ultimo_dia),
+            'contrato_cargo': contrato.cargo if contrato else None,
+        })
+        html = render_to_string('carta_despido.html', context)
+    else:
+        html = render_to_string('documento_legal.html', context)
+    return _html_a_pdf_bytes(html, f'{documento.tipo}_{empleado.rut}_{documento.fecha_emision}')
+
+
+def pdf_anexo_contrato(anexo, es_plan_semilla) -> bytes:
+    """PDF de un anexo de contrato (misma fuente para descarga, firma y ZIP)."""
+    contrato = anexo.contrato
+    empleado = contrato.empleado
+    empresa = empleado.empresa
+    ciudad = str(getattr(empresa, 'comuna', '') or getattr(empresa, 'ciudad', '') or 'Santiago').strip().title()
+    context = {
+        'anexo': anexo, 'contrato': contrato, 'empleado': empleado, 'empresa': empresa,
+        'fecha_actual': _fecha_es(anexo.fecha_emision), 'ciudad': ciudad,
+        'es_plan_semilla': es_plan_semilla,
+    }
+    html = render_to_string('anexo_contrato.html', context)
+    return _html_a_pdf_bytes(html, f'AnexoContrato_{empleado.rut}_{anexo.fecha_emision}')
