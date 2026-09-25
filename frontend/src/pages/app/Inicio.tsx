@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Banknote, CircleAlert, Clock, FileSignature, FileWarning, Lock, Signature, TriangleAlert, Users,
+  Banknote, CircleAlert, Clock, FileSignature, FileWarning, Landmark, Lock, Signature, TriangleAlert, Users,
 } from 'lucide-react';
 import client from '../../api/client';
 import { lista } from '../../api/lista';
@@ -11,7 +11,7 @@ import type { RespuestaLista } from '../../api/lista';
 import { Button, Card, CardHeader, Chip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { useAuth } from '../../context/AuthContext';
-import { rutaAccion, useFirmas, useIndicadores, useSuscripcion, useVacacionesEmpresa } from '../../hooks/usePanel';
+import { rutaAccion, useFirmas, useIndicadores, useRegistroDT, useSuscripcion, useVacacionesEmpresa } from '../../hooks/usePanel';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes } from '../../utils/formato';
@@ -24,7 +24,7 @@ function saludo(hora: number) {
   return 'Buenas noches';
 }
 
-interface Tarea { clave: string; Icono: LucideIcon; tono: 'peligro' | 'aviso' | 'marca'; titulo: string; detalle: string; accion: string; a: string }
+interface Tarea { clave: string; Icono: LucideIcon; tono: 'peligro' | 'aviso' | 'marca' | 'neutro'; titulo: string; detalle: string; accion: string; a: string }
 
 /** Documento al que apunta una solicitud de firma (un documento puede tener varias solicitudes). */
 function claveDocumento(f: SolicitudFirma): string {
@@ -43,7 +43,7 @@ function ultimasPorDocumento(firmas: SolicitudFirma[]): SolicitudFirma[] {
   return [...ultimas.values()];
 }
 
-const TONO_ICONO = { peligro: 'bg-danger-soft text-danger', aviso: 'bg-warn-soft text-warn', marca: 'bg-brand-soft text-brand-text' };
+const TONO_ICONO = { peligro: 'bg-danger-soft text-danger', aviso: 'bg-warn-soft text-warn', marca: 'bg-brand-soft text-brand-text', neutro: 'bg-sunken text-fg-2' };
 
 export default function Inicio() {
   const { empresa, trabajadores, nivel, suscripcion } = usePanelContexto();
@@ -53,6 +53,8 @@ export default function Inicio() {
   const navigate = useNavigate();
   const firmas = useFirmas();
   const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2);
+  // Plazos de registro en Mi DT y consentimientos: si falla, Inicio se ve igual sin esos avisos.
+  const registroDT = useRegistroDT(empresa.id);
   const hoy = new Date();
   const mes = hoy.getMonth() + 1;
   const anio = hoy.getFullYear();
@@ -108,6 +110,14 @@ export default function Inicio() {
           detalle: alta.recomendacion, accion: 'Revisar', a: `/app/trabajadores/${e.id}?tab=contrato` });
       }
     }
+    const dt = registroDT.data;
+    if (dt?.resumen.VENCIDO) {
+      const n = dt.resumen.VENCIDO;
+      t.push({ clave: 'dt-vencidos', Icono: Landmark, tono: 'peligro',
+        titulo: `${n} ${n === 1 ? 'registro en la DT vencido' : 'registros en la DT vencidos'}`,
+        detalle: 'Contratos, anexos o términos que debían registrarse en Mi DT y siguen pendientes.',
+        accion: 'Revisar', a: '/app/dt' });
+    }
     for (const f of rechazadas) {
       t.push({ clave: `r${f.id}`, Icono: FileSignature, tono: 'peligro', titulo: `Documento rechazado · ${nombre(f.empleado)}`,
         detalle: f.motivo_rechazo || 'El trabajador rechazó la firma.', accion: 'Ver', a: `/app/trabajadores/${f.empleado}?tab=documentos` });
@@ -139,6 +149,20 @@ export default function Inicio() {
         titulo: `${sinEnviar} ${sinEnviar === 1 ? 'liquidación' : 'liquidaciones'} del mes sin enviar a firma`,
         detalle: 'Envíalas de una vez desde Remuneraciones: el trabajador recibe un correo para firmar.',
         accion: 'Enviar a firma', a: '/app/remuneraciones' });
+    }
+    if (dt?.resumen.por_vencer) {
+      const n = dt.resumen.por_vencer;
+      t.push({ clave: 'dt-por-vencer', Icono: Landmark, tono: 'aviso',
+        titulo: `${n} ${n === 1 ? 'registro en la DT vence' : 'registros en la DT vencen'} en 3 días hábiles o menos`,
+        detalle: 'Regístralos en Mi DT y márcalos como registrados en Jornada40.',
+        accion: 'Revisar', a: '/app/dt' });
+    }
+    const sinAutorizar = dt ? dt.consentimiento.total - dt.consentimiento.con : 0;
+    if (sinAutorizar > 0) {
+      t.push({ clave: 'dt-consentimiento', Icono: FileSignature, tono: 'neutro',
+        titulo: `${sinAutorizar} ${sinAutorizar === 1 ? 'trabajador sin autorización' : 'trabajadores sin autorización'} de documentos electrónicos`,
+        detalle: 'La DT exige su autorización expresa para firmar y enviar documentos en forma electrónica. Envíales el anexo.',
+        accion: 'Ver', a: '/app/dt' });
     }
     return t;
   })();

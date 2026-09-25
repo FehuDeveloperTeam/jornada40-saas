@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import { obtenerTodo } from '../api/lista';
 import type {
-  AnexoContrato, DocumentoLegal, Empleado, Empresa, Liquidacion, SaldoVacaciones, SolicitudFirma,
+  AnexoContrato, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudFirma,
   VacacionEmpleado,
 } from '../types';
 import { usePlanes } from './usePlanes';
@@ -112,6 +112,15 @@ export function useTrabajadores(empresaId: number | undefined) {
 
 export function useFirmas() {
   return useQuery({ queryKey: ['firmas'], queryFn: () => obtener<SolicitudFirma>('/firmas/') });
+}
+
+/** Registros pendientes en la Dirección del Trabajo y consentimientos de la empresa. */
+export function useRegistroDT(empresaId: number | undefined) {
+  return useQuery({
+    queryKey: ['registro-dt', empresaId],
+    queryFn: async () => (await client.get<RegistroDT>(`/registro-dt/?empresa=${empresaId}`)).data,
+    enabled: Boolean(empresaId),
+  });
 }
 
 export function useVacacionesEmpresa(empresaId: number | undefined, habilitado: boolean) {

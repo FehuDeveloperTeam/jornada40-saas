@@ -195,11 +195,21 @@ export interface Empleado {
     anios_previos_feriado: number;
     /** Día en que se desvinculó (ocupa cupo hasta fin de ese mes). */
     fecha_desvinculacion?: string | null;
+    /** Discapacidad certificada por la COMPIN (se informa al registrar el contrato en Mi DT). */
+    discapacidad: boolean;
+    /** Pensionado por invalidez (se informa al registrar el contrato en Mi DT). */
+    pension_invalidez: boolean;
+    /** Cuándo autorizó la documentación laboral electrónica (Dictamen 0789/15); null si no la ha autorizado. */
+    consentimiento_electronico_en: string | null;
+    consentimiento_electronico_via: ViaConsentimiento;
     activo: boolean;
     creado_en: string;
     contrato_activo?: Contrato | null;
     tiene_rechazos_pendientes?: boolean;
 }
+
+/** Cómo autorizó el trabajador la documentación electrónica; '' si no la ha autorizado. */
+export type ViaConsentimiento = 'CONTRATO' | 'ANEXO' | 'PAPEL' | '';
 
 export interface DocumentosDisponibles {
     tiene_contrato: boolean;
@@ -230,6 +240,8 @@ export type CambiosAnexo = Partial<{
 export interface AnexoContrato {
     id: number;
     contrato: number;
+    /** CONSENTIMIENTO_ELECTRONICO: autorización de documentación electrónica (texto fijo del sistema). */
+    tipo: 'GENERAL' | 'CONSENTIMIENTO_ELECTRONICO';
     titulo: string;
     descripcion: string;
     clausulas_modificadas: string[];
@@ -468,4 +480,53 @@ export interface Suscripcion {
     gateway_customer_id: string | null;
     gateway_subscription_id: string | null;
     metodo_pago_glosa: string | null;
+}
+
+// ── Registro en la Dirección del Trabajo (/registro-dt/) ─────────────────────
+
+export type TipoRegistroDT = 'CONTRATO' | 'ANEXO' | 'TERMINO';
+export type EstadoRegistroDT = 'VENCIDO' | 'PENDIENTE' | 'REGISTRADO';
+
+/** Un contrato, anexo o término que se debe registrar en Mi DT, con su plazo calculado por el backend. */
+export interface ItemRegistroDT {
+    clave: string;
+    tipo: TipoRegistroDT;
+    detalle: string;
+    empleado: { id: number; nombre: string; rut: string; activo: boolean };
+    /** Celebración (contrato, anexo) o término. */
+    fecha: string;
+    vence: string;
+    estado: EstadoRegistroDT;
+    dias_habiles_restantes: number | null;
+    registrado_en: string | null;
+    cargo?: string;
+    /** Entra en el CSV de carga masiva de Mi DT. */
+    csv?: boolean;
+    firmado?: boolean;
+    /** Término sin causal registrada: se usa el plazo más corto. */
+    sin_causal?: boolean;
+}
+
+export type EstadoFirmaAnexo = SolicitudFirma['estado'] | null;
+
+export interface PendienteConsentimiento {
+    id: number;
+    nombre: string;
+    rut: string;
+    email: string;
+    anexo: { id: number; firma: EstadoFirmaAnexo } | null;
+}
+
+export interface RegistroDT {
+    items: ItemRegistroDT[];
+    resumen: { VENCIDO: number; PENDIENTE: number; REGISTRADO: number; por_vencer: number };
+    consentimiento: { total: number; con: number; sin: PendienteConsentimiento[] };
+    /** CSV para Mi DT: desde el plan Pyme (nivel 3). */
+    csv_disponible: boolean;
+}
+
+export interface ResultadoAnexosConsentimiento {
+    creados: number;
+    enviados: number;
+    omitidos: { nombre: string; motivo: string }[];
 }

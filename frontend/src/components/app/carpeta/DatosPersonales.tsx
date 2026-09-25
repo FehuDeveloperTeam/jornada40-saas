@@ -1,15 +1,18 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
-import { Briefcase, IdCard, Landmark, Mail, Pencil } from 'lucide-react';
+import { Briefcase, CircleCheck, FileSignature, IdCard, Landmark, Mail, Pencil, PenLine } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import client from '../../../api/client';
-import { AlertaError, Button, Input } from '../../j40';
-import type { Empleado } from '../../../types';
+import { AlertaError, Button, Input, Modal } from '../../j40';
+import type { TipoAviso } from '../AppShell';
+import { ModalConsentimientoPapel } from '../ModalConsentimientoPapel';
+import type { Empleado, ViaConsentimiento } from '../../../types';
 import { capitalizar, fechaCL } from '../../../utils/formato';
 import { AFPS, mensajeErrorCampos } from './utiles';
 
-type Tipo = 'texto' | 'fecha' | 'select' | 'numero' | 'correo';
+type Tipo = 'texto' | 'fecha' | 'select' | 'numero' | 'correo' | 'sino';
 type Campo = keyof Empleado;
 interface DefCampo {
   campo: Campo; etiqueta: string; tipo?: Tipo; opciones?: [string, string][]; mono?: boolean;
@@ -67,6 +70,9 @@ const SECCIONES: DefSeccion[] = [
     { campo: 'cargas_maternales', etiqueta: 'Cargas maternales', tipo: 'numero', mostrar: (b) => !igual(b.tramo_asignacion_familiar, 'D') },
     { campo: 'cargas_invalidas', etiqueta: 'Cargas por invalidez', tipo: 'numero', mostrar: (b) => !igual(b.tramo_asignacion_familiar, 'D') },
     // Sin opción vacía: el modelo no admite forma de pago nula (por defecto "Transferencia").
+    // Se informan al registrar el contrato en Mi DT.
+    { campo: 'discapacidad', etiqueta: 'Discapacidad certificada (COMPIN)', tipo: 'sino' },
+    { campo: 'pension_invalidez', etiqueta: 'Pensión de invalidez', tipo: 'sino' },
     { campo: 'forma_pago', etiqueta: 'Forma de pago', tipo: 'select', opciones: [['TRANSFERENCIA', 'Transferencia'], ['DEPOSITO', 'Depósito'], ['CHEQUE', 'Cheque'], ['EFECTIVO', 'Efectivo']] },
     { campo: 'banco', etiqueta: 'Banco', mostrar: conCuenta },
     // El backend guarda los textos en mayúsculas: los valores van igual.
@@ -89,6 +95,7 @@ const VACIO_NO_NULO: Partial<Record<Campo, string | number>> = {
 const CONTROL = 'w-full h-10 px-3 rounded-[8px] border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
 
 function valorVisible(d: DefCampo, valor: unknown): string {
+  if (d.tipo === 'sino') return valor ? 'Sí' : 'No';
   if (valor === null || valor === undefined || valor === '') return '—';
   if (d.tipo === 'fecha') return fechaCL(String(valor));
   if (d.tipo === 'select') return d.opciones?.find(([v]) => igual(valor, v))?.[1] ?? capitalizar(String(valor));
@@ -97,15 +104,103 @@ function valorVisible(d: DefCampo, valor: unknown): string {
   return String(valor);
 }
 
-export function DatosPersonales({ empleado, avisar }: { empleado: Empleado; avisar: (t: string) => void }) {
+type Avisar = (t: string, tipo?: TipoAviso) => void;
+
+export function DatosPersonales({ empleado, avisar }: { empleado: Empleado; avisar: Avisar }) {
   return (
     <div className="flex flex-col gap-5">
       {SECCIONES.map((s) => <SeccionEditable key={s.clave} seccion={s} empleado={empleado} avisar={avisar} />)}
+      <DocumentosElectronicos empleado={empleado} avisar={avisar} />
     </div>
   );
 }
 
-function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; empleado: Empleado; avisar: (t: string) => void }) {
+const VIA_CONSENTIMIENTO: Record<Exclude<ViaConsentimiento, ''>, string> = {
+  CONTRATO: 'cláusula del contrato', ANEXO: 'anexo firmado', PAPEL: 'firmado en papel',
+};
+
+/** Autorización para la documentación laboral electrónica (Dictamen 0789/15). */
+function DocumentosElectronicos({ empleado, avisar }: { empleado: Empleado; avisar: Avisar }) {
+  const queryClient = useQueryClient();
+  const [papel, setPapel] = useState(false);
+  const [revocar, setRevocar] = useState(false);
+  const [revocando, setRevocando] = useState(false);
+  const autorizado = Boolean(empleado.consentimiento_electronico_en);
+  const via = empleado.consentimiento_electronico_via;
+  // La fecha llega como datetime ISO: se muestra el día en Chile.
+  const fecha = empleado.consentimiento_electronico_en
+    ? new Date(empleado.consentimiento_electronico_en).toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
+    : null;
+
+  const refrescar = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['empleados'] }),
+    queryClient.invalidateQueries({ queryKey: ['registro-dt'] }),
+  ]);
+
+  const confirmarRevocar = async () => {
+    setRevocando(true);
+    try {
+      await client.post(`/empleados/${empleado.id}/consentimiento/`, { revocar: true });
+      await refrescar();
+      avisar('Autorización revocada');
+      setRevocar(false);
+    } catch (err) {
+      avisar((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos revocar la autorización.', 'error');
+    } finally {
+      setRevocando(false);
+    }
+  };
+
+  return (
+    <section className="bg-surface border border-line rounded-j40-card shadow-card">
+      <div className="flex items-center gap-2.5 px-[18px] py-3 min-h-14 border-b border-line">
+        <FileSignature className="size-5 text-fg-3" strokeWidth={2} aria-hidden />
+        <h3 className="text-[14px] font-semibold flex-1">Documentos electrónicos</h3>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 p-[18px]">
+        {autorizado ? (
+          <p className="flex-1 min-w-[220px] flex items-start gap-2 text-[13.5px]">
+            <CircleCheck className="size-[18px] shrink-0 mt-0.5 text-ok" strokeWidth={2} aria-hidden />
+            <span>
+              Autorizó documentos electrónicos el {fechaCL(fecha)}
+              {via ? ` (${VIA_CONSENTIMIENTO[via]})` : ''}.
+            </span>
+          </p>
+        ) : (
+          <div className="flex-1 min-w-[220px] flex flex-col gap-0.5">
+            <span className="text-[13.5px] font-medium text-warn">Sin autorización para documentos electrónicos</span>
+            <span className="text-[12.5px] text-fg-3">
+              La DT exige su autorización expresa para firmar y enviarle documentos en forma electrónica.{' '}
+              <Link to="/app/dt">Enviarle el anexo</Link>
+            </span>
+          </div>
+        )}
+        {autorizado ? (
+          <Button variante="peligro-contorno" tamano="sm" onClick={() => setRevocar(true)}>Revocar</Button>
+        ) : (
+          <Button variante="secundario" tamano="sm" onClick={() => setPapel(true)}
+            iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>Registrar firmado en papel</Button>
+        )}
+      </div>
+
+      <ModalConsentimientoPapel empleado={papel ? { id: empleado.id, nombre: `${empleado.nombres} ${empleado.apellido_paterno}` } : null}
+        onCerrar={() => setPapel(false)} avisar={avisar} refrescar={refrescar} />
+
+      <Modal abierto={revocar} onCerrar={() => !revocando && setRevocar(false)} titulo="Revocar la autorización"
+        acciones={<>
+          <Button variante="secundario" onClick={() => setRevocar(false)} disabled={revocando}>Cancelar</Button>
+          <Button variante="peligro" cargando={revocando} onClick={confirmarRevocar}>Revocar</Button>
+        </>}>
+        <p className="text-[13.5px] text-fg-2">
+          Úsalo si el trabajador revocó por escrito su autorización. Desde ahora sus documentos deberán firmarse y entregarse en papel,
+          hasta que vuelva a autorizar.
+        </p>
+      </Modal>
+    </section>
+  );
+}
+
+function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; empleado: Empleado; avisar: Avisar }) {
   const queryClient = useQueryClient();
   const [editando, setEditando] = useState(false);
   const [borrador, setBorrador] = useState<Partial<Empleado>>({});
@@ -175,6 +270,12 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
                 <span id={id} className={c.mono ? 'text-[14px] font-medium min-h-[22px] break-words j40-mono' : 'text-[14px] font-medium min-h-[22px] break-words'}>
                   {valorVisible(c, valor)}
                 </span>
+              ) : c.tipo === 'sino' ? (
+                <select id={id} className={CONTROL} value={valor ? 'si' : 'no'}
+                  onChange={(e) => setBorrador((b) => ({ ...b, [c.campo]: e.target.value === 'si' }))}>
+                  <option value="no">No</option>
+                  <option value="si">Sí</option>
+                </select>
               ) : c.tipo === 'select' ? (
                 <select id={id} className={CONTROL} value={String(valor ?? '')}
                   onChange={(e) => setBorrador((b) => ({ ...b, [c.campo]: e.target.value }))}>

@@ -2,13 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CreditCard,
-  Ellipsis, FileUp, Info, LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
+  Ellipsis, FileUp, Info, Landmark, LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
 import { useAuth } from '../../context/AuthContext';
 import {
-  useEmpresaActiva, useIndicadores, useSuscripcion, useTrabajadores,
+  useEmpresaActiva, useIndicadores, useRegistroDT, useSuscripcion, useTrabajadores,
 } from '../../hooks/usePanel';
 import type { Suscripcion } from '../../hooks/usePanel';
 import type { Empleado, Empresa } from '../../types';
@@ -67,6 +67,7 @@ const NAV: ItemNav[] = [
   { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users },
   { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
   { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
+  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark },
   { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn },
   { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'] },
 ];
@@ -230,6 +231,9 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
   const estado = suscripcion ? ESTADO_SUSCRIPCION[suscripcion.estado] : undefined;
   const limite = suscripcion?.plan.limite_trabajadores ?? 0;
   const uso = limite ? Math.min(100, Math.round(((suscripcion?.trabajadores_actuales ?? 0) / limite) * 100)) : 0;
+  // Registros en la DT vencidos o por vencer: si la consulta falla, el menú se ve igual sin la cifra.
+  const registroDT = useRegistroDT(empresa.id);
+  const urgentesDT = registroDT.data ? registroDT.data.resumen.VENCIDO + registroDT.data.resumen.por_vencer : 0;
 
   const salir = async () => { await logout(); navigate('/login'); };
 
@@ -251,7 +255,10 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
 
       <nav aria-label="Principal" className="flex flex-col gap-1">
         {NAV.map((item) => (
-          <ItemLateral key={item.etiqueta} item={item} badge={item.a === '/app/trabajadores' ? totalTrabajadores : undefined} />
+          <ItemLateral key={item.etiqueta} item={item}
+            badge={item.a === '/app/trabajadores' ? totalTrabajadores : item.a === '/app/dt' && urgentesDT > 0 ? urgentesDT : undefined}
+            alerta={item.a === '/app/dt'}
+            tituloBadge={item.a === '/app/dt' ? 'Registros en la DT vencidos o por vencer' : undefined} />
         ))}
       </nav>
 
@@ -291,7 +298,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
   );
 }
 
-function ItemLateral({ item, badge }: { item: ItemNav; badge?: number }) {
+function ItemLateral({ item, badge, alerta, tituloBadge }: { item: ItemNav; badge?: number; alerta?: boolean; tituloBadge?: string }) {
   const { Icono } = item;
   const { pathname } = useLocation();
   const hija = (item.hijas ?? []).some((h) => pathname.startsWith(h));
@@ -300,7 +307,15 @@ function ItemLateral({ item, badge }: { item: ItemNav; badge?: number }) {
     <>
       <Icono className="size-[21px] shrink-0" strokeWidth={2} aria-hidden />
       <span className="hidden min-[1080px]:inline flex-1">{item.etiqueta}</span>
-      {badge !== undefined && <span className="hidden min-[1080px]:inline text-[11.5px] font-medium text-fg-3 j40-num">{badge}</span>}
+      {badge !== undefined && (alerta ? (
+        <>
+          <span title={tituloBadge} className="hidden min-[1080px]:inline min-w-5 px-1.5 rounded-full bg-danger-soft text-danger text-[11.5px] font-semibold text-center j40-num">
+            {badge}<span className="sr-only"> {tituloBadge?.toLowerCase()}</span>
+          </span>
+          {/* Barra angosta: solo un punto sobre el ícono. */}
+          <span className="min-[1080px]:hidden absolute top-2 right-3 size-2 rounded-full bg-danger" aria-hidden />
+        </>
+      ) : <span className="hidden min-[1080px]:inline text-[11.5px] font-medium text-fg-3 j40-num">{badge}</span>)}
       {item.clasico && <ArrowUpRight className="hidden min-[1080px]:block size-3.5 text-fg-3" strokeWidth={2} aria-label="Se abre en el panel anterior" />}
     </>
   );
@@ -478,6 +493,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   if (pathname.startsWith('/app/empresa')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa' }];
   if (pathname.startsWith('/app/plan')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Plan y facturación' }];
   if (pathname.startsWith('/app/cuenta')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Mi cuenta' }];
+  if (pathname.startsWith('/app/dt')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Dirección del Trabajo' }];
   if (pathname.startsWith('/app/firmas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Firma electrónica' }];
   if (pathname.startsWith('/app/remuneraciones')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones' }];
   return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Inicio' }];
@@ -488,6 +504,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 // Lo que no cabe en la barra inferior va en "Más".
 const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firmas'];
 const MAS: { a: string; etiqueta: string; Icono: LucideIcon }[] = [
+  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark },
   { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2 },
   { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn },
   { a: '/app/plan', etiqueta: 'Plan y facturación', Icono: CreditCard },
@@ -599,6 +616,8 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
     { clave: 'rem', Icono: Banknote, texto: 'Remuneraciones del mes', ejecutar: ir(() => navigate('/app/remuneraciones')) },
     { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')) },
     { clave: 'firmas', Icono: Signature, texto: 'Firma electrónica', ejecutar: ir(() => navigate('/app/firmas')) },
+    { clave: 'dt', Icono: Landmark, texto: 'Dirección del Trabajo · registro de contratos en Mi DT', ejecutar: ir(() => navigate('/app/dt')) },
+    { clave: 'consentimiento', Icono: Landmark, texto: 'Autorización de documentos electrónicos', ejecutar: ir(() => navigate('/app/dt')) },
     { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')) },
     { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', ejecutar: ir(() => navigate('/app/trabajadores/importar')) },
     { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/app/plan')) },

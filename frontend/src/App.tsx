@@ -30,6 +30,7 @@ const PlanPanel = lazy(() => import('./pages/app/Plan'));
 const CuentaPanel = lazy(() => import('./pages/app/Cuenta'));
 
 const ReportesPanel = lazy(() => import('./pages/app/Reportes'));
+const DireccionTrabajoPanel = lazy(() => import('./pages/app/DireccionTrabajo'));
 const EmpresasPanel = lazy(() => import('./pages/app/Empresas'));
 const Terminos = lazy(() => import('./pages/sitio/Terminos'));
 const FirmaPublica = lazy(() => import('./pages/sitio/Firma'));
@@ -159,6 +160,7 @@ export default function App() {
           <Route path="remuneraciones/conceptos" element={<Conceptos />} />
           <Route path="firmas" element={<FirmasPanel />} />
           <Route path="reportes" element={<ReportesPanel />} />
+          <Route path="dt" element={<DireccionTrabajoPanel />} />
           <Route path="empresas" element={<EmpresasPanel />} />
         </Route>
         <Route path="/dashboard" element={<RedireccionDashboard />} />

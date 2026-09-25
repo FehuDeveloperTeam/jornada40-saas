@@ -95,7 +95,8 @@ export function documentosDe(
   }
   for (const a of anexos) {
     lista.push({
-      clave: `a${a.id}`, titulo: `Anexo · ${a.titulo}`, fecha: a.fecha_emision,
+      // El de consentimiento trae su título fijo ("Autorización de documentación laboral electrónica").
+      clave: `a${a.id}`, titulo: a.tipo === 'CONSENTIMIENTO_ELECTRONICO' ? `Anexo: ${a.titulo}` : `Anexo · ${a.titulo}`, fecha: a.fecha_emision,
       fechaTexto: fechaCL(a.fecha_emision), firma: firmaDe(firmas, 'anexo_contrato', a.id),
       pdf: { url: `/anexos_contrato/${a.id}/generar_pdf/`, nombre: `Anexo_${rut}_${a.fecha_emision}.pdf` },
       envio: { tipo_documento: 'ANEXO_CONTRATO', anexo_contrato_id: a.id },
