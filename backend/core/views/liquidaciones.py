@@ -20,6 +20,7 @@ from openpyxl.utils import get_column_letter
 from ..serializers import LiquidacionSerializer
 
 from .base import error_interno, _es_plan_semilla, _plan_permite, logger, pdf_firmado, respuesta_pdf
+from . import lre as lre_views
 from .calculo_liquidacion import PeriodoSinContrato, _calcular_liquidacion, _pdf_liquidacion, _terminos_congelados, _terminos_vigentes, _validar_conceptos
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tope_en_pesos
 from .previred import _linea_previred, _tasa_accidentes
@@ -306,6 +307,47 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
         contenido = ('\r\n'.join(lineas) + '\r\n').encode('latin-1', errors='replace')
         response = HttpResponse(contenido, content_type='text/plain; charset=iso-8859-1')
         response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
+
+    def _parametros_lre(self, request):
+        """(empresa_id, mes, anio) o una Response de error."""
+        if not _plan_permite(request.user, 3):
+            return None, Response({'error': 'El Libro de Remuneraciones Electrónico está disponible desde el plan Pyme. '
+                                            'Mejora tu suscripción para acceder.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            mes, anio = int(request.query_params.get('mes')), int(request.query_params.get('anio'))
+            empresa = Empresa.objects.get(id=request.query_params.get('empresa'), owner=request.user)
+        except (TypeError, ValueError, Empresa.DoesNotExist):
+            return None, Response({'error': 'Indica la empresa, el mes y el año.'}, status=400)
+        return (empresa, mes, anio), None
+
+    @action(detail=False, methods=['get'], url_path='revisar_lre')
+    def revisar_lre(self, request):
+        """Qué impide generar el LRE del período y qué conviene revisar."""
+        params, error = self._parametros_lre(request)
+        if error:
+            return error
+        empresa, mes, anio = params
+        filas, faltan, avisos = lre_views.revisar(request.user, empresa.id, mes, anio)
+        return Response({'trabajadores': len(filas), 'faltan': faltan, 'avisos': avisos})
+
+    @action(detail=False, methods=['get'], url_path='exportar_lre')
+    def exportar_lre(self, request):
+        """Libro de Remuneraciones Electrónico del mes para subir a Mi DT (plantilla oficial)."""
+        params, error = self._parametros_lre(request)
+        if error:
+            return error
+        empresa, mes, anio = params
+        filas, faltan, _ = lre_views.revisar(request.user, empresa.id, mes, anio)
+        if not filas:
+            return Response({'error': 'No hay liquidaciones de esta empresa en el período.'}, status=404)
+        if faltan:
+            return Response({'error': 'Completa estos datos para generar el Libro de Remuneraciones Electrónico: '
+                                      + ' | '.join(faltan)}, status=400)
+        rut = empresa.rut.replace('.', '').upper()
+        response = HttpResponse(lre_views.csv_lre(filas), content_type='text/csv; charset=windows-1252')
+        response['Content-Disposition'] = f'attachment; filename="{rut}_{anio}{mes:02d}.csv"'
         response['Access-Control-Expose-Headers'] = 'Content-Disposition'
         return response
 

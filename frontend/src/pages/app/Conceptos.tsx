@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { ArrowLeft, Check, Lock, Minus, Pencil, Plus, Search } from 'lucide-react';
 import { AlertaError, Button, Chip, Drawer, TarjetaOpcion } from '../../components/j40';
@@ -197,6 +197,13 @@ function DrawerConcepto({ concepto, empresaId, empresaNombre, existentes, onCerr
   const queryClient = useQueryClient();
   const [nombre, setNombre] = useState(concepto?.nombre ?? '');
   const [tipo, setTipo] = useState<TipoConcepto>(concepto?.tipo ?? 'HABER_IMPONIBLE');
+  const [codigoLre, setCodigoLre] = useState(concepto?.codigo_lre ?? '');
+  // Códigos del Libro de Remuneraciones Electrónico que calzan con la naturaleza del tipo.
+  const codigosLre = useQuery({
+    queryKey: ['codigos-lre', tipo],
+    queryFn: async () => (await client.get<{ codigo: string; nombre: string }[]>('/conceptos/codigos_lre/', { params: { tipo } })).data,
+    staleTime: Infinity,
+  });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const codigo = concepto?.codigo ?? slug(nombre);
@@ -207,8 +214,8 @@ function DrawerConcepto({ concepto, empresaId, empresaNombre, existentes, onCerr
     setGuardando(true);
     setError('');
     try {
-      if (concepto) await client.patch(`/conceptos/${concepto.id}/`, { nombre: nombre.trim() });
-      else await client.post('/conceptos/', { empresa: empresaId, nombre: nombre.trim(), codigo, tipo });
+      if (concepto) await client.patch(`/conceptos/${concepto.id}/`, { nombre: nombre.trim(), codigo_lre: codigoLre });
+      else await client.post('/conceptos/', { empresa: empresaId, nombre: nombre.trim(), codigo, tipo, codigo_lre: codigoLre });
       await queryClient.invalidateQueries({ queryKey: ['conceptos'] });
       avisar(concepto ? 'Concepto actualizado' : `Concepto «${nombre.trim()}» creado`);
       onCerrar();
@@ -264,11 +271,19 @@ function DrawerConcepto({ concepto, empresaId, empresaNombre, existentes, onCerr
           </div>
           <span className="text-[11.5px] text-fg-3">Lo fija el tipo según la ley; no depende de quien crea el concepto.</span>
         </div>
-        <div className="flex flex-col gap-1.5 opacity-60">
-          <span className="text-[12.5px] font-medium text-fg-2">Código LRE</span>
-          <input disabled placeholder="Se habilita con el Libro de Remuneraciones Electrónico"
-            className="h-10 px-3 rounded-j40-control border border-line bg-sunken text-[13.5px]" />
-        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12.5px] font-medium text-fg-2">Concepto en el Libro de Remuneraciones Electrónico</span>
+          <select value={codigoLre} onChange={(e) => setCodigoLre(e.target.value)} disabled={!codigosLre.data}
+            className="h-10 px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft">
+            <option value="">Sin asignar (se usa uno genérico según el tipo)</option>
+            {/* Al cambiar el tipo, un código que ya no calza se muestra igual hasta que se elija otro. */}
+            {codigoLre && codigosLre.data && !codigosLre.data.some((c) => c.codigo === codigoLre) && (
+              <option value={codigoLre}>{codigoLre} (no corresponde a este tipo)</option>
+            )}
+            {(codigosLre.data ?? []).map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} · {c.nombre}</option>)}
+          </select>
+          <span className="text-[11.5px] text-fg-3">Solo aparecen los conceptos de la DT que calzan con el tratamiento de este tipo.</span>
+        </label>
       </div>
     </Drawer>
   );

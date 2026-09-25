@@ -3,12 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
-  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Lock, Send, Shapes, Upload,
+  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Landmark, Lock, Send, Shapes, Upload,
 } from 'lucide-react';
 import { AlertaError, Button, Chip, Modal } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { DrawerLiquidacion } from '../../components/app/remuneraciones/DrawerLiquidacion';
+import { ModalLre } from '../../components/app/remuneraciones/ModalLre';
 import { firmaDe } from '../../components/app/carpeta/utiles';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
@@ -54,6 +55,7 @@ export default function Remuneraciones() {
   const [confirmarMasivo, setConfirmarMasivo] = useState(false);
   const [emitiendo, setEmitiendo] = useState(false);
   const [descargando, setDescargando] = useState<string | null>(null);
+  const [lreAbierto, setLreAbierto] = useState(false);
 
   const porEmpleado = useMemo(() => new Map((liquidaciones.data ?? []).map((l) => [l.empleado, l])), [liquidaciones.data]);
   const inicioPeriodo = iso(new Date(anio, mes - 1, 1));
@@ -189,6 +191,8 @@ export default function Remuneraciones() {
             <>
               <Button variante="secundario" cargando={descargando === 'previred'} iconoInicio={<Upload className="size-4" strokeWidth={2} />}
                 onClick={() => bajar('previred', `/liquidaciones/exportar_previred/?${consulta}`, `Previred_${sufijo}.txt`)}>Archivo Previred</Button>
+              <Button variante="secundario" iconoInicio={<Landmark className="size-4" strokeWidth={2} />}
+                onClick={() => setLreAbierto(true)}>Libro electrónico DT</Button>
               <Button variante="secundario" cargando={descargando === 'libro'} iconoInicio={<FileSpreadsheet className="size-4" strokeWidth={2} />}
                 onClick={() => bajar('libro', `/liquidaciones/libro_remuneraciones/?${consulta}&formato=excel`, `LibroRemuneraciones_${sufijo}.xlsx`)}>Libro (Excel)</Button>
               <Button variante="secundario" cargando={descargando === 'libro-pdf'} iconoInicio={<Download className="size-4" strokeWidth={2} />}
@@ -198,7 +202,7 @@ export default function Remuneraciones() {
             </>
           ) : (
             <Link to="/app/plan" className="inline-flex items-center gap-1.5 h-10 px-3 text-[12.5px] text-fg-3" title="Previred, libro de remuneraciones y ZIP están disponibles desde el plan Pyme">
-              <Lock className="size-3.5" strokeWidth={2} aria-hidden />Previred, libro y ZIP desde plan Pyme
+              <Lock className="size-3.5" strokeWidth={2} aria-hidden />Previred, libros y ZIP desde plan Pyme
             </Link>
           )}
         </div>
@@ -323,6 +327,9 @@ export default function Remuneraciones() {
           </p>
         )}
       </Modal>
+
+      <ModalLre abierto={lreAbierto} onCerrar={() => setLreAbierto(false)} empresaId={empresa.id} empresaRut={empresa.rut}
+        mes={mes} anio={anio} trabajadores={trabajadores} avisar={avisar} />
 
       <Modal abierto={Boolean(faltantesPrevired)} onCerrar={() => setFaltantesPrevired(null)} ancho="amplio"
         titulo="Faltan datos para el archivo Previred" subtitulo={periodo(mes, anio)}

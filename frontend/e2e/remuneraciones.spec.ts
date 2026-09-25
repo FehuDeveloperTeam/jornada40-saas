@@ -57,6 +57,23 @@ test('emisión masiva y archivos del período', async ({ page }) => {
   for (const [boton, extension] of [['Archivo Previred', /\.txt$/], ['Libro (Excel)', /\.xlsx$/], ['PDF en ZIP', /\.zip$/]] as const) {
     expect(await descargar(page, () => page.getByRole('button', { name: boton }).click())).toMatch(extension);
   }
+  // Libro de Remuneraciones Electrónico: el servidor revisa el período antes de descargar.
+  await page.getByRole('button', { name: 'Libro electrónico DT' }).click();
+  const lre = page.getByRole('dialog');
+  await expect(lre.getByText(/4 trabajadores listos para declarar/)).toBeVisible();
+  expect(await descargar(page, () => lre.getByRole('button', { name: 'Descargar archivo' }).click()))
+    .toMatch(/^76123456-0_\d{6}\.csv$/);
+});
+
+test('el libro electrónico exige liquidación de todos los trabajadores', async ({ page }) => {
+  await entrar(page);
+  await page.goto('/app/remuneraciones');
+  await page.getByRole('button', { name: 'Período anterior' }).click();
+  await expect(page.getByText(periodo(-1)).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Libro electrónico DT' }).click();
+  const lre = page.getByRole('dialog');
+  await expect(lre.getByText(/sin liquidación del período/).first()).toBeVisible();
+  await expect(lre.getByRole('button', { name: 'Descargar archivo' })).toBeDisabled();
 });
 
 test('una liquidación firmada no se modifica', async ({ page }) => {

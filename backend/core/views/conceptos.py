@@ -1,4 +1,5 @@
 """Catálogo de haberes y descuentos."""
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 from ..models import ConceptoRemuneracion
 from django.db.models import Q
 from ..serializers import ConceptoRemuneracionSerializer
+from .. import lre
 
 
 class ConceptoRemuneracionViewSet(viewsets.ModelViewSet):
@@ -70,3 +72,13 @@ class ConceptoRemuneracionViewSet(viewsets.ModelViewSet):
         instancia.activo = False
         instancia.save(update_fields=['activo'])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['get'], url_path='codigos_lre')
+    def codigos_lre(self, request):
+        """Códigos del Libro de Remuneraciones Electrónico válidos para un tipo de concepto."""
+        tipo = request.query_params.get('tipo', '')
+        naturaleza = ConceptoRemuneracion.NATURALEZA_POR_TIPO.get(tipo)
+        if not naturaleza:
+            return Response({'error': 'Tipo de concepto inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+        codigos = lre.codigos_para_concepto(tipo, naturaleza['es_imponible'], naturaleza['es_tributable'])
+        return Response([{'codigo': str(c), 'nombre': n} for c, n in codigos])

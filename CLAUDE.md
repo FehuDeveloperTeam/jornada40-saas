@@ -362,6 +362,16 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Libro de Remuneraciones Electrónico (LRE)
+
+- `GET /api/liquidaciones/revisar_lre/?empresa=&mes=&anio=` → `{trabajadores, faltan, avisos}` and `GET …/exportar_lre/` → `rutempleador_aaaamm.csv` (Pyme+; Remuneraciones → "Libro electrónico DT", a modal that reviews before downloading). Due in Mi DT within the first 15 days of the next month (Art. 62 bis).
+- Columns: exactly the official template downloaded from Mi DT, stored in `core/datos/lre_plantilla.csv` (147 columns `Nombre(código)`, read by `lre.columnas()`); tables in `core/lre.py` from the DT user manual v8.0 (Anexo 2): causales, comunas (**pre-2018 codes**: the region comes from `region_de_comuna`, not the code prefix), jornada, AFP, salud, CCAF/mutual (same codes as `Empresa`). File: `;`, cp1252, CRLF, dd/mm/aaaa, integers; optional concepts with 0 go empty, mandatory ones 0.
+- One row per payslip (`views/lre.py → fila_lre`): amounts from the issued liquidación; employer contributions computed like Previred (4151 AFC, 4152 accidentes, **4155 = SIS + expectativa de vida + rentabilidad protegida**, **4157 = 0,1 % empleador**, the market convention since the DT hasn't published reform codes). Overtime goes to 2102 (sobresueldo). Totals (52xx–55xx) are summed from the same columns; a mismatch with the payslip is a warning.
+- Concepts: `ConceptoRemuneracion.codigo_lre` (system catalog set by migration 0061; company concepts choose it in Conceptos from `GET /api/conceptos/codigos_lre/?tipo=`, validated against the concept's nature). Without a code, `codigo_por_defecto` is used and the review warns. Blocking (`faltan`): invalid RUT, company comuna without code, AFP/Isapre missing, finiquito without causal, and any worker with a contract in the month but no payslip.
+- `Empleado.pensionado_vejez`, `tecnico_extranjero_exento`, `tipo_impuesto_renta` feed 1109/1146/1170.
+
+---
+
 ## Subscription & Payments
 
 - **Provider**: Reveniu (Chilean payment gateway) with Stripe as underlying processor.
@@ -389,7 +399,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
   - `GET /api/registro-dt/csv/` (Pyme+, **not shown in the UI**): ZIP with one CSV per cargo (the DT loads by cargo) named `rutempleador_aaaamm.csv`, columns and codes of the official "Instructivo de Registro Masivo de Contratos de Trabajo" v21.04.22 (`COLUMNAS`, Tabla 1 comunas, AFP/salud codes), `;`-separated, cp1252, CRLF, plus `LEEME.txt` with per-worker warnings (missing comuna code, unsplittable address, etc.). The official template is only downloadable inside Mi DT and the bulk option wasn't available to the account we checked; the 2022 format may predate DS N°14/2023, so the endpoint stays unverified and hidden until a real template confirms it. Assumptions: Chilean RUT, no subcontracting/EST, workplace = company comuna, `OTROS_*` = 0.
   - Anexos and terminations are registered one by one in Mi DT (no bulk file); the screen lists them with their deadline.
 - **Consentimiento para documentación electrónica (Dictamen 0789/15)**: the contract template includes the clause (`templates/clausula_consentimiento_electronico.html`, 4th clause); current workers get an anexo `tipo=CONSENTIMIENTO_ELECTRONICO` (`POST /api/registro-dt/anexos_consentimiento/`, optionally sent to signature). `SolicitudFirma.incluye_consentimiento` marks PDFs that contain it; when signed, `Empleado.consentimiento_electronico_en/_via` is set (CONTRATO/ANEXO). Paper consent or revocation: `POST /api/empleados/<id>/consentimiento/`. `Empleado.discapacidad` and `pension_invalidez` feed the DT declarations.
-- **Still Must do**: Libro de Remuneraciones Electrónico in the official format (Art. 62 bis); for DT recognition of the platform, an inspector portal (access by employer RUT, no restrictions), inspector ratification with electronic signature and agreed security measures, then the request to the DT (e.g. ORD 902 of 04.07.2023 for "Genera HR Digital"; ORD 2965 rejected a platform that didn't email documents automatically).
+- **Still Must do**: for DT recognition of the platform, an inspector portal (access by employer RUT, no restrictions), inspector ratification with electronic signature and agreed security measures, then the request to the DT (e.g. ORD 902 of 04.07.2023 for "Genera HR Digital"; ORD 2965 rejected a platform that didn't email documents automatically).
 
 ---
 
@@ -450,7 +460,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.

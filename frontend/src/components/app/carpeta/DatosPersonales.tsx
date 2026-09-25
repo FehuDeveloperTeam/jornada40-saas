@@ -73,6 +73,11 @@ const SECCIONES: DefSeccion[] = [
     // Se informan al registrar el contrato en Mi DT.
     { campo: 'discapacidad', etiqueta: 'Discapacidad certificada (COMPIN)', tipo: 'sino' },
     { campo: 'pension_invalidez', etiqueta: 'Pensión de invalidez', tipo: 'sino' },
+    // Se informan en el Libro de Remuneraciones Electrónico.
+    { campo: 'pensionado_vejez', etiqueta: 'Pensionado por vejez', tipo: 'sino' },
+    { campo: 'tecnico_extranjero_exento', etiqueta: 'Técnico extranjero exento de cotizar (Ley 18.156)', tipo: 'sino' },
+    { campo: 'tipo_impuesto_renta', etiqueta: 'Impuesto a la renta', tipo: 'select',
+      opciones: [['1', 'Segunda categoría'], ['2', 'Único obrero agrícola'], ['3', 'Adicional (no residente)']] },
     { campo: 'forma_pago', etiqueta: 'Forma de pago', tipo: 'select', opciones: [['TRANSFERENCIA', 'Transferencia'], ['DEPOSITO', 'Depósito'], ['CHEQUE', 'Cheque'], ['EFECTIVO', 'Efectivo']] },
     { campo: 'banco', etiqueta: 'Banco', mostrar: conCuenta },
     // El backend guarda los textos en mayúsculas: los valores van igual.

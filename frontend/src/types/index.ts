@@ -199,6 +199,10 @@ export interface Empleado {
     discapacidad: boolean;
     /** Pensionado por invalidez (se informa al registrar el contrato en Mi DT). */
     pension_invalidez: boolean;
+    /** Datos del Libro de Remuneraciones Electrónico (conceptos 1109, 1146 y 1170). */
+    pensionado_vejez: boolean;
+    tecnico_extranjero_exento: boolean;
+    tipo_impuesto_renta: '1' | '2' | '3';
     /** Cuándo autorizó la documentación laboral electrónica (Dictamen 0789/15); null si no la ha autorizado. */
     consentimiento_electronico_en: string | null;
     consentimiento_electronico_via: ViaConsentimiento;

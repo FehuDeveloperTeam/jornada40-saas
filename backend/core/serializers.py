@@ -177,6 +177,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'tramo_asignacion_familiar', 'cargas_simples', 'cargas_maternales', 'cargas_invalidas',
             'anios_previos_feriado', 'fecha_desvinculacion',
             'discapacidad', 'pension_invalidez', 'consentimiento_electronico_en', 'consentimiento_electronico_via',
+            'pensionado_vejez', 'tecnico_extranjero_exento', 'tipo_impuesto_renta',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
@@ -272,7 +273,21 @@ class ConceptoRemuneracionSerializer(serializers.ModelSerializer):
                 if campo in attrs and attrs[campo] != getattr(self.instance, campo):
                     raise serializers.ValidationError(
                         {campo: 'No se puede cambiar una vez creado el concepto. Crea uno nuevo si lo necesitas.'})
-        else:
+        codigo_lre = attrs.get('codigo_lre')
+        if codigo_lre:
+            from . import lre
+            base = self.instance
+            tipo = attrs.get('tipo', getattr(base, 'tipo', None))
+            es_imponible = getattr(base, 'es_imponible', None)
+            es_tributable = getattr(base, 'es_tributable', None)
+            if base is None:
+                naturaleza = ConceptoRemuneracion.NATURALEZA_POR_TIPO.get(tipo, {})
+                es_imponible, es_tributable = naturaleza.get('es_imponible'), naturaleza.get('es_tributable')
+            validos = {str(c) for c, _ in lre.codigos_para_concepto(tipo, es_imponible, es_tributable)}
+            if str(codigo_lre) not in validos:
+                raise serializers.ValidationError(
+                    {'codigo_lre': 'Ese código del Libro de Remuneraciones no corresponde a la naturaleza de este concepto.'})
+        if self.instance is None:
             # La restricción única es condicional y DRF no la valida sola:
             # sin esto, un código repetido terminaba en IntegrityError (500).
             empresa, codigo = attrs.get('empresa'), attrs.get('codigo')
@@ -292,7 +307,7 @@ class ConceptoRemuneracionSerializer(serializers.ModelSerializer):
         # La naturaleza previsional la deriva el modelo desde el tipo: no se
         # acepta que llegue definida desde el cliente.
         read_only_fields = (
-            'id', 'creado_en', 'es_del_sistema', 'codigo_lre',
+            'id', 'creado_en', 'es_del_sistema',
             'es_imponible', 'es_tributable',
             'afecta_gratificacion', 'afecta_semana_corrida',
         )

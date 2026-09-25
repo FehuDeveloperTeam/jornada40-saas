@@ -239,6 +239,12 @@ class Empleado(models.Model):
     # certificada por la COMPIN (Ley 20.422) y pensión de invalidez (DL 3.500).
     discapacidad = models.BooleanField(default=False)
     pension_invalidez = models.BooleanField(default=False)
+    # Libro de Remuneraciones Electrónico (conceptos 1109, 1146 y 1170).
+    pensionado_vejez = models.BooleanField(default=False)
+    tecnico_extranjero_exento = models.BooleanField(default=False, help_text='Técnico extranjero exento de cotizar (Ley 18.156).')
+    TIPOS_IMPUESTO_RENTA = [('1', 'Impuesto de segunda categoría'), ('2', 'Impuesto único obrero agrícola'),
+                            ('3', 'Impuesto adicional')]
+    tipo_impuesto_renta = models.CharField(max_length=1, choices=TIPOS_IMPUESTO_RENTA, default='1')
     # Consentimiento expreso para la documentación laboral electrónica
     # (Dictamen DT 0789/15): cláusula del contrato, anexo firmado o papel.
     VIAS_CONSENTIMIENTO = [('CONTRATO', 'Cláusula del contrato'), ('ANEXO', 'Anexo firmado'),
