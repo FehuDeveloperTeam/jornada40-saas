@@ -113,6 +113,36 @@ class RegistroTests(APITestCase):
         self.assertGreater(int(fila['MONTO_IMPONIBLE']), 900_000)   # sueldo + gratificación mensual
         self.assertIn('LEEME.txt', nombres)
 
+    def test_ficha_del_contrato_sigue_las_4_etapas_de_mi_dt(self):
+        clave = next(i['clave'] for i in self._listar()['items'] if i['tipo'] == 'CONTRATO')
+        r = self.client.get('/api/registro-dt/ficha/', {'empresa': self.empresa.id, 'clave': clave})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual([s['titulo'].split(' · ')[0] for s in r.data['secciones']],
+                         ['Etapa 1', 'Etapa 2', 'Etapa 3', 'Etapa 4'])
+        campos = {c['etiqueta']: c for s in r.data['secciones'] for c in s['campos']}
+        self.assertEqual((campos['Calle']['valor'], campos['Número']['valor']), ('Av. Irarrázaval', '2401'))
+        self.assertEqual(campos['Lunes']['valor'], '09:00 a 18:00')
+        # Las cláusulas que Mi DT pide copiar salen del texto del contrato.
+        self.assertIn('Sueldo Base', campos['Remuneraciones y asignaciones (cláusula del contrato)']['valor'])
+        self.assertIn('40', campos['Distribución de jornada (cláusula del contrato)']['valor'])
+        self.assertIn('documentación laboral', campos['Otras estipulaciones']['valor'])
+        self.assertTrue(campos['Otras estipulaciones']['copiar'])
+
+    def test_ficha_de_termino_y_de_anexo(self):
+        Empleado.objects.filter(pk=self.emp.pk).update(activo=False, fecha_desvinculacion='2026-09-30')
+        Finiquito.objects.create(empleado=self.emp, causal_articulo='159_2', fecha_termino='2026-09-30',
+                                 fecha_emision='2026-09-30', sueldo_base=900_000)
+        anexo = AnexoContrato.objects.create(contrato=self.contrato, titulo='Aumento', descripcion='Sube el sueldo.',
+                                             fecha_emision='2026-09-20', aplicado=True,
+                                             aplicado_en=timezone.make_aware(datetime.datetime(2026, 9, 21, 10)))
+        items = {i['tipo']: i['clave'] for i in self._listar()['items']}
+        r = self.client.get('/api/registro-dt/ficha/', {'empresa': self.empresa.id, 'clave': items['TERMINO']})
+        self.assertIn('Renuncia', str(r.data['secciones']))
+        r = self.client.get('/api/registro-dt/ficha/', {'empresa': self.empresa.id, 'clave': f'ANEXO:{anexo.id}'})
+        self.assertIn('Sube el sueldo.', str(r.data['secciones']))
+        r = self.client.get('/api/registro-dt/ficha/', {'empresa': self.empresa.id, 'clave': 'CONTRATO:9999'})
+        self.assertEqual(r.status_code, 404)
+
     def test_csv_solo_desde_pyme(self):
         from ..models import Plan
         from django.contrib.auth.models import User

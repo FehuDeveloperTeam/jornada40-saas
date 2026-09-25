@@ -1,20 +1,19 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
-  CircleCheck, Clock, Download, ExternalLink, FilePlus2, Info, Lock, MailWarning, PenLine, RotateCcw, Send, TriangleAlert,
+  Check, CircleCheck, Clock, Copy, ExternalLink, FilePlus2, FileText, Info, MailWarning, PenLine, RotateCcw, Send, TriangleAlert,
 } from 'lucide-react';
-import { AlertaError, Button, Chip, Field, Input, Modal, SegmentedControl } from '../../components/j40';
+import { AlertaError, Button, Chip, Drawer, Field, Input, Modal, SegmentedControl } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
-import { descargar } from '../../api/descargas';
 import { ModalConsentimientoPapel } from '../../components/app/ModalConsentimientoPapel';
 import { useRegistroDT } from '../../hooks/usePanel';
 import type {
-  EstadoRegistroDT, ItemRegistroDT, PendienteConsentimiento, ResultadoAnexosConsentimiento, TipoRegistroDT,
+  EstadoRegistroDT, FichaDT as TFichaDT, ItemRegistroDT, PendienteConsentimiento, ResultadoAnexosConsentimiento, TipoRegistroDT,
 } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, fechaCL, hoyISO } from '../../utils/formato';
@@ -38,7 +37,7 @@ const MI_DT = 'https://midt.dirtrab.cl';
 /** Días hábiles que definen "por vencer" (el mismo umbral que usa el backend en resumen.por_vencer). */
 const UMBRAL_POR_VENCER = 3;
 
-const COLUMNAS = 'grid-cols-[28px_minmax(200px,1.6fr)_96px_minmax(200px,2fr)_100px_minmax(150px,1.1fr)_150px]';
+const COLUMNAS = 'grid-cols-[28px_minmax(200px,1.6fr)_96px_minmax(200px,2fr)_100px_minmax(150px,1.1fr)_260px]';
 
 const mensaje = (err: unknown, porDefecto: string) =>
   (isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || porDefecto;
@@ -69,7 +68,8 @@ export default function DireccionTrabajo() {
   // Claves que se van a marcar como registradas (abre el modal de fecha).
   const [marcar, setMarcar] = useState<string[] | null>(null);
   const [ocupada, setOcupada] = useState<string | null>(null);
-  const [descargando, setDescargando] = useState(false);
+  // Registro cuya ficha para Mi DT está abierta.
+  const [ficha, setFicha] = useState<string | null>(null);
 
   // La selección es por empresa: al cambiar de empresa parte vacía.
   const [empresaSeleccion, setEmpresaSeleccion] = useState(empresa.id);
@@ -98,7 +98,7 @@ export default function DireccionTrabajo() {
     );
   }
 
-  const { items, resumen, consentimiento, csv_disponible: csvDisponible } = registro.data;
+  const { items, resumen, consentimiento } = registro.data;
   const visibles = items.filter((i) => COINCIDE_ESTADO[filtroEstado](i.estado) && (filtroTipo === 'todos' || i.tipo === filtroTipo));
   const elegidos = visibles.filter((i) => seleccion.has(i.clave));
   const porMarcar = elegidos.filter((i) => i.estado !== 'REGISTRADO');
@@ -125,19 +125,6 @@ export default function DireccionTrabajo() {
     }
   };
 
-  // CSV: los contratos seleccionados o, sin selección, todos los contratos por registrar (lo resuelve el backend).
-  const contratosElegidos = elegidos.filter((i) => i.tipo === 'CONTRATO');
-  const contratosPorRegistrar = items.filter((i) => i.tipo === 'CONTRATO' && i.estado !== 'REGISTRADO').length;
-  const csvSinContratos = elegidos.length > 0 ? contratosElegidos.length === 0 : contratosPorRegistrar === 0;
-  const descargarCsv = async () => {
-    setDescargando(true);
-    const claves = contratosElegidos.map((i) => i.clave).join(',');
-    const url = `/registro-dt/csv/?empresa=${empresa.id}${claves ? `&claves=${encodeURIComponent(claves)}` : ''}`;
-    const error = await descargar(url, `Registro_contratos_MiDT_${empresa.rut}.zip`);
-    setDescargando(false);
-    if (error) avisar(error, 'error'); else avisar('Archivo para Mi DT descargado');
-  };
-
   const filaVence = (i: ItemRegistroDT) => {
     if (i.estado === 'REGISTRADO') {
       return <span className="text-ok">Registrado el {fechaCL(i.registrado_en)}</span>;
@@ -159,13 +146,19 @@ export default function DireccionTrabajo() {
     );
   };
 
-  const accionFila = (i: ItemRegistroDT) => (i.estado === 'REGISTRADO' ? (
-    <Button variante="fantasma" tamano="sm" cargando={ocupada === `d${i.clave}`} onClick={() => desmarcar(i)}
-      iconoInicio={<RotateCcw className="size-4" strokeWidth={2} />}>Deshacer</Button>
-  ) : (
-    <Button variante="secundario" tamano="sm" onClick={() => setMarcar([i.clave])}
-      iconoInicio={<CircleCheck className="size-4" strokeWidth={2} />}>Marcar registrado</Button>
-  ));
+  const accionFila = (i: ItemRegistroDT) => (
+    <span className="flex flex-wrap justify-end gap-1.5">
+      <Button variante={i.estado === 'REGISTRADO' ? 'fantasma' : 'primario'} tamano="sm" onClick={() => setFicha(i.clave)}
+        iconoInicio={<FileText className="size-4" strokeWidth={2} />}>Ver ficha</Button>
+      {i.estado === 'REGISTRADO' ? (
+        <Button variante="fantasma" tamano="sm" cargando={ocupada === `d${i.clave}`} onClick={() => desmarcar(i)}
+          iconoInicio={<RotateCcw className="size-4" strokeWidth={2} />}>Deshacer</Button>
+      ) : (
+        <Button variante="secundario" tamano="sm" onClick={() => setMarcar([i.clave])}
+          iconoInicio={<CircleCheck className="size-4" strokeWidth={2} />}>Marcar registrado</Button>
+      )}
+    </span>
+  );
 
   const detalle = (i: ItemRegistroDT) => (
     <span className="flex flex-col min-w-0">
@@ -205,7 +198,7 @@ export default function DireccionTrabajo() {
           <h2 className="text-[14px] font-semibold">Registro electrónico laboral</h2>
           <p className="text-[12.5px] text-fg-3 max-w-[860px]">
             La ley obliga a registrar en Mi DT cada contrato y anexo dentro de 15 días hábiles, y el término según la causal.
-            Jornada40 calcula los plazos y prepara el archivo; el registro lo haces tú en{' '}
+            Jornada40 calcula los plazos y te arma una ficha con cada dato en el orden del formulario; el registro lo haces tú en{' '}
             <a href={MI_DT} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-medium">
               Mi DT<ExternalLink className="size-3" strokeWidth={2} aria-hidden />
             </a>.
@@ -241,25 +234,11 @@ export default function DireccionTrabajo() {
               Marcar {porMarcar.length} como {porMarcar.length === 1 ? 'registrado' : 'registrados'}
             </Button>
           )}
-          {csvDisponible ? (
-            <Button variante="secundario" tamano="sm" cargando={descargando} disabled={csvSinContratos} onClick={descargarCsv}
-              title={csvSinContratos ? (elegidos.length ? 'El CSV de Mi DT es solo para contratos: selecciona al menos uno' : 'No hay contratos por registrar') : undefined}
-              iconoInicio={<Download className="size-4" strokeWidth={2} />}>
-              Descargar CSV para Mi DT{contratosElegidos.length ? ` (${plural(contratosElegidos.length, 'contrato', 'contratos')})` : ''}
-            </Button>
-          ) : (
-            <span className="inline-flex items-center gap-2 flex-wrap">
-              <Button variante="secundario" tamano="sm" disabled iconoInicio={<Download className="size-4" strokeWidth={2} />}>Descargar CSV para Mi DT</Button>
-              <Link to="/app/plan" className="inline-flex items-center gap-1 text-[12.5px] text-fg-3">
-                <Lock className="size-3.5" strokeWidth={2} aria-hidden />Disponible desde el plan Pyme
-              </Link>
-            </span>
-          )}
         </div>
 
         {/* Escritorio y tablet: tabla */}
         <div className="hidden min-[720px]:block border-t border-line overflow-x-auto">
-          <div className="min-w-[960px]" role="table" aria-label="Registros en la Dirección del Trabajo">
+          <div className="min-w-[1060px]" role="table" aria-label="Registros en la Dirección del Trabajo">
             <div role="row" className={cn('grid gap-3 items-center px-[18px] py-[11px] text-[11.5px] font-medium text-fg-3 bg-surface-2 border-b border-line', COLUMNAS)}>
               <span role="columnheader">
                 <input type="checkbox" checked={todosElegidos} onChange={alternarTodos} disabled={!visibles.length}
@@ -316,6 +295,9 @@ export default function DireccionTrabajo() {
       </section>
 
       <Consentimiento empresaId={empresa.id} datos={consentimiento} pct={pctConsentimiento} avisar={avisar} refrescar={refrescar} />
+
+      <FichaMiDT clave={ficha} empresaId={empresa.id} onCerrar={() => setFicha(null)} avisar={avisar}
+        onMarcar={(clave) => setMarcar([clave])} />
 
       <ModalMarcar claves={marcar} empresaId={empresa.id} onCerrar={() => setMarcar(null)}
         alMarcar={async (n) => {
@@ -511,6 +493,92 @@ function ModalMarcar({ claves, empresaId, onCerrar, alMarcar, alFallar }: {
 }
 
 // ── Piezas ───────────────────────────────────────────────────────────────────
+
+/**
+ * Ficha para el formulario individual de Mi DT: cada dato en el orden de sus
+ * etapas, con botón para copiar los textos que el formulario pide pegar.
+ */
+function FichaMiDT({ clave, empresaId, onCerrar, onMarcar, avisar }: {
+  clave: string | null; empresaId: number; onCerrar: () => void; onMarcar: (clave: string) => void;
+  avisar: (texto: string, tipo?: 'error') => void;
+}) {
+  const [copiado, setCopiado] = useState<string | null>(null);
+  const consulta = useQuery({
+    queryKey: ['registro-dt-ficha', empresaId, clave],
+    queryFn: async () => (await client.get<TFichaDT>('/registro-dt/ficha/', { params: { empresa: empresaId, clave } })).data,
+    enabled: Boolean(clave),
+  });
+  const copiar = async (id: string, texto: string) => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(id);
+      setTimeout(() => setCopiado((c) => (c === id ? null : c)), 1800);
+    } catch {
+      avisar('Tu navegador no permitió copiar: selecciona el texto y cópialo a mano.', 'error');
+    }
+  };
+  const datos = consulta.data;
+
+  return (
+    <Drawer abierto={Boolean(clave)} onCerrar={onCerrar} titulo={datos?.titulo ?? 'Ficha para Mi DT'}
+      subtitulo={datos ? `En Mi DT: ${datos.ruta_mi_dt}` : undefined}
+      acciones={<>
+        <a href={MI_DT} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-[10px] border border-line-strong text-[13px] font-medium text-fg">
+          Abrir Mi DT<ExternalLink className="size-3.5" strokeWidth={2} aria-hidden />
+        </a>
+        {datos && datos.estado !== 'REGISTRADO' && (
+          <Button onClick={() => { onMarcar(datos.clave); onCerrar(); }}
+            iconoInicio={<CircleCheck className="size-4" strokeWidth={2} />}>Ya lo registré</Button>
+        )}
+      </>}>
+      {consulta.isLoading && <p className="text-[13px] text-fg-3" role="status">Cargando…</p>}
+      {consulta.isError && <AlertaError>{mensaje(consulta.error, 'No pudimos armar la ficha.')}</AlertaError>}
+      {datos && (
+        <div className="flex flex-col gap-4">
+          {datos.avisos.map((a) => (
+            <div key={a} className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-[10px] bg-warn-soft text-warn text-[12.5px]">
+              <TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden /><span>{a}</span>
+            </div>
+          ))}
+          {datos.secciones.map((s) => (
+            <section key={s.titulo} className="flex flex-col rounded-[10px] border border-line">
+              <h3 className="px-3.5 py-2.5 text-[13px] font-semibold bg-surface-2 border-b border-line rounded-t-[10px]">{s.titulo}</h3>
+              <dl className="flex flex-col divide-y divide-line">
+                {s.campos.map((c) => {
+                  const id = `${s.titulo}|${c.etiqueta}`;
+                  const largo = c.valor.length > 80;
+                  return (
+                    <div key={id} className="px-3.5 py-2.5 flex flex-col gap-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <dt className="text-[12px] text-fg-3">{c.etiqueta}</dt>
+                        {c.copiar && c.valor && (
+                          <button type="button" onClick={() => void copiar(id, c.valor)}
+                            className="inline-flex items-center gap-1 text-[12px] font-medium text-brand-text shrink-0 cursor-pointer">
+                            {copiado === id
+                              ? <><Check className="size-3.5" strokeWidth={2.5} aria-hidden />Copiado</>
+                              : <><Copy className="size-3.5" strokeWidth={2} aria-hidden />Copiar</>}
+                          </button>
+                        )}
+                      </div>
+                      <dd className={cn('text-[13.5px] text-fg break-words', largo && 'whitespace-pre-wrap rounded-[8px] bg-sunken px-3 py-2 text-[12.5px] leading-relaxed')}>
+                        {c.valor || <span className="text-fg-3">—</span>}
+                      </dd>
+                      {c.nota && <p className="text-[11.5px] text-fg-3">{c.nota}</p>}
+                    </div>
+                  );
+                })}
+              </dl>
+            </section>
+          ))}
+          <p className="text-[12px] text-fg-3">
+            Revisa cada dato antes de enviar: al final Mi DT te pide una declaración jurada de veracidad (Art. 210 del Código Penal).
+          </p>
+        </div>
+      )}
+    </Drawer>
+  );
+}
 
 function Vacio({ total }: { total: number }) {
   return (

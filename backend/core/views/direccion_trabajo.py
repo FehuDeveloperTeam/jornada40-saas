@@ -204,6 +204,28 @@ class RegistroDTViewSet(viewsets.ViewSet):
         return Response({'desmarcados': borrados})
 
     @action(detail=False, methods=['get'])
+    def ficha(self, request):
+        """Datos para copiar en el formulario individual de Mi DT, en su orden."""
+        empresa = self._empresa(request)
+        if not empresa:
+            return Response({'error': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        clave = str(request.query_params.get('clave') or '')
+        item = next((i for i in items_registro(empresa) if i['clave'] == clave), None)
+        if not item:
+            return Response({'error': 'Registro no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        tipo, ident = clave.split(':')[0], int(clave.split(':')[1])
+        fecha = datetime.date.fromisoformat(item['fecha'])
+        if tipo == 'CONTRATO':
+            datos = ficha_contrato(Contrato.objects.select_related('empleado__empresa').get(id=ident), fecha)
+        elif tipo == 'ANEXO':
+            datos = ficha_anexo(AnexoContrato.objects.select_related('contrato__empleado').get(id=ident), fecha)
+        elif tipo == 'ANEXO40H':
+            datos = ficha_anexo_40h(Empleado.objects.get(id=item['empleado']['id']), fecha)
+        else:
+            datos = ficha_termino(Empleado.objects.get(id=ident), item)
+        return Response({**datos, 'clave': clave, 'estado': item['estado'], 'vence': item['vence']})
+
+    @action(detail=False, methods=['get'])
     def csv(self, request):
         """ZIP con un CSV por cargo para la carga masiva de contratos en Mi DT."""
         empresa = self._empresa(request)
@@ -314,3 +336,198 @@ def marcar_consentimiento(empleado, via, momento):
     empleado.consentimiento_electronico_via = via
     empleado.save(update_fields=['consentimiento_electronico_en', 'consentimiento_electronico_via'])
     logger.info('Consentimiento electrónico de %s: %s', empleado.pk, via or 'revocado')
+
+
+# ==========================================
+# FICHA PARA EL REGISTRO INDIVIDUAL EN MI DT
+# ==========================================
+# Mi DT (perfil persona natural y, en general, desde el DS N°14 de 2023) solo
+# ofrece el formulario individual en 4 etapas (Guía rápida DT, 10.01.2024).
+# La ficha entrega cada dato en ese orden, y el texto de las cláusulas que el
+# formulario pide copiar sale del mismo contrato que genera Jornada40.
+
+_DIAS_ETIQUETA = {'lunes': 'Lunes', 'martes': 'Martes', 'miercoles': 'Miércoles', 'jueves': 'Jueves',
+                  'viernes': 'Viernes', 'sabado': 'Sábado', 'domingo': 'Domingo'}
+_JORNADA = {'ORDINARIA': 'Jornada semanal ordinaria', 'PARCIAL': 'Jornada semanal ordinaria (parcial, Art. 40 bis)',
+            'ART_22': 'Excluida de limitación de jornada (Art. 22 inc. 2°)', 'BISMANAL': 'Jornada bisemanal',
+            'TURNOS': 'Jornada semanal ordinaria por turnos', 'OTRO': 'Otra (ver distribución de jornada)'}
+_FORMA_PAGO = {'EFECTIVO': 'Dinero en efectivo', 'CHEQUE': 'Cheque', 'VALE VISTA': 'Vale vista',
+               'DEPOSITO': 'Depósito bancario', 'TRANSFERENCIA': 'Transferencia bancaria'}
+
+
+def _campo(etiqueta, valor, copiar=False, nota=''):
+    return {'etiqueta': etiqueta, 'valor': '' if valor is None else str(valor), 'copiar': copiar, 'nota': nota}
+
+
+def _pesos(valor):
+    return f'${int(valor or 0):,}'.replace(',', '.')
+
+
+def _si_no(valor):
+    return 'Sí' if valor else 'No'
+
+
+def _clausulas_del_contrato(contrato):
+    """{'SEGUNDO': texto, …} desde el contrato que genera Jornada40 (texto plano)."""
+    import html as html_mod
+    import re
+    from django.template.loader import render_to_string
+    from .base import _ctx_contrato
+    html = render_to_string('contrato_trabajo.html', _ctx_contrato(contrato, False))
+    clausulas = {}
+    for numero, cuerpo in re.findall(r'<p>\s*<span class="bold">([A-ZÉ]+)\.[^<]*</span>(.*?)</p>', html, re.S):
+        cuerpo = re.sub(r'</li>\s*<li>', '; ', cuerpo)
+        texto = html_mod.unescape(re.sub(r'<[^>]+>', ' ', cuerpo))
+        clausulas[numero] = re.sub(r'\s+([.,;:)])', r'\1', re.sub(r'\s+', ' ', texto)).strip()
+    return clausulas
+
+
+def ficha_contrato(contrato, fecha_suscripcion):
+    emp, empresa = contrato.empleado, contrato.empleado.empresa
+    calle, numero, dpto = dt.separar_direccion(emp.direccion)
+    clausulas = _clausulas_del_contrato(contrato)
+    horario = contrato.distribucion_horario or {}
+    dias = [d for d in dt.DIAS if (horario.get(d) or {}).get('activo')]
+    colaciones = sorted({int((horario.get(d) or {}).get('colacion') or 0) for d in dias})
+    avisos = []
+    if not numero:
+        avisos.append('No se pudo separar la calle y el número del domicilio del trabajador: revísalo en su carpeta.')
+    if not emp.email:
+        avisos.append('El trabajador no tiene correo registrado.')
+    if emp.discapacidad or emp.pension_invalidez:
+        avisos.append('Mi DT pide la fecha en que el trabajador acreditó su discapacidad o pensión de invalidez.')
+
+    etapa1 = [
+        _campo('Lugar de celebración', (empresa.comuna or '').title(), nota='Comuna donde se firmó el contrato.'),
+        _campo('Fecha de suscripción', fecha_suscripcion.strftime('%d-%m-%Y')),
+        _campo('Representante del empleador', empresa.representante_legal),
+        _campo('RUT del representante', empresa.rut_representante, copiar=True),
+        _campo('RUT del trabajador', emp.rut, copiar=True,
+               nota='Nombres, nacionalidad, fecha de nacimiento y sexo los completa Mi DT desde el Registro Civil.'),
+        _campo('Correo electrónico', (emp.email or '').lower(), copiar=True),
+        _campo('Teléfono', dt._telefono(emp.numero_telefono) or emp.numero_telefono, copiar=True),
+        _campo('Comuna del domicilio', (emp.comuna or '').title()),
+        _campo('Calle', calle, copiar=True),
+        _campo('Número', numero, copiar=True),
+        _campo('Depto. / casa', dpto, copiar=True),
+        _campo('¿La contratación implicó cambio de domicilio?', '',
+               nota='Indícalo según corresponda; Jornada40 no registra este dato.'),
+        _campo('Situación de discapacidad (Ley 21.015)', _si_no(emp.discapacidad)),
+        _campo('Asignatario de pensión de invalidez', _si_no(emp.pension_invalidez)),
+    ]
+    funciones = '; '.join(str(f) for f in (contrato.funciones_especificas or []) if f)
+    lugar = ', '.join(p for p in (empresa.direccion, (empresa.comuna or '').title()) if p)
+    etapa2 = [
+        _campo('Cargo', contrato.cargo, copiar=True),
+        _campo('Funciones (máx. 300 caracteres)', (funciones or clausulas.get('PRIMERO', ''))[:300], copiar=True),
+        _campo('Lugar de prestación de los servicios', lugar, copiar=True,
+               nota='Modalidad ' + (emp.modalidad or 'PRESENCIAL').lower() + '. Sin subcontratación ni servicios transitorios.'),
+    ]
+    grat = ('Art. 50 del Código del Trabajo, pago mensual' if contrato.gratificacion_legal == 'MENSUAL'
+            else 'Art. 47 del Código del Trabajo, pago anual')
+    etapa3 = [
+        _campo('Sueldo base', _pesos(contrato.sueldo_base), nota='Periodo de pago: mensual.'),
+        _campo('Día de pago', contrato.dia_pago),
+        _campo('Forma de pago', _FORMA_PAGO.get(dt.normalizar(emp.forma_pago), emp.forma_pago)),
+        _campo('Anticipo', f'Quincenal: {_pesos(contrato.monto_quincena)} el día {contrato.dia_quincena}'
+               if contrato.tiene_quincena else 'Sin anticipo'),
+        _campo('Gratificación', grat),
+    ]
+    if contrato.es_comisionista:
+        etapa3.append(_campo('Otros estipendios', 'Comisiones (mensual), monto variable', nota='Se informa con monto 0.'))
+    etapa3.append(_campo('Remuneraciones y asignaciones (cláusula del contrato)', clausulas.get('TERCERO', ''), copiar=True))
+
+    etapa4 = [_campo('Sistema de distribución de jornada', _JORNADA.get(contrato.tipo_jornada, contrato.tipo_jornada))]
+    if contrato.tipo_jornada != 'ART_22':
+        etapa4 += [
+            _campo('Duración de la jornada (horas semanales)', dt._horas(contrato.horas_semanales)),
+            _campo('Número de días', len(dias) or contrato.distribucion_dias or ''),
+            _campo('Turnos', 'Horario fijo sin turno' if contrato.tipo_jornada != 'TURNOS' else 'Por turnos'),
+            _campo('Exceptuado del descanso en domingos y festivos (Art. 38 inc. 1°)', _si_no('domingo' in dias)),
+        ]
+        for d in dias:
+            h = horario[d]
+            etapa4.append(_campo(_DIAS_ETIQUETA[d], f"{h.get('entrada', '')} a {h.get('salida', '')}",
+                                 nota=f"Colación {int(h.get('colacion') or 0)} min, no imputable a la jornada."))
+        if len(colaciones) > 1:
+            avisos.append('La colación cambia según el día: revisa el campo de distribución de jornada.')
+    etapa4.append(_campo('Distribución de jornada (cláusula del contrato)', clausulas.get('SEGUNDO', ''), copiar=True))
+    otras = [clausulas.get('CUARTO', '')] + ([clausulas['QUINTO']] if contrato.clausulas_especiales and 'QUINTO' in clausulas else [])
+    etapa4 += [
+        _campo('Otras estipulaciones', ' '.join(t for t in otras if t), copiar=True,
+               nota='Incluye la autorización de documentos electrónicos si el contrato la tiene.'),
+        _campo('Tipo de contrato', contrato.get_tipo_contrato_display()),
+        _campo('Fecha de inicio de la relación laboral', contrato.fecha_inicio.strftime('%d-%m-%Y')),
+    ]
+    if contrato.tipo_contrato == 'PLAZO_FIJO':
+        etapa4.append(_campo('Fecha de término', contrato.fecha_fin.strftime('%d-%m-%Y') if contrato.fecha_fin else ''))
+    return {
+        'titulo': f'Registro de contrato · {_nombre(emp).title()}',
+        'ruta_mi_dt': 'Registro Electrónico Laboral → Registro de Contrato de Trabajo → Registro de Contrato de Trabajo Individual',
+        'secciones': [
+            {'titulo': 'Etapa 1 · Identificación de las partes', 'campos': etapa1},
+            {'titulo': 'Etapa 2 · Funciones y lugar de prestación de servicios', 'campos': etapa2},
+            {'titulo': 'Etapa 3 · Remuneraciones', 'campos': etapa3},
+            {'titulo': 'Etapa 4 · Jornada de trabajo y otras estipulaciones', 'campos': etapa4},
+        ],
+        'avisos': avisos,
+    }
+
+
+def ficha_anexo(anexo, fecha):
+    emp = anexo.contrato.empleado
+    if anexo.tipo == 'CONSENTIMIENTO_ELECTRONICO':
+        from django.template.loader import render_to_string
+        import re
+        texto = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>|\{#.*?#\}', ' ', render_to_string(
+            'clausula_consentimiento_electronico.html', {'empleado': emp}), flags=re.S)).strip()
+    else:
+        partes = [anexo.descripcion or ''] + [str(c) for c in (anexo.clausulas_modificadas or []) if c]
+        texto = ' '.join(p.strip() for p in partes if p and p.strip())
+    return {
+        'titulo': f'Registro de anexo · {_nombre(emp).title()}',
+        'ruta_mi_dt': 'Registro Electrónico Laboral → Registro de Anexo de Contrato de Trabajo',
+        'secciones': [{'titulo': 'Datos del anexo', 'campos': [
+            _campo('RUT del trabajador', emp.rut, copiar=True),
+            _campo('Fecha de suscripción del anexo', fecha.strftime('%d-%m-%Y')),
+            _campo('Materia', anexo.titulo, copiar=True),
+            _campo('Vigencia desde', anexo.vigencia_desde.strftime('%d-%m-%Y') if anexo.vigencia_desde else ''),
+            _campo('Texto del anexo', texto, copiar=True),
+        ]}],
+        'avisos': ['El contrato debe estar registrado en Mi DT antes de registrar el anexo.'],
+    }
+
+
+def ficha_anexo_40h(empleado, fecha):
+    return {
+        'titulo': f'Registro de anexo · {_nombre(empleado).title()}',
+        'ruta_mi_dt': 'Registro Electrónico Laboral → Registro de Anexo de Contrato de Trabajo',
+        'secciones': [{'titulo': 'Datos del anexo', 'campos': [
+            _campo('RUT del trabajador', empleado.rut, copiar=True),
+            _campo('Fecha de suscripción del anexo', fecha.strftime('%d-%m-%Y')),
+            _campo('Materia', 'Adecuación de la jornada a la Ley N° 21.561 (40 horas)', copiar=True),
+        ]}],
+        'avisos': ['Copia el texto de la jornada desde el anexo firmado (carpeta del trabajador → Documentos).'],
+    }
+
+
+def ficha_termino(empleado, item):
+    fin = Finiquito.objects.filter(empleado=empleado).order_by('-fecha_termino').first()
+    carta = DocumentoLegal.objects.filter(empleado=empleado, tipo='DESPIDO').order_by('-fecha_emision').first()
+    causal = (fin.causal_articulo if fin else '') or (carta.causal_articulo if carta else '') or ''
+    glosa = dict(Finiquito._meta.get_field('causal_articulo').choices).get(causal, '')
+    campos = [
+        _campo('RUT del trabajador', empleado.rut, copiar=True),
+        _campo('Fecha de término', datetime.date.fromisoformat(item['fecha']).strftime('%d-%m-%Y')),
+        _campo('Causal', glosa or 'Sin causal registrada en Jornada40',
+               nota='' if glosa else 'Revisa la causal antes de registrar: la confirmación no se puede editar.'),
+    ]
+    if carta:
+        campos += [_campo('Fecha de la carta de aviso', carta.fecha_emision.strftime('%d-%m-%Y')),
+                   _campo('Hechos que fundan la causal', getattr(carta, 'hechos', '') or '', copiar=True)]
+    return {
+        'titulo': f'Registro de término · {_nombre(empleado).title()}',
+        'ruta_mi_dt': 'Registro Electrónico Laboral → Registro de Término de Contrato de Trabajo',
+        'secciones': [{'titulo': 'Término de la relación laboral', 'campos': campos}],
+        'avisos': ['Mi DT no permite editar ni eliminar el registro de término una vez confirmado.'],
+    }

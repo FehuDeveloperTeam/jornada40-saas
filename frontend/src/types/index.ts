@@ -530,3 +530,23 @@ export interface ResultadoAnexosConsentimiento {
     enviados: number;
     omitidos: { nombre: string; motivo: string }[];
 }
+
+/** Ficha para el registro individual en Mi DT (GET /registro-dt/ficha/). */
+export interface CampoFichaDT {
+    etiqueta: string;
+    valor: string;
+    /** Texto largo o dato que conviene pegar tal cual en Mi DT. */
+    copiar: boolean;
+    nota: string;
+}
+
+export interface FichaDT {
+    clave: string;
+    titulo: string;
+    /** Camino dentro de Mi DT hasta el formulario. */
+    ruta_mi_dt: string;
+    secciones: { titulo: string; campos: CampoFichaDT[] }[];
+    avisos: string[];
+    estado: EstadoRegistroDT;
+    vence: string;
+}

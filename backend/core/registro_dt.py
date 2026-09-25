@@ -260,7 +260,7 @@ def fila_contrato(contrato, empleado, empresa, fecha_suscripcion, monto_imponibl
     fila['COMUNA_CELEBRACION'] = c_empresa or ''
     fila['FECHA_SUSCRPCION'] = _fecha(fecha_suscripcion)
     fila['RUT_TRABAJADOR'] = formatear_rut(empleado.rut).replace('.', '') if limpiar_rut(empleado.rut) else ''
-    fila['EMAIL'] = empleado.email or ''
+    fila['EMAIL'] = (empleado.email or '').lower()
     fila['TELEFONO'] = _telefono(empleado.numero_telefono)
     c_comuna = codigo_comuna(empleado.comuna)
     if not c_comuna:
