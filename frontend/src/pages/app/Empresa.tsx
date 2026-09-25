@@ -33,6 +33,37 @@ interface Parametros {
 }
 
 const pct = (t: number) => `${decimalCL(t * 100, 2)} %`;
+
+/** Mensaje del backend: `error` o el primer error de campo; si no hay, el genérico. */
+function mensajeError(err: unknown, porDefecto: string): string {
+  const d = isAxiosError(err) ? (err.response?.data as Record<string, unknown> | string | undefined) : undefined;
+  if (!d || typeof d !== 'object') return porDefecto;
+  if (typeof d.error === 'string') return d.error;
+  const primero = Object.values(d).flat()[0];
+  return typeof primero === 'string' ? primero : porDefecto;
+}
+
+/**
+ * Número escrito por el usuario, con punto o coma decimal ("0.9", "0,9").
+ * Los puntos se leen como separador de miles solo si hay coma y el formato
+ * lo es ("1.234,5"); "0.9" es 0,9 y no 9.
+ */
+function leerDecimal(texto: string): number {
+  const t = texto.trim().replace(/[\s%]/g, '');
+  if (!t) return Number.NaN;
+  if (t.includes(',')) {
+    const sinMiles = /^\d{1,3}(\.\d{3})+(,\d*)?$/.test(t) ? t.replace(/\./g, '') : t;
+    return /^\d*(,\d*)?$/.test(sinMiles) ? Number(sinMiles.replace(',', '.')) : Number.NaN;
+  }
+  return /^\d*(\.\d*)?$/.test(t) ? Number(t) : Number.NaN;
+}
+
+type Avisar = (texto: string, tipo?: 'ok' | 'error') => void;
+
+/** Reemplaza la empresa guardada en la lista en caché, sin esperar a que se vuelva a pedir. */
+function ponerEnCache(queryClient: ReturnType<typeof useQueryClient>, empresa: TEmpresa) {
+  queryClient.setQueryData<TEmpresa[]>(['empresas'], (lista) => lista?.map((e) => (e.id === empresa.id ? { ...e, ...empresa } : e)));
+}
 type Editables = Pick<TEmpresa, 'nombre_legal' | 'alias' | 'giro' | 'direccion' | 'comuna' | 'ciudad' | 'sucursal' | 'representante_legal' | 'rut_representante'>;
 
 export default function Empresa() {
@@ -127,13 +158,19 @@ function Dato({ t, v }: { t: string; v: string }) {
   return <div className="flex flex-col gap-0.5"><dt className="text-[12px] text-fg-3">{t}</dt><dd className="text-[14px] font-medium j40-num">{v}</dd></div>;
 }
 
-function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: string) => void }) {
+const editablesDe = (empresa: TEmpresa): Editables => ({
+  nombre_legal: empresa.nombre_legal, alias: empresa.alias ?? '', giro: empresa.giro ?? '', direccion: empresa.direccion ?? '',
+  comuna: empresa.comuna ?? '', ciudad: empresa.ciudad ?? '', sucursal: empresa.sucursal ?? '', representante_legal: empresa.representante_legal ?? '',
+  rut_representante: empresa.rut_representante ?? '',
+});
+
+function DatosLegales({ empresa: empresaProp, avisar }: { empresa: TEmpresa; avisar: Avisar }) {
   const queryClient = useQueryClient();
-  const inicial: Editables = {
-    nombre_legal: empresa.nombre_legal, alias: empresa.alias ?? '', giro: empresa.giro ?? '', direccion: empresa.direccion ?? '',
-    comuna: empresa.comuna ?? '', ciudad: empresa.ciudad ?? '', sucursal: empresa.sucursal ?? '', representante_legal: empresa.representante_legal ?? '',
-    rut_representante: empresa.rut_representante ?? '',
-  };
+  // Lo último que respondió el backend (que guarda en mayúsculas): así, tras
+  // guardar, lo editado coincide con lo guardado y desaparece Guardar/Descartar.
+  const [guardada, setGuardada] = useState<TEmpresa | null>(null);
+  const empresa = guardada ?? empresaProp;
+  const inicial = editablesDe(empresa);
   const [b, setB] = useState<Editables>(inicial);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -146,13 +183,14 @@ function DatosLegales({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: stri
     setGuardando(true);
     setError('');
     try {
-      await client.patch(`/empresas/${empresa.id}/`, b);
+      const { data } = await client.patch<TEmpresa>(`/empresas/${empresa.id}/`, b);
+      setGuardada(data);
+      setB(editablesDe(data));
+      ponerEnCache(queryClient, data);
       await queryClient.invalidateQueries({ queryKey: ['empresas'] });
       avisar('Datos de la empresa guardados');
     } catch (err) {
-      const d = isAxiosError(err) ? (err.response?.data as Record<string, unknown> | undefined) : undefined;
-      const primero = d && (typeof d.error === 'string' ? d.error : Object.values(d).flat()[0]);
-      setError(typeof primero === 'string' ? primero : 'No pudimos guardar los datos.');
+      setError(mensajeError(err, 'No pudimos guardar los datos.'));
     } finally {
       setGuardando(false);
     }
@@ -193,30 +231,39 @@ const CAJAS: [TEmpresa['ccaf'], string][] = [
 const SELECT = 'h-10 px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
 
 /** Mutual (o ISL), tasa de accidentes y caja de compensación: los pide el archivo Previred. */
-function SeguridadSocial({ empresa, avisar }: { empresa: TEmpresa; avisar: (t: string) => void }) {
-  const queryClient = useQueryClient();
+const seguridadDe = (empresa: TEmpresa) => ({
+  mutual: empresa.mutual ?? '00', ccaf: empresa.ccaf ?? '00', sucursal_mutual: empresa.sucursal_mutual ?? '',
   // La tasa se edita en porcentaje ("0,93") y se guarda como fracción ("0.0093").
-  const tasaInicial = empresa.tasa_accidentes != null ? decimalCL(Number(empresa.tasa_accidentes) * 100, 2) : '';
-  const inicial = { mutual: empresa.mutual ?? '00', ccaf: empresa.ccaf ?? '00', sucursal_mutual: empresa.sucursal_mutual ?? '', tasa: tasaInicial };
+  tasa: empresa.tasa_accidentes != null ? decimalCL(Number(empresa.tasa_accidentes) * 100, 2) : '',
+});
+
+function SeguridadSocial({ empresa: empresaProp, avisar }: { empresa: TEmpresa; avisar: Avisar }) {
+  const queryClient = useQueryClient();
+  const [guardada, setGuardada] = useState<TEmpresa | null>(null);
+  const empresa = guardada ?? empresaProp;
+  const inicial = seguridadDe(empresa);
   const [b, setB] = useState(inicial);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const cambios = JSON.stringify(b) !== JSON.stringify(inicial);
 
   const guardar = async () => {
-    const tasa = b.tasa.trim() ? Number(b.tasa.replace(/\./g, '').replace(',', '.')) : null;
-    if (tasa !== null && (Number.isNaN(tasa) || tasa < 0 || tasa > 10)) { setError('La tasa de accidentes va entre 0 % y 10 %.'); return; }
+    const tasa = b.tasa.trim() ? leerDecimal(b.tasa) : null;
+    if (tasa !== null && (Number.isNaN(tasa) || tasa < 0 || tasa > 10)) { setError('La tasa de accidentes va entre 0 % y 10 % (por ejemplo, 0,93).'); return; }
     setGuardando(true);
     setError('');
     try {
-      await client.patch(`/empresas/${empresa.id}/`, {
+      const { data } = await client.patch<TEmpresa>(`/empresas/${empresa.id}/`, {
         mutual: b.mutual, ccaf: b.ccaf, sucursal_mutual: b.mutual === '00' ? '' : b.sucursal_mutual.trim(),
         tasa_accidentes: tasa === null ? null : (tasa / 100).toFixed(5),
       });
+      setGuardada(data);
+      setB(seguridadDe(data));
+      ponerEnCache(queryClient, data);
       await queryClient.invalidateQueries({ queryKey: ['empresas'] });
       avisar('Datos de seguridad social guardados');
-    } catch {
-      setError('No pudimos guardar los datos de seguridad social.');
+    } catch (err) {
+      setError(mensajeError(err, 'No pudimos guardar los datos de seguridad social.'));
     } finally {
       setGuardando(false);
     }

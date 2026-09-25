@@ -1,15 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
-import { lista } from '../api/lista';
-import type { RespuestaLista } from '../api/lista';
+import { obtenerTodo } from '../api/lista';
 import type { ConceptoRemuneracion, ItemLiquidacion, Liquidacion, TipoConcepto } from '../types';
 
 /** Liquidaciones de una empresa en un período (proceso mensual). */
 export function useLiquidacionesPeriodo(empresaId: number | undefined, mes: number, anio: number) {
   return useQuery({
     queryKey: ['liquidaciones', 'periodo', empresaId, mes, anio],
-    queryFn: async () => lista((await client.get<RespuestaLista<Liquidacion>>(
-      `/liquidaciones/?empresa=${empresaId}&mes=${mes}&anio=${anio}`)).data),
+    queryFn: () => obtenerTodo<Liquidacion>(`/liquidaciones/?empresa=${empresaId}&mes=${mes}&anio=${anio}`),
     enabled: Boolean(empresaId),
   });
 }

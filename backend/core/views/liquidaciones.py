@@ -19,8 +19,8 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from ..serializers import LiquidacionSerializer
 
-from .base import _es_plan_semilla, _plan_permite, logger, pdf_firmado, respuesta_pdf
-from .calculo_liquidacion import _calcular_liquidacion, _pdf_liquidacion, _terminos_congelados, _terminos_vigentes, _validar_conceptos
+from .base import error_interno, _es_plan_semilla, _plan_permite, logger, pdf_firmado, respuesta_pdf
+from .calculo_liquidacion import PeriodoSinContrato, _calcular_liquidacion, _pdf_liquidacion, _terminos_congelados, _terminos_vigentes, _validar_conceptos
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tope_en_pesos
 from .previred import _linea_previred, _tasa_accidentes
 
@@ -76,6 +76,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 terminos = _terminos_congelados(existente, contrato)
         try:
             calculado = _calcular_liquidacion(contrato, empleado, data, terminos=terminos)
+        except PeriodoSinContrato as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except (ValueError, TypeError) as e:
             return Response({'error': f'Datos inválidos: {e}'}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'empleado': empleado.id, 'mes': data.get('mes'), 'anio': data.get('anio'), **calculado})
@@ -116,8 +118,12 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 {'error': 'Ya existe una liquidación para este trabajador en el período indicado.'},
                 status=status.HTTP_409_CONFLICT
             )
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except PeriodoSinContrato as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception('Error al guardar la liquidación')
+            return Response({'error': 'No se pudo guardar la liquidación. Revisa los datos e intenta de nuevo.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -134,7 +140,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         pendiente = SolicitudFirma.objects.filter(
-            tipo_documento='LIQUIDACION', liquidacion=instance, estado='PENDIENTE'
+            tipo_documento='LIQUIDACION', liquidacion=instance, estado__in=['PENDIENTE', 'PROCESANDO']
         ).exists()
         if pendiente:
             return Response(
@@ -188,8 +194,12 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
                 {'error': 'Ya existe una liquidación para este trabajador en el período indicado.'},
                 status=status.HTTP_409_CONFLICT
             )
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except PeriodoSinContrato as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception('Error al guardar la liquidación')
+            return Response({'error': 'No se pudo guardar la liquidación. Revisa los datos e intenta de nuevo.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
@@ -208,7 +218,7 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return respuesta_pdf(pdf, nombre_archivo)
         except Exception as e:
             logger.exception('Error al generar PDF de liquidación')
-            return Response({'error': f'Error generando PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('PDF liquidaciones')
 
     @action(detail=False, methods=['get'], url_path='zip_periodo')
     def zip_periodo(self, request):

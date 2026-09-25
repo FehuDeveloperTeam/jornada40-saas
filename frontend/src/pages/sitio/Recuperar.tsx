@@ -8,6 +8,18 @@ import { AlertaError, Button, CampoRut } from '../../components/j40';
 import { AuthLayout, EncabezadoForm } from '../../components/sitio/AuthLayout';
 import { validateRut } from '../../utils/rutUtils';
 
+/** El backend permite 2 solicitudes por hora (por IP y por RUT: throttle password_reset). */
+const LIMITE_POR_HORA = 2;
+
+/** Minutos que faltan según el 429 de DRF: encabezado Retry-After o "Expected available in N seconds". */
+function minutosDeEspera(err: unknown): number | null {
+  if (!isAxiosError(err)) return null;
+  const encabezado = Number(err.response?.headers?.['retry-after']);
+  const detalle = (err.response?.data as { detail?: string } | undefined)?.detail ?? '';
+  const segundos = Number.isFinite(encabezado) && encabezado > 0 ? encabezado : Number(/(\d+)\s*second/.exec(detalle)?.[1]);
+  return Number.isFinite(segundos) && segundos > 0 ? Math.max(1, Math.ceil(segundos / 60)) : null;
+}
+
 /**
  * Recuperación solo por RUT, igual que el ingreso: el correo no identifica a
  * una cuenta porque puede repetirse. El enlace llega al correo registrado con
@@ -36,7 +48,12 @@ export default function Recuperar() {
       if (estado === 400) {
         setError('Ingresa un RUT válido.');
       } else if (estado === 429) {
-        setError('Hiciste demasiadas solicitudes. Espera unos minutos y vuelve a intentarlo.');
+        const minutos = minutosDeEspera(err);
+        setError(`Ya pediste ${LIMITE_POR_HORA} enlaces en la última hora, que es el máximo. `
+          + (minutos
+            ? `Podrás pedir otro en ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}. `
+            : 'Podrás pedir otro dentro de una hora. ')
+          + 'Mientras, revisa el último correo que te enviamos (también en spam).');
       } else {
         setError('No pudimos enviar el enlace. Intenta de nuevo en un momento.');
       }
@@ -56,6 +73,9 @@ export default function Recuperar() {
             <MailCheck className="size-7" strokeWidth={2} aria-hidden />
           </span>
           <EncabezadoForm titulo="Revisa tu correo">{enviado}</EncabezadoForm>
+          <p className="text-[12.5px] text-fg-3">
+            Puede tardar unos minutos y a veces llega a spam. Puedes pedir hasta {LIMITE_POR_HORA} enlaces por hora; usa el del último correo.
+          </p>
           <div className="flex justify-between gap-2.5 flex-wrap text-[13.5px]">
             <button type="button" onClick={() => setEnviado(null)}
               className="bg-transparent p-0 text-brand-text font-medium cursor-pointer hover:underline">

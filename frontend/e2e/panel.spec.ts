@@ -81,3 +81,22 @@ test('móvil sin desborde horizontal', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
+
+test('la sesión se renueva sola al vencer el acceso', async ({ page, context }) => {
+  await entrar(page);
+  // Simula los 30 minutos: se pierde la cookie de acceso y queda la de renovación.
+  const cookies = await context.cookies();
+  await context.clearCookies();
+  await context.addCookies(cookies.filter((c) => c.name !== 'jornada40-auth'));
+  await page.goto(`/app/trabajadores/${MATIAS.id}`);
+  await expect(page.getByText(/Matías/i).first()).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/app/trabajadores/${MATIAS.id}`));
+  // Sin ninguna de las dos, vuelve al login recordando la página.
+  await context.clearCookies();
+  await page.goto('/app/remuneraciones');
+  await expect(page).toHaveURL(/\/login\?volver=%2Fapp%2Fremuneraciones/);
+  await page.getByLabel('RUT del titular de la cuenta').fill('123456785');
+  await page.getByLabel('Contraseña', { exact: true }).fill('Clave-Segura-2026');
+  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await expect(page).toHaveURL(/\/app\/remuneraciones$/);
+});

@@ -58,6 +58,7 @@ def mi_suscripcion(request):
             'id': plan.id,
             'nombre': plan.nombre,
             'precio': plan.precio,
+            'precio_anual': plan.precio_anual,
             'limite_trabajadores': plan.limite_trabajadores,
             'max_empresas': plan.max_empresas,
             'nivel': plan.nivel,
@@ -107,9 +108,10 @@ def crear_checkout_reveniu(request):
         link_base = config(env_key, default=None)
 
         if not link_base:
+            logger.error('Falta la variable %s: no se puede cobrar ese plan', env_key)
             return Response(
-                {'error': f'Link de pago no configurado para este plan ({env_key} no definido).'},
-                status=status.HTTP_400_BAD_REQUEST,
+                {'error': 'El pago de este plan no está disponible en este momento. Escríbenos y lo resolvemos.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
         email = (getattr(cliente, 'correo', '') or request.user.email or '').strip()
@@ -144,8 +146,10 @@ def crear_checkout_reveniu(request):
 
     except Plan.DoesNotExist:
         return Response({'error': 'Plan no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception:
+        logger.exception('No se pudo iniciar el pago')
+        return Response({'error': 'No pudimos iniciar el pago. Intenta de nuevo en unos minutos.'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Nombres de evento que documenta Reveniu, más los que esperaba la primera
 # versión de esta integración (se siguen aceptando).

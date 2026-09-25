@@ -15,7 +15,7 @@ import type { Ciclo } from '../../hooks/usePlanes';
 import { SelectorCiclo } from '../../components/sitio/SelectorCiclo';
 import type { Plan } from '../../types';
 import { cn } from '../../utils/cn';
-import { contrasenaAceptable } from '../../utils/contrasena';
+import { problemaContrasena } from '../../utils/contrasena';
 import { esRutDePersona, validateRut } from '../../utils/rutUtils';
 
 // La cuenta es siempre de una persona: el titular. Sus empresas se crean
@@ -44,7 +44,8 @@ function validarCuenta(c: Cuenta): Errores {
   if (!validateRut(c.rut)) e.rut = 'Revisa el RUT: el dígito verificador no calza.';
   else if (!esRutDePersona(c.rut)) e.rut = 'Ese RUT es de una empresa. Usa tu RUT personal: las empresas se agregan después.';
   if (!/^\S+@\S+\.\S+$/.test(c.email.trim())) e.email = 'Ingresa un correo válido.';
-  if (!contrasenaAceptable(c.password)) e.password = 'Usa al menos 8 caracteres con mayúsculas y números.';
+  const problema = problemaContrasena(c.password);
+  if (problema) e.password = problema;
   return e;
 }
 
@@ -162,7 +163,7 @@ export default function Registro() {
         </EncabezadoForm>
         <AlertaError>{sinPago}</AlertaError>
         <p className="text-[14px] text-fg-2">
-          Puedes seguir configurando tu empresa y subir de plan más tarde desde Suscripción.
+          Puedes seguir configurando tu empresa y subir de plan más tarde desde Plan y facturación.
         </p>
         <Button tamano="lg" onClick={irAlOnboarding} className="rounded-[10px]">Continuar</Button>
       </AuthLayout>
@@ -232,7 +233,7 @@ export default function Registro() {
           <div role="radiogroup" aria-label="Plan" className="flex flex-col gap-2">
             {planes.map((plan) => (
               <TarjetaOpcion key={plan.nivel}
-                seleccionada={plan.nivel === nivelPlan}
+                seleccionada={plan.nivel === planElegido?.nivel}
                 onSeleccionar={() => setNivelPlan(plan.nivel)}
                 className="items-center gap-3 p-3.5 rounded-j40-card"
                 titulo={<span className="text-[14px] font-semibold">{plan.nombre}</span>}

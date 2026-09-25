@@ -1,9 +1,11 @@
 """Cálculo de la liquidación de sueldo (todo lo legal vive aquí)."""
 from rest_framework.exceptions import ValidationError
 from django.template.loader import get_template
-from ..models import Contrato, ConceptoRemuneracion
+from ..models import Contrato, ConceptoRemuneracion, Finiquito
 from xhtml2pdf import pisa
 from django.utils.text import slugify
+import calendar
+import datetime
 import io
 import math
 from ..indicadores import obtener_uf, obtener_utm, calcular_impuesto_unico
@@ -235,6 +237,45 @@ def _terminos_congelados(liquidacion, contrato) -> dict:
     }
 
 
+class PeriodoSinContrato(ValueError):
+    """El período liquidado es anterior al inicio del contrato."""
+
+
+def _dias_fuera_de_contrato(contrato, empleado, mes, anio):
+    """Días del mes comercial (30) en que no hubo contrato: los anteriores al
+    inicio y, si el trabajador ya fue desvinculado, los posteriores al término
+    del plazo fijo. Así quien entra a mitad de mes no recibe 30 días aunque se
+    emita con los valores por defecto (la emisión masiva).
+
+    El término de un plazo fijo con el trabajador aún activo no descuenta:
+    siguió trabajando y el contrato pasó a indefinido (Art. 159 N°4).
+    """
+    if not (1 <= mes <= 12) or not anio:
+        return 0
+    inicio_mes = datetime.date(anio, mes, 1)
+    ultimo_dia = calendar.monthrange(anio, mes)[1]
+    fin_mes = datetime.date(anio, mes, ultimo_dia)
+    # Un contrato rehecho puede tener fecha de inicio posterior al ingreso
+    # real: manda la más antigua.
+    inicio = min([f for f in (getattr(contrato, 'fecha_inicio', None), getattr(empleado, 'fecha_ingreso', None))
+                  if isinstance(f, datetime.date)], default=None)
+    fin = getattr(contrato, 'fecha_fin', None)
+    # Desvinculado con finiquito: el término efectivo es la fecha del finiquito.
+    if getattr(empleado, 'activo', True) is False and getattr(empleado, 'pk', None):
+        termino = (Finiquito.objects.filter(empleado_id=empleado.pk).order_by('-fecha_termino')
+                   .values_list('fecha_termino', flat=True).first())
+        if termino:
+            fin = termino
+    if inicio and inicio > fin_mes:
+        raise PeriodoSinContrato(
+            f'El contrato empieza el {inicio.strftime("%d-%m-%Y")}: no hay remuneraciones que liquidar en ese período.')
+    antes = min(inicio.day - 1, 30) if inicio and inicio > inicio_mes else 0
+    despues = 0
+    if isinstance(fin, datetime.date) and getattr(empleado, 'activo', True) is False and inicio_mes <= fin < fin_mes:
+        despues = max(30 - fin.day, 0)
+    return min(antes + despues, 30)
+
+
 def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     """
     Calcula todos los campos derivados de una liquidación (haberes, descuentos
@@ -260,7 +301,9 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     dias_trabajados = int(data.get('dias_trabajados', 30))
     dias_ausencia = int(data.get('dias_ausencia', 0))
     dias_licencia = int(data.get('dias_licencia', 0))
-    dias_no_contratados = int(data.get('dias_no_contratados', 0))
+    dias_no_contratados = max(int(data.get('dias_no_contratados', 0) or 0),
+                              _dias_fuera_de_contrato(contrato, empleado, mes, anio))
+    dias_trabajados = min(dias_trabajados, 30 - dias_no_contratados)
 
     # Los días a pagar de sueldo base son 30 menos las ausencias y licencias
     dias_a_pagar = 30 - dias_ausencia - dias_licencia - dias_no_contratados

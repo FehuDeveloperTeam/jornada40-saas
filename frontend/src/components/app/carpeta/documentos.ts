@@ -1,5 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
+import client from '../../../api/client';
+import { lista as comoLista } from '../../../api/lista';
+import type { RespuestaLista } from '../../../api/lista';
 import type {
-  AnexoContrato, DocumentoLegal, Empleado, Liquidacion, SolicitudFirma, VacacionEmpleado,
+  AnexoContrato, DocumentoLegal, Empleado, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado,
 } from '../../../types';
 import { fechaCL, periodo } from '../../../utils/formato';
 import { firmaDe } from './utiles';
@@ -29,15 +33,28 @@ const TIPO_VACACION: Record<string, string> = {
   PERMISO_SIN_GOCE: 'Permiso sin goce de sueldo',
 };
 
+/**
+ * Finiquitos del trabajador. Misma clave que la pantalla del finiquito, así
+ * guardar uno ahí refresca la carpeta. El backend filtra por ?empleado=.
+ */
+export function useFiniquitos(empleadoId: number | undefined) {
+  return useQuery({
+    queryKey: ['finiquitos', empleadoId],
+    queryFn: async () => comoLista((await client.get<RespuestaLista<Finiquito>>(`/finiquitos/?empleado=${empleadoId}`)).data)
+      .filter((f) => f.empleado === empleadoId),
+    enabled: Boolean(empleadoId),
+  });
+}
+
 /** Todos los documentos emitidos del trabajador, del más reciente al más antiguo. */
 export function documentosDe(
   empleado: Empleado,
   datos: {
     liquidaciones?: Liquidacion[]; documentos?: DocumentoLegal[]; anexos?: AnexoContrato[];
-    vacaciones?: VacacionEmpleado[]; firmas?: SolicitudFirma[];
+    vacaciones?: VacacionEmpleado[]; finiquitos?: Finiquito[]; firmas?: SolicitudFirma[];
   },
 ): DocumentoReciente[] {
-  const { liquidaciones = [], documentos = [], anexos = [], vacaciones = [], firmas = [] } = datos;
+  const { liquidaciones = [], documentos = [], anexos = [], vacaciones = [], finiquitos = [], firmas = [] } = datos;
   const rut = empleado.rut;
   const lista: DocumentoReciente[] = [];
   const contrato = empleado.contrato_activo;
@@ -90,6 +107,17 @@ export function documentosDe(
       fechaTexto: `${fechaCL(v.fecha_inicio)} al ${fechaCL(v.fecha_fin)}`, firma: firmaDe(firmas, 'vacacion', v.id),
       pdf: { url: `/vacaciones/${v.id}/generar_pdf/`, nombre: `Vacaciones_${rut}_${v.fecha_inicio}.pdf` },
       envio: { tipo_documento: 'VACACION', vacacion_id: v.id },
+    });
+  }
+  for (const f of finiquitos) {
+    lista.push({
+      clave: `f${f.id}`, titulo: 'Finiquito', fecha: f.fecha_emision,
+      fechaTexto: `Término el ${fechaCL(f.fecha_termino)}${f.modalidad === 'PRESENCIAL' ? ' · ante ministro de fe' : ''}`,
+      firma: firmaDe(firmas, 'finiquito', f.id, 'FINIQUITO'),
+      // El backend entrega la versión firmada si la hay (nombre _firmado.pdf).
+      pdf: { url: `/finiquitos/${f.id}/generar_pdf/`, nombre: `Finiquito_${rut}_${f.fecha_termino}.pdf` },
+      // Solo el finiquito electrónico se firma en línea; el presencial se ratifica ante ministro de fe.
+      envio: f.modalidad === 'ELECTRONICO' ? { tipo_documento: 'FINIQUITO', finiquito_id: f.id } : undefined,
     });
   }
   return lista.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));

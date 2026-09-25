@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { CircleCheck } from 'lucide-react';
 import { AlertaError, Button, CampoRut, InputContrasena } from '../../components/j40';
@@ -12,6 +12,9 @@ function mensajeDeError(error: unknown): string {
   if (isAxiosError(error)) {
     if (error.response?.status === 400) return 'Revisa tu RUT y tu contraseña.';
     if (error.response?.status === 429) return 'Hiciste demasiados intentos. Espera unos minutos y vuelve a intentarlo.';
+    if (error.config?.url?.includes('/auth/user/')) {
+      return 'Entraste, pero tu navegador no guardó la sesión. Revisa que permita cookies para jornada40.cl e intenta de nuevo.';
+    }
   }
   return 'No pudimos iniciar sesión. Intenta de nuevo en un momento.';
 }
@@ -24,7 +27,10 @@ function mensajeDeError(error: unknown): string {
  */
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
+  // Página a la que volver: la que pidió iniciar sesión (solo rutas internas).
+  const volverParam = new URLSearchParams(useLocation().search).get('volver') ?? '';
+  const volver = /^\/(app|bienvenida)(\/|\?|$)/.test(volverParam) ? volverParam : '/app';
   // Avisos que llegan desde otras pantallas: /reset-password tras guardar la
   // contraseña, o el registro si el inicio de sesión automático falló.
   const aviso = useLocation().state as { contrasenaActualizada?: boolean; cuentaCreada?: boolean } | null;
@@ -47,12 +53,14 @@ export default function Login() {
     try {
       // CampoRut ya entrega el formato de rutUtils, el mismo con que se guardó.
       await login({ username: rut, password });
-      navigate('/app');
+      navigate(volver, { replace: true });
     } catch (err) {
       setError(mensajeDeError(err));
       setEnviando(false);
     }
   };
+
+  if (isAuthenticated && !enviando) return <Navigate to={volver} replace />;
 
   return (
     <AuthLayout

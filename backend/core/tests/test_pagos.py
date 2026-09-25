@@ -298,8 +298,12 @@ class PagoAnualTests(APITestCase):
             r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'anual'}, format='json')
             self.assertEqual(r.status_code, 200, r.data)
             self.assertTrue(r.data['url'].startswith('https://pago.example/anual?'))
-            r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'mensual'}, format='json')
-            self.assertIn('REVENIU_LINK_PYME_MENSUAL', r.data['error'])
+            with self.assertLogs('core.views.base', level='ERROR') as log:
+                r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'mensual'}, format='json')
+            # El nombre de la variable queda en el log, no en el mensaje al cliente.
+            self.assertEqual(r.status_code, 503)
+            self.assertNotIn('REVENIU_LINK', r.data['error'])
+            self.assertIn('REVENIU_LINK_PYME_MENSUAL', ' '.join(log.output))
             r = self.client.post('/api/pagos/crear-checkout/', {'plan_id': self.pyme.id, 'ciclo': 'semestral'}, format='json')
             self.assertEqual(r.status_code, 400)
 

@@ -3,19 +3,20 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { ArrowLeft, Download, FileScan, Plus, Save, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Download, FilePlus, FileScan, Lock, Plus, Save, Trash2 } from 'lucide-react';
 import { AlertaError, Button, Casilla, Input } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { ListaAvisos } from '../../components/app/Avisos';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { useAvisosJornada } from '../../hooks/useAvisosJornada';
+import { rutaAccion, useIndicadores } from '../../hooks/usePanel';
+import { errorHorasSemanales, firmaDe, mensajeErrorCampos } from '../../components/app/carpeta/utiles';
 import type { ComisionConfig, Contrato, HorarioSemana, SolicitudFirma } from '../../types';
 import { lista } from '../../api/lista';
 import type { RespuestaLista } from '../../api/lista';
 import { cn } from '../../utils/cn';
 import { capitalizar } from '../../utils/formato';
-import { jornadaMaximaVigente } from '../../utils/ley40';
 import { formatRut, validateRut } from '../../utils/rutUtils';
 
 type TipoJornada = Contrato['tipo_jornada'];
@@ -60,8 +61,23 @@ function horarioBase(horas: number): HorarioSemana {
   return Object.fromEntries(DIAS.map(([d], i) => [d, { activo: i < 5, entrada: '09:00', salida: hhmm(salida), colacion: 60 }]));
 }
 
-function desde(c: Contrato | null | undefined, cargo: string): Formulario {
-  const horas = Number(c?.horas_semanales ?? jornadaMaximaVigente());
+// Etiquetas para los errores del backend por campo.
+const ETIQUETAS: Record<string, string> = {
+  tipo_contrato: 'Tipo de contrato', cargo: 'Cargo', fecha_inicio: 'Fecha de inicio', fecha_fin: 'Fecha de término',
+  es_profesional_titulado: 'Profesional titulado', funciones_especificas: 'Funciones específicas', sueldo_base: 'Sueldo base',
+  dia_pago: 'Día de pago', gratificacion_legal: 'Gratificación legal', tiene_quincena: 'Anticipo de quincena',
+  dia_quincena: 'Día del anticipo', monto_quincena: 'Monto del anticipo', es_comisionista: 'Comisiones',
+  comisiones_config: 'Comisiones por venta', horas_semanales: 'Horas semanales', tipo_jornada: 'Tipo de jornada',
+  jornada_personalizada: 'Descripción de la jornada', distribucion_horario: 'Distribución semanal',
+  clausulas_especiales: 'Cláusulas especiales', empleado: 'Trabajador',
+};
+
+// Firmado o enviado a firma: las condiciones solo cambian con un anexo (Art. 11).
+const ESTADOS_SOLO_ANEXO = ['FIRMADO', 'PENDIENTE', 'PROCESANDO'];
+
+/** `maximo`: jornada máxima vigente que informa el backend (horas por defecto de un contrato nuevo). */
+function desde(c: Contrato | null | undefined, cargo: string, maximo: number | undefined): Formulario {
+  const horas = Number(c?.horas_semanales ?? maximo ?? 0);
   return {
     tipo_contrato: c?.tipo_contrato ?? 'INDEFINIDO',
     cargo: c?.cargo ?? cargo,
@@ -77,10 +93,10 @@ function desde(c: Contrato | null | undefined, cargo: string): Formulario {
     monto_quincena: String(c?.monto_quincena ?? ''),
     es_comisionista: c?.es_comisionista ?? false,
     comisiones_config: c?.comisiones_config ?? [],
-    horas_semanales: String(horas),
+    horas_semanales: horas ? String(horas) : '',
     tipo_jornada: c?.tipo_jornada ?? 'ORDINARIA',
     jornada_personalizada: c?.jornada_personalizada ?? '',
-    distribucion_horario: c?.distribucion_horario && Object.keys(c.distribucion_horario).length ? c.distribucion_horario : horarioBase(horas),
+    distribucion_horario: c?.distribucion_horario && Object.keys(c.distribucion_horario).length ? c.distribucion_horario : horarioBase(horas || 40),
     clausulas_especiales: c?.clausulas_especiales ?? [],
   };
 }
@@ -94,19 +110,34 @@ const horasDia = (d: { entrada: string; salida: string; colacion: number }) => {
 
 export default function ContratoEditor() {
   const { id } = useParams();
-  const { trabajadores } = usePanelContexto();
+  const { empresa, trabajadores, cargandoTrabajadores } = usePanelContexto();
+  const indicadores = useIndicadores();
   const empleado = trabajadores.find((t) => t.id === Number(id));
-  if (!empleado) return <p className="text-[14px] text-fg-3" role="status">Cargando…</p>;
-  return <Editor key={`${empleado.id}-${empleado.contrato_activo?.id ?? 'nuevo'}`} empleadoId={empleado.id} />;
+  if (!empleado) {
+    return (
+      <div className="max-w-[1100px] mx-auto flex flex-col gap-4 items-start">
+        <Link to="/app/trabajadores" className="inline-flex items-center gap-1.5 text-[13px] text-fg-2">
+          <ArrowLeft className="size-4" strokeWidth={2} aria-hidden />Trabajadores
+        </Link>
+        <p className="text-[14px] text-fg-2" role="status">
+          {cargandoTrabajadores ? 'Cargando…' : `No encontramos este trabajador en ${capitalizar(empresa.nombre_legal)}.`}
+        </p>
+      </div>
+    );
+  }
+  // Un contrato nuevo parte en el máximo vigente que informa el backend.
+  const maximo = empleado.contrato_activo?.jornada_maxima_vigente ?? indicadores.data?.jornada_maxima_vigente;
+  if (!empleado.contrato_activo && indicadores.isLoading) return <p className="text-[14px] text-fg-3" role="status">Cargando…</p>;
+  return <Editor key={`${empleado.id}-${empleado.contrato_activo?.id ?? 'nuevo'}`} empleadoId={empleado.id} maximoInicial={maximo} />;
 }
 
-function Editor({ empleadoId }: { empleadoId: number }) {
+function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInicial: number | undefined }) {
   const { trabajadores, avisar } = usePanelContexto();
   const empleado = trabajadores.find((t) => t.id === empleadoId)!;
   const contrato = empleado.contrato_activo;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [f, setF] = useState<Formulario>(() => desde(contrato, empleado.cargo));
+  const [f, setF] = useState<Formulario>(() => desde(contrato, empleado.cargo, maximoInicial));
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState<string | null>(null);
   const [extraidos, setExtraidos] = useState<Record<string, string> | null>(null);
@@ -115,13 +146,18 @@ function Editor({ empleadoId }: { empleadoId: number }) {
     queryKey: ['firmas', empleado.id],
     queryFn: async () => lista((await client.get<RespuestaLista<SolicitudFirma>>(`/firmas/?empleado_id=${empleado.id}`)).data),
   });
-  const firmado = Boolean(contrato && firmas.data?.some((x) => x.contrato === contrato.id && x.tipo_documento === 'CONTRATO' && x.estado === 'FIRMADO'));
+  // Última solicitud de firma del contrato: si está firmado o en firma, solo lectura.
+  const firmaContrato = contrato ? firmaDe(firmas.data, 'contrato', contrato.id, 'CONTRATO') : undefined;
+  const soloLectura = ESTADOS_SOLO_ANEXO.includes(firmaContrato?.estado ?? '');
 
   const conHorario = CON_HORARIO.includes(f.tipo_jornada);
-  const { avisos, maximo } = useAvisosJornada({
-    tipo_jornada: f.tipo_jornada, horas_semanales: f.horas_semanales,
+  const esArt22 = f.tipo_jornada === 'ART_22';
+  const { avisos, maximo: maximoEvaluado } = useAvisosJornada({
+    tipo_jornada: f.tipo_jornada, horas_semanales: esArt22 ? maximoInicial : f.horas_semanales,
     distribucion_horario: conHorario ? f.distribucion_horario : null, sueldo_base: f.sueldo_base,
   });
+  const maximo = maximoEvaluado ?? maximoInicial;
+  const errorHoras = esArt22 ? null : errorHorasSemanales(f.horas_semanales);
   const cambiar = <K extends keyof Formulario>(k: K, v: Formulario[K]) => setF((x) => ({ ...x, [k]: v }));
   const totalHorario = DIAS.reduce((s, [d]) => s + (f.distribucion_horario[d]?.activo ? horasDia(f.distribucion_horario[d]) : 0), 0);
 
@@ -135,7 +171,10 @@ function Editor({ empleadoId }: { empleadoId: number }) {
     monto_quincena: f.tiene_quincena ? Number(f.monto_quincena) || 0 : null,
     es_comisionista: f.es_comisionista,
     comisiones_config: f.es_comisionista ? f.comisiones_config.filter((c) => (c.glosa ?? '').trim()) : [],
-    horas_semanales: f.horas_semanales, tipo_jornada: f.tipo_jornada,
+    // Art. 22 no pacta horas (el campo está oculto): se guarda el máximo vigente,
+    // que es el valor por defecto del backend, en vez de horas viejas que no se ven.
+    ...(esArt22 ? (maximo ? { horas_semanales: maximo } : {}) : { horas_semanales: f.horas_semanales }),
+    tipo_jornada: f.tipo_jornada,
     jornada_personalizada: f.tipo_jornada === 'OTRO' ? f.jornada_personalizada : null,
     distribucion_horario: conHorario ? f.distribucion_horario : {},
     clausulas_especiales: f.clausulas_especiales.map((x) => x.trim()).filter(Boolean),
@@ -144,6 +183,7 @@ function Editor({ empleadoId }: { empleadoId: number }) {
   const guardar = async () => {
     if (!f.fecha_inicio) { setError('Indica la fecha de inicio del contrato.'); return; }
     if (!f.cargo.trim()) { setError('Indica el cargo.'); return; }
+    if (errorHoras) { setError(`Horas semanales: ${errorHoras}`); return; }
     setGuardando('guardar');
     setError('');
     try {
@@ -153,9 +193,7 @@ function Editor({ empleadoId }: { empleadoId: number }) {
       avisar(contrato ? 'Contrato actualizado' : 'Contrato creado');
       navigate(`/app/trabajadores/${empleado.id}?tab=contrato`);
     } catch (err) {
-      const d = isAxiosError(err) ? (err.response?.data as Record<string, unknown> | undefined) : undefined;
-      const primero = d && (typeof d.error === 'string' ? d.error : Object.values(d).flat()[0]);
-      setError(typeof primero === 'string' ? primero : 'No pudimos guardar el contrato.');
+      setError(mensajeErrorCampos(isAxiosError(err) ? err.response?.data : undefined, ETIQUETAS, 'No pudimos guardar el contrato.'));
     } finally {
       setGuardando(null);
     }
@@ -230,24 +268,33 @@ function Editor({ empleadoId }: { empleadoId: number }) {
       </Link>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{contrato ? 'Editar contrato' : 'Nuevo contrato'}</h1>
+          <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{!contrato ? 'Nuevo contrato' : soloLectura ? 'Contrato' : 'Editar contrato'}</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">{capitalizar(`${empleado.nombres} ${empleado.apellido_paterno}`)} · {empleado.rut}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={archivo} type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only"
             onChange={(e) => { const x = e.target.files?.[0]; if (x) void digitalizar(x); e.target.value = ''; }} />
-          <Button variante="secundario" cargando={guardando === 'ia'} onClick={() => archivo.current?.click()}
-            iconoInicio={<FileScan className="size-4" strokeWidth={2} />}>{guardando === 'ia' ? 'Leyendo…' : 'Digitalizar contrato en papel'}</Button>
+          {!soloLectura && (
+            <Button variante="secundario" cargando={guardando === 'ia'} onClick={() => archivo.current?.click()}
+              iconoInicio={<FileScan className="size-4" strokeWidth={2} />}>{guardando === 'ia' ? 'Leyendo…' : 'Digitalizar contrato en papel'}</Button>
+          )}
           {contrato && <Button variante="secundario" cargando={guardando === 'contrato'} onClick={() => pdf('contrato')} iconoInicio={<Download className="size-4" strokeWidth={2} />}>PDF</Button>}
         </div>
       </div>
 
       {error && <AlertaError>{error}</AlertaError>}
-      {firmado && (
-        <p className="flex gap-2 items-start rounded-[10px] bg-warn-soft text-warn px-3.5 py-3 text-[13px]">
-          <TriangleAlert className="size-4 mt-0.5 shrink-0" strokeWidth={2} aria-hidden />
-          Este contrato ya fue firmado por el trabajador: los cambios deben pactarse con un anexo (Art. 11). Puedes corregirlo aquí, pero la decisión es tuya.
-        </p>
+      {soloLectura && (
+        <div className="flex gap-3 items-start flex-wrap rounded-[10px] bg-warn-soft text-warn px-3.5 py-3 text-[13px]">
+          <Lock className="size-4 mt-0.5 shrink-0" strokeWidth={2} aria-hidden />
+          <p className="flex-1 min-w-[220px]">
+            {firmaContrato?.estado === 'FIRMADO'
+              ? 'El trabajador firmó este contrato: sus condiciones solo cambian con un anexo firmado por ambas partes (Art. 11).'
+              : 'Este contrato está en firma: mientras tanto sus condiciones no se editan. Para cambiarlas, cancela la solicitud en Firma electrónica o pacta el cambio con un anexo (Art. 11).'}
+          </p>
+          <Link to={rutaAccion(empleado.id, 'anexo')} className="inline-flex items-center gap-1.5 font-medium">
+            <FilePlus className="size-4" strokeWidth={2} aria-hidden />Crear anexo
+          </Link>
+        </div>
       )}
       {extraidos && (
         <div className="rounded-[10px] border border-brand bg-brand-soft px-4 py-3 flex flex-col gap-2 text-[13px]">
@@ -262,6 +309,7 @@ function Editor({ empleadoId }: { empleadoId: number }) {
         </div>
       )}
 
+      <fieldset disabled={soloLectura} className="flex flex-col gap-5 min-w-0">
       <Seccion titulo="1. Condiciones generales">
         <Rejilla>
           <Campo etiqueta="Tipo de contrato">
@@ -329,9 +377,11 @@ function Editor({ empleadoId }: { empleadoId: number }) {
               {JORNADAS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
             </select>
           </Campo>
-          {f.tipo_jornada !== 'ART_22' && (
-            <Campo etiqueta={`Horas semanales (máximo vigente ${maximo ?? jornadaMaximaVigente()} h)`}>
-              <Input inputMode="decimal" value={f.horas_semanales} onChange={(e) => cambiar('horas_semanales', e.target.value.replace(/[^\d.,]/g, '').replace(',', '.'))} />
+          {!esArt22 && (
+            <Campo etiqueta={maximo ? `Horas semanales (máximo vigente ${maximo} h)` : 'Horas semanales'}>
+              <Input inputMode="decimal" value={f.horas_semanales} aria-invalid={errorHoras ? true : undefined}
+                onChange={(e) => cambiar('horas_semanales', e.target.value.replace(/[^\d.,]/g, '').replace(',', '.'))} />
+              {errorHoras && <span className="text-[11.5px] text-danger">{errorHoras}</span>}
             </Campo>
           )}
         </Rejilla>
@@ -376,6 +426,7 @@ function Editor({ empleadoId }: { empleadoId: number }) {
         <ListaEditable titulo="" items={f.clausulas_especiales} onCambio={(v) => cambiar('clausulas_especiales', v)}
           placeholder="El trabajador podrá realizar teletrabajo los viernes" />
       </Seccion>
+      </fieldset>
 
       {contrato && (
         <Seccion titulo="Anexo Ley 40 horas">
@@ -385,9 +436,20 @@ function Editor({ empleadoId }: { empleadoId: number }) {
       )}
 
       <div className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[60] flex items-center gap-3 px-4 py-2.5 rounded-[12px] bg-surface border border-line-strong shadow-pop w-[min(620px,calc(100vw-24px))]">
-        <span className="flex-1 text-[13px]">{avisos.some((a) => a.gravedad === 'alta') ? 'Hay avisos de jornada: revísalos antes de guardar.' : 'Revisa los datos y guarda.'}</span>
-        <Button variante="secundario" onClick={() => navigate(`/app/trabajadores/${empleado.id}?tab=contrato`)} disabled={guardando === 'guardar'}>Cancelar</Button>
-        <Button onClick={guardar} cargando={guardando === 'guardar'} iconoInicio={<Save className="size-4" strokeWidth={2} />}>{contrato ? 'Guardar cambios' : 'Crear contrato'}</Button>
+        {soloLectura ? (
+          <>
+            <span className="flex-1 text-[13px]">Para cambiar las condiciones, crea un anexo.</span>
+            <Button variante="secundario" onClick={() => navigate(`/app/trabajadores/${empleado.id}?tab=contrato`)}>Volver</Button>
+            <Button onClick={() => navigate(rutaAccion(empleado.id, 'anexo'))} iconoInicio={<FilePlus className="size-4" strokeWidth={2} />}>Crear anexo</Button>
+          </>
+        ) : (
+          <>
+            <span className="flex-1 text-[13px]">{avisos.some((a) => a.gravedad === 'alta') ? 'Hay avisos de jornada: revísalos antes de guardar.' : 'Revisa los datos y guarda.'}</span>
+            <Button variante="secundario" onClick={() => navigate(`/app/trabajadores/${empleado.id}?tab=contrato`)} disabled={guardando === 'guardar'}>Cancelar</Button>
+            <Button onClick={guardar} cargando={guardando === 'guardar'} disabled={firmas.isLoading && Boolean(contrato)}
+              iconoInicio={<Save className="size-4" strokeWidth={2} />}>{contrato ? 'Guardar cambios' : 'Crear contrato'}</Button>
+          </>
+        )}
       </div>
     </div>
   );

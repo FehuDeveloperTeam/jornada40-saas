@@ -6,26 +6,27 @@ import { isAxiosError } from 'axios';
 import client from '../../api/client';
 import { AlertaError, Button, CampoRut, Drawer, Field, Input } from '../j40';
 import { useAvisosJornada } from '../../hooks/useAvisosJornada';
+import { useIndicadores } from '../../hooks/usePanel';
 import type { Empleado } from '../../types';
-import { capitalizar } from '../../utils/formato';
-import { jornadaMaximaVigente } from '../../utils/ley40';
+import { capitalizar, hoyISO } from '../../utils/formato';
 import { validateRut } from '../../utils/rutUtils';
 import { usePanelContexto } from './AppShell';
 import { ListaAvisos } from './Avisos';
+import { errorHorasSemanales, HORAS_SEMANALES_MAXIMAS } from './carpeta/utiles';
 
 type TipoContrato = 'INDEFINIDO' | 'PLAZO_FIJO' | 'OBRA_FAENA';
 
 interface Formulario {
   rut: string; nombres: string; apellidoPaterno: string; apellidoMaterno: string; fechaNacimiento: string;
   cargo: string; departamento: string; tipoContrato: TipoContrato; fechaIngreso: string; fechaFin: string;
-  horas: string; sueldo: string;
+  /** null: aún no se toca, se usa el máximo vigente que informa el backend. */
+  horas: string | null; sueldo: string;
 }
 
-const hoyISO = () => new Date().toISOString().slice(0, 10);
 const VACIO = (): Formulario => ({
   rut: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', fechaNacimiento: '',
   cargo: '', departamento: '', tipoContrato: 'INDEFINIDO', fechaIngreso: hoyISO(), fechaFin: '',
-  horas: String(jornadaMaximaVigente()), sueldo: '',
+  horas: null, sueldo: '',
 });
 
 const SELECT = 'w-full h-10 px-3 rounded-[8px] border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
@@ -53,11 +54,15 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  const maximo = jornadaMaximaVigente();
-  const horas = Number(f.horas) || 0;
-  // Parcial: hasta 2/3 del máximo vigente (Art. 40 bis).
-  const tipoJornada = horas > 0 && horas <= (maximo * 2) / 3 ? 'PARCIAL' : 'ORDINARIA';
-  const { avisos } = useAvisosJornada({ tipo_jornada: tipoJornada, horas_semanales: f.horas, distribucion_horario: {}, sueldo_base: f.sueldo.replace(/\D/g, '') });
+  // Máximo legal vigente: lo informa el backend (/indicadores/), no se calcula aquí.
+  const maximo = useIndicadores().data?.jornada_maxima_vigente;
+  const textoHoras = f.horas ?? (maximo !== undefined ? String(maximo) : '');
+  const horas = Number(textoHoras.replace(',', '.')) || 0;
+  const errorHoras = errorHorasSemanales(textoHoras);
+  // Parcial: hasta 2/3 del máximo vigente (Art. 40 bis). El backend no deriva el
+  // tipo de jornada; solo avisa (PARCIAL_SOBRE_TOPE) si un parcial supera el tope.
+  const tipoJornada = maximo !== undefined && horas > 0 && horas <= (maximo * 2) / 3 ? 'PARCIAL' : 'ORDINARIA';
+  const { avisos } = useAvisosJornada({ tipo_jornada: tipoJornada, horas_semanales: textoHoras, distribucion_horario: {}, sueldo_base: f.sueldo.replace(/\D/g, '') });
 
   const cambiar = (campo: keyof Formulario) => (e: { target: { value: string } }) =>
     setF((d) => ({ ...d, [campo]: e.target.value }));
@@ -70,7 +75,7 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
     fechaIngreso: !f.fechaIngreso,
     fechaFin: requiereFin && !f.fechaFin,
     sueldo: !(Number(f.sueldo.replace(/\D/g, '')) > 0),
-    horas: !(horas > 0 && horas <= 168),
+    horas: Boolean(errorHoras),
   };
   const valido = !Object.values(faltan).some(Boolean);
   const departamentos = [...new Set(trabajadores.map((t) => t.departamento).filter(Boolean))] as string[];
@@ -178,9 +183,10 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
                 {(p) => <Input {...p} type="date" value={f.fechaFin} onChange={cambiar('fechaFin')} />}
               </Field>
             )}
-            <Field etiqueta="Jornada semanal (horas)" ayuda={`Máximo vigente: ${maximo} h · parcial hasta ${Math.floor((maximo * 2) / 3)} h`}
-              error={err(faltan.horas, 'Ingresa las horas semanales.')}>
-              {(p) => <Input {...p} type="number" inputMode="decimal" step="0.5" min={1} value={f.horas} onChange={cambiar('horas')} />}
+            <Field etiqueta="Jornada semanal (horas)"
+              ayuda={maximo !== undefined ? `Máximo vigente: ${maximo} h · parcial hasta ${Math.floor((maximo * 2) / 3)} h` : undefined}
+              error={(intento || horas > HORAS_SEMANALES_MAXIMAS) && errorHoras ? errorHoras : undefined}>
+              {(p) => <Input {...p} type="number" inputMode="decimal" step="0.5" min={1} max={HORAS_SEMANALES_MAXIMAS} value={textoHoras} onChange={cambiar('horas')} />}
             </Field>
             <Field etiqueta="Sueldo base" error={err(faltan.sueldo, 'Ingresa el sueldo base.')}>
               {(p) => (

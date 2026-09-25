@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react'; 
+import { useQueryClient } from '@tanstack/react-query';
 import client from '../api/client';
 import type { User } from '../types';
 
@@ -31,43 +32,38 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+    const queryClient = useQueryClient();
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // Función para verificar si hay sesión activa
-    const checkAuth = async () => {
-        try {
-            // Pide al backend "quién soy"
-            const res = await client.get('/auth/user/');
-            setUser(res.data);
-        } catch (error) {
-            console.error("No autenticado", error);
-            setUser(null);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Verificar sesión al cargar la página por primera vez
+    // Verificar sesión al cargar la página por primera vez. La página pública
+    // de firma no la necesita (el trabajador no tiene cuenta).
     useEffect(() => {
-        checkAuth();
+        if (window.location.pathname.startsWith('/firma/')) { setLoading(false); return; }
+        client.get<User>('/auth/user/')
+            .then((res) => setUser(res.data), () => setUser(null))
+            .finally(() => setLoading(false));
     }, []);
 
-    // <-- Adiós al "any" aquí también
     const login = async (data: LoginData) => {
         // 1. Enviar credenciales (Django responde con Set-Cookie)
         await client.post('/auth/login/', data);
-        
-        // 2. Inmediatamente pedir los datos del usuario para actualizar la UI
-        await checkAuth(); 
+        // 2. Confirmar que la cookie quedó: si el navegador la bloqueó, el
+        // login "funciona" pero la sesión no existe; mejor decirlo aquí.
+        queryClient.clear();
+        const res = await client.get<User>('/auth/user/');
+        setUser(res.data);
     };
 
     const logout = async () => {
         try {
             await client.post('/auth/logout/');
-            setUser(null);
         } catch (error) {
             console.error("Error al salir", error);
+        } finally {
+            // Nada del usuario anterior debe quedar a la vista del siguiente.
+            setUser(null);
+            queryClient.clear();
         }
     };
 

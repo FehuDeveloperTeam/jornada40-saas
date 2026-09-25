@@ -11,11 +11,12 @@ import type { RespuestaLista } from '../../api/lista';
 import { Button, Card, CardHeader, Chip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { useAuth } from '../../context/AuthContext';
-import { rutaAccion, useFirmas, useVacacionesEmpresa } from '../../hooks/usePanel';
-import type { Empleado, Liquidacion } from '../../types';
+import { rutaAccion, useFirmas, useIndicadores, useSuscripcion, useVacacionesEmpresa } from '../../hooks/usePanel';
+import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
-import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, iniciales, nombreMes } from '../../utils/formato';
-import { ETAPAS_LEY_40, fechaCorta, indiceEtapaVigente, jornadaMaximaVigente } from '../../utils/ley40';
+import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes } from '../../utils/formato';
+// Solo el calendario de la ley, para mostrarlo; el máximo vigente lo informa el backend.
+import { ETAPAS_LEY_40, fechaCorta, indiceEtapaVigente } from '../../utils/ley40';
 
 function saludo(hora: number) {
   if (hora < 12) return 'Buenos días';
@@ -25,10 +26,29 @@ function saludo(hora: number) {
 
 interface Tarea { clave: string; Icono: LucideIcon; tono: 'peligro' | 'aviso' | 'marca'; titulo: string; detalle: string; accion: string; a: string }
 
+/** Documento al que apunta una solicitud de firma (un documento puede tener varias solicitudes). */
+function claveDocumento(f: SolicitudFirma): string {
+  const id = f.contrato ?? f.documento_legal ?? f.anexo_contrato ?? f.liquidacion ?? f.vacacion ?? f.finiquito ?? f.id;
+  return `${f.tipo_documento}-${id}`;
+}
+
+/** Última solicitud de cada documento: un rechazo ya reenviado no es un pendiente. */
+function ultimasPorDocumento(firmas: SolicitudFirma[]): SolicitudFirma[] {
+  const ultimas = new Map<string, SolicitudFirma>();
+  for (const f of firmas) {
+    const clave = claveDocumento(f);
+    const previa = ultimas.get(clave);
+    if (!previa || f.enviado_en.localeCompare(previa.enviado_en) > 0) ultimas.set(clave, f);
+  }
+  return [...ultimas.values()];
+}
+
 const TONO_ICONO = { peligro: 'bg-danger-soft text-danger', aviso: 'bg-warn-soft text-warn', marca: 'bg-brand-soft text-brand-text' };
 
 export default function Inicio() {
   const { empresa, trabajadores, nivel, suscripcion } = usePanelContexto();
+  const { cargando: cargandoPlan } = useSuscripcion();
+  const indicadores = useIndicadores();
   const { user } = useAuth();
   const navigate = useNavigate();
   const firmas = useFirmas();
@@ -36,11 +56,13 @@ export default function Inicio() {
   const hoy = new Date();
   const mes = hoy.getMonth() + 1;
   const anio = hoy.getFullYear();
-  const maximo = jornadaMaximaVigente();
+  // Máximo legal vigente: lo informa el backend (core/jornada.py).
+  const maximo = indicadores.data?.jornada_maxima_vigente
+    ?? trabajadores.find((t) => t.contrato_activo?.jornada_maxima_vigente)?.contrato_activo?.jornada_maxima_vigente;
 
   const liquidacionesMes = useQuery({
     queryKey: ['liquidaciones', 'empresa', empresa.id, mes, anio],
-    queryFn: async () => lista((await client.get<RespuestaLista<Liquidacion>>('/liquidaciones/')).data),
+    queryFn: async () => lista((await client.get<RespuestaLista<Liquidacion>>(`/liquidaciones/?empresa=${empresa.id}&mes=${mes}&anio=${anio}`)).data),
     select: (todas) => {
       const ids = new Set(trabajadores.map((t) => t.id));
       return todas.filter((l) => ids.has(l.empleado) && l.mes === mes && l.anio === anio);
@@ -49,15 +71,16 @@ export default function Inicio() {
 
   const activos = trabajadores.filter((t) => t.activo);
   const firmasEmpresa = (firmas.data ?? []).filter((f) => f.empresa === empresa.id);
-  const pendientes = firmasEmpresa.filter((f) => f.estado === 'PENDIENTE');
-  const rechazadas = firmasEmpresa.filter((f) => f.estado === 'RECHAZADO');
+  const ultimasFirmas = ultimasPorDocumento(firmasEmpresa);
+  const pendientes = ultimasFirmas.filter((f) => f.estado === 'PENDIENTE');
+  const rechazadas = ultimasFirmas.filter((f) => f.estado === 'RECHAZADO');
   const sobreMaximo = activos.filter((t) => t.contrato_activo?.avisos_jornada?.some((a) => a.codigo === 'EXCEDE_MAXIMO'));
   const masa = activos.reduce((s, t) => s + (t.contrato_activo?.sueldo_base ?? t.sueldo_base ?? 0), 0);
 
   const kpis = [
     { etiqueta: 'Trabajadores vigentes', Icono: Users, valor: String(activos.length),
       sub: suscripcion ? `de ${suscripcion.plan.limite_trabajadores} cupos del plan` : '' },
-    { etiqueta: `Contratos sobre ${maximo} h`, Icono: TriangleAlert, valor: String(sobreMaximo.length),
+    { etiqueta: maximo ? `Contratos sobre ${maximo} h` : 'Contratos sobre el máximo', Icono: TriangleAlert, valor: String(sobreMaximo.length),
       sub: sobreMaximo.length ? 'Requieren anexo de jornada' : 'Todos dentro del máximo', alerta: sobreMaximo.length > 0 },
     { etiqueta: 'Firmas pendientes', Icono: Signature, valor: String(pendientes.length),
       sub: rechazadas.length ? `${rechazadas.length} rechazada${rechazadas.length === 1 ? '' : 's'}` : 'Ninguna rechazada' },
@@ -123,17 +146,26 @@ export default function Inicio() {
   // Distribución de contratos por jornada (Art. 22 no pacta horas: queda fuera).
   const conHoras = activos.filter((t) => t.contrato_activo && t.contrato_activo.tipo_jornada !== 'ART_22');
   const horasDe = (t: typeof conHoras[number]) => Number(t.contrato_activo!.horas_semanales) || 0;
-  const tramos = [
+  const tramos = maximo === undefined ? [] : [
     { etiqueta: `Más de ${maximo} h`, n: conHoras.filter((t) => horasDe(t) > maximo).length, clase: 'bg-danger' },
     { etiqueta: `${maximo - 1} a ${maximo} h`, n: conHoras.filter((t) => horasDe(t) > maximo - 2 && horasDe(t) <= maximo).length, clase: 'bg-brand' },
     { etiqueta: `${maximo - 2} h o menos`, n: conHoras.filter((t) => horasDe(t) <= maximo - 2).length, clase: 'bg-ok' },
   ];
-  const vigente = indiceEtapaVigente(hoy);
+  // Etapa marcada como vigente: la que coincide con el máximo del backend.
+  const porMaximo = ETAPAS_LEY_40.findIndex((e) => e.horas === maximo);
+  const vigente = porMaximo >= 0 ? porMaximo : indiceEtapaVigente(hoy);
   const hitos = ETAPAS_LEY_40.slice(Math.max(1, vigente - 1), Math.max(1, vigente - 1) + 3);
 
-  const emitidas = liquidacionesMes.data?.length ?? 0;
+  // Un mismo universo para "X de N": quienes deben tener liquidación este mes,
+  // los vigentes y los desvinculados durante el mes (ocupan cupo hasta fin de mes).
+  const mesISO = hoyISO().slice(0, 7);
+  const delMes = trabajadores.filter((t) => t.activo || (t.fecha_desvinculacion ?? '').slice(0, 7) === mesISO);
+  const idsDelMes = new Set(delMes.map((t) => t.id));
+  const liquidacionesUniverso = (liquidacionesMes.data ?? []).filter((l) => idsDelMes.has(l.empleado));
+  const emitidas = new Set(liquidacionesUniverso.map((l) => l.empleado)).size;
   const idsFirmadas = new Set(firmasEmpresa.filter((f) => f.tipo_documento === 'LIQUIDACION' && f.estado === 'FIRMADO').map((f) => f.liquidacion));
-  const firmadas = (liquidacionesMes.data ?? []).filter((l) => idsFirmadas.has(l.id)).length;
+  const firmadas = new Set(liquidacionesUniverso.filter((l) => idsFirmadas.has(l.id)).map((l) => l.empleado)).size;
+  const totalMes = delMes.length;
 
   const ausencias = (vacaciones.data ?? [])
     .filter((v) => { const fin = fechaLocal(v.fecha_fin); return fin && fin >= new Date(anio, mes - 1, hoy.getDate()) && v.estado !== 'RECHAZADO'; })
@@ -226,9 +258,9 @@ export default function Inicio() {
           <div className="p-[18px] flex flex-col gap-4">
             {[{ t: 'Liquidaciones emitidas', v: emitidas }, { t: 'Firmadas por el trabajador', v: firmadas }].map(({ t, v }) => (
               <div key={t} className="flex flex-col gap-1.5">
-                <span className="flex justify-between text-[13px]"><span className="text-fg-2">{t}</span><span className="font-semibold j40-num">{v} de {activos.length}</span></span>
+                <span className="flex justify-between text-[13px]"><span className="text-fg-2">{t}</span><span className="font-semibold j40-num">{v} de {totalMes}</span></span>
                 <div className="h-2 rounded-full bg-sunken overflow-hidden">
-                  <div className="h-full rounded-full bg-brand" style={{ width: `${activos.length ? (v / activos.length) * 100 : 0}%` }} />
+                  <div className="h-full rounded-full bg-brand" style={{ width: `${totalMes ? Math.min(100, (v / totalMes) * 100) : 0}%` }} />
                 </div>
               </div>
             ))}
@@ -238,7 +270,9 @@ export default function Inicio() {
 
         <Card>
           <CardHeader titulo="Ausencias" />
-          {nivel < 2 ? (
+          {cargandoPlan ? (
+            <p className="px-[18px] py-6 text-[13px] text-fg-3" role="status">Cargando…</p>
+          ) : nivel < 2 ? (
             <p className="flex items-center gap-2 px-[18px] py-6 text-[13px] text-fg-3"><Lock className="size-4" strokeWidth={2} aria-hidden />Vacaciones y permisos están disponibles desde el plan Starter.</p>
           ) : ausencias.length === 0 ? (
             <p className="px-[18px] py-6 text-[13px] text-fg-3">No hay vacaciones ni permisos en curso o por venir.</p>
@@ -277,7 +311,8 @@ function ComposicionEquipo({ activos }: { activos: Empleado[] }) {
     ['Contrato', [['Indefinido', cuenta((e) => e.contrato_activo?.tipo_contrato === 'INDEFINIDO')], ['Plazo fijo', cuenta((e) => e.contrato_activo?.tipo_contrato === 'PLAZO_FIJO')],
       ['Obra o faena', cuenta((e) => e.contrato_activo?.tipo_contrato === 'OBRA_FAENA')], ['Sin contrato', cuenta((e) => !e.contrato_activo)]]],
     ['Modalidad', [['Presencial', cuenta((e) => e.modalidad === 'PRESENCIAL')], ['Remoto', cuenta((e) => e.modalidad === 'REMOTO')], ['Híbrido', cuenta((e) => e.modalidad === 'HIBRIDO')]]],
-    ['Salud', [['Fonasa', cuenta((e) => e.sistema_salud !== 'ISAPRE')], ['Isapre', cuenta((e) => e.sistema_salud === 'ISAPRE')]]],
+    ['Salud', [['Fonasa', cuenta((e) => e.sistema_salud?.toUpperCase() === 'FONASA')], ['Isapre', cuenta((e) => e.sistema_salud?.toUpperCase() === 'ISAPRE')],
+      ['Sin dato', cuenta((e) => !['FONASA', 'ISAPRE'].includes(e.sistema_salud?.toUpperCase() ?? ''))]]],
     ['Sexo', [['Femenino', cuenta((e) => e.sexo === 'F')], ['Masculino', cuenta((e) => e.sexo === 'M')], ['Otro o sin dato', cuenta((e) => e.sexo !== 'F' && e.sexo !== 'M')]]],
   ];
   return (

@@ -252,7 +252,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'application/vnd.ms-excel',
             }
-            if hasattr(archivo_excel, 'content_type') and archivo_excel.content_type not in MIME_EXCEL:
+            # Algunos navegadores envían el tipo vacío u octet-stream: basta la
+            # extensión (pandas igual rechaza un archivo que no sea Excel).
+            nombre_archivo = str(getattr(archivo_excel, 'name', '') or '').lower()
+            tipo = getattr(archivo_excel, 'content_type', '') or ''
+            if tipo not in MIME_EXCEL and not nombre_archivo.endswith(('.xlsx', '.xls')):
                 return Response({'error': 'Solo se aceptan archivos Excel (.xlsx o .xls).'}, status=400)
 
             empresa = Empresa.objects.get(id=empresa_id, owner=request.user)
@@ -755,10 +759,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             campos = extraer_campos_contrato(archivo.read(), mime)
         except RuntimeError as e:
             return Response({'error': str(e)}, status=502)
-        except Exception as e:
-            return Response(
-                {'error': f'Error inesperado al analizar el documento: {e}'},
-                status=500,
-            )
+        except Exception:
+            logger.exception('Digitalización de contrato falló')
+            return Response({'error': 'No pudimos analizar el documento. Intenta con otro archivo o completa los datos a mano.'},
+                            status=500)
 
         return Response(campos)

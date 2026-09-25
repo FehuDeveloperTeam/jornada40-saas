@@ -56,7 +56,35 @@ class PasswordResetAccountRateThrottle(AnonRateThrottle):
         return f'throttle_pwreset_account_{rut}'
 
 
+class FirmaPublicaTokenThrottle(AnonRateThrottle):
+    """Firma del trabajador: se cuenta por enlace, no por IP. Varios
+    trabajadores de un mismo local (un wifi, o datos móviles con IP compartida)
+    agotaban el límite anónimo diario de la IP a la decena de firmas."""
+    scope = 'firma_publica'
+
+    def get_cache_key(self, request, view):
+        token = (getattr(view, 'kwargs', None) or {}).get('token')
+        return f'throttle_firma_publica_{token}' if token else None
+
+
+class FirmaPublicaIpThrottle(AnonRateThrottle):
+    """Tope amplio por IP para las rutas públicas de firma (recorrer enlaces)."""
+    scope = 'firma_publica_ip'
+
+
+THROTTLES_FIRMA_PUBLICA = [FirmaPublicaTokenThrottle, FirmaPublicaIpThrottle]
+
+
 logger = logging.getLogger(__name__)
+
+
+def error_interno(contexto: str, estado: int = 500):
+    """Respuesta para una excepción inesperada: el detalle va al log, no al
+    usuario (un texto de excepción no le sirve y puede exponer datos internos).
+    Llamar dentro del bloque except."""
+    from rest_framework.response import Response
+    logger.exception('Error inesperado: %s', contexto)
+    return Response({'error': 'Ocurrió un error inesperado. Intenta de nuevo; si se repite, escríbenos.'}, status=estado)
 
 
 

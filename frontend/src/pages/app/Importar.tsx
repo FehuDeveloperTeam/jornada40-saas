@@ -7,6 +7,7 @@ import { ArrowLeft, CloudUpload, Download, FileSpreadsheet, Lock } from 'lucide-
 import { AlertaError, Button, Chip } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
+import { useSuscripcion } from '../../hooks/usePanel';
 import client from '../../api/client';
 import { cn } from '../../utils/cn';
 import { clp } from '../../utils/formato';
@@ -35,6 +36,8 @@ const mensaje = (err: unknown, porDefecto: string) =>
 
 export default function Importar() {
   const { empresa, nivel, suscripcion } = usePanelContexto();
+  // Mientras se lee el plan no se muestra el bloqueo (el nivel parte en 1).
+  const { cargando: cargandoPlan } = useSuscripcion();
   const queryClient = useQueryClient();
   const [archivo, setArchivo] = useState<File | null>(null);
   const [revision, setRevision] = useState<Respuesta | null>(null);
@@ -90,6 +93,9 @@ export default function Importar() {
   const reiniciar = () => { setArchivo(null); setRevision(null); setFinal(null); setError(''); setFiltro('todas'); };
   const paso = final ? 3 : revision ? 2 : 1;
 
+  if (cargandoPlan) {
+    return <Marco paso={0}><p className="text-[14px] text-fg-3" role="status">Cargando…</p></Marco>;
+  }
   if (nivel < 3) {
     return (
       <Marco paso={0}>

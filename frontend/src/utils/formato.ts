@@ -22,6 +22,11 @@ export function fechaLocal(iso: string | null | undefined): Date | null {
   return a ? new Date(a, (m || 1) - 1, d || 1) : null;
 }
 
+/** Fecha de hoy en Chile como "2026-09-22" (no en UTC: de noche en Chile, UTC ya es mañana). */
+export function hoyISO(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' });
+}
+
 /** 22-09-2026 */
 export function fechaCL(iso: string | null | undefined): string {
   const f = fechaLocal(iso);

@@ -14,5 +14,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {
     **REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'],
     'login': '1000/minute', 'register': '1000/minute', 'password_reset': '1000/hour',
-    'anon': '100000/day', 'user': '100000/day'}}
+    'anon': '100000/day', 'user': '100000/day',
+    'firma_publica': '100000/hour', 'firma_publica_ip': '100000/day'}}
 INSTALLED_APPS = [*INSTALLED_APPS, 'e2e']

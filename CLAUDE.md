@@ -171,7 +171,8 @@ gunicorn config.wsgi:application      # Production server (Railway starts it fro
 - **Cookie names**: `jornada40-auth` (access token) and `jornada40-refresh-token`.
 - **Access token lifetime**: 30 minutes. **Refresh token lifetime**: 2 hours.
 - **Refresh rotation**: Enabled (`ROTATE_REFRESH_TOKENS = True`).
-- **Frontend auth check**: `ProtectedRoute` in `App.tsx` calls `GET /api/auth/user/` with `withCredentials: true`. A 200 response means authenticated; 401 redirects to `/login`.
+- **Frontend auth check**: `ProtectedRoute` in `App.tsx` calls `GET /api/auth/user/` with `withCredentials: true`. A 200 response means authenticated; only a 401/403 redirects to `/login?volver=<ruta>` (Login returns there). Any other error (429, 5xx, network) shows a retry screen instead of logging out.
+- **Session renewal**: `api/client.ts` has a response interceptor: on a 401 it calls `POST /auth/token/refresh/` once (concurrent requests share it; the refresh cookie rotates) and retries. If the refresh fails inside `/app`, it goes to `/login?volver=`. Logout and login clear the react-query cache.
 - **CORS**: `CORS_ALLOW_CREDENTIALS = True`. Allowed origins: `https://jornada40.cl` (prod) and `http://localhost:5173` (dev).
 - **Password reset flow**: Backend sends email via Resend; link points to `https://jornada40.cl/reset-password/{uid}/{token}`.
 - **RUT-based recovery**: Custom endpoint `POST /api/auth/recuperar-por-rut/` for users who forgot their email.
@@ -340,6 +341,9 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - One PDF function per document type, shared by download, signing and ZIPs: `pdf_documento_legal`, `pdf_anexo_contrato` (`views/documentos.py`), `pdf_vacacion` (`views/vacaciones.py`), `pdf_finiquito` (`views/finiquitos.py`), `_pdf_liquidacion` (`views/calculo_liquidacion.py`).
 - `POST /api/firmas/solicitar_liquidaciones/ {empresa, mes, anio}` sends every payslip of the period without a pending/processing/signed request (used by Remuneraciones → "Enviar N a firma"); workers without email are reported, not blocking.
 - Times shown to users (emails, reports) use `timezone.localtime()` / `timezone.localdate()` (Chile), never UTC.
+- **States**: `SolicitudFirma.actualizar_estados(qs)` marks overdue PENDIENTE as EXPIRADO and returns PROCESANDO older than 10 minutes to PENDIENTE (a crashed signing); it runs before listing, resending and public reads. A document can't have two live requests (PENDIENTE/PROCESANDO/FIRMADO); `_generar_pdf_firma` always scopes lookups to the worker (a `contrato_id` from another client is rejected).
+- **Locks**: a contract with a CONTRATO request pending/processing/signed can't be edited (400: changes go through an anexo); liquidaciones and finiquitos in PENDIENTE/PROCESANDO/FIRMADO neither.
+- **Public signing**: `GET /firma-publica/<token>/documento/?sesion=` requires the session obtained with RUT + OTP (403 otherwise); the session is kept after signing so the worker can download the signed PDF. Public signing views are throttled per link (`firma_publica`, 120/h) plus a wide per-IP cap (`firma_publica_ip`), not by the anonymous daily limit (workers of one site share an IP).
 
 ---
 
@@ -364,6 +368,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - Plans: one set, **Semilla (1), Starter (2), Pyme (3), Corporativo (4)**; features are gated only by `Plan.nivel` (`_plan_permite`), never by name. Migration `0052_consolidar_planes` moved clients of the legacy "Plan Semilla/Pyme/Corporativo" (which had `nivel=1`) to their equivalent and deactivated them. Registration assigns the active plan with `nivel=1`; `mi_suscripcion` returns the plan the backend uses (`_plan_activo`) with `nivel` and `max_empresas`, and the panel takes the level from there. Reveniu links: `REVENIU_LINK_<PLAN>_<CICLO>` with the plan name normalized and `CICLO` = `MENSUAL` or `ANUAL` (e.g. `REVENIU_LINK_STARTER_MENSUAL`, `REVENIU_LINK_PYME_ANUAL`). `Plan.precio_anual` (0 = not sold yearly; initial value 10 × monthly, "2 meses gratis") is editable in the admin; landing, registration and `/app/plan` share `SelectorCiclo`. `Suscripcion.ciclo` (MENSUAL/ANUAL) comes from the checkout reference (`<cliente>_<plan>_<ciclo>`) or, failing that, the amount paid; on `/app/plan` the current plan offers "Cambiar a anual/mensual", and the old Reveniu subscription is flagged for cancellation like a plan change.
 - Worker quota (`_trabajadores_vigentes` / `_exigir_cupo_trabajador`): active workers **plus those dismissed during the current month** (`Empleado.fecha_desvinculacion`, set when `activo` goes False). A dismissed worker frees the slot the following month; reactivating someone dismissed this month needs no extra slot.
 - Previsional parameters (`ParametroPrevisional`, `TasaAFP`) are shared by all clients, maintained by Jornada40 in the Django admin, and read-only in the panel.
+- "Reanudar" after cancelling the renewal is by email for now: a new checkout would charge the period already paid. Reveniu offers `POST /api/v1/subscriptions/extend/` (with `auto_renew`) and `POST /api/v1/subscriptions/{id}/amount/`; to be used (after sandbox tests) for resuming and downgrades.
 - Known gaps: only when the API fails (link fallback) can a first payment arrive unidentified and need manual linking; no proration (the Terms say so); downgrades go through support.
 
 ---
@@ -401,6 +406,9 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ### Python / Django
 
+- Never return an exception's text to the user: inside `except`, use `error_interno('contexto')` (`views/base.py`), which logs the traceback and answers a generic message. Same for configuration names (e.g. a missing `REVENIU_LINK_*` is logged, the client gets a 503).
+- Payroll proration: `_dias_fuera_de_contrato` (`calculo_liquidacion.py`) adds the days before the start (earliest of contract start and `fecha_ingreso`) and, for a dismissed worker, after the finiquito/plazo-fijo end, so a default 30-day emission (bulk) doesn't pay a full month to someone who joined mid-month. A period before the start is rejected (400).
+
 - All Django code is in the single `core` app — keep it that way unless the codebase grows significantly.
 - Use snake_case for Python identifiers and model field names.
 - Use Django's ORM; avoid raw SQL.
@@ -430,7 +438,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~230 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.

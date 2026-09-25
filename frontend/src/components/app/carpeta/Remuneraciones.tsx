@@ -85,7 +85,8 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
 
       <Seccion titulo="Liquidaciones emitidas"
         accion={<BotonEnlace a={rutaLiquidacion(empleado.id)}>Emitir liquidación</BotonEnlace>}>
-        <div className="overflow-x-auto">
+        {/* Escritorio y tablet: tabla */}
+        <div className="hidden min-[720px]:block overflow-x-auto">
           <div className="min-w-[680px]">
             <div className={`grid ${COLUMNAS} gap-3 px-[18px] py-2.5 text-[11.5px] font-medium text-fg-3 uppercase tracking-[0.04em] border-b border-line`}>
               <span>Período</span><span className="text-right">Imponible</span><span className="text-right">Descuentos</span>
@@ -107,6 +108,30 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
               </div>
             ))}
           </div>
+        </div>
+        {/* Móvil: tarjetas */}
+        <div className="min-[720px]:hidden flex flex-col">
+          {ordenadas.map((l) => (
+            <div key={l.id} className="flex flex-col gap-2.5 px-4 py-3.5 border-b border-line last:border-b-0 text-[13px] j40-num">
+              <div className="flex items-start justify-between gap-3">
+                <span className="flex flex-col min-w-0">
+                  <span className="font-medium">{periodo(l.mes, l.anio)}</span>
+                  <span className="text-[11.5px] text-fg-3">Emitida el {fechaCL(l.fecha_emision)}</span>
+                </span>
+                <ChipFirma firma={firmaDe(firmas, 'liquidacion', l.id)} corto />
+              </div>
+              <dl className="grid grid-cols-3 gap-2">
+                <div className="flex flex-col min-w-0"><dt className="text-[11px] text-fg-3">Imponible</dt><dd>{clp(l.total_imponible)}</dd></div>
+                <div className="flex flex-col min-w-0"><dt className="text-[11px] text-fg-3">Descuentos</dt><dd>{clp(l.total_descuentos)}</dd></div>
+                <div className="flex flex-col min-w-0"><dt className="text-[11px] text-fg-3">Líquido</dt><dd className="font-semibold">{clp(l.sueldo_liquido)}</dd></div>
+              </dl>
+              <div className="flex gap-2">
+                <BotonEnlace a={rutaLiquidacion(empleado.id, l.mes, l.anio)} className="flex-1">Abrir</BotonEnlace>
+                <Button variante="secundario" className="flex-1 h-9" onClick={() => pdf(l)} aria-label={`Descargar liquidación de ${periodo(l.mes, l.anio)}`}
+                  iconoInicio={<Download className="size-4" strokeWidth={2} />}>PDF</Button>
+              </div>
+            </div>
+          ))}
         </div>
       </Seccion>
     </div>

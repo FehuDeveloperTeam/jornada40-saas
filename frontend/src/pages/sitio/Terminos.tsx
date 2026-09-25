@@ -16,7 +16,7 @@ const SECCIONES: Seccion[] = [
               {
                 titulo: '3. Planes, Facturación y Pagos',
                 lista: [
-                  'Suscripciones: El Servicio se ofrece mediante planes de suscripción (ej. Semilla, Pyme, Corporativo) con cobro mensual o anual.',
+                  'Suscripciones: El Servicio se ofrece mediante planes de suscripción (Semilla, Starter, Pyme y Corporativo) con cobro mensual o anual.',
                   'Renovación Automática: Los pagos se procesan a través de pasarelas de pago externas. Al suscribirse, el Cliente autoriza el cargo recurrente automático en su tarjeta al inicio de cada ciclo de facturación.',
                   'Cambios de Plan: El Cliente puede subir de plan en cualquier momento. El nuevo plan rige desde su pago; el período en curso del plan anterior no se prorratea ni se reembolsa. La baja de plan se programa para el siguiente cobro.',
                   'No Reembolsos: Los pagos realizados no son reembolsables. Si el Cliente cancela, mantendrá el acceso hasta el final del período ya pagado.',
@@ -46,8 +46,13 @@ const SECCIONES: Seccion[] = [
 
 export default function Terminos() {
   const navigate = useNavigate();
-  // Se abre desde el registro en otra pestaña: "Volver" la cierra.
-  const volver = () => { if (window.opener) window.close(); else navigate('/register'); };
+  // Con historial vuelve a la página anterior; abierta en una pestaña nueva
+  // desde el registro, la cierra; si no, va al inicio.
+  const volver = () => {
+    if (window.history.length > 1) navigate(-1);
+    else if (window.opener) window.close();
+    else navigate('/');
+  };
 
   return (
     <J40Root className="min-h-dvh bg-canvas">

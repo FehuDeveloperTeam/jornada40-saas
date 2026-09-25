@@ -11,7 +11,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { estadoTrabajador, TIPO_CONTRATO } from '../../components/app/trabajador';
-import { documentosDe } from '../../components/app/carpeta/documentos';
+import { documentosDe, useFiniquitos } from '../../components/app/carpeta/documentos';
 import { Resumen } from '../../components/app/carpeta/Resumen';
 import { DatosPersonales } from '../../components/app/carpeta/DatosPersonales';
 import { ContratoJornada } from '../../components/app/carpeta/ContratoJornada';
@@ -20,10 +20,9 @@ import { Vacaciones } from '../../components/app/carpeta/Vacaciones';
 import { DocumentosTab } from '../../components/app/carpeta/DocumentosTab';
 import { Lateral } from '../../components/app/carpeta/Lateral';
 import { descargar } from '../../api/descargas';
-import { useCarpeta } from '../../hooks/usePanel';
+import { useCarpeta, useIndicadores, useSuscripcion } from '../../hooks/usePanel';
 import { cn } from '../../utils/cn';
-import { antiguedad, capitalizar, clp, fechaCL, iniciales } from '../../utils/formato';
-import { jornadaMaximaVigente } from '../../utils/ley40';
+import { antiguedad, capitalizar, clp, fechaCL, hoyISO, iniciales } from '../../utils/formato';
 
 type Pestana = 'resumen' | 'personal' | 'contrato' | 'remuneraciones' | 'vacaciones' | 'documentos';
 
@@ -46,7 +45,10 @@ export default function Carpeta() {
   const [confirmarEstado, setConfirmarEstado] = useState(false);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const queryClient = useQueryClient();
-  const { empresa, trabajadores, cargandoTrabajadores, nivel, avisar } = usePanelContexto();
+  const { empresa, trabajadores, cargandoTrabajadores, nivel, suscripcion, avisar } = usePanelContexto();
+  // Mientras se lee el plan no se muestran candados (el nivel parte en 1).
+  const { cargando: cargandoPlan } = useSuscripcion();
+  const indicadores = useIndicadores();
   const [descargandoZip, setDescargandoZip] = useState(false);
 
   const orden = useMemo(() => [...trabajadores].sort((a, b) =>
@@ -57,7 +59,9 @@ export default function Carpeta() {
   const siguiente = indice >= 0 && indice < orden.length - 1 ? orden[indice + 1] : undefined;
 
   const carpeta = useCarpeta(empleado?.id, nivel);
-  const maximo = jornadaMaximaVigente();
+  const finiquitos = useFiniquitos(empleado?.id);
+  // Máximo legal: lo informa el backend (core/jornada.py), no se calcula aquí.
+  const maximo = empleado?.contrato_activo?.jornada_maxima_vigente ?? indicadores.data?.jornada_maxima_vigente;
   const pestanaParam = params.get('tab') as Pestana | null;
   const tipoParam = params.get('tipo');
   const tipoAnexo = esCampoAnexo(tipoParam) ? tipoParam : undefined;
@@ -68,8 +72,8 @@ export default function Carpeta() {
   const firmas = carpeta.firmas.data ?? [];
   const documentos = useMemo(() => empleado ? documentosDe(empleado, {
     liquidaciones: carpeta.liquidaciones.data, documentos: carpeta.documentos.data, anexos: carpeta.anexos.data,
-    vacaciones: carpeta.vacaciones.data, firmas: carpeta.firmas.data,
-  }) : [], [empleado, carpeta.liquidaciones.data, carpeta.documentos.data, carpeta.anexos.data, carpeta.vacaciones.data, carpeta.firmas.data]);
+    vacaciones: carpeta.vacaciones.data, finiquitos: finiquitos.data, firmas: carpeta.firmas.data,
+  }) : [], [empleado, carpeta.liquidaciones.data, carpeta.documentos.data, carpeta.anexos.data, carpeta.vacaciones.data, finiquitos.data, carpeta.firmas.data]);
 
   if (!empleado) {
     return (
@@ -120,12 +124,21 @@ export default function Carpeta() {
     avisar(error ?? 'Carpeta descargada');
   };
 
+  // Un desvinculado ocupa su cupo hasta fin del mes en que se fue: reactivarlo
+  // ese mismo mes no usa un cupo extra; si se fue antes, ocupa uno nuevo.
+  const desvinculadoEsteMes = Boolean(empleado.fecha_desvinculacion && empleado.fecha_desvinculacion.slice(0, 7) === hoyISO().slice(0, 7));
+  const textoReactivar = desvinculadoEsteMes
+    ? `Se desvinculó este mes (${fechaCL(empleado.fecha_desvinculacion)}): todavía ocupa su cupo, así que reactivarlo no usa un cupo extra. Vuelve a aparecer en los procesos del mes.`
+    : `${empleado.fecha_desvinculacion ? `Se desvinculó el ${fechaCL(empleado.fecha_desvinculacion)}, así que` : 'Al'} reactivarlo ocupa un cupo nuevo del plan${suscripcion ? ` (usarás ${suscripcion.trabajadores_actuales + 1} de ${suscripcion.plan.limite_trabajadores})` : ''}. Vuelve a aparecer en los procesos del mes.`;
+
   const datos: [string, string][] = [
     ['RUT', empleado.rut],
     ['Cargo', capitalizar(contrato?.cargo || empleado.cargo) || '—'],
     ['Contrato', contrato ? TIPO_CONTRATO[contrato.tipo_contrato] ?? contrato.tipo_contrato : 'Sin contrato'],
     ['Ingreso', fechaCL(empleado.fecha_ingreso)],
-    ['Antigüedad', antiguedad(empleado.fecha_ingreso)],
+    ...(!empleado.activo && empleado.fecha_desvinculacion
+      ? [['Desvinculación', fechaCL(empleado.fecha_desvinculacion)] as [string, string]]
+      : [['Antigüedad', antiguedad(empleado.fecha_ingreso)] as [string, string]]),
     ['Sueldo base', clp(contrato?.sueldo_base ?? empleado.sueldo_base)],
   ];
 
@@ -159,7 +172,7 @@ export default function Carpeta() {
           <Button variante={empleado.activo ? 'peligro-contorno' : 'secundario'} onClick={() => setConfirmarEstado(true)}>
             {empleado.activo ? 'Desvincular' : 'Reactivar'}
           </Button>
-          {nivel >= 3 ? (
+          {cargandoPlan ? null : nivel >= 3 ? (
             <Button variante="secundario" onClick={descargarCarpeta} cargando={descargandoZip}
               iconoInicio={<FolderDown className="size-4" strokeWidth={2} />}>Descargar carpeta</Button>
           ) : (
@@ -205,9 +218,9 @@ export default function Carpeta() {
           )}
           {pestana === 'vacaciones' && (
             <Vacaciones empleado={empleado} nivel={nivel} vacaciones={carpeta.vacaciones.data ?? []}
-              saldo={carpeta.saldo.data} firmas={firmas} avisar={avisar} />
+              saldo={carpeta.saldo.data} firmas={firmas} avisar={avisar} cargandoPlan={cargandoPlan} />
           )}
-          {pestana === 'documentos' && <DocumentosTab empleado={empleado} documentos={documentos} nivel={nivel} avisar={avisar} />}
+          {pestana === 'documentos' && <DocumentosTab empleado={empleado} documentos={documentos} nivel={nivel} cargandoPlan={cargandoPlan} avisar={avisar} />}
         </div>
         <Lateral empleado={empleado} documentos={documentos} nivel={nivel} />
       </div>
@@ -233,7 +246,7 @@ export default function Carpeta() {
         <p className="text-[13.5px] text-fg-2">
           {empleado.activo
             ? 'No aparecerá en los procesos del mes y su carpeta y documentos se conservan. Sigue ocupando su cupo del plan hasta fin de mes; se libera el mes siguiente. Si aún no lo haces, emite el finiquito.'
-            : 'Vuelve a aparecer en los procesos del mes. Si se desvinculó este mes ya ocupa su cupo; si fue antes, ocupa uno nuevo.'}
+            : textoReactivar}
         </p>
       </Modal>
     </div>

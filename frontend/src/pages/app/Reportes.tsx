@@ -20,7 +20,7 @@ interface Consolidado {
 
 /** Consolidado de remuneraciones de todas las empresas de la cuenta (plan Pyme+). */
 export default function Reportes() {
-  const { nivel, avisar } = usePanelContexto();
+  const { nivel, avisar, cargandoPlan } = usePanelContexto();
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [mes, setMes] = useState<number | null>(hoy.getMonth() + 1);
@@ -37,9 +37,14 @@ export default function Reportes() {
         throw err;
       }
     },
-    enabled: nivel >= 3,
+    enabled: !cargandoPlan && nivel >= 3,
     retry: false,
   });
+
+  // Mientras llega la suscripción no se sabe el nivel: no mostrar un bloqueo que quizá no corresponde.
+  if (cargandoPlan) {
+    return <Marco><p className="text-[14px] text-fg-3" role="status">Cargando…</p></Marco>;
+  }
 
   if (nivel < 3) {
     return (
@@ -58,7 +63,7 @@ export default function Reportes() {
     const e = await descargar(`/liquidaciones/consolidado/?${consulta}&formato=${formato}`,
       `Consolidado_${mes ? `${nombreMes(mes)}_` : ''}${anio}.${formato === 'pdf' ? 'pdf' : 'xlsx'}`);
     setBajando(null);
-    avisar(e ?? 'Reporte descargado');
+    if (e) avisar(e, 'error'); else avisar('Reporte descargado');
   };
 
   const d = datos.data;
@@ -97,7 +102,7 @@ export default function Reportes() {
         ) : !d ? null : (
         <>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3">
-            <Kpi t="Masa salarial (imponible)" v={clp(d.kpis.masa_salarial)} />
+            <Kpi t="Masa salarial (haberes)" v={clp(d.kpis.masa_salarial)} />
             <Kpi t="Costo empleador" v={clp(d.kpis.costo_empleador)} destacado />
             <Kpi t="Líquido a pagar" v={clp(d.kpis.liquido_total)} />
             <Kpi t="Trabajadores liquidados" v={String(d.kpis.trabajadores)} />
@@ -122,7 +127,7 @@ export default function Reportes() {
               <div key={e.id} className="flex flex-col gap-1.5 py-2.5 border-b border-line last:border-b-0">
                 <div className="flex flex-wrap items-baseline justify-between gap-2 text-[13px]">
                   <span className="font-medium">{capitalizar(e.nombre)} <span className="text-fg-3 j40-mono text-[12px]">{e.rut}</span></span>
-                  <span className="text-fg-2 j40-num">{e.trabajadores} trab. · masa {clp(e.masa_salarial)} · líquido {clp(e.liquido_total)} · <strong className="text-fg">costo {clp(e.costo_empleador)}</strong></span>
+                  <span className="text-fg-2 j40-num">{e.trabajadores} trab. · haberes {clp(e.masa_salarial)} · líquido {clp(e.liquido_total)} · <strong className="text-fg">costo {clp(e.costo_empleador)}</strong></span>
                 </div>
                 <span className="h-2 rounded-full bg-sunken overflow-hidden"><span className={cn('block h-full rounded-full bg-brand')} style={{ width: `${(e.costo_empleador / maxEmpresa) * 100}%` }} /></span>
               </div>

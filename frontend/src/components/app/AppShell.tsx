@@ -1,8 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
-  ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, FileUp,
-  LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, Users,
+  ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CreditCard,
+  Ellipsis, FileUp, Info, LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
@@ -26,9 +26,18 @@ interface PanelContexto {
   trabajadores: Empleado[];
   cargandoTrabajadores: boolean;
   agregarTrabajador: () => void;
-  avisar: (texto: string) => void;
+  /** Aviso breve. `error` se ve en rojo, dura más y se cierra a mano. */
+  avisar: (texto: string, tipo?: TipoAviso) => void;
   cambiarEmpresa: (id: number) => void;
+  /** La suscripción aún no llega: el nivel todavía no es confiable (no mostrar bloqueos de plan). */
+  cargandoPlan: boolean;
+  /** /clientes/mi_suscripcion/ falló. */
+  errorSuscripcion: boolean;
+  reintentarSuscripcion: () => void;
 }
+
+export type TipoAviso = 'ok' | 'error';
+const DURACION_AVISO: Record<TipoAviso, number> = { ok: 2800, error: 8000 };
 
 const Contexto = createContext<PanelContexto | null>(null);
 
@@ -69,6 +78,10 @@ const ESTADO_SUSCRIPCION: Record<string, { texto: string; tono: 'ok' | 'marca' |
   CANCELED: { texto: 'Cancelada', tono: 'peligro' },
 };
 
+// Suscripción pagada cancelada que ya volvió al plan gratuito: no hay nada que reactivar.
+const AVISO_PLAN_GRATIS = { titulo: 'Tu plan pagado terminó', detalle: 'Estás en el plan gratuito. Tus datos siguen guardados; elige un plan cuando quieras volver.', clase: 'bg-brand-soft text-brand-text' };
+const CLAVE_AVISO_GRATIS = 'j40-aviso-plan-gratis-cerrado';
+
 const AVISO_SUSCRIPCION: Record<string, { titulo: string; detalle: string; clase: string }> = {
   TRIAL: { titulo: 'Estás en período de prueba', detalle: 'Agrega un medio de pago para no perder el acceso a las funciones de tu plan.', clase: 'bg-brand-soft text-brand-text' },
   PAST_DUE: { titulo: 'Tu pago está pendiente', detalle: 'Regulariza el pago para mantener activas las funciones de tu plan.', clase: 'bg-warn-soft text-warn' },
@@ -80,19 +93,23 @@ const AVISO_SUSCRIPCION: Record<string, { titulo: string; detalle: string; clase
 export default function AppShell() {
   const navigate = useNavigate();
   const { empresa, empresas, cambiar, cargando, error } = useEmpresaActiva();
-  const { suscripcion, nivel, maxEmpresas } = useSuscripcion();
+  const { suscripcion, nivel, maxEmpresas, cargando: cargandoPlan, error: errorSuscripcion, reintentar } = useSuscripcion();
+  const reintentarSuscripcion = useCallback(() => { void reintentar(); }, [reintentar]);
   const trabajadores = useTrabajadores(empresa?.id);
   const [drawerTrabajador, setDrawerTrabajador] = useState(false);
   // Cambia en cada apertura: el formulario se monta de nuevo y parte vacío.
   const [aperturaDrawer, setAperturaDrawer] = useState(0);
   const [paletaAbierta, setPaletaAbierta] = useState(false);
   // El id distingue dos avisos con el mismo texto (reinicia el temporizador).
-  const [toast, setToast] = useState<{ texto: string; id: number } | null>(null);
+  const [toast, setToast] = useState<{ texto: string; tipo: TipoAviso; id: number } | null>(null);
+  const [avisoGratisCerrado, setAvisoGratisCerrado] = useState(() => {
+    try { return localStorage.getItem(CLAVE_AVISO_GRATIS) === '1'; } catch { return false; }
+  });
 
-  const avisar = useCallback((texto: string) => setToast((t) => ({ texto, id: (t?.id ?? 0) + 1 })), []);
+  const avisar = useCallback((texto: string, tipo: TipoAviso = 'ok') => setToast((t) => ({ texto, tipo, id: (t?.id ?? 0) + 1 })), []);
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 2800);
+    const t = window.setTimeout(() => setToast(null), DURACION_AVISO[toast.tipo]);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -123,7 +140,11 @@ export default function AppShell() {
     agregarTrabajador: () => { setAperturaDrawer((n) => n + 1); setDrawerTrabajador(true); },
     avisar,
     cambiarEmpresa: cambiar,
-  }), [empresa, nivel, maxEmpresas, suscripcion, trabajadores.data, trabajadores.isLoading, avisar, cambiar]);
+    cargandoPlan,
+    errorSuscripcion,
+    reintentarSuscripcion,
+  }), [empresa, nivel, maxEmpresas, suscripcion, trabajadores.data, trabajadores.isLoading, avisar, cambiar,
+    cargandoPlan, errorSuscripcion, reintentarSuscripcion]);
 
   if (!contexto) {
     return (
@@ -133,28 +154,42 @@ export default function AppShell() {
     );
   }
 
-  const aviso = suscripcion && AVISO_SUSCRIPCION[suscripcion.estado];
+  const volvioAGratis = suscripcion?.estado === 'CANCELED' && !suscripcion.plan.precio;
+  const aviso = volvioAGratis ? (avisoGratisCerrado ? undefined : AVISO_PLAN_GRATIS) : suscripcion && AVISO_SUSCRIPCION[suscripcion.estado];
+  const cerrarAvisoGratis = () => {
+    setAvisoGratisCerrado(true);
+    try { localStorage.setItem(CLAVE_AVISO_GRATIS, '1'); } catch { /* sin almacenamiento: vuelve a verse al recargar */ }
+  };
+  const vigentes = contexto.trabajadores.filter((t) => t.activo).length;
 
   return (
     <Contexto.Provider value={contexto}>
       <J40Root className="flex leading-[1.45]">
         <Sidebar empresa={contexto.empresa} empresas={empresas} cambiarEmpresa={cambiar} maxEmpresas={maxEmpresas}
-          suscripcion={suscripcion} totalTrabajadores={contexto.trabajadores.length}
+          suscripcion={suscripcion} totalTrabajadores={vigentes}
           abrirPaleta={() => setPaletaAbierta(true)} />
         <div className="flex-1 min-w-0 flex flex-col">
-          <Encabezado empresa={contexto.empresa} empresas={empresas} cambiarEmpresa={cambiar}
+          <Encabezado empresa={contexto.empresa} empresas={empresas} cambiarEmpresa={cambiar} maxEmpresas={maxEmpresas}
             abrirPaleta={() => setPaletaAbierta(true)} agregarTrabajador={contexto.agregarTrabajador} />
           <main className="flex-1 p-[clamp(16px,2.4vw,32px)] pb-24 min-[720px]:pb-[clamp(16px,2.4vw,32px)]">
             {aviso && (
               <div role="status" className={cn('max-w-[1440px] mx-auto mb-[18px] flex gap-3 items-center flex-wrap px-4 py-3 rounded-j40-card', aviso.clase)}>
-                <TriangleAlert className="size-5 shrink-0" strokeWidth={2} aria-hidden />
+                {volvioAGratis
+                  ? <Info className="size-5 shrink-0" strokeWidth={2} aria-hidden />
+                  : <TriangleAlert className="size-5 shrink-0" strokeWidth={2} aria-hidden />}
                 <div className="flex-[1_1_260px] flex flex-col">
                   <span className="text-[13.5px] font-semibold">{aviso.titulo}</span>
-                  <span className="text-[12.5px]">{aviso.detalle}</span>
+                  <span className="text-[12.5px]">{volvioAGratis && suscripcion ? `Estás en ${suscripcion.plan.nombre}. Tus datos siguen guardados; elige un plan cuando quieras volver.` : aviso.detalle}</span>
                 </div>
                 <Link to="/app/plan" className="h-[34px] px-3.5 inline-flex items-center rounded-[8px] border border-current text-inherit text-[13px] font-semibold no-underline hover:no-underline">
-                  Ver plan
+                  {volvioAGratis ? 'Ver planes' : 'Ver plan'}
                 </Link>
+                {volvioAGratis && (
+                  <button type="button" onClick={cerrarAvisoGratis} aria-label="Cerrar aviso" title="Cerrar aviso"
+                    className="grid place-items-center size-[34px] rounded-[8px] text-inherit cursor-pointer hover:bg-surface/40">
+                    <X className="size-[18px]" strokeWidth={2} aria-hidden />
+                  </button>
+                )}
               </div>
             )}
             <Outlet />
@@ -164,11 +199,20 @@ export default function AppShell() {
         <Paleta key={String(paletaAbierta)} abierta={paletaAbierta} onCerrar={() => setPaletaAbierta(false)} trabajadores={contexto.trabajadores}
           agregarTrabajador={contexto.agregarTrabajador} />
         <DrawerTrabajador key={aperturaDrawer} abierto={drawerTrabajador} onCerrar={() => setDrawerTrabajador(false)} />
-        {toast && (
-          <div key={toast.id} role="status" className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[90] flex items-center gap-2.5 max-w-[calc(100vw-32px)] px-4 py-3 rounded-[10px] bg-[#18212D] text-white text-[13px] shadow-pop j40-anim-pop">
-            <Check className="size-[18px] text-[#5BC293]" strokeWidth={2.5} aria-hidden />{toast.texto}
+        {toast && (toast.tipo === 'error' ? (
+          <div key={toast.id} role="alert" className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[90] flex items-start gap-2.5 w-max max-w-[min(560px,calc(100vw-32px))] pl-4 pr-2 py-2.5 rounded-[10px] bg-[#3A1418] text-white text-[13px] shadow-pop border border-[#E5484D]/60 j40-anim-pop">
+            <CircleAlert className="size-[18px] shrink-0 mt-[5px] text-[#FF8A8F]" strokeWidth={2.5} aria-hidden />
+            <span className="flex-1 min-w-0 py-1 break-words">{toast.texto}</span>
+            <button type="button" onClick={() => setToast(null)} aria-label="Cerrar aviso"
+              className="grid place-items-center size-7 shrink-0 rounded-[7px] text-white/80 cursor-pointer hover:bg-white/10 hover:text-white">
+              <X className="size-4" strokeWidth={2.5} aria-hidden />
+            </button>
           </div>
-        )}
+        ) : (
+          <div key={toast.id} role="status" className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[90] flex items-center gap-2.5 max-w-[calc(100vw-32px)] px-4 py-3 rounded-[10px] bg-[#18212D] text-white text-[13px] shadow-pop j40-anim-pop">
+            <Check className="size-[18px] shrink-0 text-[#5BC293]" strokeWidth={2.5} aria-hidden />{toast.texto}
+          </div>
+        ))}
       </J40Root>
     </Contexto.Provider>
   );
@@ -319,9 +363,10 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
       {abierto && (
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setAbierto(false)} aria-hidden />
+          {/* En móvil el menú se fija al ancho de la pantalla: anclado al botón se salía por la derecha en 320 px. */}
           <div role="menu" className={cn(
-            'absolute z-[61] w-[min(300px,calc(100vw-24px))] p-1.5 rounded-j40-card border border-line bg-surface shadow-pop j40-anim-pop',
-            variante === 'lateral' ? 'top-full mt-1 left-0' : 'top-full mt-1 left-0',
+            'z-[61] p-1.5 rounded-j40-card border border-line bg-surface shadow-pop j40-anim-pop max-h-[calc(100dvh-140px)] overflow-y-auto',
+            variante === 'lateral' ? 'absolute top-full mt-1 left-0 w-[min(300px,calc(100vw-24px))]' : 'fixed top-[64px] left-3 right-3 max-w-[360px]',
           )}>
             <div className="text-[11.5px] text-fg-3 px-2.5 pt-2 pb-1.5">Tus empresas · {empresas.length} de {maxEmpresas} en uso</div>
             {empresas.map((e) => (
@@ -337,7 +382,7 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
                 {e.id === empresa.id && <Check className="size-[18px] text-brand-text" strokeWidth={2} aria-hidden />}
               </button>
             ))}
-            <button type="button" role="menuitem" onClick={() => navigate('/app/empresas')}
+            <button type="button" role="menuitem" onClick={() => { setAbierto(false); navigate('/app/empresas'); }}
               className="flex items-center gap-2.5 w-full mt-1 p-2.5 rounded-[8px] text-fg-2 text-[13px] text-left cursor-pointer hover:bg-sunken">
               <Plus className="size-[19px]" strokeWidth={2} aria-hidden />Agregar o administrar empresas
             </button>
@@ -350,8 +395,8 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
 
 // ── Encabezado ───────────────────────────────────────────────────────────────
 
-function Encabezado({ empresa, empresas, cambiarEmpresa, abrirPaleta, agregarTrabajador }: {
-  empresa: Empresa; empresas: Empresa[]; cambiarEmpresa: (id: number) => void;
+function Encabezado({ empresa, empresas, cambiarEmpresa, maxEmpresas, abrirPaleta, agregarTrabajador }: {
+  empresa: Empresa; empresas: Empresa[]; cambiarEmpresa: (id: number) => void; maxEmpresas: number;
   abrirPaleta: () => void; agregarTrabajador: () => void;
 }) {
   const indicadores = useIndicadores();
@@ -361,7 +406,7 @@ function Encabezado({ empresa, empresas, cambiarEmpresa, abrirPaleta, agregarTra
     <header className="sticky top-0 z-20 flex items-center gap-2.5 h-[60px] px-[clamp(12px,2.4vw,32px)] bg-canvas-blur backdrop-blur-md border-b border-line">
       <span className="min-[720px]:hidden flex items-center gap-1 min-w-0">
         <Logo soloIcono tamano={34} />
-        <SelectorEmpresa empresa={empresa} empresas={empresas} cambiar={cambiarEmpresa} maxEmpresas={empresas.length} variante="movil" />
+        <SelectorEmpresa empresa={empresa} empresas={empresas} cambiar={cambiarEmpresa} maxEmpresas={maxEmpresas} variante="movil" />
       </span>
       <nav aria-label="Ruta" className="hidden min-[720px]:flex items-center gap-1.5 min-w-0 text-[13px]">
         {migas.map((m, i) => (
@@ -440,19 +485,69 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 
 // ── Barra inferior (móvil) ───────────────────────────────────────────────────
 
+// Lo que no cabe en la barra inferior va en "Más".
+const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firmas'];
+const MAS: { a: string; etiqueta: string; Icono: LucideIcon }[] = [
+  { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2 },
+  { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn },
+  { a: '/app/plan', etiqueta: 'Plan y facturación', Icono: CreditCard },
+  { a: '/app/cuenta', etiqueta: 'Mi cuenta', Icono: UserRound },
+];
+
 function BarraInferior() {
+  const [mas, setMas] = useState(false);
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const enMas = MAS.some((m) => pathname.startsWith(m.a));
+
+  useEffect(() => {
+    if (!mas) return;
+    const alTeclear = (e: KeyboardEvent) => e.key === 'Escape' && setMas(false);
+    document.addEventListener('keydown', alTeclear);
+    return () => document.removeEventListener('keydown', alTeclear);
+  }, [mas]);
+
+  const salir = async () => { setMas(false); await logout(); navigate('/login'); };
+
   return (
-    <nav aria-label="Principal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
-      {NAV.filter((n) => n.a !== '/app/reportes').map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
-        <NavLink key={etiqueta} to={a} end={fin}
-          className={({ isActive }) => cn(
-            'flex flex-col items-center justify-center gap-[3px] h-[52px] text-[10.5px] font-medium no-underline hover:no-underline',
-            isActive && !clasico ? 'text-brand-text' : 'text-fg-3',
-          )}>
-          <Icono className="size-[23px]" strokeWidth={2} aria-hidden />{corta}
-        </NavLink>
-      ))}
-    </nav>
+    <>
+      <nav aria-label="Principal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
+        {NAV.filter((n) => EN_BARRA.includes(n.a)).map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
+          <NavLink key={etiqueta} to={a} end={fin} onClick={() => setMas(false)}
+            className={({ isActive }) => cn(
+              'flex flex-col items-center justify-center gap-[3px] min-w-0 h-[52px] text-[10.5px] font-medium no-underline hover:no-underline',
+              isActive && !clasico && !mas ? 'text-brand-text' : 'text-fg-3',
+            )}>
+            <Icono className="size-[23px]" strokeWidth={2} aria-hidden />{corta}
+          </NavLink>
+        ))}
+        <button type="button" onClick={() => setMas((v) => !v)} aria-expanded={mas} aria-haspopup="menu"
+          className={cn('flex flex-col items-center justify-center gap-[3px] min-w-0 h-[52px] text-[10.5px] font-medium bg-transparent cursor-pointer',
+            mas || enMas ? 'text-brand-text' : 'text-fg-3')}>
+          <Ellipsis className="size-[23px]" strokeWidth={2} aria-hidden />Más
+        </button>
+      </nav>
+      {mas && (
+        <>
+          <div className="min-[720px]:hidden fixed inset-0 z-[38] bg-overlay" onClick={() => setMas(false)} aria-hidden />
+          <div role="menu" aria-label="Más opciones"
+            className="min-[720px]:hidden fixed left-3 right-3 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[39] p-1.5 rounded-j40-card border border-line bg-surface shadow-pop j40-anim-pop">
+            {MAS.map(({ a, etiqueta, Icono }) => (
+              <Link key={a} to={a} role="menuitem" onClick={() => setMas(false)}
+                className={cn('flex items-center gap-3 h-12 px-3 rounded-[8px] text-[14px] no-underline hover:no-underline',
+                  pathname.startsWith(a) ? 'bg-brand-soft text-brand-text font-semibold' : 'text-fg hover:bg-sunken')}>
+                <Icono className="size-[20px] shrink-0" strokeWidth={2} aria-hidden />{etiqueta}
+              </Link>
+            ))}
+            <button type="button" role="menuitem" onClick={salir}
+              className="flex items-center gap-3 w-full h-12 px-3 mt-1 border-t border-line rounded-[8px] text-[14px] text-danger bg-transparent text-left cursor-pointer hover:bg-sunken">
+              <LogOut className="size-[20px] shrink-0" strokeWidth={2} aria-hidden />Cerrar sesión
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -465,6 +560,13 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
+  // Resultado resaltado: se mueve con las flechas y se ejecuta con Enter.
+  const [marcado, setMarcado] = useState(0);
+  const lista = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    lista.current?.querySelector('[data-marcado="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [marcado]);
 
   useEffect(() => {
     if (!abierta) return;
@@ -507,13 +609,29 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
   ] as Resultado[]).filter((a) => !texto || a.texto.toLowerCase().includes(texto));
 
   const todos = [...personas, ...acciones];
+  const activo = Math.min(marcado, Math.max(0, todos.length - 1));
 
-  const grupo = (titulo: string, items: Resultado[]) => items.length > 0 && (
+  const alTeclear = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!todos.length) return;
+      const paso = e.key === 'ArrowDown' ? 1 : -1;
+      setMarcado((activo + paso + todos.length) % todos.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      todos[activo]?.ejecutar();
+    }
+  };
+
+  const grupo = (titulo: string, items: Resultado[], desde: number) => items.length > 0 && (
     <div role="group" aria-label={titulo}>
       <div className="text-[11.5px] text-fg-3 px-2.5 pt-2.5 pb-1">{titulo}</div>
-      {items.map(({ clave, Icono, texto: t, detalle, ejecutar }) => (
-        <button key={clave} type="button" onClick={ejecutar}
-          className="flex items-center gap-3 w-full px-2.5 py-2.5 rounded-[8px] text-left text-fg cursor-pointer hover:bg-sunken focus-visible:bg-sunken focus-visible:outline-none">
+      {items.map(({ clave, Icono, texto: t, detalle, ejecutar }, i) => (
+        <button key={clave} id={`paleta-${clave}`} type="button" role="option" aria-selected={desde + i === activo}
+          data-marcado={desde + i === activo} tabIndex={-1}
+          onClick={ejecutar} onMouseMove={() => desde + i !== activo && setMarcado(desde + i)}
+          className={cn('flex items-center gap-3 w-full px-2.5 py-2.5 rounded-[8px] text-left text-fg cursor-pointer focus-visible:outline-none',
+            desde + i === activo ? 'bg-sunken' : 'hover:bg-sunken')}>
           <Icono className="size-[19px] text-fg-3 shrink-0" strokeWidth={2} aria-hidden />
           <span className="flex-1 min-w-0 truncate text-[13.5px]">{t}</span>
           {detalle && <span className="text-[12px] text-fg-3 truncate">{detalle}</span>}
@@ -530,15 +648,16 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
         className="fixed top-[min(14vh,120px)] left-1/2 -translate-x-1/2 z-[81] w-[min(620px,calc(100vw-24px))] rounded-j40-modal border border-line bg-surface shadow-pop overflow-hidden j40-anim-pop">
         <div className="flex items-center gap-2.5 px-4 h-14 border-b border-line">
           <Search className="size-[21px] text-fg-3 shrink-0" strokeWidth={2} aria-hidden />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && todos[0]) todos[0].ejecutar(); }}
+          <input autoFocus value={q} onChange={(e) => { setQ(e.target.value); setMarcado(0); }}
+            onKeyDown={alTeclear} role="combobox" aria-expanded aria-controls="paleta-resultados"
+            aria-activedescendant={todos[activo] ? `paleta-${todos[activo].clave}` : undefined}
             placeholder="Buscar trabajador por nombre o RUT, o escribe una acción" aria-label="Buscar"
             className="flex-1 min-w-0 border-0 outline-none bg-transparent text-fg text-[15px] placeholder:text-fg-3" />
           <kbd className="text-[11px] px-1.5 py-0.5 border border-line rounded-[5px] text-fg-3">Esc</kbd>
         </div>
-        <div className="max-h-[min(60vh,440px)] overflow-y-auto p-1.5">
-          {grupo('Trabajadores', personas)}
-          {grupo('Acciones', acciones)}
+        <div ref={lista} id="paleta-resultados" role="listbox" aria-label="Resultados" className="max-h-[min(60vh,440px)] overflow-y-auto p-1.5">
+          {grupo('Trabajadores', personas, 0)}
+          {grupo('Acciones', acciones, personas.length)}
           {todos.length === 0 && <div className="p-7 text-center text-[13px] text-fg-3">Sin resultados</div>}
         </div>
       </div>

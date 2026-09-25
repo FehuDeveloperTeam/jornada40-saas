@@ -132,7 +132,11 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/day',
-        'user': '1000/day',
+        # El cierre de mes de una empresa grande (emitir, simular, descargar)
+        # supera con holgura las mil peticiones.
+        'user': '20000/day',
+        'firma_publica': '120/hour',
+        'firma_publica_ip': '1500/day',
         'login': '3/minute',
         'register': '3/minute',
         'password_reset': '2/hour',
@@ -142,6 +146,12 @@ REST_FRAMEWORK = {
 }
 
 SITE_ID = 1
+
+
+# Encabezados que el frontend (otro dominio) necesita leer: el nombre del
+# archivo descargado (el firmado termina en _firmado.pdf), si es la versión
+# firmada, y cuánto esperar tras un límite de intentos.
+CORS_EXPOSE_HEADERS = ['Content-Disposition', 'X-Documento-Firmado', 'Retry-After']
 
 
 REST_AUTH = {

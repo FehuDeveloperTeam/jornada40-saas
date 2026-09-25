@@ -17,7 +17,7 @@ from html import escape as _esc
 from django.db.models import Q
 from ..serializers import FiniquitoSerializer
 
-from .base import _MESES, _plan_permite, pdf_firmado, respuesta_pdf
+from .base import error_interno, _MESES, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _dias_progresivos_del_anio, _es_dia_habil_feriado, calcular_saldo_vacaciones
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tasas_afp, _tope_en_pesos
 
@@ -411,7 +411,7 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         """Editar recalcula todo con los hechos nuevos; firmado, ya no se toca."""
         instancia = self.get_object()
-        if SolicitudFirma.objects.filter(finiquito=instancia, estado__in=('FIRMADO', 'PENDIENTE')).exists():
+        if SolicitudFirma.objects.filter(finiquito=instancia, estado__in=('FIRMADO', 'PENDIENTE', 'PROCESANDO')).exists():
             return Response({'error': 'Este finiquito tiene una firma pendiente o ya fue firmado: no se puede modificar.'},
                             status=status.HTTP_403_FORBIDDEN)
         base = {
@@ -446,7 +446,7 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
         except Finiquito.DoesNotExist:
             return Response({'error': 'Finiquito no encontrado.'}, status=404)
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            return error_interno('finiquitos')
 
 
 def html_finiquito(finiquito) -> str:

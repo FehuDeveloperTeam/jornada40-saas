@@ -56,7 +56,7 @@ export default function Conceptos() {
   const texto = busqueda.trim().toLowerCase();
   const visibles = todos
     .filter((c) => coincide(c, filtro))
-    .filter((c) => !texto || c.nombre.toLowerCase().includes(texto) || c.codigo.includes(texto))
+    .filter((c) => !texto || c.nombre.toLowerCase().includes(texto) || c.codigo.toLowerCase().includes(texto.replace(/\s+/g, '_')))
     .sort((a, b) => TIPOS.indexOf(a.tipo) - TIPOS.indexOf(b.tipo) || Number(a.es_del_sistema) - Number(b.es_del_sistema) || a.nombre.localeCompare(b.nombre));
 
   const alternar = async (c: ConceptoRemuneracion) => {
@@ -64,8 +64,8 @@ export default function Conceptos() {
       await client.patch(`/conceptos/${c.id}/`, { activo: !c.activo });
       await queryClient.invalidateQueries({ queryKey: ['conceptos'] });
       avisar(`${c.nombre}: ${c.activo ? 'desactivado' : 'activado'}`);
-    } catch {
-      avisar('No pudimos cambiar el estado del concepto.');
+    } catch (err) {
+      avisar((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos cambiar el estado del concepto.', 'error');
     }
   };
 
@@ -151,7 +151,12 @@ export default function Conceptos() {
               </span>
               {c.es_del_sistema
                 ? <Lock className="size-4 text-fg-3" strokeWidth={2} aria-label="Catálogo del sistema" />
-                : <Button variante="fantasma" tamano="sm" soloIcono aria-label={`Editar ${c.nombre}`} onClick={() => setEditando(c)}><Pencil className="size-4" strokeWidth={2} /></Button>}
+                : (
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <Interruptor activo={c.activo} onCambio={() => alternar(c)} etiqueta={`${c.nombre} activo`} />
+                    <Button variante="fantasma" tamano="sm" soloIcono aria-label={`Editar ${c.nombre}`} onClick={() => setEditando(c)}><Pencil className="size-4" strokeWidth={2} /></Button>
+                  </span>
+                )}
             </div>
           ))}
         </div>
@@ -187,7 +192,7 @@ function Interruptor({ activo, onCambio, etiqueta }: { activo: boolean; onCambio
 
 function DrawerConcepto({ concepto, empresaId, empresaNombre, existentes, onCerrar, avisar }: {
   concepto?: ConceptoRemuneracion; empresaId: number; empresaNombre: string; existentes: ConceptoRemuneracion[];
-  onCerrar: () => void; avisar: (t: string) => void;
+  onCerrar: () => void; avisar: (t: string, tipo?: 'ok' | 'error') => void;
 }) {
   const queryClient = useQueryClient();
   const [nombre, setNombre] = useState(concepto?.nombre ?? '');

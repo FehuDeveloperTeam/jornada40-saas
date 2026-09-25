@@ -9,7 +9,7 @@ from django.template.loader import get_template
 from ..models import Empleado, VacacionEmpleado
 import datetime
 
-from .base import _MESES, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
+from .base import error_interno, _MESES, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _calcular_dias_habiles_vacacion, calcular_saldo_vacaciones
 
 
@@ -31,6 +31,9 @@ class VacacionViewSet(viewsets.ModelViewSet):
         empleado_id = self.request.query_params.get('empleado')
         if empleado_id:
             qs = qs.filter(empleado_id=empleado_id)
+        empresa_id = self.request.query_params.get('empresa')
+        if empresa_id:
+            qs = qs.filter(empresa_id=empresa_id)
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -102,10 +105,7 @@ class VacacionViewSet(viewsets.ModelViewSet):
             return respuesta_pdf(pdf_vacacion(vacacion, es_semilla), f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf')
 
         except Exception as e:
-            return Response(
-                {'error': f'Error al generar PDF: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            return error_interno('PDF vacaciones')
 
 
 def pdf_vacacion(vacacion, es_semilla) -> bytes:

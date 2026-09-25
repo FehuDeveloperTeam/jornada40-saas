@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
-import { MATIAS, USUARIO, descargar, entrar, periodo, restaurarBase } from './utiles';
+import { MATIAS, USUARIO, consultar, descargar, entrar, periodo, restaurarBase } from './utiles';
 
 // Gestión: contrato, documentos, vacaciones, finiquito, importación, reportes, empresa, plan y cuenta.
 test.describe.configure({ mode: 'serial' });
@@ -11,7 +11,13 @@ test.beforeAll(() => restaurarBase());
 
 test('editor de contrato con avisos de jornada', async ({ page }) => {
   await entrar(page);
+  // Con la firma del contrato en curso, el editor queda en solo lectura: un
+  // contrato firmado o en firma se cambia con un anexo.
   await page.goto(`/app/trabajadores/${MATIAS.id}/contrato`);
+  await expect(page.getByRole('link', { name: 'Crear anexo' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
+  consultar(`from core.models import SolicitudFirma; SolicitudFirma.objects.filter(contrato__empleado_id=${MATIAS.id}, tipo_documento='CONTRATO').update(estado='CANCELADO'); print('ok')`);
+  await page.reload();
   await expect(page.getByRole('heading', { name: 'Editar contrato' })).toBeVisible();
   // 44 h supera el máximo: se avisa, no se bloquea.
   await expect(page.getByText('Jornada sobre el máximo legal').first()).toBeVisible();

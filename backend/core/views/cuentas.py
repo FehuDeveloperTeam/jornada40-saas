@@ -16,7 +16,7 @@ from ..rut import es_rut_de_persona, formatear_rut, normalizar_rut_usuario, vali
 from decouple import config
 from dj_rest_auth.views import LoginView as DjRestLoginView
 
-from .base import LoginAccountRateThrottle, LoginRateThrottle, PasswordResetAccountRateThrottle, PasswordResetRateThrottle, RegisterAccountRateThrottle, RegisterRateThrottle, _plan_activo
+from .base import error_interno, LoginAccountRateThrottle, LoginRateThrottle, PasswordResetAccountRateThrottle, PasswordResetRateThrottle, RegisterAccountRateThrottle, RegisterRateThrottle, _plan_activo
 
 
 # ==========================================
@@ -164,7 +164,7 @@ def registrar_cliente(request):
     except IntegrityError:
         return Response({'error': 'Este RUT ya está registrado en el sistema.'}, status=400)
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return error_interno('cuentas')
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

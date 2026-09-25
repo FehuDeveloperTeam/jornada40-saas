@@ -22,8 +22,8 @@ const PLANTILLAS: Plantilla[] = [
   { titulo: 'Finiquito', detalle: 'Cálculo y documento', Icono: FileText, nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito` },
 ];
 
-export function DocumentosTab({ empleado, documentos, nivel, avisar }: {
-  empleado: Empleado; documentos: DocumentoReciente[]; nivel: number; avisar: (t: string) => void;
+export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisar }: {
+  empleado: Empleado; documentos: DocumentoReciente[]; nivel: number; cargandoPlan?: boolean; avisar: (t: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -54,7 +54,8 @@ export function DocumentosTab({ empleado, documentos, nivel, avisar }: {
       <Seccion titulo="Generar documento">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,200px),1fr))] gap-2.5 p-[18px]">
           {PLANTILLAS.filter((x) => !x.requiereContrato || empleado.contrato_activo).map(({ titulo, detalle, Icono, nivel: requerido, ruta }) => {
-            const bloqueado = nivel < requerido;
+            // Mientras se lee el plan no se muestran candados que luego desaparecen.
+            const bloqueado = !cargandoPlan && nivel < requerido;
             return (
               <Link key={titulo} to={bloqueado ? '/app/plan' : ruta(empleado.id)}
                 className="group rounded-[10px] border border-line p-3.5 flex gap-3 items-start no-underline hover:no-underline text-fg hover:border-brand hover:bg-surface-2">

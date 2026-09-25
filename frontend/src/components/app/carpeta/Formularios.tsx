@@ -7,14 +7,13 @@ import { AlertaError, Button, Casilla, Drawer, Input, SegmentedControl } from '.
 import client from '../../../api/client';
 import type { Empleado, SaldoVacaciones, SimulacionFiniquito } from '../../../types';
 import { cn } from '../../../utils/cn';
-import { capitalizar, clp, decimalCL } from '../../../utils/formato';
+import { capitalizar, clp, decimalCL, hoyISO } from '../../../utils/formato';
 import { CAUSALES, CAUSALES_CON_INDEMNIZACION, etiquetaCausal } from '../causales';
 import { TIPO_JORNADA } from '../trabajador';
-import { CAMPOS_ANEXO } from './utiles';
+import { CAMPOS_ANEXO, errorHorasSemanales, HORAS_SEMANALES_MAXIMAS } from './utiles';
 import type { CampoAnexo } from './utiles';
 
 const CONTROL = 'h-10 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
-const hoyISO = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' });
 
 function mensaje(err: unknown, porDefecto: string): string {
   if (!isAxiosError(err)) return porDefecto;
@@ -74,10 +73,12 @@ export function DrawerAnexo({ empleado, onCerrar, avisar, preseleccion }: {
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const alternar = (c: CampoAnexo) => setElegidos((xs) => (xs.includes(c) ? xs.filter((x) => x !== c) : [...xs, c]));
+  const errorHoras = elegidos.includes('horas_semanales') ? errorHorasSemanales(valores.horas_semanales) : null;
 
   const guardar = async () => {
     if (!titulo.trim()) { setError('Ponle un título al anexo.'); return; }
     if (!elegidos.length && !clausulas.some((c) => c.trim()) && !descripcion.trim()) { setError('Indica qué cambia: un campo del contrato, una cláusula o una descripción.'); return; }
+    if (errorHoras) { setError(`Horas semanales: ${errorHoras}`); return; }
     const cambios: Record<string, unknown> = {};
     for (const c of elegidos) {
       if (c === 'sueldo_base') cambios.sueldo_base = Number(valores.sueldo_base) || 0;
@@ -127,8 +128,14 @@ export function DrawerAnexo({ empleado, onCerrar, avisar, preseleccion }: {
                 c === 'cargo' ? <Input value={valores.cargo} onChange={(e) => setValores((v) => ({ ...v, cargo: e.target.value }))} />
                   : c === 'sueldo_base' ? <Input inputMode="numeric" value={valores.sueldo_base ? Number(valores.sueldo_base).toLocaleString('es-CL') : ''}
                     onChange={(e) => setValores((v) => ({ ...v, sueldo_base: e.target.value.replace(/\D/g, '') }))} />
-                  : c === 'horas_semanales' ? <Input inputMode="decimal" value={valores.horas_semanales}
-                    onChange={(e) => setValores((v) => ({ ...v, horas_semanales: e.target.value.replace(/[^\d.]/g, '') }))} />
+                  : c === 'horas_semanales' ? (
+                    <div className="flex flex-col gap-1">
+                      <Input inputMode="decimal" aria-label="Horas semanales" aria-invalid={errorHoras ? true : undefined} value={valores.horas_semanales}
+                        onChange={(e) => setValores((v) => ({ ...v, horas_semanales: e.target.value.replace(',', '.').replace(/[^\d.]/g, '') }))} />
+                      <span className={cn('text-[11.5px]', errorHoras ? 'text-danger' : 'text-fg-3')}>
+                        {errorHoras ?? `Hasta ${String(HORAS_SEMANALES_MAXIMAS).replace('.', ',')} h, con un decimal como máximo.`}
+                      </span>
+                    </div>)
                   : c === 'tipo_jornada' ? (
                     <select className={CONTROL} value={valores.tipo_jornada} onChange={(e) => setValores((v) => ({ ...v, tipo_jornada: e.target.value as typeof v.tipo_jornada }))}>
                       {Object.entries(TIPO_JORNADA).map(([k, t2]) => <option key={k} value={k}>{t2}</option>)}

@@ -14,7 +14,8 @@ import { cn } from '../../utils/cn';
 import { capitalizar, fechaCL } from '../../utils/formato';
 
 type Estado = SolicitudFirma['estado'];
-type Filtro = 'todas' | Estado;
+/** VENCIDA: pendiente cuyo plazo ya pasó (el enlace ya no sirve), aunque el backend aún no la marque EXPIRADO. */
+type Filtro = 'todas' | Estado | 'VENCIDA';
 
 const ESTADO: Record<Estado, { texto: string; tono: TonoChip }> = {
   PENDIENTE: { texto: 'Pendiente', tono: 'aviso' },
@@ -24,9 +25,22 @@ const ESTADO: Record<Estado, { texto: string; tono: TonoChip }> = {
   EXPIRADO: { texto: 'Expirado', tono: 'neutro' },
   CANCELADO: { texto: 'Cancelado', tono: 'neutro' },
 };
+const VENCIDA = { texto: 'Vencida', tono: 'neutro' as TonoChip };
 const FILTROS: [Filtro, string][] = [
-  ['todas', 'Todas'], ['PENDIENTE', 'Pendientes'], ['FIRMADO', 'Firmadas'], ['RECHAZADO', 'Rechazadas'], ['EXPIRADO', 'Expiradas'], ['CANCELADO', 'Canceladas'],
+  ['todas', 'Todas'], ['PENDIENTE', 'Pendientes'], ['PROCESANDO', 'Procesando'], ['FIRMADO', 'Firmadas'], ['RECHAZADO', 'Rechazadas'],
+  ['VENCIDA', 'Vencidas'], ['CANCELADO', 'Canceladas'],
 ];
+
+const vencida = (f: SolicitudFirma, ahora: number) => f.estado === 'EXPIRADO'
+  || (f.estado === 'PENDIENTE' && Boolean(f.expira_en) && new Date(f.expira_en).getTime() < ahora);
+
+/** Estado que se muestra: una pendiente con el plazo cumplido cuenta como vencida. */
+const estadoVisible = (f: SolicitudFirma, ahora: number): Estado | 'VENCIDA' => (vencida(f, ahora) ? 'VENCIDA' : f.estado);
+
+/** Documento al que pertenece la solicitud: tipo más el id del objeto firmado. */
+const claveDocumento = (f: SolicitudFirma) => [
+  f.empleado, f.tipo_documento, f.contrato, f.documento_legal, f.anexo_contrato, f.liquidacion, f.vacacion, f.finiquito,
+].join(':');
 const DOCUMENTO: Record<SolicitudFirma['tipo_documento'], string> = {
   CONTRATO: 'Contrato de trabajo', ANEXO_40H: 'Anexo Ley 40 horas', AMONESTACION: 'Carta de amonestación',
   DESPIDO: 'Carta de término', CONSTANCIA: 'Constancia laboral', ANEXO_CONTRATO: 'Anexo de contrato',
@@ -52,11 +66,23 @@ export default function Firmas() {
   const [cancelar, setCancelar] = useState<SolicitudFirma | null>(null);
   const [configurar, setConfigurar] = useState(false);
 
+  // Se fija al montar: basta para distinguir vencidas sin recalcular en cada render.
+  const [ahora] = useState(() => Date.now());
   const deEmpresa = (firmas.data ?? []).filter((f) => f.empresa === empresa.id);
-  const conteo = (f: Filtro) => deEmpresa.filter((x) => f === 'todas' || x.estado === f).length;
+  // Solo la última solicitud de cada documento ofrece "Enviar de nuevo": las anteriores ya se reemplazaron.
+  const ultimaPorDocumento = new Map<string, SolicitudFirma>();
+  for (const f of deEmpresa) {
+    const previa = ultimaPorDocumento.get(claveDocumento(f));
+    if (!previa || f.enviado_en > previa.enviado_en || (f.enviado_en === previa.enviado_en && f.id > previa.id)) {
+      ultimaPorDocumento.set(claveDocumento(f), f);
+    }
+  }
+  const esUltima = (f: SolicitudFirma) => ultimaPorDocumento.get(claveDocumento(f))?.id === f.id;
+  const coincide = (f: SolicitudFirma, filtroActual: Filtro) => filtroActual === 'todas' || estadoVisible(f, ahora) === filtroActual;
+  const conteo = (f: Filtro) => deEmpresa.filter((x) => coincide(x, f)).length;
   const texto = busqueda.trim().toLowerCase();
   const visibles = deEmpresa
-    .filter((f) => filtro === 'todas' || f.estado === filtro)
+    .filter((f) => coincide(f, filtro))
     .filter((f) => !texto || f.empleado_nombre.toLowerCase().includes(texto) || DOCUMENTO[f.tipo_documento].toLowerCase().includes(texto));
 
   const accion = async (clave: string, fn: () => Promise<unknown>, ok: string) => {
@@ -66,7 +92,7 @@ export default function Firmas() {
       await queryClient.invalidateQueries({ queryKey: ['firmas'] });
       avisar(ok);
     } catch (err) {
-      avisar(mensaje(err, 'No pudimos completar la acción.'));
+      avisar(mensaje(err, 'No pudimos completar la acción.'), 'error');
     } finally {
       setOcupada(null);
     }
@@ -131,7 +157,9 @@ export default function Firmas() {
 
       <section className="bg-surface border border-line rounded-j40-card shadow-card">
         {visibles.map((f) => {
-          const e = ESTADO[f.estado] ?? ESTADO.CANCELADO;
+          const estado = estadoVisible(f, ahora);
+          const e = estado === 'VENCIDA' ? VENCIDA : ESTADO[estado] ?? ESTADO.CANCELADO;
+          const ultima = esUltima(f);
           const cargando = (k: string) => ocupada === `${k}${f.id}`;
           return (
             <div key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-2.5 px-[18px] py-3.5 border-b border-line last:border-b-0">
@@ -148,7 +176,9 @@ export default function Firmas() {
                 <span className="text-[11.5px] text-fg-3">
                   Enviado el {fechaCL(f.enviado_en)}
                   {f.estado === 'FIRMADO' && f.firmado_en ? ` · firmado el ${fechaCL(f.firmado_en)}` : ''}
-                  {f.estado === 'PENDIENTE' ? ` · vence el ${fechaCL(f.expira_en)}` : ''}
+                  {estado === 'PENDIENTE' ? ` · vence el ${fechaCL(f.expira_en)}` : ''}
+                  {estado === 'VENCIDA' && f.expira_en ? ` · venció el ${fechaCL(f.expira_en)}` : ''}
+                  {estado === 'PROCESANDO' ? ' · la firma del trabajador se está registrando' : ''}
                 </span>
                 {f.estado === 'RECHAZADO' && f.motivo_rechazo && (
                   <span className="text-[12.5px] text-danger">Motivo: {f.motivo_rechazo}</span>
@@ -166,7 +196,7 @@ export default function Firmas() {
                 </details>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {f.estado === 'PENDIENTE' && (
+                {estado === 'PENDIENTE' && (
                   <>
                     <Button variante="secundario" tamano="sm" cargando={cargando('r')} iconoInicio={<Mail className="size-4" strokeWidth={2} />}
                       onClick={() => accion(`r${f.id}`, () => client.post(`/firmas/${f.id}/reenviar/`), 'Correo de firma reenviado')}>Reenviar correo</Button>
@@ -178,7 +208,7 @@ export default function Firmas() {
                   <Button variante="secundario" tamano="sm" cargando={cargando('d')} iconoInicio={<Download className="size-4" strokeWidth={2} />}
                     onClick={() => descargar(f)}>PDF firmado</Button>
                 )}
-                {(f.estado === 'RECHAZADO' || f.estado === 'EXPIRADO' || f.estado === 'CANCELADO') && (
+                {ultima && (estado === 'RECHAZADO' || estado === 'VENCIDA' || estado === 'CANCELADO') && (
                   <Button variante="secundario" tamano="sm" cargando={cargando('n')} iconoInicio={f.estado === 'RECHAZADO' ? <RotateCcw className="size-4" strokeWidth={2} /> : <Send className="size-4" strokeWidth={2} />}
                     onClick={() => accion(`n${f.id}`, () => client.post('/firmas/solicitar/', datosReenvio(f)), 'Documento enviado a firma de nuevo')}>
                     Enviar de nuevo

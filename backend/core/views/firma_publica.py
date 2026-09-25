@@ -1,5 +1,5 @@
 """Firma electrónica: flujo público del trabajador (RUT, código, firma, rechazo)."""
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.db import transaction
@@ -16,7 +16,7 @@ from .. import b2_client
 from django.core.mail import EmailMultiAlternatives
 import uuid as uuid_mod
 
-from .base import logger
+from .base import THROTTLES_FIRMA_PUBLICA, logger
 from .contratos import _aplicar_anexo_a_contrato
 
 
@@ -36,6 +36,7 @@ def _enmascarar_email(email: str) -> str:
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
 def firma_publica_info(request, token):
     """
     Retorna la información pública de una solicitud de firma:
@@ -47,10 +48,9 @@ def firma_publica_info(request, token):
     except SolicitudFirma.DoesNotExist:
         return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
 
-    # Marcar como expirada si corresponde
-    if solicitud.estado == 'PENDIENTE' and timezone.now() > solicitud.expira_en:
-        solicitud.estado = 'EXPIRADO'
-        solicitud.save(update_fields=['estado', 'actualizado_en'])
+    # Vencida o colgada en PROCESANDO: se corrige antes de mostrarla.
+    SolicitudFirma.actualizar_estados(SolicitudFirma.objects.filter(pk=solicitud.pk))
+    solicitud.refresh_from_db()
 
     tipo_labels = {
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
@@ -82,6 +82,7 @@ def firma_publica_info(request, token):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
 def firma_publica_solicitar_otp(request, token):
     """
     Genera un código OTP de 6 dígitos y lo envía al email del trabajador.
@@ -146,9 +147,11 @@ def firma_publica_solicitar_otp(request, token):
     # Enviar email con el código
     try:
         _enviar_email_otp(otp, solicitud)
-    except Exception as e:
+    except Exception:
+        logger.exception('No se pudo enviar el código de firma de la solicitud %s', solicitud.pk)
         otp.delete()
-        return Response({'error': f'No se pudo enviar el código por email: {str(e)}'}, status=500)
+        return Response({'error': 'No pudimos enviar el código a tu correo. Intenta de nuevo en unos minutos.'},
+                        status=500)
 
     return Response({
         'enviado': True,
@@ -159,6 +162,7 @@ def firma_publica_solicitar_otp(request, token):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
 def firma_publica_verificar_otp(request, token):
     """
     Verifica el código OTP enviado al trabajador.
@@ -416,6 +420,7 @@ def _enviar_emails_firma_completada(
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
 def firma_publica_firmar(request, token):
     """
     Procesa la firma del trabajador:
@@ -479,10 +484,11 @@ def firma_publica_firmar(request, token):
     # ── Descargar PDF original de B2 ────────────────────────────────────────
     try:
         pdf_original_bytes = b2_client.descargar_documento(solicitud.b2_key_temporal)
-    except Exception as exc:
+    except Exception:
+        logger.exception('Firma %s: no se pudo descargar el original', solicitud.pk)
         solicitud.estado = 'PENDIENTE'
         solicitud.save(update_fields=['estado', 'actualizado_en'])
-        return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
+        return Response({'error': 'No pudimos obtener el documento. Intenta de nuevo en unos minutos.'}, status=500)
 
     # ── Folio correlativo por empresa y huella del documento revisado ───────
     empleado = solicitud.empleado
@@ -529,10 +535,12 @@ def firma_publica_firmar(request, token):
             folio                 = solicitud.folio,
             hash_original         = hash_original,
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception('Firma %s: no se pudo generar el PDF firmado', solicitud.pk)
         solicitud.estado = 'PENDIENTE'
         solicitud.save(update_fields=['estado', 'actualizado_en'])
-        return Response({'error': f'Error al generar el documento firmado: {exc}'}, status=500)
+        return Response({'error': 'No pudimos generar el documento firmado. Intenta de nuevo en unos minutos.'},
+                        status=500)
 
     # ── Subir PDF firmado a B2 ──────────────────────────────────────────────
     key_firmado = b2_client.key_firmado(
@@ -543,10 +551,12 @@ def firma_publica_firmar(request, token):
     )
     try:
         b2_client.subir_documento(pdf_firmado_bytes, key_firmado)
-    except Exception as exc:
+    except Exception:
+        logger.exception('Firma %s: no se pudo guardar el PDF firmado', solicitud.pk)
         solicitud.estado = 'PENDIENTE'
         solicitud.save(update_fields=['estado', 'actualizado_en'])
-        return Response({'error': f'Error al guardar el documento firmado: {exc}'}, status=500)
+        return Response({'error': 'No pudimos guardar el documento firmado. Intenta de nuevo en unos minutos.'},
+                        status=500)
 
     # Eliminar PDF temporal (no crítico)
     b2_client.eliminar_documento(solicitud.b2_key_temporal)
@@ -559,12 +569,12 @@ def firma_publica_firmar(request, token):
     solicitud.b2_key_firmado         = key_firmado
     solicitud.hash_original          = hash_original
     solicitud.hash_firmado           = hashlib.sha256(pdf_firmado_bytes).hexdigest()
-    solicitud.sesion_token_trabajador = None   # invalidar sesión
+    # La sesión se conserva: ya no sirve para firmar ni rechazar (el estado
+    # dejó de ser PENDIENTE) y permite al trabajador descargar el PDF firmado.
     solicitud.save(update_fields=[
         'estado', 'firmado_en', 'ip_firmante',
         'firma_trabajador_imagen', 'b2_key_firmado',
-        'hash_original', 'hash_firmado',
-        'sesion_token_trabajador', 'actualizado_en',
+        'hash_original', 'hash_firmado', 'actualizado_en',
     ])
 
     # ── Un anexo modifica el contrato recién al firmarse (Art. 11) ──────────
@@ -610,16 +620,23 @@ _TIPO_LABELS_PUBLICO = {
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
 def firma_publica_documento(request, token):
     """
     Retorna el PDF del documento para que el trabajador lo revise antes de firmar.
-    Solo requiere el token — ver el documento no constituye firma ni compromiso.
+    Exige la sesión obtenida con el RUT y el código (?sesion=): el enlace solo
+    no basta, igual que para pedir el código (un correo reenviado o una bandeja
+    compartida expondría sueldos y datos personales).
     Si la solicitud ya fue firmada, retorna el PDF firmado con certificado.
     """
     try:
         solicitud = SolicitudFirma.objects.select_related('empleado').get(token=token)
     except SolicitudFirma.DoesNotExist:
         return HttpResponse(status=404)
+
+    sesion = str(request.query_params.get('sesion', '')).strip()
+    if not sesion or not solicitud.sesion_token_trabajador or str(solicitud.sesion_token_trabajador) != sesion:
+        return Response({'error': 'Verifica tu identidad para ver el documento.'}, status=403)
 
     if solicitud.estado in ('CANCELADO', 'EXPIRADO'):
         return HttpResponse(status=410)
@@ -634,8 +651,9 @@ def firma_publica_documento(request, token):
 
     try:
         pdf_bytes = b2_client.descargar_documento(b2_key)
-    except Exception as exc:
-        return Response({'error': f'Error al obtener el documento: {exc}'}, status=500)
+    except Exception:
+        logger.exception('Firma %s: no se pudo descargar el documento', solicitud.pk)
+        return Response({'error': 'No pudimos obtener el documento. Intenta de nuevo en unos minutos.'}, status=500)
 
     tipo_label = _TIPO_LABELS_PUBLICO.get(solicitud.tipo_documento, solicitud.tipo_documento)
     apellido   = solicitud.empleado.apellido_paterno.replace(' ', '_')
@@ -649,6 +667,7 @@ def firma_publica_documento(request, token):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
 def firma_publica_rechazar(request, token):
     """
     El trabajador rechaza el documento tras verificar su identidad con OTP.

@@ -7,7 +7,7 @@ import client from '../../../api/client';
 import { AlertaError, Button, Input } from '../../j40';
 import type { Empleado } from '../../../types';
 import { capitalizar, fechaCL } from '../../../utils/formato';
-import { AFPS } from './utiles';
+import { AFPS, mensajeErrorCampos } from './utiles';
 
 type Tipo = 'texto' | 'fecha' | 'select' | 'numero' | 'correo';
 type Campo = keyof Empleado;
@@ -16,6 +16,15 @@ interface DefCampo {
   soloLectura?: boolean; mostrar?: (b: Partial<Empleado>) => boolean; nombre?: boolean;
 }
 interface DefSeccion { clave: string; titulo: string; Icono: LucideIcon; campos: DefCampo[] }
+
+/**
+ * Normaliza para comparar: el backend guarda los textos en mayúsculas al
+ * editar (perform_update), pero los valores por defecto o importados pueden
+ * venir en otra forma ("Transferencia", "Depósito", "Cuenta Corriente").
+ */
+const normal = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+const igual = (a: unknown, b: string) => normal(a) === normal(b);
+const conCuenta = (b: Partial<Empleado>) => ['TRANSFERENCIA', 'DEPOSITO'].includes(normal(b.forma_pago));
 
 const SECCIONES: DefSeccion[] = [
   { clave: 'id', titulo: 'Identificación', Icono: IdCard, campos: [
@@ -46,24 +55,31 @@ const SECCIONES: DefSeccion[] = [
   ] },
   { clave: 'prevision', titulo: 'Previsión y pago', Icono: Landmark, campos: [
     { campo: 'afp', etiqueta: 'AFP', tipo: 'select', opciones: [['', 'Sin AFP'], ...AFPS.map((a): [string, string] => [a, capitalizar(a)])] },
-    { campo: 'sistema_salud', etiqueta: 'Salud', tipo: 'select', opciones: [['FONASA', 'Fonasa'], ['ISAPRE', 'Isapre']] },
-    { campo: 'isapre', etiqueta: 'Isapre', tipo: 'select', mostrar: (b) => b.sistema_salud === 'ISAPRE', opciones: [
+    { campo: 'sistema_salud', etiqueta: 'Salud', tipo: 'select', opciones: [['', 'Sin especificar'], ['FONASA', 'Fonasa'], ['ISAPRE', 'Isapre']] },
+    { campo: 'isapre', etiqueta: 'Isapre', tipo: 'select', mostrar: (b) => igual(b.sistema_salud, 'ISAPRE'), opciones: [
       ['', 'Sin especificar'], ['01', 'Banmédica'], ['02', 'Consalud'], ['03', 'Vida Tres'], ['04', 'Colmena'], ['05', 'Cruz Blanca'],
       ['10', 'Nueva Masvida'], ['11', 'Isalud'], ['12', 'Fundación'], ['25', 'Cruz del Norte'], ['28', 'Esencial']] },
-    { campo: 'plan_isapre_uf', etiqueta: 'Plan Isapre (UF)', tipo: 'numero', mostrar: (b) => b.sistema_salud === 'ISAPRE' },
-    { campo: 'numero_fun', etiqueta: 'N° FUN (contrato Isapre)', mono: true, mostrar: (b) => b.sistema_salud === 'ISAPRE' },
+    { campo: 'plan_isapre_uf', etiqueta: 'Plan Isapre (UF)', tipo: 'numero', mostrar: (b) => igual(b.sistema_salud, 'ISAPRE') },
+    { campo: 'numero_fun', etiqueta: 'N° FUN (contrato Isapre)', mono: true, mostrar: (b) => igual(b.sistema_salud, 'ISAPRE') },
     { campo: 'tramo_asignacion_familiar', etiqueta: 'Tramo asignación familiar', tipo: 'select',
       opciones: [['D', 'Sin derecho'], ['A', 'Primer tramo (A)'], ['B', 'Segundo tramo (B)'], ['C', 'Tercer tramo (C)']] },
-    { campo: 'cargas_simples', etiqueta: 'Cargas simples', tipo: 'numero', mostrar: (b) => b.tramo_asignacion_familiar !== 'D' },
-    { campo: 'cargas_maternales', etiqueta: 'Cargas maternales', tipo: 'numero', mostrar: (b) => b.tramo_asignacion_familiar !== 'D' },
-    { campo: 'cargas_invalidas', etiqueta: 'Cargas por invalidez', tipo: 'numero', mostrar: (b) => b.tramo_asignacion_familiar !== 'D' },
+    { campo: 'cargas_simples', etiqueta: 'Cargas simples', tipo: 'numero', mostrar: (b) => !igual(b.tramo_asignacion_familiar, 'D') },
+    { campo: 'cargas_maternales', etiqueta: 'Cargas maternales', tipo: 'numero', mostrar: (b) => !igual(b.tramo_asignacion_familiar, 'D') },
+    { campo: 'cargas_invalidas', etiqueta: 'Cargas por invalidez', tipo: 'numero', mostrar: (b) => !igual(b.tramo_asignacion_familiar, 'D') },
+    // Sin opción vacía: el modelo no admite forma de pago nula (por defecto "Transferencia").
     { campo: 'forma_pago', etiqueta: 'Forma de pago', tipo: 'select', opciones: [['TRANSFERENCIA', 'Transferencia'], ['DEPOSITO', 'Depósito'], ['CHEQUE', 'Cheque'], ['EFECTIVO', 'Efectivo']] },
-    { campo: 'banco', etiqueta: 'Banco', mostrar: (b) => ['TRANSFERENCIA', 'DEPOSITO'].includes(String(b.forma_pago)) },
-    { campo: 'tipo_cuenta', etiqueta: 'Tipo de cuenta', tipo: 'select', mostrar: (b) => ['TRANSFERENCIA', 'DEPOSITO'].includes(String(b.forma_pago)),
-      opciones: [['', 'Sin especificar'], ['Cuenta Corriente', 'Cuenta corriente'], ['Cuenta Vista / RUT', 'Cuenta vista / RUT'], ['Cuenta de Ahorro', 'Cuenta de ahorro']] },
-    { campo: 'numero_cuenta', etiqueta: 'Número de cuenta', mono: true, mostrar: (b) => ['TRANSFERENCIA', 'DEPOSITO'].includes(String(b.forma_pago)) },
+    { campo: 'banco', etiqueta: 'Banco', mostrar: conCuenta },
+    // El backend guarda los textos en mayúsculas: los valores van igual.
+    { campo: 'tipo_cuenta', etiqueta: 'Tipo de cuenta', tipo: 'select', mostrar: conCuenta,
+      opciones: [['', 'Sin especificar'], ['CUENTA CORRIENTE', 'Cuenta corriente'], ['CUENTA VISTA / RUT', 'Cuenta vista / RUT'], ['CUENTA DE AHORRO', 'Cuenta de ahorro']] },
+    { campo: 'numero_cuenta', etiqueta: 'Número de cuenta', mono: true, mostrar: conCuenta },
   ] },
 ];
+
+// Etiquetas de los campos para los errores del backend (400 por campo).
+const ETIQUETAS: Record<string, string> = Object.fromEntries(
+  SECCIONES.flatMap((s) => s.campos.map((c) => [String(c.campo), c.etiqueta.replace(/ \([^)]*,[^)]*\)$/, '')])),
+);
 
 // Campos que el backend guarda sin null: vacío es '' (texto) o 0 (cantidad).
 const VACIO_NO_NULO: Partial<Record<Campo, string | number>> = {
@@ -75,7 +91,7 @@ const CONTROL = 'w-full h-10 px-3 rounded-[8px] border border-line-strong bg-sur
 function valorVisible(d: DefCampo, valor: unknown): string {
   if (valor === null || valor === undefined || valor === '') return '—';
   if (d.tipo === 'fecha') return fechaCL(String(valor));
-  if (d.tipo === 'select') return d.opciones?.find(([v]) => v === valor)?.[1] ?? String(valor);
+  if (d.tipo === 'select') return d.opciones?.find(([v]) => igual(valor, v))?.[1] ?? capitalizar(String(valor));
   if (d.tipo === 'correo') return String(valor).toLowerCase();
   if (d.nombre) return capitalizar(String(valor));
   return String(valor);
@@ -98,7 +114,13 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
   const { Icono } = seccion;
 
   const empezar = () => {
-    setBorrador(Object.fromEntries(seccion.campos.map((c) => [c.campo, empleado[c.campo] ?? ''])) as Partial<Empleado>);
+    // Los select parten en la opción equivalente aunque venga en otra forma
+    // ("Transferencia" → TRANSFERENCIA): si no, el control mostraba otra opción.
+    setBorrador(Object.fromEntries(seccion.campos.map((c) => {
+      const valor = empleado[c.campo] ?? '';
+      const opcion = c.tipo === 'select' ? c.opciones?.find(([v]) => igual(valor, v)) : undefined;
+      return [c.campo, opcion ? opcion[0] : valor];
+    })) as Partial<Empleado>);
     setError('');
     setEditando(true);
   };
@@ -111,12 +133,14 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
     try {
       await client.patch(`/empleados/${empleado.id}/`, datos);
       await queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      // El saldo de feriado depende del ingreso y de los años con otros empleadores.
+      if (seccion.campos.some((c) => c.campo === 'fecha_ingreso' || c.campo === 'anios_previos_feriado')) {
+        await queryClient.invalidateQueries({ queryKey: ['saldo-vacaciones', empleado.id] });
+      }
       setEditando(false);
       avisar(`${seccion.titulo}: cambios guardados`);
     } catch (err) {
-      const d = isAxiosError(err) ? (err.response?.data as Record<string, unknown> | undefined) : undefined;
-      const msj = d && (typeof d.error === 'string' ? d.error : Object.entries(d).map(([k, v]) => `${k}: ${[v].flat().join(' ')}`).join(' · '));
-      setError(msj || 'No pudimos guardar los cambios.');
+      setError(mensajeErrorCampos(isAxiosError(err) ? err.response?.data : undefined, ETIQUETAS, 'No pudimos guardar los cambios.'));
     } finally {
       setGuardando(false);
     }
@@ -155,6 +179,8 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
                 <select id={id} className={CONTROL} value={String(valor ?? '')}
                   onChange={(e) => setBorrador((b) => ({ ...b, [c.campo]: e.target.value }))}>
                   {c.opciones!.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                  {/* Un valor guardado que no está entre las opciones se conserva tal cual. */}
+                  {!c.opciones!.some(([v]) => v === String(valor ?? '')) && <option value={String(valor ?? '')}>{capitalizar(String(valor ?? '')) || 'Sin especificar'}</option>}
                 </select>
               ) : (
                 <Input id={id} mono={c.mono} value={String(valor ?? '')}

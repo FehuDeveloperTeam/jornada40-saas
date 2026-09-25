@@ -123,7 +123,7 @@ function CambioClave() {
 
   const requisitos: [string, boolean][] = [
     ['8 caracteres o más', nueva.length >= 8],
-    ['Al menos un número', /\d/.test(nueva)],
+    ['No solo números', Boolean(nueva) && !/^\d+$/.test(nueva)],
     ['Distinta de la actual', Boolean(nueva) && nueva !== actual],
     ['Las dos coinciden', Boolean(nueva) && nueva === repetida],
   ];

@@ -82,13 +82,15 @@ export default function Bienvenida() {
   const nombrePlan = suscripcion.data?.plan.nombre ?? registro?.plan;
   const permiteCargaMasiva = (suscripcion.data?.plan.nivel ?? planActual?.nivel ?? 1) >= NIVEL_CARGA_MASIVA;
 
-  const irAlPanel = () => {
+  /** Entra al panel con la empresa recién creada como activa. */
+  const irA = (ruta: string) => {
     if (empresaId !== null) {
       // El panel lee la empresa activa desde aquí (ver usePanel.useEmpresaActiva).
-      localStorage.setItem('empresaActivaId', String(empresaId));
-      navigate('/app');
+      try { localStorage.setItem('empresaActivaId', String(empresaId)); } catch { /* sin almacenamiento: el panel toma la primera */ }
     }
+    navigate(ruta);
   };
+  const irAlPanel = () => irA('/app');
 
   const guardarEmpresa = async () => {
     setIntentoPaso(true);
@@ -289,14 +291,14 @@ export default function Bienvenida() {
                     texto="Descarga la planilla, complétala y súbela. Validamos cada RUT antes de guardar."
                     destacada={permiteCargaMasiva}
                     bloqueo={permiteCargaMasiva ? undefined : 'Disponible desde el plan Pyme'}
-                    onClick={irAlPanel}
+                    onClick={() => irA('/app/trabajadores/importar')}
                   />
                   <OpcionEquipo
                     icono={<UserPlus className="size-[26px]" strokeWidth={2} />}
                     titulo="Agregar uno por uno"
                     texto="Ideal si tienes pocos trabajadores o quieres partir con uno de prueba."
                     destacada={!permiteCargaMasiva}
-                    onClick={irAlPanel}
+                    onClick={() => irA('/app/trabajadores')}
                   />
                 </div>
                 <div className="flex gap-2.5 items-center p-3.5 rounded-j40-card bg-surface border border-line text-[13px] text-fg-2">

@@ -5,16 +5,20 @@ import { DescargaExpedientes } from '../../components/app/DescargaExpedientes';
 import { Button, Chip, SegmentedControl } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { estadoTrabajador, TIPO_CONTRATO } from '../../components/app/trabajador';
-import { useVacacionesEmpresa } from '../../hooks/usePanel';
+import { useIndicadores, useVacacionesEmpresa } from '../../hooks/usePanel';
 import type { Empleado, VacacionEmpleado } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLocal, iniciales } from '../../utils/formato';
-import { jornadaMaximaVigente } from '../../utils/ley40';
 
 /** "44 h", o "Art. 22" para quien está excluido del límite de jornada. */
 function jornadaCorta(t: Empleado, horas: number): string {
   if (t.contrato_activo?.tipo_jornada === 'ART_22') return 'Art. 22';
   return horas ? `${horas} h` : '—';
+}
+
+/** "Desde el 12-09-2026" para un desvinculado (la fecha la marca el backend al desactivarlo). */
+function desvinculadoDesde(t: Empleado): string | null {
+  return !t.activo && t.fecha_desvinculacion ? `desde el ${fechaCL(t.fecha_desvinculacion)}` : null;
 }
 
 type Filtro = 'todos' | 'alertas' | 'vacaciones' | 'desvinculados';
@@ -43,7 +47,9 @@ export default function Trabajadores() {
   const filtro = (params.get('filtro') as Filtro) || 'todos';
   const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2);
   const enVacaciones = useMemo(() => deVacacionesHoy(vacaciones.data), [vacaciones.data]);
-  const maximo = jornadaMaximaVigente();
+  const indicadores = useIndicadores();
+  // Máximo legal: el que informa el backend en cada contrato o en /indicadores/.
+  const maximoDe = (t: Empleado) => t.contrato_activo?.jornada_maxima_vigente ?? indicadores.data?.jornada_maxima_vigente;
 
   // "Vigentes" es la vista por defecto; los desvinculados tienen la suya.
   const vigentes = trabajadores.filter((t) => t.activo);
@@ -84,6 +90,7 @@ export default function Trabajadores() {
       'Horas semanales': Number(t.contrato_activo?.horas_semanales ?? t.horas_laborales),
       'Fecha de ingreso': t.fecha_ingreso, 'Sueldo base': t.contrato_activo?.sueldo_base ?? t.sueldo_base,
       Estado: estadoTrabajador(t, enVacaciones.has(t.id)).texto,
+      'Fecha de desvinculación': t.fecha_desvinculacion ?? '',
     }));
     const hoja = XLSX.utils.json_to_sheet(filas);
     const libro = XLSX.utils.book_new();
@@ -165,7 +172,8 @@ export default function Trabajadores() {
           </div>
           {lista.map((t) => {
             const horas = Number(t.contrato_activo?.horas_semanales ?? t.horas_laborales) || 0;
-            const excede = t.contrato_activo?.tipo_jornada !== 'ART_22' && horas > maximo;
+            const maximo = maximoDe(t);
+            const excede = t.contrato_activo?.tipo_jornada !== 'ART_22' && maximo !== undefined && horas > maximo;
             const estado = estadoTrabajador(t, enVacaciones.has(t.id));
             const alerta = alertaDe(t);
             return (
@@ -187,8 +195,9 @@ export default function Trabajadores() {
                 </span>
                 <span role="cell" className="text-fg-2 j40-num">{fechaCL(t.fecha_ingreso)}</span>
                 <span role="cell" className="text-right font-medium j40-num">{clp(t.contrato_activo?.sueldo_base ?? t.sueldo_base)}</span>
-                <span role="cell" className="flex gap-1.5 items-center min-w-0">
+                <span role="cell" className="flex gap-1.5 items-center min-w-0 flex-wrap">
                   <Chip tono={estado.tono}>{estado.texto}</Chip>
+                  {desvinculadoDesde(t) && <span className="text-[11.5px] text-fg-3 j40-num">{desvinculadoDesde(t)}</span>}
                   {alerta && (
                     <span title={alerta.texto} className="inline-flex">
                       <CircleAlert className={cn('size-[18px] shrink-0', alerta.alta ? 'text-danger' : 'text-warn')} strokeWidth={2} aria-hidden />
@@ -211,7 +220,8 @@ export default function Trabajadores() {
       <div className="min-[720px]:hidden flex flex-col gap-2.5">
         {lista.map((t) => {
           const horas = Number(t.contrato_activo?.horas_semanales ?? t.horas_laborales) || 0;
-          const excede = t.contrato_activo?.tipo_jornada !== 'ART_22' && horas > maximo;
+          const maximo = maximoDe(t);
+          const excede = t.contrato_activo?.tipo_jornada !== 'ART_22' && maximo !== undefined && horas > maximo;
           const estado = estadoTrabajador(t, enVacaciones.has(t.id));
           const alerta = alertaDe(t);
           return (
@@ -229,6 +239,7 @@ export default function Trabajadores() {
                 <span className="j40-mono text-[12px] text-fg-2 mr-1">{t.rut}</span>
                 <span className={cn('text-[11.5px] font-semibold px-2 py-0.5 rounded-[6px]', excede ? 'bg-danger-soft text-danger' : 'bg-sunken text-fg-2')}>{jornadaCorta(t, horas)}</span>
                 <Chip tono={estado.tono}>{estado.texto}</Chip>
+                {desvinculadoDesde(t) && <span className="text-[11.5px] text-fg-3 j40-num">{desvinculadoDesde(t)}</span>}
                 {alerta && <Chip tono={alerta.alta ? 'peligro' : 'aviso'}>{alerta.alta ? 'Jornada' : alerta.texto}</Chip>}
               </span>
             </Link>

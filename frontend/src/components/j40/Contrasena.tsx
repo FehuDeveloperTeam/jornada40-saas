@@ -1,7 +1,7 @@
 import { forwardRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { cn } from '../../utils/cn';
-import { ETIQUETAS_PUNTAJE, puntajeContrasena } from '../../utils/contrasena';
+import { ETIQUETAS_PUNTAJE, problemaContrasena, puntajeContrasena } from '../../utils/contrasena';
 import type { InputProps } from './Field';
 
 /**
@@ -26,7 +26,7 @@ export const InputContrasena = forwardRef<HTMLInputElement, Omit<InputProps, 'ty
           ref={ref}
           type={visible ? 'text' : 'password'}
           aria-invalid={invalido || undefined}
-          className="flex-1 min-w-0 border-0 outline-none bg-transparent text-fg text-[15px] placeholder:text-fg-3"
+          className="flex-1 min-w-0 border-0 outline-none bg-transparent text-fg text-[16px] placeholder:text-fg-3"
           {...resto}
         />
         <button
@@ -46,9 +46,16 @@ export const InputContrasena = forwardRef<HTMLInputElement, Omit<InputProps, 'ty
 const COLOR_BARRA = ['', 'bg-danger', 'bg-warn', 'bg-ok', 'bg-ok'];
 const COLOR_TEXTO = ['text-fg-3', 'text-danger', 'text-warn', 'text-ok', 'text-ok'];
 
-/** Medidor de cuatro segmentos bajo el campo de contraseña nueva. */
+/**
+ * Medidor de cuatro segmentos bajo el campo de contraseña nueva. Si la
+ * contraseña no cumple la regla (utils/contrasena.ts), no pasa de "débil" y
+ * dice qué le falta: "12345678" no puede verse "Aceptable".
+ */
 export function MedidorContrasena({ clave, id }: { clave: string; id?: string }) {
-  const puntaje = clave ? puntajeContrasena(clave) : 0;
+  const problema = clave ? problemaContrasena(clave) : null;
+  const bruto = clave ? puntajeContrasena(clave) : 0;
+  const puntaje = problema ? Math.min(1, bruto) : bruto;
+  const etiqueta = !clave || clave.length < 8 ? ETIQUETAS_PUNTAJE[0] : problema ?? ETIQUETAS_PUNTAJE[puntaje];
   return (
     <div className="flex flex-col gap-1.5">
       <div className="grid grid-cols-4 gap-1 mt-0.5" aria-hidden>
@@ -60,7 +67,7 @@ export function MedidorContrasena({ clave, id }: { clave: string; id?: string })
         ))}
       </div>
       <span id={id} aria-live="polite" className={cn('text-[12px]', COLOR_TEXTO[puntaje])}>
-        {ETIQUETAS_PUNTAJE[puntaje]}
+        {etiqueta}
       </span>
     </div>
   );

@@ -18,10 +18,13 @@ const ESTADO: Record<string, { texto: string; tono: TonoChip }> = {
 
 const dias = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} ${n === 1 ? 'día' : 'días'}`;
 
-export function Vacaciones({ empleado, nivel, vacaciones, saldo, firmas, avisar }: {
-  empleado: Empleado; nivel: number; vacaciones: VacacionEmpleado[]; saldo: SaldoVacaciones | undefined;
+export function Vacaciones({ empleado, nivel, cargandoPlan, vacaciones, saldo, firmas, avisar }: {
+  empleado: Empleado; nivel: number; cargandoPlan?: boolean; vacaciones: VacacionEmpleado[]; saldo: SaldoVacaciones | undefined;
   firmas: SolicitudFirma[]; avisar: (t: string) => void;
 }) {
+  if (cargandoPlan) {
+    return <Seccion titulo="Vacaciones"><p className="px-[18px] py-5 text-[13px] text-fg-3" role="status">Cargando…</p></Seccion>;
+  }
   if (nivel < 2) {
     return (
       <Seccion titulo="Vacaciones">

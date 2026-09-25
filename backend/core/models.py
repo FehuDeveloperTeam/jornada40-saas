@@ -844,6 +844,23 @@ class SolicitudFirma(models.Model):
             self.expira_en = timezone.now() + timezone.timedelta(days=7)
         super().save(*args, **kwargs)
 
+    # Una firma en PROCESANDO que no terminó en este plazo se cortó a medias
+    # (el proceso murió): vuelve a PENDIENTE para que se pueda reintentar.
+    MINUTOS_PROCESANDO = 10
+
+    @classmethod
+    def actualizar_estados(cls, queryset=None):
+        """Marca EXPIRADO lo pendiente cuyo plazo venció y libera lo que quedó
+        colgado en PROCESANDO. Se llama antes de leer estados, así el panel y
+        el enlace del trabajador no muestran como pendiente algo vencido."""
+        qs = cls.objects.all() if queryset is None else queryset
+        ahora = timezone.now()
+        colgadas = qs.filter(estado='PROCESANDO',
+                             actualizado_en__lt=ahora - timezone.timedelta(minutes=cls.MINUTOS_PROCESANDO))
+        colgadas.filter(expira_en__lt=ahora).update(estado='EXPIRADO', actualizado_en=ahora)
+        colgadas.update(estado='PENDIENTE', actualizado_en=ahora)
+        qs.filter(estado='PENDIENTE', expira_en__lt=ahora).update(estado='EXPIRADO', actualizado_en=ahora)
+
     def __str__(self):
         return f"{self.tipo_documento} — {self.empleado} [{self.estado}]"
 

@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import client from './api/client';
-import { J40Root } from './components/j40';
+import { Button, J40Root } from './components/j40';
 
 // Sitio público y acceso: rediseño (paso E). El resto sigue con el diseño
 // anterior hasta su propio paso de la migración.
@@ -79,38 +80,37 @@ const RootRoute = () => {
   return <Landing />;
 };
 
+type EstadoSesion = 'verificando' | 'ok' | 'sin-sesion' | 'error';
+
+/**
+ * Solo un 401/403 significa que no hay sesión (el cliente ya intentó
+ * renovarla). Un 429, un 5xx o la red caída durante un despliegue no deben
+ * sacar al usuario: se muestra un aviso con reintentar.
+ */
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [estado, setEstado] = useState<EstadoSesion>('verificando');
+  const [intento, setIntento] = useState(0);
+  const { pathname, search } = useLocation();
 
   useEffect(() => {
-    const verifySession = async () => {
-      try {
-        // Le preguntamos a Django si nuestra cookie actual es válida
-        await client.get('/auth/user/');
-        // Si responde 200 OK, la sesión es real y segura
-        setIsAuthenticated(true);
-      } catch {
-        // Si responde 401, la cookie expiró o no existe
-        setIsAuthenticated(false);
-      }
-    };
+    client.get('/auth/user/')
+      .then(() => setEstado('ok'))
+      .catch((err) => setEstado(isAxiosError(err) && [401, 403].includes(err.response?.status ?? 0) ? 'sin-sesion' : 'error'));
+  }, [intento]);
 
-    verifySession();
-  }, []);
-
-  // Mientras le preguntamos al backend, mostramos una pantalla de carga
-  if (isAuthenticated === null) {
+  if (estado === 'verificando') return <PageLoader />;
+  if (estado === 'sin-sesion') return <Navigate to={`/login?volver=${encodeURIComponent(pathname + search)}`} replace />;
+  if (estado === 'error') {
     return (
-      <PageLoader />
+      <J40Root className="min-h-dvh grid place-items-center bg-canvas px-4">
+        <div className="max-w-sm text-center flex flex-col items-center gap-3">
+          <p className="text-[16px] font-semibold">No pudimos conectar con Jornada40</p>
+          <p className="text-[14px] text-fg-2">Puede ser tu conexión o una actualización en curso. Espera un momento e intenta de nuevo.</p>
+          <Button onClick={() => { setEstado('verificando'); setIntento((n) => n + 1); }}>Reintentar</Button>
+        </div>
+      </J40Root>
     );
   }
-
-  // Si el backend dijo que no, lo mandamos al login
-  if (isAuthenticated === false) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  // Si el backend dijo que sí, lo dejamos entrar a la ruta protegida
   return children;
 };
 

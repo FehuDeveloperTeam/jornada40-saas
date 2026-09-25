@@ -32,11 +32,18 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     def reactivar(self, request, pk=None):
         try:
             empresa = Empresa.objects.get(pk=pk, owner=request.user)
-            empresa.activo = True
-            empresa.save()
-            return Response({"mensaje": "Empresa reactivada correctamente"}, status=status.HTTP_200_OK)
         except Empresa.DoesNotExist:
             return Response({"error": "Empresa no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+        if not empresa.activo:
+            # Reactivar ocupa un cupo igual que crear una empresa nueva.
+            plan = _plan_activo(request.user)
+            if plan and Empresa.objects.filter(owner=request.user, activo=True).count() >= plan.max_empresas:
+                return Response({'error': f'Tu plan {plan.nombre} permite administrar un máximo de {plan.max_empresas} '
+                                          f'empresas. Desactiva otra o actualiza tu plan para reactivar esta.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            empresa.activo = True
+            empresa.save()
+        return Response({"mensaje": "Empresa reactivada correctamente"}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['patch'], url_path='configurar-firma')
     def configurar_firma(self, request, pk=None):

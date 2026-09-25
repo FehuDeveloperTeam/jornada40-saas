@@ -343,7 +343,7 @@ function Pie() {
         <nav aria-label="Legal" className="flex gap-5 flex-wrap">
           <Link to="/terminos" className="text-fg-2">Términos y condiciones</Link>
           <Link to="/terminos" className="text-fg-2">Privacidad</Link>
-          <a href="mailto:contacto@jornada40.cl" className="text-fg-2">contacto@jornada40.cl</a>
+          <a href="mailto:contacto.jornada40@gmail.com" className="text-fg-2">contacto.jornada40@gmail.com</a>
         </nav>
       </div>
     </footer>

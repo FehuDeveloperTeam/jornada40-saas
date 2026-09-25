@@ -71,16 +71,20 @@ export default function Firma() {
       })
       .catch((err) => setErrorCarga(isAxiosError(err) && err.response?.status === 404
         ? 'Este enlace de firma no existe. Revisa que lo hayas copiado completo.'
-        : 'No pudimos cargar el documento. Intenta de nuevo en un momento.'));
+        : isAxiosError(err) && err.response?.status === 429
+          ? 'Se abrió este enlace demasiadas veces en poco rato. Espera una hora y vuelve a intentarlo.'
+          : 'No pudimos cargar el documento. Intenta de nuevo en un momento.'));
   }, [token]);
 
   const verificado = (s: string) => { guardarSesion(token, s); setSesion(s); setPaso('revisar'); };
-  const terminar = (c: Comprobante) => { guardarSesion(token, null); setComprobante(c); };
+  // La sesión se conserva tras firmar: con ella se descarga el PDF firmado.
+  const terminar = (c: Comprobante) => setComprobante(c);
+  const sesionVencida = useCallback(() => { guardarSesion(token, null); setSesion(null); setPaso('identidad'); }, [token]);
 
   let cuerpo: ReactNode;
   if (errorCarga) cuerpo = <Aviso Icono={CircleX} tono="peligro" titulo="Enlace no disponible" texto={errorCarga} />;
   else if (!info) cuerpo = <p className="py-16 text-center text-[14px] text-fg-3" role="status">Cargando…</p>;
-  else if (comprobante) cuerpo = <Listo token={token} info={info} comprobante={comprobante} />;
+  else if (comprobante) cuerpo = <Listo token={token} info={info} comprobante={comprobante} sesion={sesion} />;
   else if (info.estado === 'RECHAZADO') cuerpo = <Aviso Icono={CircleX} tono="peligro" titulo="Documento rechazado" texto="Rechazaste este documento. Tu empleador ya fue notificado." />;
   else if (info.estado === 'EXPIRADO') cuerpo = <Aviso Icono={Clock} tono="aviso" titulo="El enlace venció" texto="Pide a tu empleador que te envíe el documento de nuevo." />;
   else if (info.estado === 'CANCELADO') cuerpo = <Aviso Icono={CircleX} tono="neutro" titulo="Solicitud cancelada" texto="Tu empleador canceló esta solicitud de firma. No necesitas hacer nada." />;
@@ -92,9 +96,9 @@ export default function Firma() {
         {paso === 'identidad' && <Identidad token={token} info={info} rut={rut} setRut={setRut} onEnviado={() => setPaso('codigo')} />}
         {paso === 'codigo' && <Codigo token={token} info={info} rut={rut} onVerificado={verificado} onVolver={() => setPaso('identidad')} />}
         {paso === 'revisar' && sesion && <Revisar token={token} info={info} sesion={sesion} onAceptar={() => setPaso('firmar')}
-          onRechazado={() => { guardarSesion(token, null); setInfo({ ...info, estado: 'RECHAZADO' }); }} />}
+          onRechazado={() => { guardarSesion(token, null); setInfo({ ...info, estado: 'RECHAZADO' }); }} onSesionVencida={sesionVencida} />}
         {paso === 'firmar' && sesion && <Firmar token={token} sesion={sesion} onVolver={() => setPaso('revisar')} onFirmado={terminar}
-          onSesionVencida={() => { guardarSesion(token, null); setSesion(null); setPaso('identidad'); }} />}
+          onSesionVencida={sesionVencida} />}
       </>
     );
   }
@@ -281,8 +285,8 @@ function Codigo({ token, info, rut, onVerificado, onVolver }: {
   );
 }
 
-function Revisar({ token, info, sesion, onAceptar, onRechazado }: {
-  token: string; info: Info; sesion: string; onAceptar: () => void; onRechazado: () => void;
+function Revisar({ token, info, sesion, onAceptar, onRechazado, onSesionVencida }: {
+  token: string; info: Info; sesion: string; onAceptar: () => void; onRechazado: () => void; onSesionVencida: () => void;
 }) {
   const [pdf, setPdf] = useState<ArrayBuffer | null>(null);
   const [errorPdf, setErrorPdf] = useState('');
@@ -291,10 +295,13 @@ function Revisar({ token, info, sesion, onAceptar, onRechazado }: {
   const [rechazando, setRechazando] = useState(false);
 
   useEffect(() => {
-    client.get<ArrayBuffer>(`/firma-publica/${token}/documento/`, { responseType: 'arraybuffer' })
+    client.get<ArrayBuffer>(`/firma-publica/${token}/documento/`, { params: { sesion }, responseType: 'arraybuffer' })
       .then(({ data }) => setPdf(data))
-      .catch(() => setErrorPdf('No pudimos obtener el documento. Intenta de nuevo en un momento.'));
-  }, [token]);
+      .catch((err) => {
+        if (isAxiosError(err) && err.response?.status === 403) onSesionVencida();
+        else setErrorPdf('No pudimos obtener el documento. Intenta de nuevo en un momento.');
+      });
+  }, [token, sesion, onSesionVencida]);
 
   const descargar = () => {
     if (!pdf) return;
@@ -324,12 +331,15 @@ function Revisar({ token, info, sesion, onAceptar, onRechazado }: {
         <Button tamano="lg" bloque disabled={!acepto} onClick={onAceptar}>Continuar a la firma</Button>
         <button type="button" onClick={() => setRechazando(true)} className="text-[13px] text-danger self-center">No estoy de acuerdo: rechazar</button>
       </Tarjeta>
-      {rechazando && <Rechazo token={token} sesion={sesion} onCerrar={() => setRechazando(false)} onRechazado={onRechazado} />}
+      {rechazando && <Rechazo token={token} sesion={sesion} onCerrar={() => setRechazando(false)} onRechazado={onRechazado}
+        onSesionVencida={onSesionVencida} />}
     </>
   );
 }
 
-function Rechazo({ token, sesion, onCerrar, onRechazado }: { token: string; sesion: string; onCerrar: () => void; onRechazado: () => void }) {
+function Rechazo({ token, sesion, onCerrar, onRechazado, onSesionVencida }: {
+  token: string; sesion: string; onCerrar: () => void; onRechazado: () => void; onSesionVencida: () => void;
+}) {
   const [motivo, setMotivo] = useState('');
   const [otro, setOtro] = useState('');
   const [error, setError] = useState('');
@@ -343,6 +353,7 @@ function Rechazo({ token, sesion, onCerrar, onRechazado }: { token: string; sesi
       await client.post(`/firma-publica/${token}/rechazar/`, { sesion_token: sesion, motivo: texto });
       onRechazado();
     } catch (err) {
+      if (isAxiosError(err) && err.response?.status === 403) { onSesionVencida(); return; }
       setError(mensaje(err, 'No pudimos registrar el rechazo.'));
       setEnviando(false);
     }
@@ -408,7 +419,7 @@ function Firmar({ token, sesion, onVolver, onFirmado, onSesionVencida }: {
   );
 }
 
-function Listo({ token, info, comprobante }: { token: string; info: Info; comprobante: Comprobante }) {
+function Listo({ token, info, comprobante, sesion }: { token: string; info: Info; comprobante: Comprobante; sesion: string | null }) {
   const [descargando, setDescargando] = useState(false);
   const [error, setError] = useState('');
 
@@ -416,7 +427,7 @@ function Listo({ token, info, comprobante }: { token: string; info: Info; compro
     setDescargando(true);
     setError('');
     try {
-      const { data } = await client.get<Blob>(`/firma-publica/${token}/documento/`, { responseType: 'blob' });
+      const { data } = await client.get<Blob>(`/firma-publica/${token}/documento/`, { params: { sesion }, responseType: 'blob' });
       guardarArchivo(data, `${info.tipo_documento_label}_firmado.pdf`);
     } catch {
       setError('No pudimos descargar el PDF firmado. Intenta de nuevo en un momento.');
@@ -459,9 +470,13 @@ function Listo({ token, info, comprobante }: { token: string; info: Info; compro
         )}
       </dl>
       {error && <AlertaError>{error}</AlertaError>}
-      <Button tamano="lg" bloque onClick={descargar} cargando={descargando} iconoInicio={<Download className="size-5" strokeWidth={2} />}>
-        Descargar PDF firmado
-      </Button>
+      {sesion ? (
+        <Button tamano="lg" bloque onClick={descargar} cargando={descargando} iconoInicio={<Download className="size-5" strokeWidth={2} />}>
+          Descargar PDF firmado
+        </Button>
+      ) : (
+        <p className="text-[13px] text-fg-2 text-center">El PDF firmado está en el correo que te enviamos al firmar.</p>
+      )}
     </Tarjeta>
   );
 }

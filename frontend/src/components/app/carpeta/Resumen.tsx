@@ -13,7 +13,7 @@ import type { DocumentoReciente } from './documentos';
 
 export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, cargando, avisar }: {
   empleado: Empleado; liquidaciones: Liquidacion[]; firmas: SolicitudFirma[]; documentos: DocumentoReciente[];
-  maximo: number; cargando: boolean; avisar: (t: string) => void;
+  maximo: number | undefined; cargando: boolean; avisar: (t: string) => void;
 }) {
   const contrato = empleado.contrato_activo;
   const ultima = [...liquidaciones].sort((a, b) => b.anio - a.anio || b.mes - a.mes)[0];
@@ -66,10 +66,10 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
           ) : (
             <>
               <div className="flex items-baseline gap-2">
-                <span className={horas > maximo ? 'text-[30px] font-semibold tracking-[-0.02em] text-danger' : 'text-[30px] font-semibold tracking-[-0.02em] text-brand-text'}>{horas} h</span>
+                <span className={maximo !== undefined && horas > maximo ? 'text-[30px] font-semibold tracking-[-0.02em] text-danger' : 'text-[30px] font-semibold tracking-[-0.02em] text-brand-text'}>{horas} h</span>
                 <span className="text-[13px] text-fg-3">semanales · {TIPO_JORNADA[contrato.tipo_jornada] ?? contrato.tipo_jornada}</span>
               </div>
-              <BarraJornada horas={horas} maximo={maximo} />
+              {maximo !== undefined && <BarraJornada horas={horas} maximo={maximo} />}
             </>
           )}
           <ListaAvisos avisos={contrato?.avisos_jornada} compacto />

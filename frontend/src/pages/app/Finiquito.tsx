@@ -11,11 +11,12 @@ import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { lista } from '../../api/lista';
 import type { RespuestaLista } from '../../api/lista';
-import { rutaAccion } from '../../hooks/usePanel';
+import { rutaAccion, useSuscripcion } from '../../hooks/usePanel';
+import { useFiniquitos } from '../../components/app/carpeta/documentos';
 import type { Finiquito as TFiniquito, SimulacionFiniquito, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { CAUSALES } from '../../components/app/causales';
-import { antiguedad, capitalizar, clp, decimalCL, fechaCL, iniciales } from '../../utils/formato';
+import { antiguedad, capitalizar, clp, decimalCL, fechaCL, hoyISO, iniciales } from '../../utils/formato';
 
 function notaLegal(causal: string): string {
   if (causal.startsWith('161') || causal === '163bis') {
@@ -45,8 +46,6 @@ interface Formulario {
   otros_descuentos: string;
 }
 
-const hoyISO = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' });
-
 function desde(f: TFiniquito | undefined): Formulario {
   return {
     causal_articulo: f?.causal_articulo ?? '',
@@ -61,19 +60,18 @@ function desde(f: TFiniquito | undefined): Formulario {
 
 export default function Finiquito() {
   const { id } = useParams();
-  const { trabajadores, nivel, avisar } = usePanelContexto();
+  const { empresa, trabajadores, cargandoTrabajadores, nivel, avisar } = usePanelContexto();
+  const { cargando: cargandoPlan } = useSuscripcion();
   const empleado = trabajadores.find((t) => t.id === Number(id));
-  const finiquitos = useQuery({
-    queryKey: ['finiquitos', Number(id)],
-    queryFn: async () => lista((await client.get<RespuestaLista<TFiniquito>>(`/finiquitos/?empleado=${id}`)).data),
-    enabled: Boolean(empleado) && nivel >= 2,
-  });
+  const finiquitos = useFiniquitos(empleado?.id);
   const firmas = useQuery({
     queryKey: ['firmas', Number(id)],
     queryFn: async () => lista((await client.get<RespuestaLista<SolicitudFirma>>(`/firmas/?empleado_id=${id}`)).data),
     enabled: Boolean(empleado),
   });
 
+  // Mientras se lee el plan no se muestra el bloqueo (el nivel parte en 1).
+  if (cargandoPlan) return <Marco id={id}><p className="text-[14px] text-fg-3" role="status">Cargando…</p></Marco>;
   if (nivel < 2) {
     return (
       <Marco id={id}>
@@ -85,7 +83,19 @@ export default function Finiquito() {
       </Marco>
     );
   }
-  if (!empleado || finiquitos.isLoading) return <Marco id={id}><p className="text-[14px] text-fg-3" role="status">Cargando…</p></Marco>;
+  if (!empleado) {
+    return (
+      <div className="max-w-[1280px] mx-auto flex flex-col gap-4 items-start">
+        <Link to="/app/trabajadores" className="inline-flex items-center gap-1.5 text-[13px] text-fg-2">
+          <ArrowLeft className="size-4" strokeWidth={2} aria-hidden />Trabajadores
+        </Link>
+        <p className="text-[14px] text-fg-2" role="status">
+          {cargandoTrabajadores ? 'Cargando…' : `No encontramos este trabajador en ${capitalizar(empresa.nombre_legal)}.`}
+        </p>
+      </div>
+    );
+  }
+  if (finiquitos.isLoading) return <Marco id={id}><p className="text-[14px] text-fg-3" role="status">Cargando…</p></Marco>;
 
   const ultimo = finiquitos.data?.[0];
   return <Editor key={ultimo?.id ?? 'nuevo'} empleadoId={empleado.id} existente={ultimo} firmas={firmas.data ?? []} avisar={avisar} />;
@@ -113,11 +123,14 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
   const [error, setError] = useState('');
 
   const firma = existente ? firmas.filter((s) => s.finiquito === existente.id).sort((a, b) => b.enviado_en.localeCompare(a.enviado_en))[0] : undefined;
-  const bloqueado = firma?.estado === 'FIRMADO' || firma?.estado === 'PENDIENTE';
+  // PROCESANDO: el trabajador ya firmó y se está sellando el PDF; se trata como en firma.
+  const enFirma = firma?.estado === 'PENDIENTE' || firma?.estado === 'PROCESANDO';
+  const bloqueado = firma?.estado === 'FIRMADO' || enFirma;
   const estado: { texto: string; tono: TonoChip } = !existente ? { texto: 'Nuevo', tono: 'neutro' }
     : firma?.estado === 'FIRMADO' ? { texto: 'Firmado', tono: 'ok' }
-      : firma?.estado === 'PENDIENTE' ? { texto: 'En firma', tono: 'aviso' }
-        : { texto: 'Borrador', tono: 'marca' };
+      : firma?.estado === 'PROCESANDO' ? { texto: 'Procesando firma', tono: 'aviso' }
+        : firma?.estado === 'PENDIENTE' ? { texto: 'En firma', tono: 'aviso' }
+          : { texto: 'Borrador', tono: 'marca' };
   const paso = !existente ? 0 : firma?.estado === 'FIRMADO' ? 3 : firma ? 2 : 1;
 
   const cambiar = <K extends keyof Formulario>(k: K, v: Formulario[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -214,7 +227,9 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
       {bloqueado && (
         <div className="flex gap-2.5 items-start rounded-[10px] bg-warn-soft text-warn px-3.5 py-3 text-[13px]">
           <Lock className="size-4 mt-0.5 shrink-0" strokeWidth={2} aria-hidden />
-          {firma?.estado === 'FIRMADO' ? 'El trabajador firmó este finiquito: ya no se puede modificar.' : 'El finiquito está en firma. Cancela la solicitud en Firma electrónica para modificarlo.'}
+          {firma?.estado === 'FIRMADO' ? 'El trabajador firmó este finiquito: ya no se puede modificar.'
+            : firma?.estado === 'PROCESANDO' ? 'El trabajador ya firmó y estamos generando el documento firmado. En unos segundos queda listo.'
+              : 'El finiquito está en firma. Cancela la solicitud en Firma electrónica para modificarlo.'}
         </div>
       )}
 
@@ -308,12 +323,12 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
                 {f.modalidad === 'PRESENCIAL' ? 'Descargar para ratificar' : 'Descargar PDF'}
               </Button>
             )}
-            {existente && f.modalidad === 'ELECTRONICO' && !firma?.estado?.match(/FIRMADO|PENDIENTE/) && (
+            {existente && f.modalidad === 'ELECTRONICO' && firma?.estado !== 'FIRMADO' && !enFirma && (
               <Button variante="secundario" onClick={enviarAFirma} cargando={guardando === 'firma'} iconoInicio={<Send className="size-4" strokeWidth={2} />}>
                 Enviar a firma
               </Button>
             )}
-            {firma?.estado === 'PENDIENTE' && <Link to="/app/firmas" className="text-[12.5px] font-medium text-center">Ver la solicitud de firma</Link>}
+            {enFirma && <Link to="/app/firmas" className="text-[12.5px] font-medium text-center">Ver la solicitud de firma</Link>}
           </div>
         </aside>
       </div>

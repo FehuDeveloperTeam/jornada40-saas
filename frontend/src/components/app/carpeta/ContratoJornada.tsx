@@ -27,7 +27,7 @@ function horasDelDia(entrada: string, salida: string, colacion: number): number 
 const horasTexto = (h: number) => `${Number.isInteger(h) ? h : h.toFixed(1).replace('.', ',')} h`;
 
 export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
-  empleado: Empleado; firmas: SolicitudFirma[]; maximo: number; avisar: (t: string) => void;
+  empleado: Empleado; firmas: SolicitudFirma[]; maximo: number | undefined; avisar: (t: string) => void;
 }) {
   const contrato = empleado.contrato_activo;
   if (!contrato) {
@@ -42,11 +42,17 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
   }
 
   const horas = Number(contrato.horas_semanales);
-  const esOrdinaria = contrato.tipo_jornada === 'ORDINARIA';
+  // Las jornadas ordinaria y parcial se pactan con horario (igual que en el editor).
+  const conDistribucion = contrato.tipo_jornada === 'ORDINARIA' || contrato.tipo_jornada === 'PARCIAL';
+  const esArt22 = contrato.tipo_jornada === 'ART_22';
   const horario = contrato.distribucion_horario ?? {};
   const dias = DIAS.map(([clave, nombre]) => ({ clave, nombre, d: horario[clave] }));
-  const conHorario = esOrdinaria && dias.some((x) => x.d?.activo);
+  const conHorario = conDistribucion && dias.some((x) => x.d?.activo);
   const totalHorario = dias.reduce((s, x) => s + (x.d?.activo ? horasDelDia(x.d.entrada, x.d.salida, x.d.colacion) : 0), 0);
+
+  const firmaContrato = firmaDe(firmas, 'contrato', contrato.id, 'CONTRATO');
+  // Firmado o en firma: las condiciones solo cambian con un anexo (Art. 11).
+  const condicionesFijas = ['FIRMADO', 'PENDIENTE', 'PROCESANDO'].includes(firmaContrato?.estado ?? '');
 
   const pdf = async () => {
     const error = await descargar(`/contratos/${contrato.id}/descargar_contrato/`, `Contrato_${empleado.rut}.pdf`);
@@ -55,7 +61,7 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
 
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-5 items-start">
-      <Seccion titulo="Condiciones del contrato" accion={<ChipFirma firma={firmaDe(firmas, 'contrato', contrato.id, 'CONTRATO')} />}>
+      <Seccion titulo="Condiciones del contrato" accion={<ChipFirma firma={firmaContrato} />}>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 p-[18px]">
           <Dato t="Tipo" v={TIPO_CONTRATO[contrato.tipo_contrato] ?? contrato.tipo_contrato} />
           <Dato t="Cargo" v={capitalizar(contrato.cargo) || '—'} />
@@ -71,7 +77,7 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
           <Button variante="secundario" className="h-9" onClick={pdf} iconoInicio={<Download className="size-4" strokeWidth={2} />}>
             Descargar contrato
           </Button>
-          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')}>Editar contrato</BotonEnlace>
+          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')}>{condicionesFijas ? 'Ver contrato' : 'Editar contrato'}</BotonEnlace>
           <BotonEnlace a={rutaAccion(empleado.id, 'anexo')}>Crear anexo</BotonEnlace>
         </div>
       </Seccion>
@@ -79,16 +85,17 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
       <Seccion titulo="Jornada">
         <div className="p-[18px] flex flex-col gap-4">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className={horas > maximo && contrato.tipo_jornada !== 'ART_22'
+            <span className={maximo !== undefined && horas > maximo && !esArt22
               ? 'text-[30px] font-semibold tracking-[-0.02em] text-danger'
               : 'text-[30px] font-semibold tracking-[-0.02em] text-brand-text'}>
-              {contrato.tipo_jornada === 'ART_22' ? 'Art. 22' : horasTexto(horas)}
+              {esArt22 ? 'Art. 22' : horasTexto(horas)}
             </span>
             <span className="text-[13px] text-fg-3">
-              {TIPO_JORNADA[contrato.tipo_jornada] ?? contrato.tipo_jornada} · máximo legal vigente {maximo} h
+              {TIPO_JORNADA[contrato.tipo_jornada] ?? contrato.tipo_jornada}
+              {esArt22 ? ' · sin límite de jornada' : maximo !== undefined ? ` · máximo legal vigente ${maximo} h` : ''}
             </span>
           </div>
-          {contrato.tipo_jornada !== 'ART_22' && <BarraJornada horas={horas} maximo={maximo} />}
+          {!esArt22 && maximo !== undefined && <BarraJornada horas={horas} maximo={maximo} />}
           <Link to={rutaAccion(empleado.id, 'anexo', 'horas_semanales')} className="text-[12.5px] font-medium self-start">
             Cambiar la jornada con anexo
           </Link>

@@ -42,6 +42,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
     def list(self, request):
         empleado_id = request.query_params.get('empleado_id')
         qs = self.get_queryset()
+        SolicitudFirma.actualizar_estados(qs)
         if empleado_id:
             qs = qs.filter(empleado_id=empleado_id)
         return Response(self.get_serializer(qs, many=True).data)
@@ -89,6 +90,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         if not empresa.firma_imagen:
             return Response({'error': 'Configura la firma del empleador (Firma electrónica) antes de enviar documentos a firma.'},
                             status=400)
+        SolicitudFirma.actualizar_estados(SolicitudFirma.objects.filter(empresa=empresa, tipo_documento='LIQUIDACION'))
         vigentes = SolicitudFirma.objects.filter(liquidacion=OuterRef('pk'),
                                                  estado__in=['PENDIENTE', 'PROCESANDO', 'FIRMADO'])
         liquidaciones = (Liquidacion.objects.filter(empleado__empresa=empresa, mes=mes, anio=anio)
@@ -121,8 +123,31 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 contrato_id, doc_legal_id, anexo_id,
                 liquidacion_id, vacacion_id, finiquito_id, _es_plan_semilla(user)
             )
-        except Exception as e:
-            raise _ErrorFirma(str(e))
+        except _ErrorFirma:
+            raise
+        except Exception:
+            logger.exception('No se pudo generar el PDF para firma (%s, trabajador %s)', tipo_doc, empleado.pk)
+            raise _ErrorFirma('No se pudo generar el documento. Intenta de nuevo o escríbenos si se repite.', 500)
+
+        # El anexo se enlaza explícitamente porque al firmarse aplica sus
+        # cambios al contrato, y hay que saber cuál fue.
+        anexo_obj = None
+        if tipo_doc == 'ANEXO_CONTRATO' and anexo_id:
+            anexo_obj = AnexoContrato.objects.filter(id=anexo_id, contrato__empleado=empleado).first()
+
+        # Un mismo documento no puede tener dos solicitudes vivas: dos correos
+        # al trabajador y dos firmas distintas del mismo papel.
+        documento = {'contrato': contrato_obj, 'documento_legal': doc_legal_obj, 'anexo_contrato': anexo_obj,
+                     'liquidacion': liquidacion_obj, 'vacacion': vacacion_obj, 'finiquito': finiquito_obj}
+        filtro = {campo: obj for campo, obj in documento.items() if obj is not None}
+        if tipo_doc in ('CONTRATO', 'ANEXO_40H'):
+            filtro = {'contrato': contrato_obj}
+        previas = SolicitudFirma.objects.filter(empleado=empleado, tipo_documento=tipo_doc, **filtro)
+        SolicitudFirma.actualizar_estados(previas)
+        previa = previas.filter(estado__in=['PENDIENTE', 'PROCESANDO', 'FIRMADO']).first()
+        if previa:
+            raise _ErrorFirma('Este documento ya está firmado.' if previa.estado == 'FIRMADO' else
+                              'Este documento ya tiene una firma en curso. Reenvía el correo o cancélala antes de enviarlo de nuevo.')
 
         key = b2_client.key_pendiente(empresa.id, str(uuid_mod.uuid4()))
         try:
@@ -132,12 +157,6 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         except Exception:
             raise _ErrorFirma('Error al subir el documento al almacenamiento.', 500)
 
-        # El anexo se enlaza explícitamente porque al firmarse aplica sus
-        # cambios al contrato, y hay que saber cuál fue.
-        anexo_obj = None
-        if tipo_doc == 'ANEXO_CONTRATO' and anexo_id:
-            anexo_obj = AnexoContrato.objects.filter(id=anexo_id, contrato__empleado=empleado).first()
-
         try:
             solicitud = SolicitudFirma.objects.create(
                 empleado=empleado, empresa=empresa, tipo_documento=tipo_doc,
@@ -145,9 +164,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 liquidacion=liquidacion_obj, vacacion=vacacion_obj, finiquito=finiquito_obj,
                 email_firmante=email_trabajador, b2_key_temporal=key,
             )
-        except Exception as e:
+        except Exception:
+            logger.exception('No se pudo registrar la solicitud de firma')
             b2_client.eliminar_documento(key)
-            raise _ErrorFirma(f'Error al registrar la solicitud: {e}', 500)
+            raise _ErrorFirma('No se pudo registrar la solicitud. Intenta de nuevo.', 500)
 
         try:
             self._enviar_email_firma(solicitud, empleado, empresa)
@@ -167,12 +187,17 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=['post'])
     def reenviar(self, request, pk=None):
         solicitud = self.get_object()
+        SolicitudFirma.actualizar_estados(SolicitudFirma.objects.filter(pk=solicitud.pk))
+        solicitud.refresh_from_db()
+        if solicitud.estado == 'EXPIRADO':
+            return Response({'error': 'El plazo para firmar venció. Envía el documento de nuevo.'}, status=400)
         if solicitud.estado != 'PENDIENTE':
             return Response({'error': 'Solo se puede reenviar una solicitud pendiente.'}, status=400)
         try:
             self._enviar_email_firma(solicitud, solicitud.empleado, solicitud.empresa)
-        except Exception as e:
-            return Response({'error': f'Error al reenviar el email: {str(e)}'}, status=500)
+        except Exception:
+            logger.exception('No se pudo reenviar el correo de firma %s', solicitud.pk)
+            return Response({'error': 'No se pudo enviar el correo. Intenta de nuevo en unos minutos.'}, status=500)
         return Response({'mensaje': 'Email de firma reenviado correctamente.'})
 
     @action(detail=True, methods=['post'])
@@ -203,20 +228,20 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 
         if tipo_doc == 'CONTRATO':
             try:
-                contrato = (Contrato.objects.get(id=contrato_id)
+                contrato = (Contrato.objects.get(id=contrato_id, empleado=empleado)
                             if contrato_id else Contrato.objects.get(empleado=empleado))
-            except Contrato.DoesNotExist:
-                raise Exception('El trabajador no tiene contrato registrado.')
+            except (Contrato.DoesNotExist, ValueError):
+                raise _ErrorFirma('El trabajador no tiene contrato registrado.')
             ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('contrato_trabajo.html', ctx)
             return _html_a_pdf_bytes(html, f'Contrato_{empleado.rut}'), contrato, None, None, None, None
 
         if tipo_doc == 'ANEXO_40H':
             try:
-                contrato = (Contrato.objects.get(id=contrato_id)
+                contrato = (Contrato.objects.get(id=contrato_id, empleado=empleado)
                             if contrato_id else Contrato.objects.get(empleado=empleado))
-            except Contrato.DoesNotExist:
-                raise Exception('El trabajador no tiene contrato registrado.')
+            except (Contrato.DoesNotExist, ValueError):
+                raise _ErrorFirma('El trabajador no tiene contrato registrado.')
             ctx = _ctx_contrato(contrato, es_plan_semilla)
             html = render_to_string('anexo_40h.html', ctx)
             return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None, None
@@ -226,13 +251,13 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 try:
                     doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
                 except DocumentoLegal.DoesNotExist:
-                    raise Exception('Documento legal no encontrado.')
+                    raise _ErrorFirma('Documento legal no encontrado.')
             else:
                 doc = DocumentoLegal.objects.filter(
                     empleado=empleado, tipo=tipo_doc
                 ).order_by('-fecha_emision').first()
                 if not doc:
-                    raise Exception(f'No se encontró documento de tipo {tipo_doc}.')
+                    raise _ErrorFirma(f'No se encontró documento de tipo {tipo_doc}.')
             return pdf_documento_legal(doc, es_plan_semilla), None, doc, None, None, None
 
         if tipo_doc == 'DESPIDO':
@@ -240,33 +265,33 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 try:
                     doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
                 except DocumentoLegal.DoesNotExist:
-                    raise Exception('Documento legal no encontrado.')
+                    raise _ErrorFirma('Documento legal no encontrado.')
             else:
                 doc = DocumentoLegal.objects.filter(
                     empleado=empleado, tipo='DESPIDO'
                 ).order_by('-fecha_emision').first()
                 if not doc:
-                    raise Exception('No se encontró carta de despido.')
+                    raise _ErrorFirma('No se encontró carta de despido.')
             pdf_bytes = pdf_documento_legal(doc, es_plan_semilla)
             return pdf_bytes, None, doc, None, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
             if not anexo_id:
-                raise Exception('Se requiere el ID del anexo de contrato.')
+                raise _ErrorFirma('Se requiere el ID del anexo de contrato.')
             try:
                 contrato = Contrato.objects.get(empleado=empleado)
                 anexo = AnexoContrato.objects.get(id=anexo_id, contrato=contrato)
             except (Contrato.DoesNotExist, AnexoContrato.DoesNotExist):
-                raise Exception('Anexo de contrato no encontrado.')
+                raise _ErrorFirma('Anexo de contrato no encontrado.')
             return pdf_anexo_contrato(anexo, es_plan_semilla), contrato, None, None, None, None
 
         if tipo_doc == 'LIQUIDACION':
             if not liquidacion_id:
-                raise Exception('Se requiere el ID de la liquidación.')
+                raise _ErrorFirma('Se requiere el ID de la liquidación.')
             try:
                 liq = Liquidacion.objects.get(id=liquidacion_id, empleado=empleado)
             except Liquidacion.DoesNotExist:
-                raise Exception('Liquidación no encontrada.')
+                raise _ErrorFirma('Liquidación no encontrada.')
             contrato_liq = Contrato.objects.filter(empleado=empleado).first()
             meses = self.MESES
             mes_nombre = meses[liq.mes - 1]
@@ -295,26 +320,26 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 
         if tipo_doc == 'VACACION':
             if not vacacion_id:
-                raise Exception('Se requiere el ID del comprobante de vacaciones.')
+                raise _ErrorFirma('Se requiere el ID del comprobante de vacaciones.')
             try:
                 vac = VacacionEmpleado.objects.get(id=vacacion_id, empleado=empleado)
             except VacacionEmpleado.DoesNotExist:
-                raise Exception('Comprobante de vacaciones no encontrado.')
+                raise _ErrorFirma('Comprobante de vacaciones no encontrado.')
             # La misma plantilla y fecha que la descarga del comprobante.
             return pdf_vacacion(vac, es_plan_semilla), None, None, None, vac, None
 
         if tipo_doc == 'FINIQUITO':
             if not finiquito_id:
-                raise Exception('Se requiere el ID del finiquito.')
+                raise _ErrorFirma('Se requiere el ID del finiquito.')
             try:
                 fin = Finiquito.objects.get(id=finiquito_id, empleado=empleado)
             except Finiquito.DoesNotExist:
-                raise Exception('Finiquito no encontrado.')
+                raise _ErrorFirma('Finiquito no encontrado.')
 
             # La misma plantilla que la descarga (antes había una copia que ya difería).
             return pdf_finiquito(fin), None, None, None, None, fin
 
-        raise Exception(f'Tipo de documento no soportado: {tipo_doc}')
+        raise _ErrorFirma(f'Tipo de documento no soportado: {tipo_doc}')
 
     def _enviar_email_firma(self, solicitud, empleado, empresa):
         tipo_labels = {

@@ -52,7 +52,7 @@ export default function Empresas() {
       avisar(e.activo === false ? 'Empresa reactivada' : 'Empresa desactivada');
       setConfirmar(null);
     } catch (err) {
-      avisar(mensaje(err, 'No pudimos cambiar el estado de la empresa.'));
+      avisar(mensaje(err, 'No pudimos cambiar el estado de la empresa.'), 'error');
     } finally {
       setOcupado(false);
     }

@@ -4,9 +4,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 from django.http import HttpResponse
 from django.template.loader import get_template
-from ..models import Contrato, AnexoContrato, ConceptoRemuneracion
+from ..models import Contrato, AnexoContrato, ConceptoRemuneracion, SolicitudFirma
 from xhtml2pdf import pisa
 from django.utils import timezone
 import io
@@ -14,7 +15,7 @@ from ..jornada import avisos_jornada, jornada_maxima_vigente
 from django.core.files.base import ContentFile
 from ..serializers import ContratoSerializer, AnexoContratoSerializer
 
-from .base import _MESES, _ctx_contrato, _es_plan_semilla, pdf_firmado, respuesta_pdf
+from .base import error_interno, _MESES, _ctx_contrato, _es_plan_semilla, pdf_firmado, respuesta_pdf
 from .documentos import pdf_anexo_contrato
 from .calculo_liquidacion import _normalizar_comisiones_config
 from .parametros import ingreso_minimo_vigente
@@ -38,6 +39,16 @@ class ContratoViewSet(viewsets.ModelViewSet):
         self._guardar_normalizando(serializer)
 
     def perform_update(self, serializer):
+        # Un contrato firmado solo cambia por anexo (Art. 11): editarlo dejaría
+        # las liquidaciones con condiciones distintas al documento que firmó el
+        # trabajador. Con la firma en curso, se cancela primero.
+        firma = (SolicitudFirma.objects.filter(contrato=serializer.instance, tipo_documento='CONTRATO',
+                                               estado__in=['PENDIENTE', 'PROCESANDO', 'FIRMADO'])
+                 .order_by('-enviado_en').first())
+        if firma:
+            raise ValidationError({'error': 'El contrato está firmado: los cambios se hacen con un anexo de contrato.'
+                                   if firma.estado == 'FIRMADO' else
+                                   'El contrato está enviado a firma. Cancela la solicitud antes de editarlo.'})
         contrato = self._guardar_normalizando(serializer)
         # Los PDF guardados reflejan las condiciones anteriores: se descartan
         # y se vuelven a generar al descargarlos.
@@ -105,7 +116,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato.archivo_contrato.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
             return Response({'ok': True, 'mensaje': 'Contrato generado y guardado exitosamente.'})
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('contratos')
 
     @action(detail=True, methods=['get'])
     def descargar_contrato(self, request, pk=None):
@@ -122,7 +133,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             response['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return response
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('contratos')
 
     @action(detail=True, methods=['post'])
     def generar_anexo_40h(self, request, pk=None):
@@ -141,7 +152,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             contrato.archivo_anexo_40h.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
             return Response({'ok': True, 'mensaje': 'Anexo 40h generado y guardado exitosamente.'})
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('contratos')
 
     @action(detail=True, methods=['get'])
     def descargar_anexo_40h(self, request, pk=None):
@@ -157,7 +168,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             response['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return response
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('contratos')
 
     # Mantener compatibilidad con descarga masiva ZIP (sin guardar)
     @action(detail=True, methods=['get'])
@@ -172,7 +183,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             pisa.CreatePDF(html, dest=response)
             return response
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('contratos')
     
 # Campos del contrato que un anexo puede modificar. Todo lo que no esté acá
 # se ignora, aunque venga en el JSON: evita que un payload manipulado cambie
@@ -374,4 +385,4 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
                 return respuesta_pdf(firmado, nombre, firmado=True)
             return respuesta_pdf(pdf_anexo_contrato(anexo, _es_plan_semilla(request.user)), nombre)
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            return error_interno('contratos')

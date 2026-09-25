@@ -12,17 +12,35 @@ export function puntajeContrasena(clave: string): number {
   return puntaje;
 }
 
+// Unas pocas de las más usadas: el backend (CommonPasswordValidator de
+// Django) tiene la lista completa; esto solo evita el viaje en las obvias.
+const COMUNES = new Set([
+  'password', 'password1', 'password123', 'contrasena', 'contraseña', 'qwerty123', 'qwertyui', 'abcd1234',
+  'abc12345', 'iloveyou', 'asdf1234', 'jornada40', 'chile123', 'bienvenido', 'bienvenida',
+]);
+
+/** Requisitos de una contraseña nueva, en el orden en que se explican. */
+export const REGLA_CONTRASENA = 'Usa al menos 8 caracteres, que no sean solo números, y combina mayúsculas y minúsculas, números o símbolos.';
+
 /**
- * Regla para aceptar una contraseña nueva.
+ * Qué le falta a una contraseña nueva, o null si se acepta.
  *
- * El prototipo aceptaba con 2 puntos, pero "Ab1" suma 2 sin llegar a 8
- * caracteres. El largo mínimo se exige aparte, que es lo que promete el
- * propio mensaje de error ("al menos 8 caracteres con mayúsculas y números").
- * El backend no valida la contraseña al registrar, así que esta regla es la
- * única barrera en ese flujo.
+ * Replica en el cliente lo que el backend exige con AUTH_PASSWORD_VALIDATORS
+ * (largo mínimo 8, no solo números, no una contraseña común) y suma una
+ * mezcla mínima: 8 caracteres más uno de mayúsculas y minúsculas, números,
+ * símbolos o 12 caracteres (puntaje 2 del medidor). "abcdefg1" se acepta.
+ * La similitud con el nombre o el correo solo la revisa el backend.
  */
+export function problemaContrasena(clave: string): string | null {
+  if (clave.length < 8) return 'Usa al menos 8 caracteres.';
+  if (/^\d+$/.test(clave)) return 'No puede tener solo números.';
+  if (COMUNES.has(clave.toLowerCase())) return 'Es una contraseña muy común. Elige otra.';
+  if (puntajeContrasena(clave) < 2) return 'Combina mayúsculas y minúsculas, números o símbolos (o usa 12 caracteres o más).';
+  return null;
+}
+
 export function contrasenaAceptable(clave: string): boolean {
-  return clave.length >= 8 && puntajeContrasena(clave) >= 2;
+  return problemaContrasena(clave) === null;
 }
 
 export const ETIQUETAS_PUNTAJE = ['Ingresa al menos 8 caracteres', 'Débil', 'Aceptable', 'Buena', 'Segura'];

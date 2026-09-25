@@ -10,7 +10,7 @@ from ..models import Contrato, DocumentoLegal
 import datetime
 from ..serializers import DocumentoLegalSerializer
 
-from .base import _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
+from .base import error_interno, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .finiquitos import _CAUSALES_CON_INDEMNIZACION, _calcular_finiquito
 
 
@@ -128,7 +128,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
         try:
             pdf = pdf_documento_legal(documento, _es_plan_semilla(request.user))
         except Exception as e:
-            return Response({'error': f'Error al generar PDF: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return error_interno('PDF documentos')
         return respuesta_pdf(pdf, nombre)
 
 

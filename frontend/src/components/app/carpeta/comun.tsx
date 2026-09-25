@@ -9,6 +9,8 @@ import { ETAPAS_LEY_40 } from '../../../utils/ley40';
 const ESTADO_FIRMA: Record<string, { texto: string; tono: TonoChip }> = {
   FIRMADO: { texto: 'Firmado', tono: 'ok' },
   PENDIENTE: { texto: 'Pendiente de firma', tono: 'aviso' },
+  // El trabajador ya firmó y el servidor está sellando el PDF (unos segundos).
+  PROCESANDO: { texto: 'Procesando', tono: 'aviso' },
   RECHAZADO: { texto: 'Rechazado', tono: 'peligro' },
   EXPIRADO: { texto: 'Expirado', tono: 'neutro' },
   CANCELADO: { texto: 'Cancelado', tono: 'neutro' },
@@ -16,7 +18,7 @@ const ESTADO_FIRMA: Record<string, { texto: string; tono: TonoChip }> = {
 
 export function ChipFirma({ firma, corto }: { firma: SolicitudFirma | undefined; corto?: boolean }) {
   if (!firma) return <Chip>Sin enviar</Chip>;
-  const e = ESTADO_FIRMA[firma.estado] ?? ESTADO_FIRMA.CANCELADO;
+  const e = ESTADO_FIRMA[firma.estado] ?? { texto: firma.estado, tono: 'neutro' as const };
   return <Chip tono={e.tono}>{corto && firma.estado === 'PENDIENTE' ? 'Pendiente' : e.texto}</Chip>;
 }
 

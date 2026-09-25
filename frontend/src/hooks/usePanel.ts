@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
-import { lista } from '../api/lista';
-import type { RespuestaLista } from '../api/lista';
+import { obtenerTodo } from '../api/lista';
 import type {
   AnexoContrato, DocumentoLegal, Empleado, Empresa, Liquidacion, SaldoVacaciones, SolicitudFirma,
   VacacionEmpleado,
@@ -14,7 +13,7 @@ import { usePlanes } from './usePlanes';
  * con su propia clave, así una mutación puede refrescar solo lo que cambió.
  */
 
-const obtener = async <T,>(url: string) => lista((await client.get<RespuestaLista<T>>(url)).data);
+const obtener = obtenerTodo;
 
 // La empresa activa se guarda en la misma clave que usa el panel anterior:
 // cambiar de empresa en uno se refleja en el otro.
@@ -44,7 +43,7 @@ export function useEmpresaActiva() {
 export interface Suscripcion {
   estado: 'ACTIVE' | 'TRIAL' | 'PAST_DUE' | 'CANCELED';
   /** Plan con que el backend decide funciones y límites (incluye su nivel). */
-  plan: { id: number; nombre: string; precio: number; limite_trabajadores: number; max_empresas?: number; nivel?: number };
+  plan: { id: number; nombre: string; precio: number; precio_anual?: number; limite_trabajadores: number; max_empresas?: number; nivel?: number };
   trabajadores_actuales: number;
   fecha_proximo_cobro: string | null;
   metodo_pago_glosa?: string | null;
@@ -80,6 +79,8 @@ export function useSuscripcion() {
     nivel: consulta.data?.plan.nivel ?? listado?.nivel ?? 1,
     maxEmpresas: consulta.data?.plan.max_empresas ?? listado?.max_empresas ?? 1,
     cargando: consulta.isLoading,
+    error: consulta.isError && !consulta.data,
+    reintentar: consulta.refetch,
   };
 }
 
@@ -114,7 +115,7 @@ export function useFirmas() {
 export function useVacacionesEmpresa(empresaId: number | undefined, habilitado: boolean) {
   return useQuery({
     queryKey: ['vacaciones', 'empresa', empresaId],
-    queryFn: async () => (await obtener<VacacionEmpleado>('/vacaciones/')).filter((v) => v.empresa === empresaId),
+    queryFn: () => obtener<VacacionEmpleado>(`/vacaciones/?empresa=${empresaId}`),
     enabled: Boolean(empresaId) && habilitado,
   });
 }
