@@ -368,6 +368,14 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Dirección del Trabajo — Must do
+
+- **Registro de contratos (Ley 21.327, Art. 9 CT):** the employer must register each contract in Mi DT within 15 days of signing, plus its modifications (anexos) and the termination (plazos de los Arts. 162/163 bis; 10 días hábiles en el Art. 159 N°1-3). **Jornada40 does not do it today.** Mi DT has no public API; it accepts one-by-one entry or a bulk CSV (official template, max 1000 rows, 5 MB, processed in up to 7 days). Plan: export the DT CSV for contracts, anexos and terminations, plus reminders of pending/overdue registrations.
+- **Libro de Remuneraciones Electrónico (Art. 62 bis):** monthly upload to Mi DT; the official LRE format is not implemented yet (only the readable Excel/PDF book).
+- **Autorización del sistema (Dictamen 0789/15):** a platform is recognized when the DT, on request, issues an ORD stating it meets the dictamen (e.g. ORD 902 of 04.07.2023 for "Genera HR Digital"; ORD 2965 rejected TuRecibo.com for not emailing documents automatically). Requirements, cumulative: inspector access by the employer's RUT from any DT computer, without restrictions; the same access for the employer; printing and certifying with electronic signature; inspector ratification with electronic signature; security measures agreed with the employer; worker's express consent (clause in the contract or an annex); automatic delivery to the worker's personal email. Today it meets only the last one (signed PDF emailed to the worker) and printing; the rest is Must do before submitting.
+
+---
+
 ## Deployment
 
 ### Backend (Railway)
