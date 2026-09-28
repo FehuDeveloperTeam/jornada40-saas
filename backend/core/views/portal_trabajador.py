@@ -449,18 +449,14 @@ def _documentos(fichas):
     firmadas = (SolicitudFirma.objects.filter(empleado__in=fichas, estado='FIRMADO')
                 .exclude(tipo_documento__in=['LIQUIDACION', 'CONTRATO'])
                 .select_related('empleado__empresa', 'anexo_contrato'))
-    con_firma_vacacion = set()
     for s in firmadas:
         titulo = etiquetas.get(s.tipo_documento, s.tipo_documento)
         if s.anexo_contrato_id:
             titulo = s.anexo_contrato.titulo if s.anexo_contrato else titulo
         docs.append(('firma', s.id, s.empleado, titulo, timezone.localtime(s.firmado_en).date() if s.firmado_en else None,
                      True))
-        con_firma_vacacion.add(s.vacacion_id)
     # Cartas y constancias: solo firmadas (van arriba como 'firma'); las pendientes esperan en Inicio.
-    for v in VacacionEmpleado.objects.filter(empleado__in=fichas, estado='APROBADO').exclude(id__in=con_firma_vacacion) \
-            .select_related('empleado__empresa'):
-        docs.append(('vacacion', v.id, v.empleado, 'Comprobante de vacaciones', v.fecha_inicio, False))
+    # Comprobantes de vacaciones: igual, solo firmados; los demás se piden en Solicitudes.
     return docs
 
 
@@ -512,9 +508,6 @@ def descargar(request):
             solicitud = SolicitudFirma.objects.get(id=ident)
             return respuesta_pdf(b2_client.descargar_documento(solicitud.b2_key_firmado),
                                  f'{solicitud.tipo_documento.title()}.pdf', firmado=True)
-        if tipo == 'vacacion':
-            from .vacaciones import pdf_vacacion
-            return respuesta_pdf(pdf_vacacion(VacacionEmpleado.objects.get(id=ident), False), 'Vacaciones.pdf')
         raise LookupError
     except LookupError:
         return Response({'error': 'Documento no encontrado.'}, status=status.HTTP_404_NOT_FOUND)

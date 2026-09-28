@@ -606,7 +606,7 @@ export interface LiquidacionPortal {
     firmada: boolean;
 }
 
-export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'vacacion';
+export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma';
 
 export interface DocumentoPortal {
     tipo: Exclude<TipoDocumentoPortal, 'liquidacion'>;

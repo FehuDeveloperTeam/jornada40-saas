@@ -228,3 +228,16 @@ class DocumentosTests(PortalBase):
                                                                firmado_en=timezone.now())
         docs = self.client.get('/api/trabajador/documentos/').data
         self.assertIn(('firma', solicitud.id), [(d['tipo'], d['id']) for d in docs])
+
+    def test_comprobantes_de_vacaciones_solo_firmados(self):
+        from ..models import VacacionEmpleado
+        vac = VacacionEmpleado.objects.create(empleado=self.ficha, empresa=self.empresa, estado='APROBADO',
+                                              fecha_inicio='2026-02-02', fecha_fin='2026-02-06', dias_habiles=5)
+        self._entrar()
+        self.assertEqual([d['tipo'] for d in self.client.get('/api/trabajador/documentos/').data], ['contrato'])
+        self.assertEqual(self.client.get('/api/trabajador/descargar/', {'tipo': 'vacacion', 'id': vac.id}).status_code,
+                         404)
+        firma = SolicitudFirma.objects.create(empleado=self.ficha, empresa=self.empresa, vacacion=vac,
+                                              tipo_documento='VACACION', estado='FIRMADO',
+                                              b2_key_firmado='firmados/v.pdf', firmado_en=timezone.now())
+        self.assertIn(('firma', firma.id), [(d['tipo'], d['id']) for d in self.client.get('/api/trabajador/documentos/').data])
