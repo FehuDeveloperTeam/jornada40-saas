@@ -34,7 +34,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 
 from ..models import (CodigoTrabajador, Contrato, CorreoTrabajador, CuentaTrabajador,
-                      DocumentoLegal, Empleado, Liquidacion, SolicitudFirma, VacacionEmpleado)
+                      Empleado, Liquidacion, SolicitudFirma, VacacionEmpleado)
 from ..rut import formatear_rut, limpiar_rut, validar_rut
 from .base import _ctx_contrato, _html_a_pdf_bytes, _plan_permite, logger, pdf_firmado, respuesta_pdf
 
@@ -449,20 +449,15 @@ def _documentos(fichas):
     firmadas = (SolicitudFirma.objects.filter(empleado__in=fichas, estado='FIRMADO')
                 .exclude(tipo_documento__in=['LIQUIDACION', 'CONTRATO'])
                 .select_related('empleado__empresa', 'anexo_contrato'))
-    con_firma_legal, con_firma_vacacion = set(), set()
+    con_firma_vacacion = set()
     for s in firmadas:
         titulo = etiquetas.get(s.tipo_documento, s.tipo_documento)
         if s.anexo_contrato_id:
             titulo = s.anexo_contrato.titulo if s.anexo_contrato else titulo
         docs.append(('firma', s.id, s.empleado, titulo, timezone.localtime(s.firmado_en).date() if s.firmado_en else None,
                      True))
-        con_firma_legal.add(s.documento_legal_id)
         con_firma_vacacion.add(s.vacacion_id)
-    # Cartas y constancias enviadas a firma que no se firmaron (rechazadas, vencidas o pendientes).
-    enviadas = SolicitudFirma.objects.filter(documento_legal__empleado__in=fichas).exclude(estado='CANCELADO') \
-        .values_list('documento_legal_id', flat=True)
-    for d in DocumentoLegal.objects.filter(id__in=set(enviadas) - con_firma_legal).select_related('empleado__empresa'):
-        docs.append(('documento', d.id, d.empleado, d.get_tipo_display(), d.fecha_emision, False))
+    # Cartas y constancias: solo firmadas (van arriba como 'firma'); las pendientes esperan en Inicio.
     for v in VacacionEmpleado.objects.filter(empleado__in=fichas, estado='APROBADO').exclude(id__in=con_firma_vacacion) \
             .select_related('empleado__empresa'):
         docs.append(('vacacion', v.id, v.empleado, 'Comprobante de vacaciones', v.fecha_inicio, False))
@@ -517,9 +512,6 @@ def descargar(request):
             solicitud = SolicitudFirma.objects.get(id=ident)
             return respuesta_pdf(b2_client.descargar_documento(solicitud.b2_key_firmado),
                                  f'{solicitud.tipo_documento.title()}.pdf', firmado=True)
-        if tipo == 'documento':
-            from .documentos import pdf_documento_legal
-            return respuesta_pdf(pdf_documento_legal(DocumentoLegal.objects.get(id=ident), False), 'Documento.pdf')
         if tipo == 'vacacion':
             from .vacaciones import pdf_vacacion
             return respuesta_pdf(pdf_vacacion(VacacionEmpleado.objects.get(id=ident), False), 'Vacaciones.pdf')

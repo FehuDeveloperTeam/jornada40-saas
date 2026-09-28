@@ -212,3 +212,19 @@ class DocumentosTests(PortalBase):
         self.assertEqual(r.status_code, 404)
         docs = self.client.get('/api/trabajador/documentos/').data
         self.assertEqual([d['tipo'] for d in docs], ['contrato'])
+
+    def test_cartas_y_constancias_solo_firmadas(self):
+        from ..models import DocumentoLegal
+        carta = DocumentoLegal.objects.create(empleado=self.ficha, tipo='CONSTANCIA', fecha_emision='2026-03-01',
+                                              hechos='Constancia de prueba')
+        solicitud = SolicitudFirma.objects.create(empleado=self.ficha, empresa=self.empresa, documento_legal=carta,
+                                                  tipo_documento='CONSTANCIA', estado='PENDIENTE')
+        self._entrar()
+        docs = self.client.get('/api/trabajador/documentos/').data
+        self.assertEqual([d['tipo'] for d in docs], ['contrato'])
+        self.assertEqual(self.client.get('/api/trabajador/descargar/', {'tipo': 'documento', 'id': carta.id}).status_code,
+                         404)
+        SolicitudFirma.objects.filter(pk=solicitud.pk).update(estado='FIRMADO', b2_key_firmado='firmados/c.pdf',
+                                                               firmado_en=timezone.now())
+        docs = self.client.get('/api/trabajador/documentos/').data
+        self.assertIn(('firma', solicitud.id), [(d['tipo'], d['id']) for d in docs])
