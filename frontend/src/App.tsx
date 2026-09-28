@@ -22,6 +22,7 @@ const Carpeta = lazy(() => import('./pages/app/Carpeta'));
 const RemuneracionesPanel = lazy(() => import('./pages/app/Remuneraciones'));
 const Conceptos = lazy(() => import('./pages/app/Conceptos'));
 const FirmasPanel = lazy(() => import('./pages/app/Firmas'));
+const SolicitudesPanel = lazy(() => import('./pages/app/Solicitudes'));
 const FiniquitoPanel = lazy(() => import('./pages/app/Finiquito'));
 const ImportarPanel = lazy(() => import('./pages/app/Importar'));
 const ContratoPanel = lazy(() => import('./pages/app/ContratoEditor'));
@@ -43,6 +44,7 @@ const PortalLiquidaciones = lazy(() => import('./pages/trabajador/Liquidaciones'
 const PortalDocumentos = lazy(() => import('./pages/trabajador/Documentos'));
 const PortalVacaciones = lazy(() => import('./pages/trabajador/Vacaciones'));
 const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
+const PortalSolicitudes = lazy(() => import('./pages/trabajador/Solicitudes'));
 
 // Direcciones del panel anterior: se mantienen para enlaces guardados y correos.
 const DESDE_CLASICO: Record<string, string> = {
@@ -145,6 +147,7 @@ export default function App() {
           <Route path="liquidaciones" element={<PortalLiquidaciones />} />
           <Route path="documentos" element={<PortalDocumentos />} />
           <Route path="vacaciones" element={<PortalVacaciones />} />
+          <Route path="solicitudes" element={<PortalSolicitudes />} />
           <Route path="seguridad" element={<PortalSeguridad />} />
           <Route path="*" element={<Navigate to="/trabajador/portal" replace />} />
         </Route>
@@ -178,6 +181,7 @@ export default function App() {
           <Route path="remuneraciones" element={<RemuneracionesPanel />} />
           <Route path="remuneraciones/conceptos" element={<Conceptos />} />
           <Route path="firmas" element={<FirmasPanel />} />
+          <Route path="solicitudes" element={<SolicitudesPanel />} />
           <Route path="reportes" element={<ReportesPanel />} />
           <Route path="dt" element={<DireccionTrabajoPanel />} />
           <Route path="empresas" element={<EmpresasPanel />} />

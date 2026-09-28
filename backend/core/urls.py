@@ -1,5 +1,6 @@
 from django.urls import path, include
 from .views import portal_trabajador as portal
+from .views import solicitudes_documento
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -26,6 +27,7 @@ router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
 router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
 router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
 router.register(r'registro-dt', RegistroDTViewSet, basename='registro_dt')
+router.register(r'solicitudes-documento', solicitudes_documento.SolicitudDocumentoViewSet, basename='solicitud_documento')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -49,6 +51,7 @@ urlpatterns = [
     path('trabajador/vacaciones/', portal.vacaciones, name='portal_vacaciones'),
     path('trabajador/firmas/', portal.firmas_pendientes, name='portal_firmas'),
     path('trabajador/firmar/', portal.firmar_liquidacion, name='portal_firmar_liquidacion'),
+    path('trabajador/solicitudes/', solicitudes_documento.solicitudes_trabajador, name='portal_solicitudes'),
     path('pagos/cancelar-cambio/', cancelar_cambio_plan, name='cancelar_cambio_plan'),
     path('pagos/reanudar/', reanudar_renovacion, name='reanudar_renovacion'),
     path('auth/register/', registrar_cliente, name='api_register'),

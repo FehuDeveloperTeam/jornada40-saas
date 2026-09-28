@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Banknote, CircleAlert, Clock, FileSignature, FileWarning, Landmark, Lock, Signature, TriangleAlert, Users,
+  Banknote, CircleAlert, Clock, FileSignature, FileWarning, Inbox, Landmark, Lock, Signature, TriangleAlert, Users,
 } from 'lucide-react';
 import client from '../../api/client';
 import { lista } from '../../api/lista';
@@ -11,7 +11,9 @@ import type { RespuestaLista } from '../../api/lista';
 import { Button, Card, CardHeader, Chip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { useAuth } from '../../context/AuthContext';
-import { rutaAccion, useFirmas, useIndicadores, useRegistroDT, useSuscripcion, useVacacionesEmpresa } from '../../hooks/usePanel';
+import {
+  rutaAccion, useFirmas, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useVacacionesEmpresa,
+} from '../../hooks/usePanel';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes } from '../../utils/formato';
@@ -55,6 +57,7 @@ export default function Inicio() {
   const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2);
   // Plazos de registro en Mi DT y consentimientos: si falla, Inicio se ve igual sin esos avisos.
   const registroDT = useRegistroDT(empresa.id);
+  const solicitudesDoc = useSolicitudesDocumento(empresa.id);
   const hoy = new Date();
   const mes = hoy.getMonth() + 1;
   const anio = hoy.getFullYear();
@@ -117,6 +120,13 @@ export default function Inicio() {
         titulo: `${n} ${n === 1 ? 'registro en la DT vencido' : 'registros en la DT vencidos'}`,
         detalle: 'Contratos, anexos o términos que debían registrarse en Mi DT y siguen pendientes.',
         accion: 'Revisar', a: '/app/dt' });
+    }
+    const pedidas = (solicitudesDoc.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
+    if (pedidas) {
+      t.push({ clave: 'solicitudes-doc', Icono: Inbox, tono: 'aviso',
+        titulo: `${pedidas} ${pedidas === 1 ? 'documento solicitado' : 'documentos solicitados'} por trabajadores`,
+        detalle: 'Los pidieron desde su portal. Al enviarlos a firma, el trabajador recibe el aviso por correo.',
+        accion: 'Atender', a: '/app/solicitudes' });
     }
     for (const f of rechazadas) {
       t.push({ clave: `r${f.id}`, Icono: FileSignature, tono: 'peligro', titulo: `Documento rechazado · ${nombre(f.empleado)}`,

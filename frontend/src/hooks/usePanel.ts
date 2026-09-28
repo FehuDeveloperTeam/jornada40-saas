@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import { obtenerTodo } from '../api/lista';
 import type {
-  AnexoContrato, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudFirma,
-  VacacionEmpleado,
+  AnexoContrato, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudDocumentoPanel,
+  SolicitudFirma, VacacionEmpleado,
 } from '../types';
 import { usePlanes } from './usePlanes';
 
@@ -119,6 +119,15 @@ export function useRegistroDT(empresaId: number | undefined) {
   return useQuery({
     queryKey: ['registro-dt', empresaId],
     queryFn: async () => (await client.get<RegistroDT>(`/registro-dt/?empresa=${empresaId}`)).data,
+    enabled: Boolean(empresaId),
+  });
+}
+
+/** Documentos que los trabajadores pidieron desde su portal (todas; la pantalla filtra por estado). */
+export function useSolicitudesDocumento(empresaId: number | undefined) {
+  return useQuery({
+    queryKey: ['solicitudes-documento', empresaId],
+    queryFn: async () => (await client.get<SolicitudDocumentoPanel[]>(`/solicitudes-documento/?empresa=${empresaId}`)).data,
     enabled: Boolean(empresaId),
   });
 }

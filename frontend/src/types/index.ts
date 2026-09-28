@@ -631,6 +631,45 @@ export interface VacacionesPortal extends EmpleoPortal {
     registros: RegistroVacacionPortal[];
 }
 
+export type TipoSolicitudDocumento = 'LIQUIDACION' | 'FINIQUITO' | 'OTRO';
+export type EstadoSolicitudDocumento = 'PENDIENTE' | 'RESUELTA' | 'DESCARTADA';
+
+/** Solicitud de un documento que el empleador aún no emite (portal → panel). */
+export interface SolicitudDocumento {
+    id: number;
+    tipo: TipoSolicitudDocumento;
+    tipo_texto: string;
+    /** "Agosto 2026" (solo liquidaciones). */
+    periodo: string;
+    mes: number | null;
+    anio: number | null;
+    detalle: string;
+    estado: EstadoSolicitudDocumento;
+    /** Motivo del descarte, visible para el trabajador. */
+    motivo: string;
+    creada_en: string;
+    resuelta_en: string | null;
+}
+
+export interface SolicitudDocumentoPortal extends SolicitudDocumento {
+    empresa: string;
+}
+
+export interface OpcionesSolicitudPortal {
+    empleo: number;
+    empresa: string;
+    /** Meses cerrados sin liquidación emitida ni solicitud pendiente, del más reciente al más antiguo. */
+    meses: { mes: number; anio: number; texto: string }[];
+    finiquito: boolean;
+}
+
+/** Solicitud vista por el empleador. */
+export interface SolicitudDocumentoPanel extends SolicitudDocumento {
+    empleado: { id: number; nombre: string; rut: string; email: string };
+    /** Id de la liquidación del período si ya está emitida (falta enviarla a firma). */
+    liquidacion: number | null;
+}
+
 export interface FirmaPendientePortal {
     id: number;
     /** 'solicitud': ya enviada a firma, con enlace. 'liquidacion': de un mes cerrado, se inicia con portal.firmar(id). */

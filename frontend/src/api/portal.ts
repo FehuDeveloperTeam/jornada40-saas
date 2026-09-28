@@ -2,8 +2,8 @@ import { isAxiosError } from 'axios';
 import client from './client';
 import { descargar } from './descargas';
 import type {
-  CuentaTrabajador, DocumentoPortal, FirmaPendientePortal, LiquidacionPortal, RespuestaIngresoPortal,
-  TipoDocumentoPortal, VacacionesPortal,
+  CuentaTrabajador, DocumentoPortal, FirmaPendientePortal, LiquidacionPortal, OpcionesSolicitudPortal, RespuestaIngresoPortal,
+  SolicitudDocumentoPortal, TipoDocumentoPortal, TipoSolicitudDocumento, VacacionesPortal,
 } from '../types';
 
 /**
@@ -52,6 +52,9 @@ export const portal = {
   firmas: () => obtener<FirmaPendientePortal[]>('/firmas/'),
   /** Inicia la firma de una liquidación de un mes cerrado; devuelve el enlace del flujo de firma. */
   firmar: (liquidacion: number) => enviar<{ enlace: string }>('/firmar/', { liquidacion }),
+  solicitudes: () => obtener<{ opciones: OpcionesSolicitudPortal[]; solicitudes: SolicitudDocumentoPortal[] }>('/solicitudes/'),
+  solicitar: (datos: { empleo: number; tipo: TipoSolicitudDocumento; mes?: number; anio?: number; detalle?: string }) =>
+    enviar<SolicitudDocumentoPortal>('/solicitudes/', datos),
   /** Descarga el PDF (firmado si lo está). Devuelve el error a mostrar o null. */
   descargar: (tipo: TipoDocumentoPortal, id: number, nombre: string) =>
     descargar(`${BASE}/descargar/?tipo=${tipo}&id=${id}`, nombre),

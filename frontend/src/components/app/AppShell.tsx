@@ -2,13 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CreditCard,
-  Ellipsis, FileUp, Info, Landmark, LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
+  Ellipsis, FileUp, Inbox, Info, Landmark, LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
 import { useAuth } from '../../context/AuthContext';
 import {
-  useEmpresaActiva, useIndicadores, useRegistroDT, useSuscripcion, useTrabajadores,
+  useEmpresaActiva, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
 } from '../../hooks/usePanel';
 import type { Suscripcion } from '../../hooks/usePanel';
 import type { Empleado, Empresa } from '../../types';
@@ -68,6 +68,7 @@ const NAV: ItemNav[] = [
   { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
   { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
   { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox },
   { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn },
   { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'] },
 ];
@@ -234,6 +235,9 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
   // Registros en la DT vencidos o por vencer: si la consulta falla, el menú se ve igual sin la cifra.
   const registroDT = useRegistroDT(empresa.id);
   const urgentesDT = registroDT.data ? registroDT.data.resumen.VENCIDO + registroDT.data.resumen.por_vencer : 0;
+  // Documentos pedidos desde el portal del trabajador que esperan respuesta.
+  const solicitudes = useSolicitudesDocumento(empresa.id);
+  const porAtender = (solicitudes.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
 
   const salir = async () => { await logout(); navigate('/login'); };
 
@@ -256,9 +260,12 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
       <nav aria-label="Principal" className="flex flex-col gap-1">
         {NAV.map((item) => (
           <ItemLateral key={item.etiqueta} item={item}
-            badge={item.a === '/app/trabajadores' ? totalTrabajadores : item.a === '/app/dt' && urgentesDT > 0 ? urgentesDT : undefined}
-            alerta={item.a === '/app/dt'}
-            tituloBadge={item.a === '/app/dt' ? 'Registros en la DT vencidos o por vencer' : undefined} />
+            badge={item.a === '/app/trabajadores' ? totalTrabajadores
+              : item.a === '/app/dt' && urgentesDT > 0 ? urgentesDT
+                : item.a === '/app/solicitudes' && porAtender > 0 ? porAtender : undefined}
+            alerta={item.a === '/app/dt' || item.a === '/app/solicitudes'}
+            tituloBadge={item.a === '/app/dt' ? 'Registros en la DT vencidos o por vencer'
+              : item.a === '/app/solicitudes' ? 'Solicitudes por atender' : undefined} />
         ))}
       </nav>
 
@@ -494,6 +501,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   if (pathname.startsWith('/app/plan')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Plan y facturación' }];
   if (pathname.startsWith('/app/cuenta')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Mi cuenta' }];
   if (pathname.startsWith('/app/dt')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Dirección del Trabajo' }];
+  if (pathname.startsWith('/app/solicitudes')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Solicitudes' }];
   if (pathname.startsWith('/app/firmas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Firma electrónica' }];
   if (pathname.startsWith('/app/remuneraciones')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones' }];
   return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Inicio' }];
@@ -505,6 +513,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firmas'];
 const MAS: { a: string; etiqueta: string; Icono: LucideIcon }[] = [
   { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox },
   { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2 },
   { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn },
   { a: '/app/plan', etiqueta: 'Plan y facturación', Icono: CreditCard },

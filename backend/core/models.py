@@ -1053,3 +1053,29 @@ class CodigoTrabajador(models.Model):
     usado = models.BooleanField(default=False)
     expira_en = models.DateTimeField()
     creado_en = models.DateTimeField(auto_now_add=True)
+
+
+class SolicitudDocumento(models.Model):
+    """Documento que el trabajador pide desde su portal (p. ej. una liquidación
+    que el empleador aún no emite). La liquidación y el finiquito se resuelven
+    solos cuando el empleador los envía a firma, lo que ya avisa al trabajador
+    por correo; "otro" lo resuelve el empleador a mano."""
+    TIPOS = [('LIQUIDACION', 'Liquidación de sueldo'), ('FINIQUITO', 'Finiquito'), ('OTRO', 'Otro documento')]
+    ESTADOS = [('PENDIENTE', 'Pendiente'), ('RESUELTA', 'Resuelta'), ('DESCARTADA', 'Descartada')]
+    empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='solicitudes_documento')
+    cuenta = models.ForeignKey(CuentaTrabajador, on_delete=models.SET_NULL, null=True, related_name='solicitudes')
+    tipo = models.CharField(max_length=12, choices=TIPOS)
+    mes = models.PositiveSmallIntegerField(null=True, blank=True)
+    anio = models.PositiveSmallIntegerField(null=True, blank=True)
+    detalle = models.CharField(max_length=300, blank=True, default='')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='PENDIENTE')
+    motivo = models.CharField(max_length=300, blank=True, default='', help_text='Por qué se descartó (lo ve el trabajador).')
+    creada_en = models.DateTimeField(auto_now_add=True)
+    resuelta_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-creada_en']
+
+    def __str__(self):
+        periodo = f' {self.mes:02d}/{self.anio}' if self.mes else ''
+        return f'{self.get_tipo_display()}{periodo} · {self.empleado} [{self.estado}]'

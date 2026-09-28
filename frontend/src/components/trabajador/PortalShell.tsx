@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banknote, CalendarDays, Check, CircleAlert, Clock, FileText, Info, LayoutDashboard, LogOut, ShieldCheck, X } from 'lucide-react';
+import { Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, ShieldCheck, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, J40Root, Logo, Modal, ToggleTema } from '../j40';
 import { portal, sinSesion } from '../../api/portal';
@@ -44,6 +44,7 @@ const NAV: ItemNav[] = [
   { a: `${RAIZ}/liquidaciones`, etiqueta: 'Liquidaciones', corta: 'Sueldos', Icono: Banknote },
   { a: `${RAIZ}/documentos`, etiqueta: 'Documentos', corta: 'Documentos', Icono: FileText },
   { a: `${RAIZ}/vacaciones`, etiqueta: 'Vacaciones', corta: 'Vacaciones', Icono: CalendarDays },
+  { a: `${RAIZ}/solicitudes`, etiqueta: 'Solicitudes', corta: 'Pedir', Icono: FilePlus2 },
   { a: `${RAIZ}/seguridad`, etiqueta: 'Seguridad', corta: 'Seguridad', Icono: ShieldCheck },
 ];
 
@@ -231,7 +232,7 @@ function Lateral({ cuenta, salir }: { cuenta: CuentaTrabajador; salir: () => voi
 
 function BarraInferior() {
   return (
-    <nav aria-label="Portal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
+    <nav aria-label="Portal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 px-0.5 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
       {NAV.map(({ a, corta, Icono, fin }) => (
         <NavLink key={a} to={a} end={fin}
           className={({ isActive }) => cn(

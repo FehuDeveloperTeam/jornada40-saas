@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { MATIAS, consultar, descargar, periodo, restaurarBase, ultimoCodigoPortal } from './utiles';
+import { MATIAS, consultar, descargar, entrar, periodo, restaurarBase, ultimoCodigoPortal } from './utiles';
 
 // Portal del trabajador: ingreso con código y con clave, invitación a crear
 // la clave, liquidaciones y salida. El backend permite un código por minuto
@@ -96,7 +96,7 @@ test('en el teléfono no hay desborde horizontal', async ({ page }) => {
   await entrarConClave(page);
   await sinDesborde();
   const barra = page.getByRole('navigation', { name: 'Portal' });
-  for (const [enlace, titulo] of [['Sueldos', 'Liquidaciones'], ['Documentos', 'Documentos'], ['Vacaciones', 'Vacaciones'], ['Seguridad', 'Seguridad']]) {
+  for (const [enlace, titulo] of [['Sueldos', 'Liquidaciones'], ['Documentos', 'Documentos'], ['Vacaciones', 'Vacaciones'], ['Pedir', 'Solicitudes'], ['Seguridad', 'Seguridad']]) {
     await barra.getByRole('link', { name: enlace }).click();
     await expect(page.getByRole('heading', { name: titulo, level: 1 })).toBeVisible();
     await sinDesborde();
@@ -125,4 +125,50 @@ test('una liquidación de un mes cerrado se firma desde Inicio', async ({ page }
   await page.goto('/trabajador/portal');
   await expect(page.getByRole('button', { name: 'Firmar' })).toHaveCount(4);
   await expect(page.getByRole('link', { name: 'Firmar' })).toHaveCount(2);
+});
+
+test('el trabajador pide documentos y el empleador los atiende', async ({ page }) => {
+  await entrarConClave(page);
+  await page.getByRole('navigation', { name: 'Portal' }).getByRole('link', { name: 'Solicitudes' }).click();
+  await expect(page.getByRole('heading', { name: 'Solicitudes', level: 1 })).toBeVisible();
+  // Finiquito no se ofrece: sigue trabajando.
+  await expect(page.getByLabel('Documento').locator('option', { hasText: 'Finiquito' })).toHaveCount(0);
+
+  // Liquidación: el segundo desplegable muestra solo meses cerrados sin emitir.
+  await page.getByLabel('Documento').selectOption('LIQUIDACION');
+  const meses = page.getByLabel('Mes y año');
+  await expect(meses.locator('option', { hasText: periodo(-1) })).toHaveCount(0);   // ya emitida
+  const texto = (await meses.locator('option').nth(1).textContent())!.trim();
+  await meses.selectOption({ index: 1 });
+  await page.getByRole('button', { name: 'Enviar solicitud' }).click();
+  await expect(page.getByText('Solicitud enviada. Tu empleador la verá en su panel.')).toBeVisible();
+  const lista = page.getByRole('list', { name: 'Tus solicitudes' });
+  await expect(lista.getByText(`Liquidación de sueldo · ${texto}`)).toBeVisible();
+
+  await page.getByLabel('Documento').selectOption('OTRO');
+  await page.getByLabel('¿Qué documento necesitas?').fill('Certificado de antigüedad');
+  await page.getByRole('button', { name: 'Enviar solicitud' }).click();
+  await expect(lista.getByText('Certificado de antigüedad')).toBeVisible();
+
+  // El empleador las ve por atender: descarta la liquidación con motivo y resuelve la otra.
+  await page.context().clearCookies();
+  await entrar(page);
+  await page.goto('/app/solicitudes');
+  const panel = page.getByRole('region', { name: 'Solicitudes' });
+  await expect(panel.getByText(`Liquidación de sueldo · ${texto}`)).toBeVisible();
+  await expect(panel.getByRole('link', { name: 'Emitir liquidación' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Descartar' }).last().click();   // la más reciente va primero
+  const modal = page.getByRole('dialog', { name: 'Descartar solicitud' });
+  await modal.getByRole('textbox').fill('Ese mes estabas con licencia completa');
+  await modal.getByRole('button', { name: 'Descartar' }).click();
+  await expect(page.getByText(/Solicitud descartada/)).toBeVisible();
+  await panel.getByRole('button', { name: 'Marcar resuelta' }).click();
+  await expect(page.getByText('No hay solicitudes por atender.')).toBeVisible();
+
+  // De vuelta en el portal, el trabajador ve el resultado y el motivo.
+  await page.context().clearCookies();
+  await entrarConClave(page);
+  await page.goto('/trabajador/portal/solicitudes');
+  await expect(lista.getByText('Respuesta de tu empleador: Ese mes estabas con licencia completa')).toBeVisible();
+  await expect(lista.getByText('Resuelta')).toBeVisible();
 });

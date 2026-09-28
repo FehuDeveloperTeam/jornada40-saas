@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
-                     RegistroDT, TramoAsignacionFamiliar)
+                     RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -183,3 +183,10 @@ class TramoAsignacionFamiliarAdmin(admin.ModelAdmin):
     list_display = ('vigente_desde', 'tramo', 'monto', 'renta_hasta', 'fuente')
     list_filter = ('vigente_desde',)
     ordering = ('-vigente_desde', 'tramo')
+
+
+@admin.register(SolicitudDocumento)
+class SolicitudDocumentoAdmin(admin.ModelAdmin):
+    list_display = ('creada_en', 'empleado', 'tipo', 'mes', 'anio', 'estado')
+    list_filter = ('estado', 'tipo')
+    search_fields = ('empleado__rut', 'empleado__apellido_paterno')
