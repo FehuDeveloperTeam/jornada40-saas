@@ -77,6 +77,10 @@ function Hero({ onComenzar }: { onComenzar: () => void }) {
           Ver precios
         </a>
       </div>
+      <p className="text-[13.5px] text-fg-2">
+        ¿Trabajas en una empresa que usa Jornada40?{' '}
+        <Link to="/trabajador" className="font-medium whitespace-nowrap">Soy trabajador: ver mis liquidaciones</Link>
+      </p>
       <ul className="flex gap-x-5 gap-y-2 flex-wrap justify-center text-[12.5px] text-fg-3">
         {['Gratis hasta 3 trabajadores', 'Sin tarjeta de crédito', 'Importa tu nómina desde Excel'].map((t) => (
           <li key={t} className="inline-flex items-center gap-1.5">

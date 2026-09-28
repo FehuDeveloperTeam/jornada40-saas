@@ -558,3 +558,85 @@ export interface FichaDT {
     estado: EstadoRegistroDT;
     vence: string;
 }
+
+// ── Portal del trabajador (/api/trabajador/) ────────────────────────────────
+
+/** Ficha (empleo) que la cuenta del trabajador ya puede ver. */
+export interface EmpleoPortal {
+    id: number;
+    empresa: string;
+    empresa_rut: string;
+    cargo: string;
+    activo: boolean;
+    /** Último día de acceso de un desvinculado (ISO); null si está vigente. */
+    acceso_hasta: string | null;
+}
+
+/** Otra ficha con el mismo RUT cuyo correo aún no se verificó. */
+export interface EmpleoPorVincular {
+    id: number;
+    empresa: string;
+    /** Correo enmascarado ("ma***@example.com"). */
+    correo: string;
+}
+
+export interface CuentaTrabajador {
+    rut: string;
+    nombre: string;
+    tiene_clave: boolean;
+    mostrar_invitacion_clave: boolean;
+    /** Cómo entró en esta sesión: con clave debe dar la actual para cambiarla. */
+    ingreso_con: 'codigo' | 'clave';
+    empleos: EmpleoPortal[];
+    por_vincular: EmpleoPorVincular[];
+}
+
+export type RespuestaIngresoPortal =
+    | { metodo: 'clave' }
+    | { metodo: 'codigo'; mensaje: string; destinos: string[] };
+
+export interface LiquidacionPortal {
+    id: number;
+    mes: number;
+    anio: number;
+    empresa: string;
+    total_haberes: number | string;
+    total_descuentos: number | string;
+    liquido: number | string;
+    firmada: boolean;
+}
+
+export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'documento' | 'vacacion';
+
+export interface DocumentoPortal {
+    tipo: Exclude<TipoDocumentoPortal, 'liquidacion'>;
+    id: number;
+    titulo: string;
+    fecha: string | null;
+    empresa: string;
+    firmado: boolean;
+}
+
+export interface RegistroVacacionPortal {
+    id: number;
+    desde: string;
+    hasta: string;
+    dias_habiles: number | string;
+    /** Texto ya legible ("Feriado legal"). */
+    tipo: string;
+}
+
+export interface VacacionesPortal extends EmpleoPortal {
+    saldo: SaldoVacaciones | null;
+    registros: RegistroVacacionPortal[];
+}
+
+export interface FirmaPendientePortal {
+    id: number;
+    documento: string;
+    empresa: string;
+    /** Fecha y hora ISO en que vence el enlace. */
+    vence: string;
+    /** Ruta de la página pública de firma: /firma/<token>. */
+    enlace: string;
+}

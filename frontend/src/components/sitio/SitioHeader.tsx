@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { IdCard, Menu, X } from 'lucide-react';
 import { Button, Logo, ToggleTema } from '../j40';
 
 const ENLACES = [
@@ -29,9 +29,11 @@ export function SitioHeader() {
 
   return (
     <header className="sticky top-0 z-30 bg-canvas-blur backdrop-blur-md border-b border-line">
-      <div className="max-w-[1200px] mx-auto h-16 px-[clamp(16px,3vw,32px)] flex items-center gap-4">
+      <div className="max-w-[1200px] mx-auto h-16 px-[clamp(16px,3vw,32px)] flex items-center gap-2 min-[420px]:gap-4">
         <Link to="/" aria-label="Jornada40, inicio" className="no-underline hover:no-underline">
-          <Logo />
+          {/* En teléfonos angostos solo el isotipo: deja espacio al botón "Soy trabajador". */}
+          <Logo className="max-[419px]:hidden" />
+          <Logo soloIcono className="min-[420px]:hidden" />
         </Link>
 
         <nav aria-label="Secciones" className="hidden min-[1000px]:flex gap-1 ml-5">
@@ -44,6 +46,12 @@ export function SitioHeader() {
         </nav>
 
         <div className="flex-1" />
+        {/* El trabajador entra a su portal desde cualquier ancho (también en móvil, sin abrir el menú). */}
+        <Link to="/trabajador"
+          className="inline-flex items-center gap-1.5 h-[38px] px-3 rounded-j40-control border border-line bg-surface text-fg text-[13.5px] font-medium whitespace-nowrap no-underline hover:no-underline hover:bg-surface-2">
+          <IdCard className="size-[18px] text-brand-text hidden min-[420px]:block" strokeWidth={2} aria-hidden />
+          Soy trabajador
+        </Link>
         <ToggleTema />
 
         <div className="hidden min-[760px]:flex items-center gap-1">

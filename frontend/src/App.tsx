@@ -35,6 +35,15 @@ const EmpresasPanel = lazy(() => import('./pages/app/Empresas'));
 const Terminos = lazy(() => import('./pages/sitio/Terminos'));
 const FirmaPublica = lazy(() => import('./pages/sitio/Firma'));
 
+// Portal del trabajador: sesión propia (cookie del portal), independiente del panel.
+const IngresoTrabajador = lazy(() => import('./pages/sitio/Trabajador'));
+const PortalShell = lazy(() => import('./components/trabajador/PortalShell'));
+const PortalInicio = lazy(() => import('./pages/trabajador/Inicio'));
+const PortalLiquidaciones = lazy(() => import('./pages/trabajador/Liquidaciones'));
+const PortalDocumentos = lazy(() => import('./pages/trabajador/Documentos'));
+const PortalVacaciones = lazy(() => import('./pages/trabajador/Vacaciones'));
+const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
+
 // Direcciones del panel anterior: se mantienen para enlaces guardados y correos.
 const DESDE_CLASICO: Record<string, string> = {
   perfil: 'personal', contratos: 'contrato', liquidaciones: 'remuneraciones', historial: 'remuneraciones',
@@ -129,6 +138,16 @@ export default function App() {
         {/* La ruta la fija el backend en el correo (PASSWORD_RESET_CONFIRM_URL). */}
         <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />
         <Route path="/firma/:token" element={<FirmaPublica />} />
+        <Route path="/trabajador" element={<IngresoTrabajador />} />
+        {/* PortalShell verifica la sesión del portal (GET /trabajador/yo/) y sin ella vuelve a /trabajador. */}
+        <Route path="/trabajador/portal" element={<PortalShell />}>
+          <Route index element={<PortalInicio />} />
+          <Route path="liquidaciones" element={<PortalLiquidaciones />} />
+          <Route path="documentos" element={<PortalDocumentos />} />
+          <Route path="vacaciones" element={<PortalVacaciones />} />
+          <Route path="seguridad" element={<PortalSeguridad />} />
+          <Route path="*" element={<Navigate to="/trabajador/portal" replace />} />
+        </Route>
 
         {/* Rutas Privadas y Seguras */}
         <Route

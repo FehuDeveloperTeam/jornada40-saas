@@ -5,7 +5,7 @@ import { isAxiosError } from 'axios';
 import { Check, CircleX, Clock, Download, FileText, Lock, ShieldCheck } from 'lucide-react';
 import client from '../../api/client';
 import { guardarArchivo } from '../../api/descargas';
-import { AlertaError, Button, CampoRut, Casilla, FirmaPad, J40Root, Logo, Modal, ToggleTema } from '../../components/j40';
+import { AlertaError, Button, CampoCodigo, CampoRut, Casilla, FirmaPad, J40Root, Logo, Modal, ToggleTema } from '../../components/j40';
 import { VisorPdf } from '../../components/firma/VisorPdf';
 import { cn } from '../../utils/cn';
 import { capitalizar } from '../../utils/formato';
@@ -254,26 +254,8 @@ function Codigo({ token, info, rut, onVerificado, onVolver }: {
         <p className="text-[14px] text-fg-2 mt-1">Lo enviamos a {info.email_firmante_enmascarado}. Vale por 10 minutos y tiene 3 intentos.</p>
       </div>
       {error && <AlertaError>{error}</AlertaError>}
-      {/* Un solo campo real (autocompletado del SMS/correo en móvil) bajo 6 casillas visuales. */}
-      <label className="relative block cursor-text">
-        <span className="sr-only">Código de 6 dígitos</span>
-        <input ref={campo} autoFocus value={codigo} inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-          disabled={verificando}
-          onChange={(e) => {
-            const v = e.target.value.replace(/\D/g, '').slice(0, 6);
-            setCodigo(v);
-            if (v.length === 6) void verificar(v);
-          }}
-          className="peer absolute inset-0 w-full h-full opacity-0 text-[16px]" />
-        <span className="grid grid-cols-6 gap-2" aria-hidden>
-          {Array.from({ length: 6 }, (_, i) => (
-            <span key={i} className={cn('h-14 rounded-[10px] border bg-surface grid place-items-center text-[22px] font-semibold j40-mono',
-              i === Math.min(codigo.length, 5) ? 'border-brand ring-[3px] ring-brand-soft peer-focus:border-brand' : 'border-line-strong')}>
-              {codigo[i] ?? ''}
-            </span>
-          ))}
-        </span>
-      </label>
+      <CampoCodigo ref={campo} autoFocus valor={codigo} onChange={setCodigo} onCompleto={(v) => void verificar(v)}
+        deshabilitado={verificando} />
       {verificando && <p className="text-[13px] text-fg-3" role="status">Verificando…</p>}
       <div className="flex items-center justify-between gap-3 flex-wrap text-[13px]">
         <button type="button" onClick={onVolver} className="text-fg-2">Cambiar RUT</button>

@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect } from '@playwright/test';
 import type { Download, Page } from '@playwright/test';
 
 /** Datos de la base semilla (backend/e2e/management/commands/preparar_e2e.py). */
 export const USUARIO = { rut: '123456785', clave: 'Clave-Segura-2026' };
-export const MATIAS = { id: 1, rut: '11.111.112-K' };
+export const MATIAS = { id: 1, rut: '11.111.112-K', correo: 'matias@example.com' };
 
 const BACKEND = path.resolve(import.meta.dirname, '../../backend');
 const python = process.env.PYTHON ?? 'python';
@@ -28,6 +29,19 @@ export function consultar(codigo: string): string {
 
 export function ultimoCodigoOtp(token: string): string {
   return consultar(`from core.models import OTPFirma; print(OTPFirma.objects.filter(solicitud__token='${token}').latest('creado_en').codigo)`);
+}
+
+/**
+ * Último código del portal del trabajador enviado a `correo`, o '' si aún no hay.
+ * En e2e el backend los anota en e2e-archivos/codigos_portal.txt, una línea
+ * "correo codigo" por envío (PORTAL_CODIGOS_E2E en config/settings_e2e.py).
+ */
+export function ultimoCodigoPortal(correo: string): string {
+  const archivo = path.join(process.env.E2E_ARCHIVOS_DIR ?? path.join(BACKEND, 'e2e-archivos'), 'codigos_portal.txt');
+  if (!existsSync(archivo)) return '';
+  const lineas = readFileSync(archivo, 'utf8').split('\n').map((l) => l.trim().split(/\s+/))
+    .filter(([c, codigo]) => c?.toLowerCase() === correo.toLowerCase() && codigo);
+  return lineas.at(-1)?.[1] ?? '';
 }
 
 export async function entrar(page: Page, clave = USUARIO.clave) {

@@ -37,9 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(true);
 
     // Verificar sesión al cargar la página por primera vez. La página pública
-    // de firma no la necesita (el trabajador no tiene cuenta).
+    // de firma y el portal del trabajador no la necesitan (tienen su propia sesión).
     useEffect(() => {
-        if (window.location.pathname.startsWith('/firma/')) { setLoading(false); return; }
+        const ruta = window.location.pathname;
+        if (ruta.startsWith('/firma/') || ruta === '/trabajador' || ruta.startsWith('/trabajador/')) { setLoading(false); return; }
         client.get<User>('/auth/user/')
             .then((res) => setUser(res.data), () => setUser(null))
             .finally(() => setLoading(false));
