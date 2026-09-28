@@ -11,3 +11,4 @@ export const useDocumentosPortal = () => useQuery({ queryKey: [CLAVE_PORTAL, 'do
 export const useVacacionesPortal = () => useQuery({ queryKey: [CLAVE_PORTAL, 'vacaciones'], queryFn: portal.vacaciones });
 export const useFirmasPortal = () => useQuery({ queryKey: [CLAVE_PORTAL, 'firmas'], queryFn: portal.firmas });
 export const useSolicitudesPortal = () => useQuery({ queryKey: [CLAVE_PORTAL, 'solicitudes'], queryFn: portal.solicitudes });
+export const useCertificadosPortal = () => useQuery({ queryKey: [CLAVE_PORTAL, 'certificados'], queryFn: portal.certificados });

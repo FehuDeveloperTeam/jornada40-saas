@@ -138,6 +138,7 @@ REST_FRAMEWORK = {
         'firma_publica': '120/hour',
         'firma_publica_ip': '1500/day',
         'portal_trabajador': '60/hour',
+        'verificar_certificado': '120/hour',
         'portal_trabajador_sesion': '5000/day',
         'login': '3/minute',
         'register': '3/minute',
@@ -287,6 +288,8 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
+# Sitio público (enlaces impresos en PDFs, p. ej. la verificación de certificados).
+SITIO_URL = config('SITIO_URL', default='https://jornada40.cl')
 PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
 # El enlace de recuperación vence en 24 horas (el default de Django son 3 días).
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24

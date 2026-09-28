@@ -45,6 +45,8 @@ const PortalDocumentos = lazy(() => import('./pages/trabajador/Documentos'));
 const PortalVacaciones = lazy(() => import('./pages/trabajador/Vacaciones'));
 const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
 const PortalSolicitudes = lazy(() => import('./pages/trabajador/Solicitudes'));
+const PortalCertificados = lazy(() => import('./pages/trabajador/Certificados'));
+const VerificarCertificado = lazy(() => import('./pages/sitio/Verificar'));
 
 // Direcciones del panel anterior: se mantienen para enlaces guardados y correos.
 const DESDE_CLASICO: Record<string, string> = {
@@ -140,6 +142,8 @@ export default function App() {
         {/* La ruta la fija el backend en el correo (PASSWORD_RESET_CONFIRM_URL). */}
         <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />
         <Route path="/firma/:token" element={<FirmaPublica />} />
+        <Route path="/verificar" element={<VerificarCertificado />} />
+        <Route path="/verificar/:codigo" element={<VerificarCertificado />} />
         <Route path="/trabajador" element={<IngresoTrabajador />} />
         {/* PortalShell verifica la sesión del portal (GET /trabajador/yo/) y sin ella vuelve a /trabajador. */}
         <Route path="/trabajador/portal" element={<PortalShell />}>
@@ -147,6 +151,7 @@ export default function App() {
           <Route path="liquidaciones" element={<PortalLiquidaciones />} />
           <Route path="documentos" element={<PortalDocumentos />} />
           <Route path="vacaciones" element={<PortalVacaciones />} />
+          <Route path="certificados" element={<PortalCertificados />} />
           <Route path="solicitudes" element={<PortalSolicitudes />} />
           <Route path="seguridad" element={<PortalSeguridad />} />
           <Route path="*" element={<Navigate to="/trabajador/portal" replace />} />

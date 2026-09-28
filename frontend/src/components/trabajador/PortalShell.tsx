@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, ShieldCheck, X } from 'lucide-react';
+import { BadgeCheck, Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, ShieldCheck, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, J40Root, Logo, Modal, ToggleTema } from '../j40';
 import { portal, sinSesion } from '../../api/portal';
@@ -36,16 +36,17 @@ export function usePortal(): PortalContexto {
 
 // ── Navegación ───────────────────────────────────────────────────────────────
 
-interface ItemNav { a: string; etiqueta: string; corta: string; Icono: LucideIcon; fin?: boolean }
+interface ItemNav { a: string; etiqueta: string; corta: string; Icono: LucideIcon; fin?: boolean; soloLateral?: boolean }
 
 const RAIZ = '/trabajador/portal';
 const NAV: ItemNav[] = [
   { a: RAIZ, etiqueta: 'Inicio', corta: 'Inicio', Icono: LayoutDashboard, fin: true },
   { a: `${RAIZ}/liquidaciones`, etiqueta: 'Liquidaciones', corta: 'Sueldos', Icono: Banknote },
-  { a: `${RAIZ}/documentos`, etiqueta: 'Documentos', corta: 'Documentos', Icono: FileText },
+  { a: `${RAIZ}/documentos`, etiqueta: 'Documentos', corta: 'Docs', Icono: FileText },
+  { a: `${RAIZ}/certificados`, etiqueta: 'Certificados', corta: 'Certificados', Icono: BadgeCheck },
   { a: `${RAIZ}/vacaciones`, etiqueta: 'Vacaciones', corta: 'Vacaciones', Icono: CalendarDays },
   { a: `${RAIZ}/solicitudes`, etiqueta: 'Solicitudes', corta: 'Pedir', Icono: FilePlus2 },
-  { a: `${RAIZ}/seguridad`, etiqueta: 'Seguridad', corta: 'Seguridad', Icono: ShieldCheck },
+  { a: `${RAIZ}/seguridad`, etiqueta: 'Seguridad', corta: 'Seguridad', Icono: ShieldCheck, soloLateral: true },
 ];
 
 // ── Shell ────────────────────────────────────────────────────────────────────
@@ -128,6 +129,12 @@ export default function PortalShell() {
             <span className="hidden min-[720px]:inline text-[13px] text-fg-3">Portal del trabajador</span>
             <div className="flex-1" />
             <ToggleTema />
+            {/* En el teléfono, Seguridad no cabe en la barra inferior: va aquí. */}
+            <NavLink to={`${RAIZ}/seguridad`} aria-label="Seguridad" title="Seguridad"
+              className={({ isActive }) => cn('min-[720px]:hidden grid place-items-center size-9 rounded-[8px] no-underline hover:no-underline',
+                isActive ? 'text-brand-text bg-brand-soft' : 'text-fg-2 hover:bg-sunken')}>
+              <ShieldCheck className="size-[19px]" strokeWidth={2} aria-hidden />
+            </NavLink>
             <Button variante="fantasma" onClick={salir} aria-label="Salir" className="min-[720px]:hidden px-2.5"
               iconoInicio={<LogOut className="size-[19px]" strokeWidth={2} />}>Salir</Button>
           </header>
@@ -233,10 +240,10 @@ function Lateral({ cuenta, salir }: { cuenta: CuentaTrabajador; salir: () => voi
 function BarraInferior() {
   return (
     <nav aria-label="Portal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 px-0.5 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
-      {NAV.map(({ a, corta, Icono, fin }) => (
+      {NAV.filter((n) => !n.soloLateral).map(({ a, corta, Icono, fin }) => (
         <NavLink key={a} to={a} end={fin}
           className={({ isActive }) => cn(
-            'flex flex-col items-center justify-center gap-[3px] min-w-0 h-[52px] text-[10.5px] font-medium no-underline hover:no-underline',
+            'flex flex-col items-center justify-center gap-[3px] min-w-0 h-[52px] text-[10px] font-medium no-underline hover:no-underline',
             isActive ? 'text-brand-text' : 'text-fg-3',
           )}>
           <Icono className="size-[23px]" strokeWidth={2} aria-hidden />

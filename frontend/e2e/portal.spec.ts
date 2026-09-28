@@ -96,12 +96,17 @@ test('en el teléfono no hay desborde horizontal', async ({ page }) => {
   await entrarConClave(page);
   await sinDesborde();
   const barra = page.getByRole('navigation', { name: 'Portal' });
-  for (const [enlace, titulo] of [['Sueldos', 'Liquidaciones'], ['Documentos', 'Documentos'], ['Vacaciones', 'Vacaciones'], ['Pedir', 'Solicitudes'], ['Seguridad', 'Seguridad']]) {
+  for (const [enlace, titulo] of [['Sueldos', 'Liquidaciones'], ['Docs', 'Documentos'], ['Certificados', 'Certificados'],
+    ['Vacaciones', 'Vacaciones'], ['Pedir', 'Solicitudes']]) {
     await barra.getByRole('link', { name: enlace }).click();
     await expect(page.getByRole('heading', { name: titulo, level: 1 })).toBeVisible();
     await sinDesborde();
   }
-  await barra.getByRole('link', { name: 'Documentos' }).click();
+  // Seguridad no cabe en la barra: va en el encabezado.
+  await page.getByRole('banner').getByRole('link', { name: 'Seguridad' }).click();
+  await expect(page.getByRole('heading', { name: 'Seguridad', level: 1 })).toBeVisible();
+  await sinDesborde();
+  await barra.getByRole('link', { name: 'Docs' }).click();
   await expect(page.getByRole('list', { name: 'Documentos' }).getByText('Contrato de trabajo')).toBeVisible();
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page).toHaveURL(/\/trabajador$/);
@@ -179,4 +184,37 @@ test('el trabajador pide documentos y el empleador los atiende', async ({ page }
   await page.goto('/trabajador/portal/solicitudes');
   await expect(lista.getByText('Respuesta de tu empleador: Ese mes no hubo remuneración que liquidar.')).toBeVisible();
   await expect(lista.getByText(/Enviada a tu firma/)).toBeVisible();
+});
+
+test('el trabajador genera un certificado y un tercero lo verifica', async ({ page }) => {
+  await entrarConClave(page);
+  await page.getByRole('navigation', { name: 'Portal' }).getByRole('link', { name: 'Certificados' }).click();
+  await expect(page.getByRole('heading', { name: 'Certificados', level: 1 })).toBeVisible();
+  // Renta necesita liquidaciones firmadas consecutivas: aún no alcanza y se explica por qué.
+  await expect(page.getByRole('list', { name: 'Certificados no disponibles' }).getByText(/Certificado de renta/)).toBeVisible();
+
+  await page.getByLabel('Certificado', { exact: true }).selectOption('ANTIGUEDAD');
+  const nombre = await descargar(page, () => page.getByRole('button', { name: 'Generar certificado' }).click());
+  expect(nombre).toMatch(/^C-\d{7}\.pdf$/);
+  const emitidos = page.getByRole('list', { name: 'Certificados emitidos' });
+  await expect(emitidos.getByText('Certificado de antigüedad laboral')).toBeVisible();
+  const codigo = (await emitidos.locator('.j40-mono').first().textContent())!.trim();
+  expect(codigo).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+
+  // Verificación pública, sin sesión: con el código correcto y con uno inventado.
+  await page.context().clearCookies();
+  await page.goto('/verificar');
+  await page.getByLabel('Código de verificación').fill(codigo.toLowerCase());
+  await page.getByRole('button', { name: 'Verificar' }).click();
+  const resultado = page.getByRole('region', { name: 'Resultado de la verificación' });
+  await expect(resultado.getByText('Certificado auténtico')).toBeVisible();
+  await expect(resultado.getByText(/RUT ••\.•••\.112-K/)).toBeVisible();
+  await page.goto('/verificar/ZZZZ-ZZZZ-ZZZZ');
+  await expect(page.getByText('No encontramos un certificado con ese código')).toBeVisible();
+
+  // El empleador lo ve en la carpeta del trabajador.
+  await entrar(page);
+  await page.goto(`/app/trabajadores/${MATIAS.id}?tab=documentos`);
+  await expect(page.getByText('Certificados emitidos por el trabajador')).toBeVisible();
+  await expect(page.getByText(codigo)).toBeVisible();
 });

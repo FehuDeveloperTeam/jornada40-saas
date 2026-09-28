@@ -16,7 +16,7 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {
     'login': '1000/minute', 'register': '1000/minute', 'password_reset': '1000/hour',
     'anon': '100000/day', 'user': '100000/day',
     'firma_publica': '100000/hour', 'firma_publica_ip': '100000/day',
-    'portal_trabajador': '100000/hour', 'portal_trabajador_sesion': '100000/day'}}
+    'portal_trabajador': '100000/hour', 'verificar_certificado': '100000/hour', 'portal_trabajador_sesion': '100000/day'}}
 INSTALLED_APPS = [*INSTALLED_APPS, 'e2e']
 # El portal del trabajador anota aquí los códigos que enviaría por correo.
 PORTAL_CODIGOS_E2E = os.path.join(E2E_ARCHIVOS_DIR, 'codigos_portal.txt')

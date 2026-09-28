@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { LucideIcon } from 'lucide-react';
-import { Download, FileSignature, Send, FileText, FileWarning, Lock, ScrollText, UserX } from 'lucide-react';
+import { BadgeCheck, Download, FileSignature, Send, FileText, FileWarning, Lock, ScrollText, UserX } from 'lucide-react';
 import { Button } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
-import type { Empleado } from '../../../types';
+import type { CertificadoEmitido, Empleado } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
 import type { DocumentoReciente } from './documentos';
 
@@ -100,6 +100,35 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
           </div>
         ))}
       </Seccion>
+
+      <CertificadosEmitidos empleadoId={empleado.id} avisar={avisar} />
     </div>
+  );
+}
+
+/** Certificados que el trabajador generó desde su portal (solo lectura). */
+function CertificadosEmitidos({ empleadoId, avisar }: { empleadoId: number; avisar: (t: string) => void }) {
+  const { data = [] } = useQuery({
+    queryKey: ['certificados', empleadoId],
+    queryFn: async () => (await client.get<CertificadoEmitido[]>(`/empleados/${empleadoId}/certificados/`)).data,
+  });
+  if (!data.length) return null;
+  const fecha = (iso: string) => new Date(iso).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return (
+    <Seccion titulo="Certificados emitidos por el trabajador"
+      accion={<span className="text-[12.5px] text-fg-3">Desde su portal</span>}>
+      {data.map((c) => (
+        <div key={c.id} className="flex flex-wrap gap-x-3 gap-y-2 items-center px-[18px] py-3 border-b border-line last:border-b-0">
+          <BadgeCheck className="size-[19px] text-fg-3 shrink-0" strokeWidth={2} aria-hidden />
+          <div className="flex-1 min-w-[180px] flex flex-col">
+            <span className="text-[13px]">{c.titulo}{c.opcion_texto ? ` · ${c.opcion_texto.toLowerCase()}` : ''}</span>
+            <span className="text-[11.5px] text-fg-3 j40-num">{c.folio} · {fecha(c.emitido_en)} · código <span className="j40-mono">{c.codigo}</span></span>
+          </div>
+          <Button variante="fantasma" tamano="sm" aria-label={`Descargar ${c.titulo} ${c.folio}`}
+            onClick={async () => { const error = await descargar(`/certificados/${c.id}/pdf/`, `${c.folio}.pdf`); if (error) avisar(error); }}
+            iconoInicio={<Download className="size-4" strokeWidth={2} />}>PDF</Button>
+        </div>
+      ))}
+    </Seccion>
   );
 }

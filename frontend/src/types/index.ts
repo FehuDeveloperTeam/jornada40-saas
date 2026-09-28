@@ -606,7 +606,7 @@ export interface LiquidacionPortal {
     firmada: boolean;
 }
 
-export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma';
+export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'certificado';
 
 export interface DocumentoPortal {
     tipo: Exclude<TipoDocumentoPortal, 'liquidacion'>;
@@ -682,6 +682,52 @@ export interface SolicitudDocumentoPanel extends SolicitudDocumento {
     vacacion: number | null;
     /** Motivos de descarte que admite esta solicitud. */
     motivos: OpcionValor[];
+}
+
+export type TipoCertificado = 'ANTIGUEDAD' | 'RENTA' | 'VACACIONES' | 'JORNADA' | 'TERMINO' | 'COTIZACIONES';
+
+/** Certificado que se puede generar; si no está disponible, `motivo` dice por qué. */
+export interface CertificadoGenerable {
+    tipo: TipoCertificado;
+    texto: string;
+    disponible: boolean;
+    motivo: string;
+    /** Período (renta y cotizaciones). */
+    opciones?: { valor: string; texto: string; disponible: boolean; motivo: string }[];
+}
+
+export interface CertificadoEmitido {
+    id: number;
+    folio: string;
+    tipo: TipoCertificado;
+    titulo: string;
+    opcion: string;
+    opcion_texto: string;
+    codigo: string;
+    emitido_en: string;
+    empresa?: string;
+}
+
+export interface OpcionesCertificado { empleo: number; empresa: string; aviso: string; certificados: CertificadoGenerable[] }
+
+export interface CertificadosPortal {
+    /** `aviso`: por qué no se puede emitir ninguno en ese empleo (p. ej. sin firma del empleador). */
+    opciones: OpcionesCertificado[];
+    emitidos: CertificadoEmitido[];
+}
+
+/** Respuesta pública de /certificados/verificar/<código>/. */
+export interface VerificacionCertificado {
+    valido: boolean;
+    folio: string;
+    codigo: string;
+    titulo: string;
+    emitido: string;
+    empresa: { nombre: string; rut: string; direccion: string };
+    trabajador: { nombre: string; rut: string };
+    filas: [string, string][];
+    tabla: { columnas: string[]; filas: string[][]; pie: string[] | null } | null;
+    nota: string;
 }
 
 export interface FirmaPendientePortal {

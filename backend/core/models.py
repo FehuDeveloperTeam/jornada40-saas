@@ -1088,3 +1088,33 @@ class SolicitudDocumento(models.Model):
     def __str__(self):
         periodo = f' {self.mes:02d}/{self.anio}' if self.mes else ''
         return f'{self.get_tipo_display()}{periodo} · {self.empleado} [{self.estado}]'
+
+
+class CertificadoEmitido(models.Model):
+    """Certificado que el trabajador genera desde su portal, sin intervención
+    del empleador. `datos` guarda exactamente lo que el certificado afirma: el
+    PDF se reconstruye desde ahí (misma versión siempre) y la página pública de
+    verificación lo muestra con el código impreso en el documento."""
+    TIPOS = [('ANTIGUEDAD', 'Certificado de antigüedad laboral'),
+             ('RENTA', 'Certificado de renta'),
+             ('VACACIONES', 'Certificado de vacaciones'),
+             ('JORNADA', 'Certificado de jornada y horario'),
+             ('TERMINO', 'Certificado de término de relación laboral'),
+             ('COTIZACIONES', 'Certificado de cotizaciones declaradas')]
+    empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='certificados')
+    cuenta = models.ForeignKey(CuentaTrabajador, on_delete=models.SET_NULL, null=True, related_name='certificados')
+    tipo = models.CharField(max_length=15, choices=TIPOS)
+    opcion = models.CharField(max_length=10, blank=True, default='')
+    codigo = models.CharField(max_length=14, unique=True, help_text='Código de verificación impreso en el PDF.')
+    datos = models.JSONField(default=dict)
+    emitido_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-emitido_en']
+
+    @property
+    def folio(self):
+        return f'C-{self.id:07d}'
+
+    def __str__(self):
+        return f'{self.folio} {self.get_tipo_display()} · {self.empleado}'

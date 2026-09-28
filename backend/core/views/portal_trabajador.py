@@ -494,6 +494,13 @@ def descargar(request):
             nombre = f'Liquidacion_{liq.anio}_{liq.mes:02d}.pdf'
             firmado = pdf_firmado('LIQUIDACION', liquidacion=liq)
             return respuesta_pdf(firmado or _pdf_liquidacion(liq, False), nombre, firmado=bool(firmado))
+        if tipo == 'certificado':
+            from ..models import CertificadoEmitido
+            from .certificados import pdf_certificado
+            cert = CertificadoEmitido.objects.filter(id=ident, empleado__in=fichas).select_related('empleado__empresa').first()
+            if not cert:
+                raise LookupError
+            return respuesta_pdf(pdf_certificado(cert), f'{cert.folio}.pdf')
         visibles = {(t, i): (emp, titulo) for t, i, emp, titulo, _, _ in _documentos(fichas)}
         if (tipo, ident) not in visibles:
             raise LookupError

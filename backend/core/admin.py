@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
-                     RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento)
+                     RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -190,3 +190,18 @@ class SolicitudDocumentoAdmin(admin.ModelAdmin):
     list_display = ('creada_en', 'empleado', 'tipo', 'mes', 'anio', 'estado')
     list_filter = ('estado', 'tipo')
     search_fields = ('empleado__rut', 'empleado__apellido_paterno')
+
+
+@admin.register(CertificadoEmitido)
+class CertificadoEmitidoAdmin(admin.ModelAdmin):
+    """Solo lectura: lo que el certificado afirma no se corrige a mano (la verificación pública lo muestra)."""
+    list_display = ('emitido_en', 'folio', 'tipo', 'empleado', 'codigo')
+    list_filter = ('tipo',)
+    search_fields = ('codigo', 'empleado__rut', 'empleado__apellido_paterno')
+    readonly_fields = ('empleado', 'cuenta', 'tipo', 'opcion', 'codigo', 'datos', 'emitido_en')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

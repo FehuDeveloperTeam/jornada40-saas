@@ -1,6 +1,7 @@
 from django.urls import path, include
 from .views import portal_trabajador as portal
 from .views import solicitudes_documento
+from .views import certificados
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -52,6 +53,11 @@ urlpatterns = [
     path('trabajador/firmas/', portal.firmas_pendientes, name='portal_firmas'),
     path('trabajador/firmar/', portal.firmar_liquidacion, name='portal_firmar_liquidacion'),
     path('trabajador/solicitudes/', solicitudes_documento.solicitudes_trabajador, name='portal_solicitudes'),
+    path('trabajador/certificados/', certificados.certificados_trabajador, name='portal_certificados'),
+    path('certificados/verificar/<str:codigo>/', certificados.verificar_certificado, name='verificar_certificado'),
+    path('empleados/<int:empleado_id>/certificados/', certificados.certificados_empleado, name='certificados_empleado'),
+    path('certificados/<int:certificado_id>/pdf/', certificados.descargar_certificado_empleador,
+         name='certificado_pdf'),
     path('pagos/cancelar-cambio/', cancelar_cambio_plan, name='cancelar_cambio_plan'),
     path('pagos/reanudar/', reanudar_renovacion, name='reanudar_renovacion'),
     path('auth/register/', registrar_cliente, name='api_register'),
