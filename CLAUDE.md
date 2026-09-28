@@ -398,6 +398,16 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Portal del trabajador (en la rama, no en `main`)
+
+- `/api/trabajador/…` (`views/portal_trabajador.py`), screen `/trabajador` (button "Soy trabajador" on the landing). Session: its own signed cookie `jornada40-trabajador` (8 h), independent of the employer's JWT, invalidated when the password is created/changed (`CuentaTrabajador.version_sesion`). Views accept JSON only (a cross-site form can't act for the worker) and are throttled (`portal_trabajador` per IP, `portal_trabajador_sesion` per account).
+- Login: RUT → if the account has a password, the password (with "cambiar RUT" and "entrar con código"); otherwise a 6-digit code by email. **One code per email, sent separately**: each code verifies only its own email (`CorreoTrabajador`). A worker sees only the `Empleado` rows whose email he verified — an employer who creates a row with someone else's RUT and his own email gets nothing from other companies. Other rows of the same RUT show up as "por vincular" (verify their email with a code). The response to a RUT with no rows is identical (no enumeration beyond "has a password").
+- Access: company plan Pyme or higher (`NIVEL_PLAN_PORTAL`); dismissed workers keep access 3 months from the finiquito signed in Jornada40, else from `fecha_desvinculacion` (`acceso_hasta`). Password optional (min 8, not only digits, not the RUT); the invitation to create it shows once (`invitacion_clave_vista`); whoever entered with a code can reset it without the old one.
+- Read-only content: contract (signed if it is), payslips signed or of closed months (the current month may still be edited), signed documents, legal letters sent to signature, approved vacations with balance, pending signatures (link to `/firma/<token>`). Downloads re-check visibility server-side.
+- e2e: with `PORTAL_CODIGOS_E2E` (only in `settings_e2e`) the codes are also written to `e2e-archivos/codigos_portal.txt` for Playwright.
+
+---
+
 ## Dirección del Trabajo
 
 - **Registro electrónico laboral (Ley 21.327)** — `core/registro_dt.py` (official tables and CSV) and `views/direccion_trabajo.py` (`/api/registro-dt/`), screen `/app/dt`. Mi DT has no API: Jornada40 computes what to register and by when, builds the bulk file, and records what the employer registered (`RegistroDT`, one row per `clave`: `CONTRATO:<id>`, `ANEXO:<id>`, `ANEXO40H:<solicitud>`, `TERMINO:<empleado>:<aaaammdd>`).
@@ -467,7 +477,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`, `test_portal_trabajador`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.

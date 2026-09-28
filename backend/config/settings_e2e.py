@@ -18,3 +18,5 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {
     'firma_publica': '100000/hour', 'firma_publica_ip': '100000/day',
     'portal_trabajador': '100000/hour', 'portal_trabajador_sesion': '100000/day'}}
 INSTALLED_APPS = [*INSTALLED_APPS, 'e2e']
+# El portal del trabajador anota aquí los códigos que enviaría por correo.
+PORTAL_CODIGOS_E2E = os.path.join(E2E_ARCHIVOS_DIR, 'codigos_portal.txt')

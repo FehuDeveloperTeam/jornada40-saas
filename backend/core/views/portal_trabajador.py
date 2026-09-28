@@ -186,6 +186,7 @@ def _enviar_codigo(rut, correos):
         codigo = ''.join(secrets.choice(string.digits) for _ in range(6))
         CodigoTrabajador.objects.create(rut=rut, huella=_huella(rut, codigo), correos=[correo],
                                         expira_en=timezone.now() + datetime.timedelta(minutes=MINUTOS_CODIGO))
+        _anotar_para_pruebas(correo, codigo)
         texto = (f'Tu código para entrar al portal del trabajador de Jornada40 es: {codigo}\n\n'
                  f'Vence en {MINUTOS_CODIGO} minutos. Si no lo pediste, ignora este mensaje.')
         html = render_to_string('portal_trabajador_codigo.html', {'codigo': codigo, 'minutos': MINUTOS_CODIGO})
@@ -198,6 +199,17 @@ def _enviar_codigo(rut, correos):
             logger.exception('No se pudo enviar el código del portal a %s', rut)
             return 'No pudimos enviar el código. Intenta de nuevo en unos minutos.'
     return None
+
+
+def _anotar_para_pruebas(correo, codigo):
+    """Solo en las pruebas de navegador (config.settings_e2e): deja el código en
+    un archivo para que la prueba lo lea en vez del correo. Sin el ajuste no hace nada."""
+    archivo = getattr(settings, 'PORTAL_CODIGOS_E2E', None)
+    if archivo:
+        import os
+        os.makedirs(os.path.dirname(archivo), exist_ok=True)
+        with open(archivo, 'a', encoding='utf-8') as f:
+            f.write(f'{correo} {codigo}\n')
 
 
 def _verificar_codigo(rut, codigo):
