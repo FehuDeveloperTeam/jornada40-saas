@@ -1,4 +1,5 @@
 from django.urls import path, include
+from .views import portal_trabajador as portal
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -31,6 +32,22 @@ urlpatterns = [
     path('pagos/crear-checkout/', crear_checkout_reveniu, name='crear_checkout_reveniu'),
     path('pagos/webhook/reveniu/', webhook_reveniu, name='webhook_reveniu'),
     path('pagos/bajar-plan/', bajar_plan, name='bajar_plan'),
+    # Portal del trabajador (sesión propia, independiente de la del empleador)
+    path('trabajador/ingreso/', portal.ingreso, name='portal_ingreso'),
+    path('trabajador/codigo/', portal.pedir_codigo, name='portal_pedir_codigo'),
+    path('trabajador/codigo/verificar/', portal.verificar_codigo, name='portal_verificar_codigo'),
+    path('trabajador/clave/ingresar/', portal.ingresar_con_clave, name='portal_ingresar_clave'),
+    path('trabajador/salir/', portal.salir, name='portal_salir'),
+    path('trabajador/yo/', portal.yo, name='portal_yo'),
+    path('trabajador/clave/', portal.fijar_clave, name='portal_fijar_clave'),
+    path('trabajador/invitacion/omitir/', portal.omitir_invitacion, name='portal_omitir_invitacion'),
+    path('trabajador/empleos/vincular/', portal.vincular_empleo, name='portal_vincular'),
+    path('trabajador/empleos/confirmar/', portal.confirmar_empleo, name='portal_confirmar'),
+    path('trabajador/liquidaciones/', portal.liquidaciones, name='portal_liquidaciones'),
+    path('trabajador/documentos/', portal.documentos, name='portal_documentos'),
+    path('trabajador/descargar/', portal.descargar, name='portal_descargar'),
+    path('trabajador/vacaciones/', portal.vacaciones, name='portal_vacaciones'),
+    path('trabajador/firmas/', portal.firmas_pendientes, name='portal_firmas'),
     path('pagos/cancelar-cambio/', cancelar_cambio_plan, name='cancelar_cambio_plan'),
     path('pagos/reanudar/', reanudar_renovacion, name='reanudar_renovacion'),
     path('auth/register/', registrar_cliente, name='api_register'),

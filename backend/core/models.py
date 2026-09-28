@@ -990,3 +990,66 @@ class OTPFirma(models.Model):
 
     def __str__(self):
         return f"OTP {self.solicitud_id} — {'✓' if self.verificado else '⏳'}"
+
+# ==========================================
+# PORTAL DEL TRABAJADOR
+# ==========================================
+
+class CuentaTrabajador(models.Model):
+    """Acceso de un trabajador al portal, identificado por su RUT.
+
+    El RUT solo no basta: cualquier empleador podría crear una ficha con un RUT
+    ajeno. El trabajador ve únicamente las fichas cuyo correo verificó con un
+    código (CorreoTrabajador), así que una ficha con otro correo no le da acceso
+    a nada. La clave es opcional: sin ella se entra con un código al correo.
+    """
+    rut = models.CharField(max_length=12, unique=True, help_text='RUT sin puntos ni guion (limpio).')
+    password = models.CharField(max_length=128, blank=True, default='')
+    # La invitación a crear clave se muestra una sola vez, se acepte u omita.
+    invitacion_clave_vista = models.BooleanField(default=False)
+    # Cambia al crear o cambiar la clave: invalida las sesiones anteriores.
+    version_sesion = models.PositiveIntegerField(default=1)
+    ultimo_ingreso = models.DateTimeField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    # DRF trata a la cuenta como el usuario autenticado de las vistas del portal.
+    is_authenticated = True
+    is_anonymous = False
+
+    def tiene_clave(self):
+        return bool(self.password)
+
+    def fijar_clave(self, clave):
+        from django.contrib.auth.hashers import make_password
+        self.password = make_password(clave)
+        self.version_sesion += 1
+
+    def clave_correcta(self, clave):
+        from django.contrib.auth.hashers import check_password
+        return bool(self.password) and check_password(clave, self.password)
+
+    def __str__(self):
+        return f'Cuenta de trabajador {self.rut}'
+
+
+class CorreoTrabajador(models.Model):
+    """Correo que el trabajador demostró recibir (ingresó el código enviado ahí)."""
+    cuenta = models.ForeignKey(CuentaTrabajador, on_delete=models.CASCADE, related_name='correos')
+    email = models.EmailField()
+    verificado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['cuenta', 'email'], name='correo_trabajador_unico')]
+
+
+class CodigoTrabajador(models.Model):
+    """Código de 6 dígitos enviado por correo para entrar al portal o verificar
+    un correo más. Se guarda solo su huella."""
+    rut = models.CharField(max_length=12, db_index=True)
+    huella = models.CharField(max_length=64)
+    # Correos a los que se envió: al verificarse, quedan verificados en la cuenta.
+    correos = models.JSONField(default=list)
+    intentos = models.PositiveSmallIntegerField(default=0)
+    usado = models.BooleanField(default=False)
+    expira_en = models.DateTimeField()
+    creado_en = models.DateTimeField(auto_now_add=True)

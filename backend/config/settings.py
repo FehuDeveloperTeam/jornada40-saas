@@ -137,6 +137,8 @@ REST_FRAMEWORK = {
         'user': '20000/day',
         'firma_publica': '120/hour',
         'firma_publica_ip': '1500/day',
+        'portal_trabajador': '60/hour',
+        'portal_trabajador_sesion': '5000/day',
         'login': '3/minute',
         'register': '3/minute',
         'password_reset': '2/hour',
