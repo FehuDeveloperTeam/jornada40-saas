@@ -81,7 +81,12 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except (ValueError, TypeError) as e:
             return Response({'error': f'Datos inválidos: {e}'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({'empleado': empleado.id, 'mes': data.get('mes'), 'anio': data.get('anio'), **calculado})
+        # Respaldo documental (pactos y autorizaciones firmadas): avisos, nunca bloqueos.
+        from .documentos_laborales import avisos_liquidacion
+        avisos = avisos_liquidacion(empleado, data.get('mes'), data.get('anio'), calculado['detalle_items'],
+                                    calculado['total_haberes'], calculado['dias_ausencia'])
+        return Response({'empleado': empleado.id, 'mes': data.get('mes'), 'anio': data.get('anio'), **calculado,
+                         'avisos_documentos': avisos})
 
     def create(self, request, *args, **kwargs):
         data = request.data

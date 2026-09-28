@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Lock, Plus, Trash2 } from 'lucide-react';
+import { Lock, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import client from '../../../api/client';
 import { AlertaError, Button, Drawer } from '../../j40';
 import { useConceptos, TIPO_CONCEPTO } from '../../../hooks/useRemuneraciones';
@@ -259,6 +259,15 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
           </section>
         </fieldset>
 
+        {(sim?.avisos_documentos?.length ?? 0) > 0 && (
+          <ul className="flex flex-col gap-1.5" aria-label="Avisos de respaldo documental">
+            {sim!.avisos_documentos!.map((a) => (
+              <li key={a} className="flex gap-2 items-start rounded-[8px] bg-warn-soft text-warn px-3 py-2.5 text-[12.5px]">
+                <TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{a}
+              </li>
+            ))}
+          </ul>
+        )}
         <section className="rounded-j40-card border border-line bg-surface-2 p-4 flex flex-col gap-2 j40-num" aria-live="polite">
           <div className="flex items-center justify-between">
             <h3 className="text-[14px] font-semibold">Cálculo</h3>

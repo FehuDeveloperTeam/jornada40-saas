@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ titulo }}</title>
+    <style>
+        @page {
+            size: letter; margin: 2.5cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footer_content;
+                bottom: 1cm; margin-left: 2cm; margin-right: 2cm; height: 1cm; text-align: center;
+            }
+        }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 11pt; line-height: 1.6; text-align: justify; color: #333; }
+        h1 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 6px; text-decoration: underline; text-transform: uppercase; }
+        .bold { font-weight: bold; }
+        .fecha { text-align: right; margin-bottom: 36px; }
+        .clausula { margin-bottom: 12px; }
+        .clausula-titulo { font-weight: bold; }
+        .firma-box { width: 100%; margin-top: 80px; }
+        .firma-col { width: 45%; text-align: center; border-top: 1px solid #000; padding-top: 5px; }
+    </style>
+</head>
+<body>
+    <div id="footer_content">
+        {% if es_plan_semilla %}
+            <p style="font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 5px;">
+                Generado con <strong>Jornada40.cl</strong> | Plan Semilla. Cámbiate al plan Starter o superior para eliminar esta marca.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="fecha"><span class="bold">{{ ciudad }}</span>, a <span class="bold">{{ fecha }}</span></div>
+
+    <h1>{{ titulo }}</h1>
+    <br>
+
+    <p><span class="bold">Entre:</span> <span class="bold">{{ empresa.nombre_legal }}</span>, RUT {{ empresa_rut }},
+    representada legalmente por {{ empresa.representante_legal|default:"________________________" }}, en adelante el
+    <span class="bold">Empleador</span>;</p>
+    <p><span class="bold">Y:</span> {{ nombre }}, RUT {{ rut }}, en adelante el <span class="bold">Trabajador</span>;</p>
+
+    <p>{% if es_constancia %}Se deja la siguiente constancia:{% else %}Se acuerda lo siguiente:{% endif %}</p>
+
+    {% for clausula in clausulas %}
+    <div class="clausula"><span class="clausula-titulo">{{ forloop.counter }}.</span> {{ clausula }}</div>
+    {% endfor %}
+
+    <p>En señal de conformidad, las partes firman el presente documento{% if not es_constancia %} en dos ejemplares del mismo tenor y fecha, quedando uno en poder de cada parte{% endif %}.</p>
+
+    <table class="firma-box">
+        <tr>
+            <td class="firma-col">
+                <br><br>
+                <span class="bold">{{ empresa.nombre_legal }}</span><br>
+                RUT: {{ empresa_rut }}<br>
+                p.p. {{ empresa.representante_legal|default:"________________________" }}<br>
+                Empleador
+            </td>
+            <td style="width: 10%;"></td>
+            <td class="firma-col">
+                <br><br>
+                <span class="bold">{{ nombre }}</span><br>
+                RUT: {{ rut }}<br>
+                <br>
+                Trabajador
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

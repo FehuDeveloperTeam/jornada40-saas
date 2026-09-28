@@ -451,6 +451,41 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
     };
 }
 
+export type TipoDocumentoLaboral = 'HORAS_EXTRA' | 'DESCUENTO' | 'PERMISO_LEGAL' | 'INDEMNIZACION';
+
+/** Pacto, autorización o constancia redactado por el backend desde opciones cerradas. */
+export interface DocumentoLaboral {
+    id: number;
+    empleado: number;
+    tipo: TipoDocumentoLaboral;
+    tipo_texto: string;
+    resumen: string;
+    fecha_emision: string;
+    vigente_desde: string;
+    vigente_hasta: string | null;
+    activo: boolean;
+}
+
+export interface OpcionSimple { valor: string; texto: string }
+
+/** Listas cerradas del formulario de documentos laborales (GET /documentos-laborales/opciones/). */
+export interface OpcionesDocumentoLaboral {
+    permitido: boolean;
+    avisos: string[];
+    tipos: Record<TipoDocumentoLaboral | 'TELETRABAJO', { disponible: boolean; motivo: string }>;
+    motivos_horas_extra: OpcionSimple[];
+    conceptos_descuento: OpcionSimple[];
+    finalidades_descuento: OpcionSimple[];
+    permisos: (OpcionSimple & { desde_el_hecho: boolean })[];
+    porcentajes_indemnizacion: OpcionSimple[];
+    modalidades_teletrabajo: OpcionSimple[];
+    lugares_teletrabajo: OpcionSimple[];
+    equipos_teletrabajo: OpcionSimple[];
+    dias_semana: OpcionSimple[];
+    horas_desconexion: OpcionSimple[];
+    duraciones_teletrabajo: OpcionSimple[];
+}
+
 export interface SolicitudFirma {
     id: number;
     empleado: number;
@@ -461,7 +496,9 @@ export interface SolicitudFirma {
     liquidacion: number | null;
     vacacion: number | null;
     finiquito: number | null;
-    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION' | 'VACACION' | 'FINIQUITO';
+    documento_laboral: number | null;
+    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION'
+        | 'VACACION' | 'FINIQUITO' | TipoDocumentoLaboral;
     token: string;
     estado: 'PENDIENTE' | 'PROCESANDO' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;

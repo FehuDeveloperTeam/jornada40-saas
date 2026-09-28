@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { LucideIcon } from 'lucide-react';
-import { BadgeCheck, Download, FileSignature, Send, FileText, FileWarning, Lock, ScrollText, UserX } from 'lucide-react';
+import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, Lock, ScrollText, UserX } from 'lucide-react';
 import { Button } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
@@ -20,7 +20,16 @@ const PLANTILLAS: Plantilla[] = [
   { titulo: 'Constancia laboral', detalle: 'Registro de hechos', Icono: ScrollText, nivel: 1, ruta: (id) => rutaAccion(id, 'documento', 'CONSTANCIA') },
   { titulo: 'Carta de término', detalle: 'Despido con causal legal', Icono: UserX, nivel: 2, ruta: (id) => rutaAccion(id, 'documento', 'DESPIDO') },
   { titulo: 'Finiquito', detalle: 'Cálculo y documento', Icono: FileText, nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito` },
+  { titulo: 'Pacto de horas extra', detalle: 'Art. 32, hasta 3 meses', Icono: Clock, nivel: 2, ruta: (id) => rutaLaboral(id, 'HORAS_EXTRA'), requiereContrato: true },
+  { titulo: 'Pacto de teletrabajo', detalle: 'Anexo Ley 21.220', Icono: House, nivel: 2, ruta: (id) => rutaLaboral(id, 'TELETRABAJO'), requiereContrato: true },
+  { titulo: 'Autorización de descuento', detalle: 'Art. 58, tope 15 %', Icono: HandCoins, nivel: 2, ruta: (id) => rutaLaboral(id, 'DESCUENTO') },
+  { titulo: 'Permiso legal con goce', detalle: 'Fallecimiento, nacimiento, matrimonio', Icono: ScrollText, nivel: 2, ruta: (id) => rutaLaboral(id, 'PERMISO_LEGAL') },
+  { titulo: 'Indemnización a todo evento', detalle: 'Art. 164, desde el año 7', Icono: Landmark, nivel: 2, ruta: (id) => rutaLaboral(id, 'INDEMNIZACION') },
 ];
+
+function rutaLaboral(id: number, tipo: string) {
+  return `/app/trabajadores/${id}?tab=documentos&accion=laboral&tipo=${tipo}`;
+}
 
 export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisar }: {
   empleado: Empleado; documentos: DocumentoReciente[]; nivel: number; cargandoPlan?: boolean; avisar: (t: string) => void;

@@ -488,7 +488,8 @@ class ConceptoRemuneracion(models.Model):
 class AnexoContrato(models.Model):
     contrato = models.ForeignKey(Contrato, on_delete=models.CASCADE, related_name='anexos')
     TIPOS = [('GENERAL', 'Modificación del contrato'),
-             ('CONSENTIMIENTO_ELECTRONICO', 'Autorización de documentación electrónica')]
+             ('CONSENTIMIENTO_ELECTRONICO', 'Autorización de documentación electrónica'),
+             ('TELETRABAJO', 'Pacto de trabajo a distancia o teletrabajo')]
     tipo = models.CharField(max_length=30, choices=TIPOS, default='GENERAL')
     titulo = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
@@ -503,6 +504,9 @@ class AnexoContrato(models.Model):
     # laboral, y por lo tanto tampoco sobre las liquidaciones.
     # {"sueldo_base": 900000, "cargo": "Jefe de Área", "comisiones_config": [...]}
     cambios = models.JSONField(default=dict, blank=True)
+    # Datos estructurados de un anexo tipado (p. ej. teletrabajo): de ellos se
+    # redactan sus cláusulas; no se aplican al contrato como `cambios`.
+    datos = models.JSONField(default=dict, blank=True)
     vigencia_desde = models.DateField(null=True, blank=True)
     aplicado = models.BooleanField(default=False)
     aplicado_en = models.DateTimeField(null=True, blank=True)
@@ -860,6 +864,10 @@ class SolicitudFirma(models.Model):
         ('LIQUIDACION',     'Liquidación de Sueldo'),
         ('VACACION',        'Comprobante de Vacaciones'),
         ('FINIQUITO',       'Finiquito de Término'),
+        ('HORAS_EXTRA',     'Pacto de horas extraordinarias'),
+        ('DESCUENTO',       'Autorización de descuento'),
+        ('PERMISO_LEGAL',   'Constancia de permiso legal'),
+        ('INDEMNIZACION',   'Pacto de indemnización a todo evento'),
     ]
 
     empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
@@ -871,6 +879,8 @@ class SolicitudFirma(models.Model):
     liquidacion      = models.ForeignKey('Liquidacion',   on_delete=models.SET_NULL,   null=True, blank=True)
     vacacion         = models.ForeignKey('VacacionEmpleado', on_delete=models.SET_NULL, null=True, blank=True)
     finiquito        = models.ForeignKey('Finiquito',     on_delete=models.SET_NULL,   null=True, blank=True)
+    documento_laboral = models.ForeignKey('DocumentoLaboral', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='solicitudes_firma')
 
     tipo_documento   = models.CharField(max_length=20, choices=TIPOS_DOCUMENTO)
     token            = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -1118,3 +1128,31 @@ class CertificadoEmitido(models.Model):
 
     def __str__(self):
         return f'{self.folio} {self.get_tipo_display()} · {self.empleado}'
+
+
+
+class DocumentoLaboral(models.Model):
+    """Pactos, autorizaciones y constancias que Jornada40 redacta desde datos
+    estructurados (sin texto libre): el backend valida cada tipo y arma su
+    texto; se firman como los demás documentos (SolicitudFirma.documento_laboral).
+    Surten efecto (avisos en la liquidación, marca en la ficha) solo firmados."""
+    TIPOS = [('HORAS_EXTRA', 'Pacto de horas extraordinarias'),
+             ('DESCUENTO', 'Autorización de descuento'),
+             ('PERMISO_LEGAL', 'Constancia de permiso legal con goce'),
+             ('INDEMNIZACION', 'Pacto de indemnización a todo evento')]
+    empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='documentos_laborales')
+    tipo = models.CharField(max_length=15, choices=TIPOS)
+    fecha_emision = models.DateField()
+    vigente_desde = models.DateField()
+    vigente_hasta = models.DateField(null=True, blank=True, help_text='Vacío: sin término (hasta revocación).')
+    concepto = models.ForeignKey('ConceptoRemuneracion', on_delete=models.PROTECT, null=True, blank=True,
+                                 help_text='Descuento autorizado (solo autorizaciones de descuento).')
+    datos = models.JSONField(default=dict)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-vigente_desde', '-id']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} · {self.empleado} ({self.vigente_desde})'

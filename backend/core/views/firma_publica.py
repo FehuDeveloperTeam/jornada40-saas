@@ -589,6 +589,12 @@ def firma_publica_firmar(request, token):
                 solicitud.anexo_contrato_id,
             )
 
+    # ── Pacto de teletrabajo firmado: la ficha refleja la modalidad pactada ─
+    anexo = solicitud.anexo_contrato if solicitud.tipo_documento == 'ANEXO_CONTRATO' else None
+    if anexo is not None and anexo.tipo == 'TELETRABAJO':
+        empleado.modalidad = 'REMOTO' if (anexo.datos or {}).get('modalidad') == 'TOTAL' else 'HIBRIDO'
+        empleado.save(update_fields=['modalidad'])
+
     # ── Consentimiento para la documentación electrónica (Dictamen 0789/15) ─
     if solicitud.incluye_consentimiento and not empleado.consentimiento_electronico_en:
         empleado.consentimiento_electronico_en = firmado_en

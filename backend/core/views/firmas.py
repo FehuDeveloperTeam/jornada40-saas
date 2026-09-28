@@ -6,7 +6,10 @@ from rest_framework import viewsets
 from django.template.loader import render_to_string
 from django.db.models import Exists, OuterRef
 from django.utils import timezone
-from ..models import AnexoContrato, Contrato, DocumentoLegal, Empleado, Empresa, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado
+from ..models import (AnexoContrato, Contrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Finiquito, Liquidacion,
+                      SolicitudFirma, VacacionEmpleado)
+
+TIPOS_DOCUMENTO_LABORAL = {t for t, _ in DocumentoLaboral.TIPOS}
 from django.conf import settings
 from num2words import num2words
 from ..serializers import SolicitudFirmaSerializer
@@ -57,6 +60,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         liquidacion_id = request.data.get('liquidacion_id')
         vacacion_id    = request.data.get('vacacion_id')
         finiquito_id   = request.data.get('finiquito_id')
+        documento_laboral_id = request.data.get('documento_laboral_id')
 
         tipos_validos = [t[0] for t in SolicitudFirma.TIPOS_DOCUMENTO]
         if tipo_doc not in tipos_validos:
@@ -69,7 +73,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 
         try:
             solicitud = self._crear_solicitud(request.user, empleado, tipo_doc, contrato_id, doc_legal_id, anexo_id,
-                                              liquidacion_id, vacacion_id, finiquito_id)
+                                              liquidacion_id, vacacion_id, finiquito_id,
+                                              documento_laboral_id=documento_laboral_id)
         except _ErrorFirma as e:
             return Response({'error': e.mensaje}, status=e.estado)
         return Response(SolicitudFirmaSerializer(solicitud).data, status=201)
@@ -108,7 +113,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         return Response({'enviadas': enviadas, 'omitidas': omitidas})
 
     def _crear_solicitud(self, user, empleado, tipo_doc, contrato_id=None, doc_legal_id=None, anexo_id=None,
-                         liquidacion_id=None, vacacion_id=None, finiquito_id=None, avisar_por_correo=True):
+                         liquidacion_id=None, vacacion_id=None, finiquito_id=None, avisar_por_correo=True,
+                         documento_laboral_id=None):
         """Genera el PDF, lo sube, crea la solicitud y avisa al trabajador. Lanza _ErrorFirma."""
         empresa = empleado.empresa
         if not empresa.firma_imagen:
@@ -117,12 +123,22 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         if not email_trabajador:
             raise _ErrorFirma('El trabajador no tiene correo registrado. Agrégalo en sus datos antes de enviar a firma.')
 
+        doc_laboral_obj = None
         try:
-            pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj, finiquito_obj = self._generar_pdf_firma(
-                empleado, empresa, tipo_doc,
-                contrato_id, doc_legal_id, anexo_id,
-                liquidacion_id, vacacion_id, finiquito_id, _es_plan_semilla(user)
-            )
+            if tipo_doc in TIPOS_DOCUMENTO_LABORAL:
+                from .documentos_laborales import pdf_documento_laboral
+                doc_laboral_obj = DocumentoLaboral.objects.filter(
+                    id=documento_laboral_id or 0, empleado=empleado, tipo=tipo_doc, activo=True).first()
+                if doc_laboral_obj is None:
+                    raise _ErrorFirma('Documento no encontrado.')
+                pdf_bytes = pdf_documento_laboral(doc_laboral_obj, _es_plan_semilla(user))
+                contrato_obj = doc_legal_obj = liquidacion_obj = vacacion_obj = finiquito_obj = None
+            else:
+                pdf_bytes, contrato_obj, doc_legal_obj, liquidacion_obj, vacacion_obj, finiquito_obj = self._generar_pdf_firma(
+                    empleado, empresa, tipo_doc,
+                    contrato_id, doc_legal_id, anexo_id,
+                    liquidacion_id, vacacion_id, finiquito_id, _es_plan_semilla(user)
+                )
         except _ErrorFirma:
             raise
         except Exception:
@@ -138,7 +154,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         # Un mismo documento no puede tener dos solicitudes vivas: dos correos
         # al trabajador y dos firmas distintas del mismo papel.
         documento = {'contrato': contrato_obj, 'documento_legal': doc_legal_obj, 'anexo_contrato': anexo_obj,
-                     'liquidacion': liquidacion_obj, 'vacacion': vacacion_obj, 'finiquito': finiquito_obj}
+                     'liquidacion': liquidacion_obj, 'vacacion': vacacion_obj, 'finiquito': finiquito_obj,
+                     'documento_laboral': doc_laboral_obj}
         filtro = {campo: obj for campo, obj in documento.items() if obj is not None}
         if tipo_doc in ('CONTRATO', 'ANEXO_40H'):
             filtro = {'contrato': contrato_obj}
@@ -162,6 +179,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 empleado=empleado, empresa=empresa, tipo_documento=tipo_doc,
                 contrato=contrato_obj, documento_legal=doc_legal_obj, anexo_contrato=anexo_obj,
                 liquidacion=liquidacion_obj, vacacion=vacacion_obj, finiquito=finiquito_obj,
+                documento_laboral=doc_laboral_obj,
                 email_firmante=email_trabajador, b2_key_temporal=key,
                 # El contrato lleva la cláusula de documentación electrónica; el
                 # anexo de autorización es esa misma cláusula.
@@ -358,6 +376,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             'LIQUIDACION':    'Liquidación de Sueldo',
             'VACACION':       'Comprobante de Vacaciones',
             'FINIQUITO':      'Finiquito de Término',
+            **dict(DocumentoLaboral.TIPOS),
         }
         tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
         firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"

@@ -50,6 +50,8 @@ export interface ItemEnviado {
 
 /** Respuesta de /liquidaciones/simular/: el mismo cálculo que al emitir. */
 export interface Simulacion {
+  /** Respaldo documental faltante (pactos y autorizaciones firmadas): avisos, nunca bloqueos. */
+  avisos_documentos?: string[];
   sueldo_base: number;
   gratificacion: number;
   semana_corrida: number;

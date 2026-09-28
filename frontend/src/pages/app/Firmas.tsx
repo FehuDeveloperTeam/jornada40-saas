@@ -40,11 +40,14 @@ const estadoVisible = (f: SolicitudFirma, ahora: number): Estado | 'VENCIDA' => 
 /** Documento al que pertenece la solicitud: tipo más el id del objeto firmado. */
 const claveDocumento = (f: SolicitudFirma) => [
   f.empleado, f.tipo_documento, f.contrato, f.documento_legal, f.anexo_contrato, f.liquidacion, f.vacacion, f.finiquito,
+  f.documento_laboral,
 ].join(':');
 const DOCUMENTO: Record<SolicitudFirma['tipo_documento'], string> = {
   CONTRATO: 'Contrato de trabajo', ANEXO_40H: 'Anexo Ley 40 horas', AMONESTACION: 'Carta de amonestación',
   DESPIDO: 'Carta de término', CONSTANCIA: 'Constancia laboral', ANEXO_CONTRATO: 'Anexo de contrato',
   LIQUIDACION: 'Liquidación de sueldo', VACACION: 'Comprobante de vacaciones', FINIQUITO: 'Finiquito',
+  HORAS_EXTRA: 'Pacto de horas extra', DESCUENTO: 'Autorización de descuento', PERMISO_LEGAL: 'Constancia de permiso legal',
+  INDEMNIZACION: 'Pacto de indemnización a todo evento',
 };
 
 const mensaje = (err: unknown, porDefecto: string) =>
@@ -54,6 +57,7 @@ const mensaje = (err: unknown, porDefecto: string) =>
 const datosReenvio = (f: SolicitudFirma) => ({
   empleado_id: f.empleado, tipo_documento: f.tipo_documento, contrato_id: f.contrato, documento_legal_id: f.documento_legal,
   anexo_contrato_id: f.anexo_contrato, liquidacion_id: f.liquidacion, vacacion_id: f.vacacion, finiquito_id: f.finiquito,
+  documento_laboral_id: f.documento_laboral,
 });
 
 export default function Firmas() {

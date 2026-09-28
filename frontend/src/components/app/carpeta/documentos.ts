@@ -3,7 +3,7 @@ import client from '../../../api/client';
 import { lista as comoLista } from '../../../api/lista';
 import type { RespuestaLista } from '../../../api/lista';
 import type {
-  AnexoContrato, DocumentoLegal, Empleado, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado,
+  AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado,
 } from '../../../types';
 import { fechaCL, periodo } from '../../../utils/formato';
 import { firmaDe } from './utiles';
@@ -52,9 +52,11 @@ export function documentosDe(
   datos: {
     liquidaciones?: Liquidacion[]; documentos?: DocumentoLegal[]; anexos?: AnexoContrato[];
     vacaciones?: VacacionEmpleado[]; finiquitos?: Finiquito[]; firmas?: SolicitudFirma[];
+    documentosLaborales?: DocumentoLaboral[];
   },
 ): DocumentoReciente[] {
-  const { liquidaciones = [], documentos = [], anexos = [], vacaciones = [], finiquitos = [], firmas = [] } = datos;
+  const { liquidaciones = [], documentos = [], anexos = [], vacaciones = [], finiquitos = [], firmas = [],
+    documentosLaborales = [] } = datos;
   const rut = empleado.rut;
   const lista: DocumentoReciente[] = [];
   const contrato = empleado.contrato_activo;
@@ -119,6 +121,14 @@ export function documentosDe(
       pdf: { url: `/finiquitos/${f.id}/generar_pdf/`, nombre: `Finiquito_${rut}_${f.fecha_termino}.pdf` },
       // Solo el finiquito electrónico se firma en línea; el presencial se ratifica ante ministro de fe.
       envio: f.modalidad === 'ELECTRONICO' ? { tipo_documento: 'FINIQUITO', finiquito_id: f.id } : undefined,
+    });
+  }
+  for (const d of documentosLaborales) {
+    lista.push({
+      clave: `dl${d.id}`, titulo: d.tipo_texto, fecha: d.fecha_emision, fechaTexto: d.resumen,
+      firma: firmaDe(firmas, 'documento_laboral', d.id),
+      pdf: { url: `/documentos-laborales/${d.id}/generar_pdf/`, nombre: `${d.tipo}_${rut}_${d.fecha_emision}.pdf` },
+      envio: { tipo_documento: d.tipo, documento_laboral_id: d.id },
     });
   }
   return lista.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));

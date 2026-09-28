@@ -17,6 +17,9 @@ import { DatosPersonales } from '../../components/app/carpeta/DatosPersonales';
 import { ContratoJornada } from '../../components/app/carpeta/ContratoJornada';
 import { Remuneraciones } from '../../components/app/carpeta/Remuneraciones';
 import { Vacaciones } from '../../components/app/carpeta/Vacaciones';
+import { DrawerDocumentoLaboral } from '../../components/app/carpeta/DrawerDocumentoLaboral';
+import { TITULOS_LABORALES } from '../../components/app/carpeta/laborales';
+import type { TipoLaboral } from '../../components/app/carpeta/laborales';
 import { DocumentosTab } from '../../components/app/carpeta/DocumentosTab';
 import { Lateral } from '../../components/app/carpeta/Lateral';
 import { descargar } from '../../api/descargas';
@@ -73,7 +76,9 @@ export default function Carpeta() {
   const documentos = useMemo(() => empleado ? documentosDe(empleado, {
     liquidaciones: carpeta.liquidaciones.data, documentos: carpeta.documentos.data, anexos: carpeta.anexos.data,
     vacaciones: carpeta.vacaciones.data, finiquitos: finiquitos.data, firmas: carpeta.firmas.data,
-  }) : [], [empleado, carpeta.liquidaciones.data, carpeta.documentos.data, carpeta.anexos.data, carpeta.vacaciones.data, finiquitos.data, carpeta.firmas.data]);
+    documentosLaborales: carpeta.documentosLaborales.data,
+  }) : [], [empleado, carpeta.liquidaciones.data, carpeta.documentos.data, carpeta.anexos.data, carpeta.vacaciones.data,
+    finiquitos.data, carpeta.firmas.data, carpeta.documentosLaborales.data]);
 
   if (!empleado) {
     return (
@@ -232,6 +237,10 @@ export default function Carpeta() {
       {accion === 'documento' && (
         <DrawerDocumento empleado={empleado} nivel={nivel} onCerrar={cerrarAccion} avisar={avisar}
           tipoInicial={(['AMONESTACION', 'CONSTANCIA', 'DESPIDO'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'AMONESTACION') as TipoDocumento} />
+      )}
+      {accion === 'laboral' && nivel >= 2 && (
+        <DrawerDocumentoLaboral empleado={empleado} onCerrar={cerrarAccion} avisar={avisar}
+          tipoInicial={(params.get('tipo') && params.get('tipo')! in TITULOS_LABORALES ? params.get('tipo') : 'HORAS_EXTRA') as TipoLaboral} />
       )}
       {accion === 'vacacion' && nivel >= 2 && <DrawerVacacion empleado={empleado} saldo={carpeta.saldo.data} onCerrar={cerrarAccion} avisar={avisar} />}
 

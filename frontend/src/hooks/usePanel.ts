@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import { obtenerTodo } from '../api/lista';
 import type {
-  AnexoContrato, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudDocumentoPanel,
+  AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudDocumentoPanel,
   SolicitudFirma, VacacionEmpleado,
 } from '../types';
 import { usePlanes } from './usePlanes';
@@ -168,6 +168,11 @@ export function useCarpeta(empleadoId: number | undefined, nivel: number) {
     anexos: useQuery({
       queryKey: ['anexos', empleadoId],
       queryFn: () => obtener<AnexoContrato>(`/anexos_contrato/?empleado=${empleadoId}`),
+      enabled: activo,
+    }),
+    documentosLaborales: useQuery({
+      queryKey: ['documentos-laborales', empleadoId],
+      queryFn: async () => (await client.get<DocumentoLaboral[]>(`/documentos-laborales/?empleado=${empleadoId}`)).data,
       enabled: activo,
     }),
     firmas: useQuery({

@@ -334,7 +334,7 @@ class SolicitudFirmaSerializer(serializers.ModelSerializer):
         model = SolicitudFirma
         fields = [
             'id', 'empleado', 'empresa', 'contrato', 'documento_legal',
-            'anexo_contrato', 'liquidacion', 'vacacion', 'finiquito',
+            'anexo_contrato', 'liquidacion', 'vacacion', 'finiquito', 'documento_laboral',
             'tipo_documento', 'token', 'estado',
             'email_firmante', 'ip_firmante',
             'enviado_en', 'firmado_en', 'expira_en',
