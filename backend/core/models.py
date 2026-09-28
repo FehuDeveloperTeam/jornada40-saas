@@ -1056,20 +1056,29 @@ class CodigoTrabajador(models.Model):
 
 
 class SolicitudDocumento(models.Model):
-    """Documento que el trabajador pide desde su portal (p. ej. una liquidación
-    que el empleador aún no emite). La liquidación y el finiquito se resuelven
-    solos cuando el empleador los envía a firma, lo que ya avisa al trabajador
-    por correo; "otro" lo resuelve el empleador a mano."""
-    TIPOS = [('LIQUIDACION', 'Liquidación de sueldo'), ('FINIQUITO', 'Finiquito'), ('OTRO', 'Otro documento')]
+    """Documento que el trabajador pide desde su portal. Solo se ofrecen los
+    que Jornada40 genera y que aún no existen o no se han enviado a firma; no
+    hay texto libre. Se resuelven solos cuando el empleador envía el documento
+    a firma (ese correo es el aviso al trabajador); el empleador puede
+    descartarlas eligiendo un motivo."""
+    TIPOS = [('LIQUIDACION', 'Liquidación de sueldo'), ('CONTRATO', 'Contrato de trabajo'),
+             ('ANEXO_40H', 'Anexo Ley 40 horas'), ('VACACION', 'Comprobante de vacaciones'),
+             ('FINIQUITO', 'Finiquito')]
     ESTADOS = [('PENDIENTE', 'Pendiente'), ('RESUELTA', 'Resuelta'), ('DESCARTADA', 'Descartada')]
+    MOTIVOS = [('ENTREGADO_PAPEL', 'Se te entregó en papel.'),
+               ('SIN_REMUNERACION', 'Ese mes no hubo remuneración que liquidar.'),
+               ('FUERA_DE_RELACION', 'El período no corresponde a tu relación laboral.'),
+               ('NO_CORRESPONDE', 'El documento no corresponde a tu situación laboral.')]
     empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='solicitudes_documento')
     cuenta = models.ForeignKey(CuentaTrabajador, on_delete=models.SET_NULL, null=True, related_name='solicitudes')
     tipo = models.CharField(max_length=12, choices=TIPOS)
     mes = models.PositiveSmallIntegerField(null=True, blank=True)
     anio = models.PositiveSmallIntegerField(null=True, blank=True)
-    detalle = models.CharField(max_length=300, blank=True, default='')
+    vacacion = models.ForeignKey('VacacionEmpleado', on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='solicitudes_documento')
     estado = models.CharField(max_length=10, choices=ESTADOS, default='PENDIENTE')
-    motivo = models.CharField(max_length=300, blank=True, default='', help_text='Por qué se descartó (lo ve el trabajador).')
+    motivo = models.CharField(max_length=20, choices=MOTIVOS, blank=True, default='',
+                              help_text='Por qué se descartó (lo ve el trabajador).')
     creada_en = models.DateTimeField(auto_now_add=True)
     resuelta_en = models.DateTimeField(null=True, blank=True)
 

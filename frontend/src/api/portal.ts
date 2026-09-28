@@ -53,7 +53,7 @@ export const portal = {
   /** Inicia la firma de una liquidación de un mes cerrado; devuelve el enlace del flujo de firma. */
   firmar: (liquidacion: number) => enviar<{ enlace: string }>('/firmar/', { liquidacion }),
   solicitudes: () => obtener<{ opciones: OpcionesSolicitudPortal[]; solicitudes: SolicitudDocumentoPortal[] }>('/solicitudes/'),
-  solicitar: (datos: { empleo: number; tipo: TipoSolicitudDocumento; mes?: number; anio?: number; detalle?: string }) =>
+  solicitar: (datos: { empleo: number; tipo: TipoSolicitudDocumento; opcion?: string }) =>
     enviar<SolicitudDocumentoPortal>('/solicitudes/', datos),
   /** Descarga el PDF (firmado si lo está). Devuelve el error a mostrar o null. */
   descargar: (tipo: TipoDocumentoPortal, id: number, nombre: string) =>

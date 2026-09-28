@@ -631,22 +631,20 @@ export interface VacacionesPortal extends EmpleoPortal {
     registros: RegistroVacacionPortal[];
 }
 
-export type TipoSolicitudDocumento = 'LIQUIDACION' | 'FINIQUITO' | 'OTRO';
+export type TipoSolicitudDocumento = 'LIQUIDACION' | 'CONTRATO' | 'ANEXO_40H' | 'VACACION' | 'FINIQUITO';
 export type EstadoSolicitudDocumento = 'PENDIENTE' | 'RESUELTA' | 'DESCARTADA';
 
-/** Solicitud de un documento que el empleador aún no emite (portal → panel). */
+/** Solicitud de un documento que el empleador aún no emite (portal → panel). Sin texto libre. */
 export interface SolicitudDocumento {
     id: number;
     tipo: TipoSolicitudDocumento;
     tipo_texto: string;
-    /** "Agosto 2026" (solo liquidaciones). */
-    periodo: string;
-    mes: number | null;
-    anio: number | null;
-    detalle: string;
+    /** "Agosto 2026" (liquidación) o "Del 01-02-2026 al 15-02-2026 · 10 días hábiles" (vacación). */
+    referencia: string;
     estado: EstadoSolicitudDocumento;
-    /** Motivo del descarte, visible para el trabajador. */
+    /** Motivo del descarte (código y texto que ve el trabajador). */
     motivo: string;
+    motivo_texto: string;
     creada_en: string;
     resuelta_en: string | null;
 }
@@ -655,19 +653,35 @@ export interface SolicitudDocumentoPortal extends SolicitudDocumento {
     empresa: string;
 }
 
+export interface OpcionValor { valor: string; texto: string }
+
+/** Documento que el trabajador puede pedir; si trae opciones, se elige una (mes, vacación). */
+export interface DocumentoSolicitable {
+    tipo: TipoSolicitudDocumento;
+    texto: string;
+    etiqueta_opcion?: string;
+    opciones?: OpcionValor[];
+}
+
 export interface OpcionesSolicitudPortal {
     empleo: number;
     empresa: string;
-    /** Meses cerrados sin liquidación emitida ni solicitud pendiente, del más reciente al más antiguo. */
-    meses: { mes: number; anio: number; texto: string }[];
-    finiquito: boolean;
+    documentos: DocumentoSolicitable[];
 }
 
 /** Solicitud vista por el empleador. */
 export interface SolicitudDocumentoPanel extends SolicitudDocumento {
     empleado: { id: number; nombre: string; rut: string; email: string };
-    /** Id de la liquidación del período si ya está emitida (falta enviarla a firma). */
+    /** Período pedido (solo liquidaciones). */
+    mes: number | null;
+    anio: number | null;
+    /** Liquidación del período si ya está emitida (falta enviarla a firma). */
     liquidacion: number | null;
+    /** Contrato del trabajador (contrato y anexo 40 horas); null si aún no tiene. */
+    contrato: number | null;
+    vacacion: number | null;
+    /** Motivos de descarte que admite esta solicitud. */
+    motivos: OpcionValor[];
 }
 
 export interface FirmaPendientePortal {

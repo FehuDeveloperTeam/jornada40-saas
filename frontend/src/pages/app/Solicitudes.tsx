@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Check, FilePlus2, Send, X } from 'lucide-react';
-import { AlertaError, Button, Chip, Modal } from '../../components/j40';
+import { FilePlus2, Send, X } from 'lucide-react';
+import { AlertaError, Button, Chip, Field, Modal } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
@@ -24,7 +24,28 @@ const FILTROS: [EstadoSolicitudDocumento | 'todas', string][] = [
 const mensaje = (err: unknown, porDefecto: string) =>
   (isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || porDefecto;
 
-const titulo = (s: SolicitudDocumentoPanel) => `${s.tipo_texto}${s.periodo ? ` · ${s.periodo}` : ''}`;
+const titulo = (s: SolicitudDocumentoPanel) => `${s.tipo_texto}${s.referencia ? ` · ${s.referencia}` : ''}`;
+
+const BOTON_ENLACE = 'inline-flex items-center gap-2 h-9 px-3.5 rounded-[8px] border bg-brand-btn border-brand-btn text-white text-[13px] font-medium no-underline hover:no-underline hover:brightness-110';
+
+/** Lo que se envía a firma para atender la solicitud, o null si antes hay que crear el documento. */
+function envioAFirma(s: SolicitudDocumentoPanel): Record<string, unknown> | null {
+  const base = { empleado_id: s.empleado.id, tipo_documento: s.tipo };
+  if (s.tipo === 'LIQUIDACION') return s.liquidacion ? { ...base, liquidacion_id: s.liquidacion } : null;
+  if (s.tipo === 'CONTRATO' || s.tipo === 'ANEXO_40H') return s.contrato ? { ...base, contrato_id: s.contrato } : null;
+  if (s.tipo === 'VACACION') return s.vacacion ? { ...base, vacacion_id: s.vacacion } : null;
+  return null;
+}
+
+/** Dónde se crea el documento cuando todavía no existe. */
+function rutaCrear(s: SolicitudDocumentoPanel): { a: string; texto: string } | null {
+  if (s.tipo === 'LIQUIDACION' && !s.liquidacion) {
+    return s.mes && s.anio ? { a: rutaLiquidacion(s.empleado.id, s.mes, s.anio), texto: 'Emitir liquidación' } : null;
+  }
+  if (s.tipo === 'CONTRATO' && !s.contrato) return { a: `/app/trabajadores/${s.empleado.id}/contrato`, texto: 'Crear contrato' };
+  if (s.tipo === 'FINIQUITO') return { a: `/app/trabajadores/${s.empleado.id}/finiquito`, texto: 'Preparar finiquito' };
+  return null;
+}
 
 export default function Solicitudes() {
   const { empresa, avisar } = usePanelContexto();
@@ -95,45 +116,34 @@ export default function Solicitudes() {
                   <Link to={`/app/trabajadores/${s.empleado.id}`} className="text-fg-2">{capitalizar(s.empleado.nombre)}</Link>
                   {' · '}{s.empleado.email || 'sin correo'}
                 </span>
-                {s.detalle && <span className="text-[12.5px] text-fg-2 break-words">“{s.detalle}”</span>}
                 <span className="text-[11.5px] text-fg-3">
                   Pedida el {fechaCL(s.creada_en)}
                   {s.resuelta_en ? ` · ${s.estado === 'RESUELTA' ? 'resuelta' : 'descartada'} el ${fechaCL(s.resuelta_en)}` : ''}
                 </span>
-                {s.estado === 'DESCARTADA' && s.motivo && <span className="text-[12.5px] text-fg-2">Motivo: {s.motivo}</span>}
+                {s.estado === 'DESCARTADA' && s.motivo_texto && <span className="text-[12.5px] text-fg-2">Motivo: {s.motivo_texto}</span>}
               </div>
-              {pendiente && (
-                <div className="flex gap-2 flex-wrap">
-                  {s.tipo === 'LIQUIDACION' && !s.liquidacion && s.mes && s.anio && (
-                    <Link to={rutaLiquidacion(s.empleado.id, s.mes, s.anio)}
-                      className="inline-flex items-center gap-2 h-9 px-3.5 rounded-[8px] border bg-brand-btn border-brand-btn text-white text-[13px] font-medium no-underline hover:no-underline hover:brightness-110">
-                      <FilePlus2 className="size-4" strokeWidth={2} aria-hidden />Emitir liquidación
-                    </Link>
-                  )}
-                  {s.tipo === 'LIQUIDACION' && s.liquidacion && (
-                    <Button tamano="sm" cargando={ocupada === s.id} iconoInicio={<Send className="size-4" strokeWidth={2} />}
-                      onClick={() => accion(s, () => client.post('/firmas/solicitar/', {
-                        empleado_id: s.empleado.id, tipo_documento: 'LIQUIDACION', liquidacion_id: s.liquidacion,
-                      }), 'Liquidación enviada a firma: el trabajador recibe el correo')}>
-                      Enviar a firma
-                    </Button>
-                  )}
-                  {s.tipo === 'FINIQUITO' && (
-                    <Link to={`/app/trabajadores/${s.empleado.id}/finiquito`}
-                      className="inline-flex items-center gap-2 h-9 px-3.5 rounded-[8px] border bg-brand-btn border-brand-btn text-white text-[13px] font-medium no-underline hover:no-underline hover:brightness-110">
-                      <FilePlus2 className="size-4" strokeWidth={2} aria-hidden />Preparar finiquito
-                    </Link>
-                  )}
-                  {s.tipo === 'OTRO' && (
-                    <Button tamano="sm" cargando={ocupada === s.id} iconoInicio={<Check className="size-4" strokeWidth={2} />}
-                      onClick={() => accion(s, () => client.post(`/solicitudes-documento/${s.id}/resolver/`), 'Solicitud marcada como resuelta')}>
-                      Marcar resuelta
-                    </Button>
-                  )}
-                  <Button variante="secundario" tamano="sm" disabled={ocupada === s.id} onClick={() => setDescartar(s)}
-                    iconoInicio={<X className="size-4" strokeWidth={2} />}>Descartar</Button>
-                </div>
-              )}
+              {pendiente && (() => {
+                const envio = envioAFirma(s);
+                const crear = rutaCrear(s);
+                return (
+                  <div className="flex gap-2 flex-wrap">
+                    {crear && (
+                      <Link to={crear.a} className={BOTON_ENLACE}>
+                        <FilePlus2 className="size-4" strokeWidth={2} aria-hidden />{crear.texto}
+                      </Link>
+                    )}
+                    {envio && (
+                      <Button tamano="sm" cargando={ocupada === s.id} iconoInicio={<Send className="size-4" strokeWidth={2} />}
+                        onClick={() => accion(s, () => client.post('/firmas/solicitar/', envio),
+                          'Documento enviado a firma: el trabajador recibe el correo')}>
+                        Enviar a firma
+                      </Button>
+                    )}
+                    <Button variante="secundario" tamano="sm" disabled={ocupada === s.id} onClick={() => setDescartar(s)}
+                      iconoInicio={<X className="size-4" strokeWidth={2} />}>Descartar</Button>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
@@ -159,11 +169,11 @@ function ModalDescartar({ solicitud, onCerrar, onDescartada }: {
   const [enviando, setEnviando] = useState(false);
 
   const confirmar = async () => {
-    if (motivo.trim().length < 5) return setError('Escribe el motivo: el trabajador lo verá en su portal.');
+    if (!motivo) return setError('Elige el motivo: el trabajador lo verá en su portal.');
     setEnviando(true);
     setError('');
     try {
-      await client.post(`/solicitudes-documento/${solicitud.id}/descartar/`, { motivo: motivo.trim() });
+      await client.post(`/solicitudes-documento/${solicitud.id}/descartar/`, { motivo });
       await onDescartada();
     } catch (err) {
       setError(mensaje(err, 'No pudimos descartar la solicitud.'));
@@ -182,12 +192,15 @@ function ModalDescartar({ solicitud, onCerrar, onDescartada }: {
       )}>
       <div className="flex flex-col gap-3">
         {error && <AlertaError>{error}</AlertaError>}
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium text-fg-2">Motivo (lo verá el trabajador)</span>
-          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={300} rows={3} autoFocus
-            placeholder="Por ejemplo: ese mes no trabajaste con nosotros; te lo entregamos en papel."
-            className="w-full px-3 py-2 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft resize-y" />
-        </label>
+        <Field etiqueta="Motivo (lo verá el trabajador)">
+          {(p) => (
+            <select {...p} value={motivo} onChange={(e) => setMotivo(e.target.value)} autoFocus
+              className="h-10 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft">
+              <option value="">Elige un motivo</option>
+              {solicitud.motivos.map((m) => <option key={m.valor} value={m.valor}>{m.texto}</option>)}
+            </select>
+          )}
+        </Field>
       </div>
     </Modal>
   );

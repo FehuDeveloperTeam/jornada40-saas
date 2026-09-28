@@ -131,44 +131,52 @@ test('el trabajador pide documentos y el empleador los atiende', async ({ page }
   await entrarConClave(page);
   await page.getByRole('navigation', { name: 'Portal' }).getByRole('link', { name: 'Solicitudes' }).click();
   await expect(page.getByRole('heading', { name: 'Solicitudes', level: 1 })).toBeVisible();
-  // Finiquito no se ofrece: sigue trabajando.
-  await expect(page.getByLabel('Documento').locator('option', { hasText: 'Finiquito' })).toHaveCount(0);
+  // Lista cerrada: ni el contrato (ya está en firma) ni el finiquito (sigue trabajando), y sin texto libre.
+  const documento = page.getByLabel('Documento');
+  await expect(documento.locator('option', { hasText: 'Contrato de trabajo' })).toHaveCount(0);
+  await expect(documento.locator('option', { hasText: 'Finiquito' })).toHaveCount(0);
+  await expect(page.getByRole('textbox')).toHaveCount(0);
 
-  // Liquidación: el segundo desplegable muestra solo meses cerrados sin emitir.
-  await page.getByLabel('Documento').selectOption('LIQUIDACION');
-  const meses = page.getByLabel('Mes y año');
-  await expect(meses.locator('option', { hasText: periodo(-1) })).toHaveCount(0);   // ya emitida
-  const texto = (await meses.locator('option').nth(1).textContent())!.trim();
-  await meses.selectOption({ index: 1 });
-  await page.getByRole('button', { name: 'Enviar solicitud' }).click();
-  await expect(page.getByText('Solicitud enviada. Tu empleador la verá en su panel.')).toBeVisible();
+  // Liquidación: el segundo desplegable muestra solo meses cerrados sin emitir. Se piden dos.
+  const pedidos: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    await documento.selectOption('LIQUIDACION');
+    const meses = page.getByLabel('Mes y año');
+    await expect(meses.locator('option', { hasText: periodo(-1) })).toHaveCount(0);   // ya emitida
+    pedidos.push((await meses.locator('option').nth(1).textContent())!.trim());
+    await meses.selectOption({ index: 1 });
+    await page.getByRole('button', { name: 'Enviar solicitud' }).click();
+    await expect(page.getByText('Solicitud enviada. Tu empleador la verá en su panel.')).toBeVisible();
+  }
   const lista = page.getByRole('list', { name: 'Tus solicitudes' });
-  await expect(lista.getByText(`Liquidación de sueldo · ${texto}`)).toBeVisible();
+  for (const p of pedidos) await expect(lista.getByText(`Liquidación de sueldo · ${p}`)).toBeVisible();
 
-  await page.getByLabel('Documento').selectOption('OTRO');
-  await page.getByLabel('¿Qué documento necesitas?').fill('Certificado de antigüedad');
-  await page.getByRole('button', { name: 'Enviar solicitud' }).click();
-  await expect(lista.getByText('Certificado de antigüedad')).toBeVisible();
-
-  // El empleador las ve por atender: descarta la liquidación con motivo y resuelve la otra.
+  // El empleador las ve por atender: descarta una eligiendo el motivo y envía la otra a firma una vez emitida.
   await page.context().clearCookies();
   await entrar(page);
   await page.goto('/app/solicitudes');
   const panel = page.getByRole('region', { name: 'Solicitudes' });
-  await expect(panel.getByText(`Liquidación de sueldo · ${texto}`)).toBeVisible();
-  await expect(panel.getByRole('link', { name: 'Emitir liquidación' })).toBeVisible();
-  await panel.getByRole('button', { name: 'Descartar' }).last().click();   // la más reciente va primero
+  await expect(panel.getByRole('link', { name: 'Emitir liquidación' })).toHaveCount(2);
+  await panel.getByRole('button', { name: 'Descartar' }).last().click();   // la más antigua va al final
   const modal = page.getByRole('dialog', { name: 'Descartar solicitud' });
-  await modal.getByRole('textbox').fill('Ese mes estabas con licencia completa');
+  await modal.getByLabel('Motivo (lo verá el trabajador)').selectOption({ label: 'Ese mes no hubo remuneración que liquidar.' });
   await modal.getByRole('button', { name: 'Descartar' }).click();
   await expect(page.getByText(/Solicitud descartada/)).toBeVisible();
-  await panel.getByRole('button', { name: 'Marcar resuelta' }).click();
+
+  const [mesTexto, anio] = pedidos[1].split(' ');
+  const mes = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    .indexOf(mesTexto.toLowerCase()) + 1;
+  consultar(`from core.models import Liquidacion; Liquidacion.objects.create(empleado_id=${MATIAS.id}, mes=${mes}, anio=${anio}, `
+    + "total_haberes=900000, sueldo_liquido=700000); print('ok')");
+  await page.reload();
+  await panel.getByRole('button', { name: 'Enviar a firma' }).click();
+  await expect(page.getByText(/Documento enviado a firma/)).toBeVisible();
   await expect(page.getByText('No hay solicitudes por atender.')).toBeVisible();
 
   // De vuelta en el portal, el trabajador ve el resultado y el motivo.
   await page.context().clearCookies();
   await entrarConClave(page);
   await page.goto('/trabajador/portal/solicitudes');
-  await expect(lista.getByText('Respuesta de tu empleador: Ese mes estabas con licencia completa')).toBeVisible();
-  await expect(lista.getByText('Resuelta')).toBeVisible();
+  await expect(lista.getByText('Respuesta de tu empleador: Ese mes no hubo remuneración que liquidar.')).toBeVisible();
+  await expect(lista.getByText(/Enviada a tu firma/)).toBeVisible();
 });
