@@ -166,16 +166,49 @@ class ClaveTests(PortalBase):
 
 
 class DocumentosTests(PortalBase):
-    def test_liquidaciones_visibles_y_descarga(self):
+    def test_solo_las_firmadas_se_descargan_y_las_cerradas_quedan_por_firmar(self):
+        from unittest.mock import patch
+        from ..models import Empresa
         hoy = timezone.localdate()
-        actual = Liquidacion.objects.create(empleado=self.ficha, mes=hoy.month, anio=hoy.year, total_haberes=1, sueldo_liquido=1)
+        Liquidacion.objects.create(empleado=self.ficha, mes=hoy.month, anio=hoy.year, total_haberes=1, sueldo_liquido=1)
         pasada = Liquidacion.objects.create(empleado=self.ficha, mes=1, anio=2026, total_haberes=900_000, sueldo_liquido=700_000)
+        firmada = Liquidacion.objects.create(empleado=self.ficha, mes=2, anio=2026, total_haberes=900_000, sueldo_liquido=700_000)
+        SolicitudFirma.objects.create(empleado=self.ficha, empresa=self.empresa, liquidacion=firmada,
+                                      tipo_documento='LIQUIDACION', estado='FIRMADO', b2_key_firmado='firmados/x.pdf',
+                                      firmado_en=timezone.now())
         self._entrar()
-        ids = [l['id'] for l in self.client.get('/api/trabajador/liquidaciones/').data]
-        self.assertEqual(ids, [pasada.id])                      # la del mes en curso puede estar en edición
-        r = self.client.get('/api/trabajador/descargar/', {'tipo': 'liquidacion', 'id': pasada.id})
-        self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
-        r = self.client.get('/api/trabajador/descargar/', {'tipo': 'liquidacion', 'id': actual.id})
+        self.assertEqual([l['id'] for l in self.client.get('/api/trabajador/liquidaciones/').data], [firmada.id])
+        self.assertEqual(self.client.get('/api/trabajador/descargar/', {'tipo': 'liquidacion', 'id': pasada.id}).status_code,
+                         404)
+        with patch('core.b2_client.descargar_documento', return_value=b'%PDF-firmado'):
+            r = self.client.get('/api/trabajador/descargar/', {'tipo': 'liquidacion', 'id': firmada.id})
+        self.assertEqual((r.status_code, r.content), (200, b'%PDF-firmado'))
+        # La del mes cerrado sin firmar aparece por firmar; la del mes en curso no.
+        por_firmar = self.client.get('/api/trabajador/firmas/').data
+        self.assertEqual([(p['tipo'], p['id']) for p in por_firmar], [('liquidacion', pasada.id)])
+        # Sin firma del empleador configurada no se puede iniciar.
+        r = self.client.post('/api/trabajador/firmar/', {'liquidacion': pasada.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('firma electrónica', r.data['error'])
+        Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
+        with patch('core.b2_client.subir_documento'):
+            r = self.client.post('/api/trabajador/firmar/', {'liquidacion': pasada.id}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        solicitud = SolicitudFirma.objects.get(liquidacion=pasada)
+        self.assertEqual(r.data['enlace'], f'/firma/{solicitud.token}')
+        self.assertFalse([m for m in mail.outbox if 'Firma requerida' in m.subject])   # sin correo: ya está en el portal
+        # Ahora figura como solicitud pendiente, con su enlace, y no se duplica.
+        por_firmar = self.client.get('/api/trabajador/firmas/').data
+        self.assertEqual([(p['tipo'], p['enlace']) for p in por_firmar], [('solicitud', r.data['enlace'])])
+        r2 = self.client.post('/api/trabajador/firmar/', {'liquidacion': pasada.id}, format='json')
+        self.assertEqual(r2.data['enlace'], r.data['enlace'])
+
+    def test_no_puede_firmar_liquidaciones_ajenas(self):
+        _, _, _, otra = crear_usuario_completo('portal_c', '11.111.111-1', '77.777.777-7')
+        ajena = crear_empleado(otra, '9.876.543-3')
+        liq = Liquidacion.objects.create(empleado=ajena, mes=1, anio=2026, total_haberes=1, sueldo_liquido=1)
+        self._entrar()
+        r = self.client.post('/api/trabajador/firmar/', {'liquidacion': liq.id}, format='json')
         self.assertEqual(r.status_code, 404)
         docs = self.client.get('/api/trabajador/documentos/').data
         self.assertEqual([d['tipo'] for d in docs], ['contrato'])

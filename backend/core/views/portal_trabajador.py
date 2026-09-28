@@ -407,15 +407,26 @@ def _firmas_por(campo, ids):
 
 
 def _liquidaciones(fichas):
+    """Liquidaciones que el trabajador puede descargar: solo las firmadas, que
+    son las que presenta donde las pidan."""
     liqs = list(Liquidacion.objects.filter(empleado__in=fichas).select_related('empleado__empresa')
                 .order_by('-anio', '-mes'))
     firmas = _firmas_por('liquidacion', [l.id for l in liqs])
-    visibles = []
-    for l in liqs:
-        firma = firmas.get(l.id)
-        if (firma and firma.estado == 'FIRMADO') or _periodo_cerrado(l):
-            visibles.append((l, firma))
-    return visibles
+    return [(l, firmas[l.id]) for l in liqs if l.id in firmas and firmas[l.id].estado == 'FIRMADO']
+
+
+def _liquidaciones_por_firmar(fichas):
+    """Liquidaciones de meses cerrados que aún no firma: sin solicitud, o con una
+    vencida o cancelada. Las rechazadas esperan la corrección del empleador y
+    las pendientes ya aparecen con su propio enlace."""
+    liqs = Liquidacion.objects.filter(empleado__in=fichas).select_related('empleado__empresa').order_by('anio', 'mes')
+    vivas = set(SolicitudFirma.objects.filter(liquidacion__in=liqs, estado__in=[
+        'PENDIENTE', 'PROCESANDO', 'FIRMADO', 'RECHAZADO']).values_list('liquidacion_id', flat=True))
+    return [l for l in liqs if _periodo_cerrado(l) and l.id not in vivas]
+
+
+_MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
+          'noviembre', 'diciembre']
 
 
 @api_view(['GET'])
@@ -542,12 +553,55 @@ def vacaciones(request):
 @api_view(['GET'])
 @_con_sesion
 def firmas_pendientes(request):
+    """Documentos por firmar: solicitudes pendientes (con su enlace) y
+    liquidaciones de meses cerrados sin firmar (se firman con POST firmar/)."""
     fichas = fichas_accesibles(request.user)
     qs = SolicitudFirma.objects.filter(empleado__in=fichas)
     SolicitudFirma.actualizar_estados(qs)
     etiquetas = dict(SolicitudFirma.TIPOS_DOCUMENTO)
-    return Response([{
-        'id': s.id, 'documento': etiquetas.get(s.tipo_documento, s.tipo_documento),
+    pendientes = [{
+        'id': s.id, 'tipo': 'solicitud', 'documento': _titulo_solicitud(s, etiquetas),
         'empresa': s.empresa.nombre_legal.title(), 'vence': s.expira_en.isoformat(),
         'enlace': f'/firma/{s.token}',
-    } for s in qs.filter(estado='PENDIENTE').select_related('empresa').order_by('expira_en')])
+    } for s in qs.filter(estado='PENDIENTE').select_related('empresa', 'liquidacion').order_by('expira_en')]
+    pendientes += [{
+        'id': l.id, 'tipo': 'liquidacion', 'documento': f'Liquidación de sueldo · {_MESES[l.mes - 1]} {l.anio}',
+        'empresa': l.empleado.empresa.nombre_legal.title(), 'vence': None, 'enlace': None,
+    } for l in _liquidaciones_por_firmar(fichas)]
+    return Response(pendientes)
+
+
+def _titulo_solicitud(s, etiquetas):
+    if s.tipo_documento == 'LIQUIDACION' and s.liquidacion_id:
+        return f'Liquidación de sueldo · {_MESES[s.liquidacion.mes - 1]} {s.liquidacion.anio}'
+    return etiquetas.get(s.tipo_documento, s.tipo_documento)
+
+
+@api_view(['POST'])
+@_con_sesion
+def firmar_liquidacion(request):
+    """Inicia la firma de una liquidación de un mes cerrado desde el portal:
+    crea la solicitud (sin correo, el trabajador ya está aquí) y devuelve el
+    enlace del flujo de firma."""
+    from .firmas import SolicitudFirmaViewSet, _ErrorFirma
+    try:
+        ident = int(request.data.get('liquidacion'))
+    except (TypeError, ValueError):
+        ident = None
+    fichas = fichas_accesibles(request.user)
+    liq = next((l for l in _liquidaciones_por_firmar(fichas) if l.id == ident), None)
+    if liq is None:
+        pendiente = SolicitudFirma.objects.filter(liquidacion_id=ident, empleado__in=fichas, estado='PENDIENTE').first()
+        if pendiente:
+            return Response({'enlace': f'/firma/{pendiente.token}'})
+        return Response({'error': 'Esta liquidación no está disponible para firmar.'}, status=status.HTTP_404_NOT_FOUND)
+    empresa = liq.empleado.empresa
+    try:
+        solicitud = SolicitudFirmaViewSet()._crear_solicitud(empresa.owner, liq.empleado, 'LIQUIDACION',
+                                                             liquidacion_id=liq.id, avisar_por_correo=False)
+    except _ErrorFirma as e:
+        if not empresa.firma_imagen:
+            return Response({'error': f'{empresa.nombre_legal.title()} aún no habilita la firma electrónica. '
+                                      'Pídele que la configure.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': e.mensaje}, status=e.estado)
+    return Response({'enlace': f'/firma/{solicitud.token}'})

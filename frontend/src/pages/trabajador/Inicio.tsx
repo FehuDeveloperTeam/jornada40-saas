@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Building2, ChevronRight, PenLine } from 'lucide-react';
 import { AlertaError, Button, CampoCodigo, Modal } from '../../components/j40';
 import { usePortal } from '../../components/trabajador/PortalShell';
@@ -20,6 +20,20 @@ export default function Inicio() {
   const liquidaciones = useLiquidacionesPortal();
   const primerNombre = cuenta.nombre.split(' ')[0];
   const ultimas = (liquidaciones.data ?? []).slice(0, 3);
+  const navigate = useNavigate();
+  const [iniciando, setIniciando] = useState<number | null>(null);
+  const [errorFirma, setErrorFirma] = useState('');
+  // Liquidación de un mes cerrado: se crea la solicitud y se entra al flujo de firma.
+  const firmarLiquidacion = async (id: number) => {
+    setIniciando(id);
+    setErrorFirma('');
+    try {
+      navigate(`${(await portal.firmar(id)).enlace}?desde=portal`);
+    } catch (err) {
+      setErrorFirma(mensajeError(err, 'No pudimos iniciar la firma. Intenta de nuevo en unos minutos.'));
+      setIniciando(null);
+    }
+  };
 
   return (
     <>
@@ -35,18 +49,28 @@ export default function Inicio() {
       </div>
 
       {(firmas.data?.length ?? 0) > 0 && (
-        <Seccion titulo="Documentos por firmar" subtitulo="Tu empleador te pidió firmarlos. Cada enlace vence en la fecha indicada.">
+        <Seccion titulo="Documentos por firmar" subtitulo="Fírmalos para tenerlos disponibles en Liquidaciones y Documentos.">
+          {errorFirma && <div className="px-[18px] pt-3"><AlertaError>{errorFirma}</AlertaError></div>}
           <ul className="flex flex-col">
             {firmas.data!.map((f) => (
-              <li key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-[18px] py-3 border-b border-line last:border-b-0">
+              <li key={`${f.tipo}-${f.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-[18px] py-3 border-b border-line last:border-b-0">
                 <span className="flex-1 min-w-[180px] flex flex-col">
                   <span className="text-[13.5px] font-medium">{f.documento}</span>
-                  <span className="text-[12px] text-fg-3">{variasEmpresas ? `${f.empresa} · ` : ''}Vence el {fechaHoraCL(f.vence)}</span>
+                  <span className="text-[12px] text-fg-3">
+                    {variasEmpresas ? `${f.empresa} · ` : ''}{f.vence ? `Vence el ${fechaHoraCL(f.vence)}` : 'Pendiente de tu firma'}
+                  </span>
                 </span>
-                <Link to={f.enlace}
-                  className="inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-[8px] border bg-brand-btn border-brand-btn text-white text-[13px] font-medium no-underline hover:no-underline hover:brightness-110">
-                  <PenLine className="size-4" strokeWidth={2} aria-hidden />Firmar
-                </Link>
+                {f.enlace ? (
+                  <Link to={`${f.enlace}?desde=portal`}
+                    className="inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-[8px] border bg-brand-btn border-brand-btn text-white text-[13px] font-medium no-underline hover:no-underline hover:brightness-110">
+                    <PenLine className="size-4" strokeWidth={2} aria-hidden />Firmar
+                  </Link>
+                ) : (
+                  <Button tamano="sm" cargando={iniciando === f.id} disabled={iniciando !== null && iniciando !== f.id}
+                    onClick={() => void firmarLiquidacion(f.id)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>
+                    Firmar
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -60,7 +84,7 @@ export default function Inicio() {
           </Link>
         ) : undefined}>
         <EstadoLista cargando={liquidaciones.isLoading} error={liquidaciones.isError} vacia={!ultimas.length}
-          textoVacio="Aún no hay liquidaciones disponibles." />
+          textoVacio="Aún no tienes liquidaciones firmadas." />
         {ultimas.length > 0 && <ListaLiquidaciones liquidaciones={ultimas} variasEmpresas={variasEmpresas} />}
       </Seccion>
 

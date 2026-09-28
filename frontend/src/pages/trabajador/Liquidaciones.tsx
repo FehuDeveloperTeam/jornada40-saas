@@ -9,10 +9,10 @@ export default function Liquidaciones() {
   return (
     <>
       <Titulo titulo="Liquidaciones">
-        Tus liquidaciones de sueldo de los meses cerrados. Si firmaste una, descargas la versión firmada.
+        Tus liquidaciones firmadas, listas para presentar donde te las pidan. Las que faltan por firmar están en Inicio.
       </Titulo>
       <Seccion titulo="Por período" subtitulo={data.length ? `${data.length} ${data.length === 1 ? 'liquidación' : 'liquidaciones'}` : undefined}>
-        <EstadoLista cargando={isLoading} error={isError} vacia={!data.length} textoVacio="Aún no hay liquidaciones disponibles." />
+        <EstadoLista cargando={isLoading} error={isError} vacia={!data.length} textoVacio="Aún no tienes liquidaciones firmadas. Las que están por firmar aparecen en Inicio." />
         {data.length > 0 && <ListaLiquidaciones liquidaciones={data} variasEmpresas={variasEmpresas} />}
       </Seccion>
     </>

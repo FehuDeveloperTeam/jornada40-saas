@@ -50,6 +50,8 @@ export const portal = {
   documentos: () => obtener<DocumentoPortal[]>('/documentos/'),
   vacaciones: () => obtener<VacacionesPortal[]>('/vacaciones/'),
   firmas: () => obtener<FirmaPendientePortal[]>('/firmas/'),
+  /** Inicia la firma de una liquidación de un mes cerrado; devuelve el enlace del flujo de firma. */
+  firmar: (liquidacion: number) => enviar<{ enlace: string }>('/firmar/', { liquidacion }),
   /** Descarga el PDF (firmado si lo está). Devuelve el error a mostrar o null. */
   descargar: (tipo: TipoDocumentoPortal, id: number, nombre: string) =>
     descargar(`${BASE}/descargar/?tipo=${tipo}&id=${id}`, nombre),

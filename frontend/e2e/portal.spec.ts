@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { MATIAS, descargar, periodo, restaurarBase, ultimoCodigoPortal } from './utiles';
+import { MATIAS, consultar, descargar, periodo, restaurarBase, ultimoCodigoPortal } from './utiles';
 
 // Portal del trabajador: ingreso con código y con clave, invitación a crear
 // la clave, liquidaciones y salida. El backend permite un código por minuto
@@ -43,13 +43,14 @@ test('el trabajador entra con código, crea su clave y vuelve a entrar con ella'
   await expect(page.getByText('Puedes crear tu clave cuando quieras desde Seguridad, en el menú.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Hola, Matías' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Firmar' })).toBeVisible();   // contrato pendiente de firma
+  // Las liquidaciones de meses cerrados sin firmar esperan en Inicio (cinco de seis; la última está firmada).
+  await expect(page.getByRole('button', { name: 'Firmar' })).toHaveCount(5);
 
-  // Liquidaciones: seis meses cerrados, la última firmada; se descarga una.
+  // Liquidaciones: solo la firmada, que es la que se descarga.
   await page.getByRole('navigation', { name: 'Portal' }).getByRole('link', { name: 'Liquidaciones' }).click();
   await expect(page.getByRole('heading', { name: 'Liquidaciones', level: 1 })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Descargar liquidación de / })).toHaveCount(6);
-  await expect(page.getByRole('table', { name: 'Liquidaciones' }).getByText('Firmada')).toHaveCount(1);
-  const nombre = await descargar(page, () => page.getByRole('button', { name: `Descargar liquidación de ${periodo(-2)}` }).click());
+  await expect(page.getByRole('button', { name: /^Descargar liquidación de / })).toHaveCount(1);
+  const nombre = await descargar(page, () => page.getByRole('button', { name: `Descargar liquidación de ${periodo(-1)}` }).click());
   expect(nombre).toMatch(/\.pdf$/);
 
   // Seguridad: crea la clave (entró con código, no se pide la actual).
@@ -108,4 +109,20 @@ test('en el teléfono no hay desborde horizontal', async ({ page }) => {
   // Sin sesión, el portal devuelve al ingreso.
   await page.goto('/trabajador/portal/liquidaciones');
   await expect(page).toHaveURL(/\/trabajador$/);
+});
+
+test('una liquidación de un mes cerrado se firma desde Inicio', async ({ page }) => {
+  await entrarConClave(page);
+  // Sin la firma del empleador configurada, se explica y no avanza.
+  await page.getByRole('button', { name: 'Firmar' }).first().click();
+  await expect(page.getByText(/aún no habilita la firma electrónica/)).toBeVisible();
+  consultar("from core.models import Empresa; Empresa.objects.filter(nombre_legal='COMERCIAL LOS ANDES SPA')"
+    + ".update(firma_imagen='data:image/png;base64,iVBORw0KGgo='); print('ok')");
+  await page.getByRole('button', { name: 'Firmar' }).first().click();
+  await expect(page).toHaveURL(/\/firma\/[0-9a-f-]+\?desde=portal$/);
+  await expect(page.getByText(/Liquidación de Sueldo/i).first()).toBeVisible();
+  // De vuelta en Inicio, esa liquidación ya figura como solicitud con su enlace.
+  await page.goto('/trabajador/portal');
+  await expect(page.getByRole('button', { name: 'Firmar' })).toHaveCount(4);
+  await expect(page.getByRole('link', { name: 'Firmar' })).toHaveCount(2);
 });

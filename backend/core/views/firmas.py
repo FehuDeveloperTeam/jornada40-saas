@@ -108,7 +108,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         return Response({'enviadas': enviadas, 'omitidas': omitidas})
 
     def _crear_solicitud(self, user, empleado, tipo_doc, contrato_id=None, doc_legal_id=None, anexo_id=None,
-                         liquidacion_id=None, vacacion_id=None, finiquito_id=None):
+                         liquidacion_id=None, vacacion_id=None, finiquito_id=None, avisar_por_correo=True):
         """Genera el PDF, lo sube, crea la solicitud y avisa al trabajador. Lanza _ErrorFirma."""
         empresa = empleado.empresa
         if not empresa.firma_imagen:
@@ -173,6 +173,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             b2_client.eliminar_documento(key)
             raise _ErrorFirma('No se pudo registrar la solicitud. Intenta de nuevo.', 500)
 
+        if not avisar_por_correo:
+            return solicitud   # la pidió el propio trabajador desde el portal
         try:
             self._enviar_email_firma(solicitud, empleado, empresa)
         except Exception:

@@ -633,10 +633,12 @@ export interface VacacionesPortal extends EmpleoPortal {
 
 export interface FirmaPendientePortal {
     id: number;
+    /** 'solicitud': ya enviada a firma, con enlace. 'liquidacion': de un mes cerrado, se inicia con portal.firmar(id). */
+    tipo: 'solicitud' | 'liquidacion';
     documento: string;
     empresa: string;
-    /** Fecha y hora ISO en que vence el enlace. */
-    vence: string;
-    /** Ruta de la página pública de firma: /firma/<token>. */
-    enlace: string;
+    /** Fecha y hora ISO en que vence el enlace (solo solicitudes). */
+    vence: string | null;
+    /** Ruta de la página pública de firma: /firma/<token> (solo solicitudes). */
+    enlace: string | null;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import { Check, CircleX, Clock, Download, FileText, Lock, ShieldCheck } from 'lucide-react';
 import client from '../../api/client';
@@ -402,6 +402,8 @@ function Firmar({ token, sesion, onVolver, onFirmado, onSesionVencida }: {
 }
 
 function Listo({ token, info, comprobante, sesion }: { token: string; info: Info; comprobante: Comprobante; sesion: string | null }) {
+  // Firmó desde el portal del trabajador: se le ofrece volver ahí.
+  const desdePortal = new URLSearchParams(useLocation().search).get('desde') === 'portal';
   const [descargando, setDescargando] = useState(false);
   const [error, setError] = useState('');
 
@@ -458,6 +460,9 @@ function Listo({ token, info, comprobante, sesion }: { token: string; info: Info
         </Button>
       ) : (
         <p className="text-[13px] text-fg-2 text-center">El PDF firmado está en el correo que te enviamos al firmar.</p>
+      )}
+      {desdePortal && (
+        <Link to="/trabajador/portal" className="text-[13.5px] font-medium text-center">Volver a mi portal</Link>
       )}
     </Tarjeta>
   );

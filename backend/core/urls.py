@@ -48,6 +48,7 @@ urlpatterns = [
     path('trabajador/descargar/', portal.descargar, name='portal_descargar'),
     path('trabajador/vacaciones/', portal.vacaciones, name='portal_vacaciones'),
     path('trabajador/firmas/', portal.firmas_pendientes, name='portal_firmas'),
+    path('trabajador/firmar/', portal.firmar_liquidacion, name='portal_firmar_liquidacion'),
     path('pagos/cancelar-cambio/', cancelar_cambio_plan, name='cancelar_cambio_plan'),
     path('pagos/reanudar/', reanudar_renovacion, name='reanudar_renovacion'),
     path('auth/register/', registrar_cliente, name='api_register'),
