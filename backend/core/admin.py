@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
-                     RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido)
+                     RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido,
+                     RegistroInspeccion, RatificacionInspeccion)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -204,4 +205,34 @@ class CertificadoEmitidoAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RegistroInspeccion)
+class RegistroInspeccionAdmin(admin.ModelAdmin):
+    """Bitácora de fiscalización: solo lectura (es evidencia del acceso de la DT)."""
+    list_display = ('creado_en', 'empresa', 'accion', 'nombre', 'correo', 'detalle')
+    list_filter = ('accion',)
+    search_fields = ('correo', 'nombre', 'empresa__rut')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RatificacionInspeccion)
+class RatificacionInspeccionAdmin(admin.ModelAdmin):
+    list_display = ('ratificado_en', 'empresa', 'titulo', 'inspector_nombre', 'inspector_correo')
+    readonly_fields = ('empresa', 'clave', 'titulo', 'inspector_nombre', 'inspector_rut', 'inspector_correo',
+                       'firma_imagen', 'ip', 'ratificado_en')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False

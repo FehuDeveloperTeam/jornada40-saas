@@ -1201,3 +1201,55 @@ DOMINIOS_CORREO_PERSONAL = {
 def correo_parece_corporativo(email):
     dominio = (email or '').rsplit('@', 1)[-1].strip().lower()
     return bool(email) and dominio not in DOMINIOS_CORREO_PERSONAL
+
+
+# ==========================================
+# PORTAL DE FISCALIZACIÓN (Dictamen 0789/15)
+# ==========================================
+# Un inspector de la Dirección del Trabajo entra con el RUT del empleador y su
+# correo institucional (código de un solo uso), sin intervención del empleador y
+# sin restricciones de fecha, volumen ni tipo de documento. Todo queda registrado.
+
+class CodigoInspeccion(models.Model):
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='codigos_inspeccion')
+    correo = models.EmailField()
+    nombre = models.CharField(max_length=150)
+    rut_inspector = models.CharField(max_length=12)
+    huella = models.CharField(max_length=64)
+    intentos = models.PositiveSmallIntegerField(default=0)
+    usado = models.BooleanField(default=False)
+    expira_en = models.DateTimeField()
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+
+class RegistroInspeccion(models.Model):
+    """Bitácora de la fiscalización: ingresos, consultas, descargas y ratificaciones."""
+    ACCIONES = [('INGRESO', 'Ingreso'), ('DESCARGA', 'Descarga de documento'),
+                ('RATIFICACION', 'Ratificación en terreno'), ('SALIDA', 'Salida')]
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='registros_inspeccion')
+    correo = models.EmailField()
+    nombre = models.CharField(max_length=150)
+    rut_inspector = models.CharField(max_length=12)
+    accion = models.CharField(max_length=15, choices=ACCIONES)
+    detalle = models.CharField(max_length=255, blank=True, default='')
+    ip = models.CharField(max_length=64, blank=True, default='')
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en']
+
+
+class RatificacionInspeccion(models.Model):
+    """Firma de un inspector sobre un documento, en terreno, con su sola identificación."""
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='ratificaciones_inspeccion')
+    clave = models.CharField(max_length=40, help_text='Documento: <tipo>:<id>, como lo lista el portal.')
+    titulo = models.CharField(max_length=200)
+    inspector_nombre = models.CharField(max_length=150)
+    inspector_rut = models.CharField(max_length=12)
+    inspector_correo = models.EmailField()
+    firma_imagen = models.TextField()
+    ip = models.CharField(max_length=64, blank=True, default='')
+    ratificado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-ratificado_en']

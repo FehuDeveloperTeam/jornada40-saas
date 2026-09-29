@@ -3,6 +3,7 @@ from .views import portal_trabajador as portal
 from .views import solicitudes_documento
 from .views import certificados
 from .views import documentos_laborales
+from .views import inspeccion
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -55,6 +56,15 @@ urlpatterns = [
     path('trabajador/firmas/', portal.firmas_pendientes, name='portal_firmas'),
     path('trabajador/firmar/', portal.firmar_liquidacion, name='portal_firmar_liquidacion'),
     path('trabajador/solicitudes/', solicitudes_documento.solicitudes_trabajador, name='portal_solicitudes'),
+    path('inspeccion/ingreso/', inspeccion.ingreso, name='inspeccion_ingreso'),
+    path('inspeccion/verificar/', inspeccion.verificar, name='inspeccion_verificar'),
+    path('inspeccion/yo/', inspeccion.yo, name='inspeccion_yo'),
+    path('inspeccion/salir/', inspeccion.salir, name='inspeccion_salir'),
+    path('inspeccion/trabajadores/', inspeccion.trabajadores, name='inspeccion_trabajadores'),
+    path('inspeccion/documentos/', inspeccion.documentos, name='inspeccion_documentos'),
+    path('inspeccion/descargar/', inspeccion.descargar, name='inspeccion_descargar'),
+    path('inspeccion/ratificar/', inspeccion.ratificar, name='inspeccion_ratificar'),
+    path('inspeccion/bitacora/', inspeccion.bitacora_empleador, name='inspeccion_bitacora'),
     path('trabajador/certificados/', certificados.certificados_trabajador, name='portal_certificados'),
     path('certificados/verificar/<str:codigo>/', certificados.verificar_certificado, name='verificar_certificado'),
     path('empleados/<int:empleado_id>/certificados/', certificados.certificados_empleado, name='certificados_empleado'),

@@ -140,6 +140,8 @@ REST_FRAMEWORK = {
         'portal_trabajador': '60/hour',
         'verificar_certificado': '120/hour',
         'confirmar_identidad': '30/hour',
+        'inspeccion': '30/hour',
+        'inspeccion_sesion': '5000/day',
         'portal_trabajador_sesion': '5000/day',
         'login': '3/minute',
         'register': '3/minute',
@@ -289,6 +291,8 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com
 # Esta es la URL de tu frontend a la que el usuario será redirigido al hacer clic en el correo
 # dj_rest_auth usará esto para armar el link: https://tu-frontend.com/reset-password/<uid>/<token>/
+# Portal de fiscalización: dominios de correo institucional aceptados (Dirección del Trabajo).
+DOMINIOS_CORREO_INSPECCION = [d.strip() for d in config('DOMINIOS_CORREO_INSPECCION', default='dt.gob.cl').split(',') if d.strip()]
 # Sitio público (enlaces impresos en PDFs, p. ej. la verificación de certificados).
 SITIO_URL = config('SITIO_URL', default='https://jornada40.cl')
 PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
