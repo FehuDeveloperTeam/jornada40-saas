@@ -32,7 +32,9 @@ const client = axios.create({
  * página, salvo en las rutas públicas.
  */
 // '/trabajador/': el portal del trabajador tiene su propia sesión (responde 403 sin ella).
-const SIN_RENOVAR = ['/auth/login/', '/auth/token/refresh/', '/auth/logout/', '/firma-publica/', '/trabajador/'];
+const SIN_RENOVAR = ['/auth/login/', '/auth/token/refresh/', '/auth/logout/', '/firma-publica/', '/trabajador/',
+    '/inspeccion/ingreso/', '/inspeccion/verificar/', '/inspeccion/yo/', '/inspeccion/salir/', '/inspeccion/trabajadores/',
+    '/inspeccion/documentos/', '/inspeccion/descargar/', '/inspeccion/ratificar/'];
 let renovando: Promise<boolean> | null = null;
 
 function renovarSesion(): Promise<boolean> {

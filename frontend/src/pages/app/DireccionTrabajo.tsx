@@ -13,7 +13,8 @@ import client from '../../api/client';
 import { ModalConsentimientoPapel } from '../../components/app/ModalConsentimientoPapel';
 import { useRegistroDT } from '../../hooks/usePanel';
 import type {
-  EstadoRegistroDT, FichaDT as TFichaDT, ItemRegistroDT, PendienteConsentimiento, ResultadoAnexosConsentimiento, TipoRegistroDT,
+  EstadoRegistroDT, FichaDT as TFichaDT, ItemRegistroDT, PendienteConsentimiento, RegistroInspeccion, ResultadoAnexosConsentimiento,
+  TipoRegistroDT,
 } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, fechaCL, hoyISO } from '../../utils/formato';
@@ -295,6 +296,8 @@ export default function DireccionTrabajo() {
       </section>
 
       <Consentimiento empresaId={empresa.id} datos={consentimiento} pct={pctConsentimiento} avisar={avisar} refrescar={refrescar} />
+
+      <Fiscalizacion empresaId={empresa.id} />
 
       <FichaMiDT clave={ficha} empresaId={empresa.id} onCerrar={() => setFicha(null)} avisar={avisar}
         onMarcar={(clave) => setMarcar([clave])} />
@@ -615,5 +618,43 @@ function Kpi({ t, v, sub, Icono, tono }: {
       <span className={cn('text-[26px] font-semibold tracking-[-0.02em] j40-num', tono && TONO_KPI[tono])}>{v}</span>
       <span className="text-[12px] text-fg-3">{sub}</span>
     </div>
+  );
+}
+
+/**
+ * Portal de fiscalización (Dictamen 0789/15): los inspectores de la DT entran en
+ * /inspeccion con el RUT de la empresa y su correo institucional, sin pasar por
+ * el empleador. Aquí se ve la bitácora de sus ingresos, descargas y ratificaciones.
+ */
+function Fiscalizacion({ empresaId }: { empresaId: number }) {
+  const bitacora = useQuery({
+    queryKey: ['inspeccion', 'bitacora', empresaId],
+    queryFn: async () => (await client.get<RegistroInspeccion[]>(`/inspeccion/bitacora/?empresa=${empresaId}`)).data,
+  });
+  const registros = bitacora.data ?? [];
+  return (
+    <section className="bg-surface border border-line rounded-j40-card shadow-card flex flex-col" aria-label="Accesos de fiscalización">
+      <div className="flex flex-col gap-1.5 px-[18px] py-3.5 border-b border-line">
+        <h2 className="text-[14px] font-semibold">Accesos de fiscalización</h2>
+        <p className="text-[12.5px] text-fg-3 max-w-[860px]">
+          Los inspectores de la Dirección del Trabajo consultan tus documentos en{' '}
+          <Link to="/inspeccion" className="font-medium">jornada40.cl/inspeccion</Link> con el RUT de la empresa y su correo
+          institucional, sin restricciones, como exige el Dictamen 0789/15. Cada ingreso, descarga y ratificación queda registrado aquí.
+        </p>
+      </div>
+      {registros.length === 0 ? (
+        <p className="px-[18px] py-5 text-[13px] text-fg-3">{bitacora.isLoading ? 'Cargando…' : 'Aún no hay accesos de fiscalización.'}</p>
+      ) : (
+        <ul className="flex flex-col">
+          {registros.map((r, i) => (
+            <li key={i} className="flex flex-wrap gap-x-3 gap-y-1 items-center px-[18px] py-2.5 border-b border-line last:border-b-0 text-[13px]">
+              <span className="w-[150px] text-fg-3 j40-num">{new Date(r.fecha).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              <Chip tono={r.accion === 'RATIFICACION' ? 'marca' : 'neutro'}>{r.accion_texto}</Chip>
+              <span className="flex-1 min-w-[200px]">{r.inspector} · {r.correo}{r.detalle ? ` · ${r.detalle}` : ''}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

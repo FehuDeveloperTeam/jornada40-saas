@@ -798,3 +798,47 @@ export interface FirmaPendientePortal {
     /** Ruta de la página pública de firma: /firma/<token> (solo solicitudes). */
     enlace: string | null;
 }
+
+// ── Portal de fiscalización (Dirección del Trabajo) ──────────────────────────
+
+export interface SesionInspeccion {
+    empresa: { nombre: string; rut: string; direccion: string; representante_legal: string };
+    inspector: { nombre: string; rut: string; correo: string };
+}
+
+export interface TrabajadorInspeccion {
+    id: number;
+    nombre: string;
+    rut: string;
+    cargo: string;
+    activo: boolean;
+    fecha_ingreso: string | null;
+    fecha_desvinculacion: string | null;
+    tipo_contrato: string;
+    horas_semanales: number | null;
+}
+
+export type TipoDocumentoInspeccion = 'CONTRATO' | 'ANEXO' | 'LIQUIDACION' | 'CARTA' | 'VACACION' | 'FINIQUITO' | 'PACTO';
+
+export interface DocumentoInspeccion {
+    /** <tipo>:<id>, identifica el documento para descargar o ratificar. */
+    clave: string;
+    tipo: TipoDocumentoInspeccion;
+    titulo: string;
+    empleado: number;
+    trabajador: string;
+    rut: string;
+    fecha: string | null;
+    firma: { estado: SolicitudFirma['estado']; firmado_en: string | null; folio: string; enviado_en: string | null } | null;
+    ratificaciones: { inspector: string; fecha: string }[];
+}
+
+/** Bitácora de fiscalización que ve el empleador. */
+export interface RegistroInspeccion {
+    accion: 'INGRESO' | 'DESCARGA' | 'RATIFICACION' | 'SALIDA';
+    accion_texto: string;
+    inspector: string;
+    correo: string;
+    detalle: string;
+    fecha: string;
+}

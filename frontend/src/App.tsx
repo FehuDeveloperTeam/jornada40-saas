@@ -47,6 +47,7 @@ const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
 const PortalSolicitudes = lazy(() => import('./pages/trabajador/Solicitudes'));
 const PortalCertificados = lazy(() => import('./pages/trabajador/Certificados'));
 const VerificarCertificado = lazy(() => import('./pages/sitio/Verificar'));
+const InspeccionDT = lazy(() => import('./pages/sitio/Inspeccion'));
 
 // Direcciones del panel anterior: se mantienen para enlaces guardados y correos.
 const DESDE_CLASICO: Record<string, string> = {
@@ -142,6 +143,7 @@ export default function App() {
         {/* La ruta la fija el backend en el correo (PASSWORD_RESET_CONFIRM_URL). */}
         <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />
         <Route path="/firma/:token" element={<FirmaPublica />} />
+        <Route path="/inspeccion" element={<InspeccionDT />} />
         <Route path="/verificar" element={<VerificarCertificado />} />
         <Route path="/verificar/:codigo" element={<VerificarCertificado />} />
         <Route path="/trabajador" element={<IngresoTrabajador />} />
