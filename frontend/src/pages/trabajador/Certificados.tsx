@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { BadgeCheck } from 'lucide-react';
-import { AlertaError, Button, Field } from '../../components/j40';
+import { AlertaError, Button, Chip, Field } from '../../components/j40';
 import { usePortal } from '../../components/trabajador/PortalShell';
 import { BotonDescarga, EstadoLista, Seccion, Titulo } from '../../components/trabajador/comun';
 import { mensajeError, portal } from '../../api/portal';
@@ -41,8 +41,13 @@ export default function Certificados() {
                     {variasEmpresas && c.empresa ? `${c.empresa} · ` : ''}{c.folio} · emitido el {fechaHora(c.emitido_en)}
                   </span>
                   <span className="text-[12px] text-fg-2">Código de verificación <span className="j40-mono font-medium">{c.codigo}</span></span>
+                  {c.anulado_en && (
+                    <span className="text-[12px] text-danger">Anulado por tu empleador: {c.motivo_anulacion.toLowerCase()}. Puedes emitir uno nuevo.</span>
+                  )}
                 </span>
-                <BotonDescarga tipo="certificado" id={c.id} nombre={`${c.folio}.pdf`} etiqueta={`Descargar ${c.titulo} ${c.folio}`} />
+                {c.anulado_en
+                  ? <Chip tono="peligro">Anulado</Chip>
+                  : <BotonDescarga tipo="certificado" id={c.id} nombre={`${c.folio}.pdf`} etiqueta={`Descargar ${c.titulo} ${c.folio}`} />}
               </li>
             ))}
           </ul>

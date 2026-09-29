@@ -217,4 +217,13 @@ test('el trabajador genera un certificado y un tercero lo verifica', async ({ pa
   await page.goto(`/app/trabajadores/${MATIAS.id}?tab=documentos`);
   await expect(page.getByText('Certificados emitidos por el trabajador')).toBeVisible();
   await expect(page.getByText(codigo)).toBeVisible();
+
+  // Lo anula (p. ej. tenía un dato erróneo): la verificación pública pasa a decir que no es válido.
+  await page.getByRole('button', { name: /^Anular Certificado de antigüedad laboral/ }).click();
+  const modal = page.getByRole('dialog', { name: 'Anular certificado' });
+  await modal.getByLabel('Motivo').selectOption('DATO_ERRONEO');
+  await modal.getByRole('button', { name: 'Anular' }).click();
+  await expect(page.getByText(/Anulado el .*: contenía un dato erróneo/)).toBeVisible();
+  await page.goto(`/verificar/${codigo}`);
+  await expect(page.getByText('Certificado anulado: no es válido')).toBeVisible();
 });

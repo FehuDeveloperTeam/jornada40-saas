@@ -1115,9 +1115,15 @@ class CertificadoEmitido(models.Model):
     cuenta = models.ForeignKey(CuentaTrabajador, on_delete=models.SET_NULL, null=True, related_name='certificados')
     tipo = models.CharField(max_length=15, choices=TIPOS)
     opcion = models.CharField(max_length=10, blank=True, default='')
+    MOTIVOS_ANULACION = [('DATO_ERRONEO', 'Contenía un dato erróneo, ya corregido'),
+                         ('EMITIDO_POR_ERROR', 'Se emitió por error'),
+                         ('RELACION_MODIFICADA', 'Cambiaron las condiciones que certificaba')]
     codigo = models.CharField(max_length=14, unique=True, help_text='Código de verificación impreso en el PDF.')
     datos = models.JSONField(default=dict)
     emitido_en = models.DateTimeField(auto_now_add=True)
+    # Anulado por el empleador: la verificación pública lo informa como no válido.
+    anulado_en = models.DateTimeField(null=True, blank=True)
+    motivo_anulacion = models.CharField(max_length=20, choices=MOTIVOS_ANULACION, blank=True, default='')
 
     class Meta:
         ordering = ['-emitido_en']

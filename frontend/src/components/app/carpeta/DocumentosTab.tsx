@@ -4,11 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { LucideIcon } from 'lucide-react';
 import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, Lock, ScrollText, UserX } from 'lucide-react';
-import { Button } from '../../j40';
+import { AlertaError, Button, Chip, Field, Modal } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
-import type { CertificadoEmitido, Empleado } from '../../../types';
+import type { CertificadoEmitido, Empleado, OpcionSimple } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
 import type { DocumentoReciente } from './documentos';
 
@@ -117,12 +117,39 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
 
 /** Certificados que el trabajador generó desde su portal (solo lectura). */
 function CertificadosEmitidos({ empleadoId, avisar }: { empleadoId: number; avisar: (t: string) => void }) {
+  const queryClient = useQueryClient();
+  const [anular, setAnular] = useState<CertificadoEmitido | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const [error, setError] = useState('');
+  const [anulando, setAnulando] = useState(false);
   const { data = [] } = useQuery({
     queryKey: ['certificados', empleadoId],
     queryFn: async () => (await client.get<CertificadoEmitido[]>(`/empleados/${empleadoId}/certificados/`)).data,
   });
+  const motivos = useQuery({
+    queryKey: ['certificados', 'motivos-anulacion'],
+    queryFn: async () => (await client.get<OpcionSimple[]>('/certificados/motivos-anulacion/')).data,
+    enabled: Boolean(anular),
+    staleTime: Infinity,
+  });
   if (!data.length) return null;
   const fecha = (iso: string) => new Date(iso).toLocaleString('es-CL', { timeZone: 'America/Santiago', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const cerrar = () => { if (!anulando) { setAnular(null); setMotivo(''); setError(''); } };
+  const confirmar = async () => {
+    if (!anular) return;
+    if (!motivo) { setError('Elige el motivo.'); return; }
+    setAnulando(true);
+    try {
+      await client.post(`/certificados/${anular.id}/anular/`, { motivo });
+      await queryClient.invalidateQueries({ queryKey: ['certificados', empleadoId] });
+      avisar(`Certificado ${anular.folio} anulado. Su verificación pública ahora lo informa como no válido.`);
+      setAnulando(false);
+      setAnular(null); setMotivo(''); setError('');
+    } catch (err) {
+      setError((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos anular el certificado.');
+      setAnulando(false);
+    }
+  };
   return (
     <Seccion titulo="Certificados emitidos por el trabajador"
       accion={<span className="text-[12.5px] text-fg-3">Desde su portal</span>}>
@@ -132,12 +159,38 @@ function CertificadosEmitidos({ empleadoId, avisar }: { empleadoId: number; avis
           <div className="flex-1 min-w-[180px] flex flex-col">
             <span className="text-[13px]">{c.titulo}{c.opcion_texto ? ` · ${c.opcion_texto.toLowerCase()}` : ''}</span>
             <span className="text-[11.5px] text-fg-3 j40-num">{c.folio} · {fecha(c.emitido_en)} · código <span className="j40-mono">{c.codigo}</span></span>
+            {c.anulado_en && <span className="text-[11.5px] text-danger">Anulado el {fecha(c.anulado_en)}: {c.motivo_anulacion.toLowerCase()}</span>}
           </div>
+          {c.anulado_en ? <Chip tono="peligro">Anulado</Chip> : (
+            <Button variante="secundario" tamano="sm" onClick={() => setAnular(c)} aria-label={`Anular ${c.titulo} ${c.folio}`}>Anular</Button>
+          )}
           <Button variante="fantasma" tamano="sm" aria-label={`Descargar ${c.titulo} ${c.folio}`}
             onClick={async () => { const error = await descargar(`/certificados/${c.id}/pdf/`, `${c.folio}.pdf`); if (error) avisar(error); }}
             iconoInicio={<Download className="size-4" strokeWidth={2} />}>PDF</Button>
         </div>
       ))}
+      <Modal abierto={Boolean(anular)} onCerrar={cerrar} titulo="Anular certificado"
+        subtitulo={anular ? `${anular.titulo} · ${anular.folio}` : undefined}
+        acciones={<>
+          <Button variante="secundario" onClick={cerrar} disabled={anulando}>Volver</Button>
+          <Button variante="peligro" cargando={anulando} onClick={() => void confirmar()}>Anular</Button>
+        </>}>
+        <div className="flex flex-col gap-3">
+          {error && <AlertaError>{error}</AlertaError>}
+          <p className="text-[13px] text-fg-2">
+            Quien verifique el código verá que el certificado no es válido. El trabajador puede emitir uno nuevo con los datos corregidos.
+          </p>
+          <Field etiqueta="Motivo">
+            {(p) => (
+              <select {...p} value={motivo} onChange={(e) => { setMotivo(e.target.value); setError(''); }}
+                className="h-10 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft">
+                <option value="">Elige un motivo</option>
+                {(motivos.data ?? []).map((m) => <option key={m.valor} value={m.valor}>{m.texto}</option>)}
+              </select>
+            )}
+          </Field>
+        </div>
+      </Modal>
     </Seccion>
   );
 }

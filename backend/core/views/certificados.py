@@ -345,6 +345,8 @@ def pdf_certificado(cert):
     html = get_template('certificado.html').render({
         'd': cert.datos, 'folio': cert.folio, 'codigo': cert.codigo, 'url': url, 'qr': _qr_png(url),
         'firma': _firma_legible(cert.empleado.empresa.firma_imagen),
+        'anulado': _fecha(timezone.localtime(cert.anulado_en).date()) if cert.anulado_en else '',
+        'motivo_anulacion': cert.get_motivo_anulacion_display(),
     })
     return _html_a_pdf_bytes(html, cert.folio)
 
@@ -353,7 +355,7 @@ def emitir(emp, tipo, opcion, cuenta=None):
     """Crea el certificado (o devuelve el de hoy si afirma lo mismo)."""
     datos = contenido(emp, tipo, opcion)
     hoy = timezone.localdate()
-    for previo in CertificadoEmitido.objects.filter(empleado=emp, tipo=tipo, opcion=opcion)[:5]:
+    for previo in CertificadoEmitido.objects.filter(empleado=emp, tipo=tipo, opcion=opcion, anulado_en__isnull=True)[:5]:
         if timezone.localtime(previo.emitido_en).date() == hoy and previo.datos == datos:
             return previo
     for _ in range(5):
@@ -367,7 +369,9 @@ def emitir(emp, tipo, opcion, cuenta=None):
 def dato_certificado(c):
     return {'id': c.id, 'folio': c.folio, 'tipo': c.tipo, 'titulo': c.get_tipo_display(),
             'opcion': c.opcion, 'opcion_texto': dict(OPCIONES_MESES).get(c.opcion, ''),
-            'codigo': c.codigo, 'emitido_en': c.emitido_en.isoformat()}
+            'codigo': c.codigo, 'emitido_en': c.emitido_en.isoformat(),
+            'anulado_en': c.anulado_en.isoformat() if c.anulado_en else None,
+            'motivo_anulacion': c.get_motivo_anulacion_display() if c.anulado_en else ''}
 
 
 # ── Portal del trabajador ────────────────────────────────────────────────────
@@ -439,8 +443,16 @@ def verificar_certificado(request, codigo):
         return Response({'valido': False, 'error': 'No existe un certificado con ese código.'},
                         status=status.HTTP_404_NOT_FOUND)
     d = cert.datos
+    if cert.anulado_en:
+        # Anulado: se informa que no es válido, sin repetir lo que afirmaba.
+        return Response({
+            'valido': False, 'anulado': True, 'folio': cert.folio, 'codigo': cert.codigo, 'titulo': d['titulo'],
+            'emitido': d['emitido'], 'empresa': d['empresa'],
+            'anulado_en': _fecha(timezone.localtime(cert.anulado_en).date()),
+            'motivo_anulacion': cert.get_motivo_anulacion_display(),
+        })
     return Response({
-        'valido': True, 'folio': cert.folio, 'codigo': cert.codigo, 'titulo': d['titulo'],
+        'valido': True, 'anulado': False, 'folio': cert.folio, 'codigo': cert.codigo, 'titulo': d['titulo'],
         'emitido': d['emitido'], 'empresa': d['empresa'],
         'trabajador': {'nombre': d['trabajador']['nombre'], 'rut': _rut_oculto(d['trabajador']['rut'])},
         'filas': d['filas'], 'tabla': d['tabla'], 'nota': d['nota'],
@@ -467,3 +479,26 @@ def descargar_certificado_empleador(request, certificado_id):
     if cert is None:
         return Response({'error': 'Certificado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
     return respuesta_pdf(pdf_certificado(cert), f'{cert.folio}.pdf')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def anular_certificado(request, certificado_id):
+    """El empleador anula un certificado (p. ej. con un dato ya corregido). No se borra:
+    la verificación pública pasa a informarlo como no válido y el trabajador puede emitir otro."""
+    cert = CertificadoEmitido.objects.filter(pk=certificado_id, empleado__empresa__owner=request.user,
+                                             anulado_en__isnull=True).first()
+    if cert is None:
+        return Response({'error': 'Certificado no encontrado o ya anulado.'}, status=status.HTTP_404_NOT_FOUND)
+    motivo = request.data.get('motivo')
+    if motivo not in dict(CertificadoEmitido.MOTIVOS_ANULACION):
+        return Response({'error': 'Elige el motivo de la anulación.'}, status=status.HTTP_400_BAD_REQUEST)
+    cert.anulado_en, cert.motivo_anulacion = timezone.now(), motivo
+    cert.save(update_fields=['anulado_en', 'motivo_anulacion'])
+    return Response(dato_certificado(cert))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def motivos_anulacion_certificado(request):
+    return Response([{'valor': v, 'texto': t} for v, t in CertificadoEmitido.MOTIVOS_ANULACION])

@@ -181,3 +181,37 @@ class FirmaDaniadaTests(CertificadosBase):
         r = self._emitir('ANTIGUEDAD')
         pdf = self.client.get('/api/trabajador/descargar/', {'tipo': 'certificado', 'id': r.data['id']})
         self.assertTrue(pdf.content.startswith(b'%PDF'))
+
+
+class AnulacionTests(CertificadosBase):
+    def test_empleador_anula_y_la_verificacion_lo_informa(self):
+        emitido = self._emitir('ANTIGUEDAD').data
+        self.client.force_authenticate(self.jefe)
+        url = f"/api/certificados/{emitido['id']}/anular/"
+        self.assertEqual(self.client.post(url, {'motivo': 'otro'}, format='json').status_code, 400)
+        r = self.client.post(url, {'motivo': 'DATO_ERRONEO'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['motivo_anulacion'], 'Contenía un dato erróneo, ya corregido')
+        self.assertEqual(self.client.post(url, {'motivo': 'DATO_ERRONEO'}, format='json').status_code, 404)
+        pdf = self.client.get(f"/api/certificados/{emitido['id']}/pdf/")        # copia del empleador, marcada
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+        self.client.force_authenticate(None)
+        v = self.client.get(f"/api/certificados/verificar/{emitido['codigo']}/").data
+        self.assertEqual((v['valido'], v['anulado']), (False, True))
+        self.assertNotIn('filas', v)
+
+    def test_trabajador_no_descarga_el_anulado_y_puede_emitir_otro(self):
+        emitido = self._emitir('ANTIGUEDAD').data
+        CertificadoEmitido.objects.filter(pk=emitido['id']).update(anulado_en=timezone.now(),
+                                                                   motivo_anulacion='EMITIDO_POR_ERROR')
+        r = self.client.get('/api/trabajador/descargar/', {'tipo': 'certificado', 'id': emitido['id']})
+        self.assertEqual(r.status_code, 410)
+        nuevo = self._emitir('ANTIGUEDAD').data
+        self.assertNotEqual(nuevo['codigo'], emitido['codigo'])
+
+    def test_otro_empleador_no_anula(self):
+        emitido = self._emitir('ANTIGUEDAD').data
+        otro, _, _, _ = crear_usuario_completo('cert_e', '11.111.111-1', '77.777.777-7')
+        self.client.force_authenticate(otro)
+        r = self.client.post(f"/api/certificados/{emitido['id']}/anular/", {'motivo': 'DATO_ERRONEO'}, format='json')
+        self.assertEqual(r.status_code, 404)

@@ -79,9 +79,24 @@ export default function Verificar() {
         {consulta.isError && !noExiste && (
           <p role="alert" className="text-[13px] text-danger">No pudimos verificar el código ahora. Intenta de nuevo en unos minutos.</p>
         )}
-        {consulta.data && <Resultado v={consulta.data} />}
+        {consulta.data && (consulta.data.anulado ? <Anulado v={consulta.data} /> : <Resultado v={consulta.data} />)}
       </main>
     </J40Root>
+  );
+}
+
+function Anulado({ v }: { v: VerificacionCertificado }) {
+  return (
+    <section aria-label="Resultado de la verificación" role="alert" className="flex gap-3 items-start rounded-j40-card border border-line bg-surface p-4">
+      <CircleX className="size-6 text-danger shrink-0" strokeWidth={2} aria-hidden />
+      <div className="flex flex-col gap-1">
+        <p className="text-[15px] font-semibold">Certificado anulado: no es válido</p>
+        <p className="text-[13px] text-fg-2">
+          {v.titulo} · folio <span className="j40-mono">{v.folio}</span>, emitido el {v.emitido} por {v.empresa.nombre} (RUT {v.empresa.rut}).
+        </p>
+        <p className="text-[13px] text-fg-2">El empleador lo anuló el {v.anulado_en}: {v.motivo_anulacion?.toLowerCase()}. Pide al trabajador uno vigente.</p>
+      </div>
+    </section>
   );
 }
 
@@ -99,8 +114,8 @@ function Resultado({ v }: { v: VerificacionCertificado }) {
       </div>
       <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 p-4 text-[13.5px]">
         <dt className="text-fg-3">Empleador</dt><dd className="font-medium">{v.empresa.nombre} · RUT {v.empresa.rut}</dd>
-        <dt className="text-fg-3">Trabajador</dt><dd className="font-medium">{v.trabajador.nombre} · RUT {v.trabajador.rut}</dd>
-        {v.filas.map(([etiqueta, valor]) => (
+        {v.trabajador && <><dt className="text-fg-3">Trabajador</dt><dd className="font-medium">{v.trabajador.nombre} · RUT {v.trabajador.rut}</dd></>}
+        {(v.filas ?? []).map(([etiqueta, valor]) => (
           <div key={etiqueta} className="contents"><dt className="text-fg-3">{etiqueta}</dt><dd>{valor}</dd></div>
         ))}
       </dl>

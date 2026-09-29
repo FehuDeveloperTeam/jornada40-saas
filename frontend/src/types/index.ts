@@ -742,6 +742,9 @@ export interface CertificadoEmitido {
     opcion_texto: string;
     codigo: string;
     emitido_en: string;
+    /** Anulado por el empleador: no se descarga y la verificación lo informa como no válido. */
+    anulado_en: string | null;
+    motivo_anulacion: string;
     empresa?: string;
 }
 
@@ -756,15 +759,19 @@ export interface CertificadosPortal {
 /** Respuesta pública de /certificados/verificar/<código>/. */
 export interface VerificacionCertificado {
     valido: boolean;
+    anulado: boolean;
     folio: string;
     codigo: string;
     titulo: string;
     emitido: string;
     empresa: { nombre: string; rut: string; direccion: string };
-    trabajador: { nombre: string; rut: string };
-    filas: [string, string][];
-    tabla: { columnas: string[]; filas: string[][]; pie: string[] | null } | null;
-    nota: string;
+    /** Solo en los válidos: de un anulado no se repite lo que afirmaba. */
+    trabajador?: { nombre: string; rut: string };
+    filas?: [string, string][];
+    tabla?: { columnas: string[]; filas: string[][]; pie: string[] | null } | null;
+    nota?: string;
+    anulado_en?: string;
+    motivo_anulacion?: string;
 }
 
 export interface FirmaPendientePortal {

@@ -49,6 +49,12 @@
         </table>
     </div>
 
+    {% if anulado %}
+    <div style="border: 2px solid #b91c1c; color: #b91c1c; font-weight: bold; text-align: center; padding: 6px; margin-bottom: 12px;">
+        CERTIFICADO ANULADO EL {{ anulado|upper }} · {{ motivo_anulacion|upper }} · NO ES VÁLIDO
+    </div>
+    {% endif %}
+
     <div class="empresa">
         <b>{{ d.empresa.nombre }}</b><br>
         RUT {{ d.empresa.rut }}{% if d.empresa.direccion %} · {{ d.empresa.direccion }}{% endif %}
