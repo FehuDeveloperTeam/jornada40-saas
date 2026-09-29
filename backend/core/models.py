@@ -213,6 +213,9 @@ class Empleado(models.Model):
     comuna = models.CharField(max_length=100, blank=True, null=True) 
     numero_telefono = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
+    # La DT exige enviar los documentos al correo PERSONAL (no al corporativo, que
+    # se pierde al terminar la relación). El empleador lo confirma; se reinicia al cambiar el correo.
+    email_personal_confirmado = models.BooleanField(default=False)
     departamento = models.CharField(max_length=100, blank=True, null=True)
     cargo = models.CharField(max_length=100)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
@@ -1182,3 +1185,19 @@ class DocumentoLaboral(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} · {self.empleado} ({self.vigente_desde})'
+
+
+
+# Dominios de correo personal más usados en Chile. Un correo de otro dominio
+# probablemente es corporativo: se avisa (no se bloquea).
+DOMINIOS_CORREO_PERSONAL = {
+    'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.cl', 'hotmail.es', 'outlook.com', 'outlook.cl',
+    'outlook.es', 'live.com', 'live.cl', 'msn.com', 'yahoo.com', 'yahoo.es', 'yahoo.cl', 'ymail.com',
+    'icloud.com', 'me.com', 'mac.com', 'proton.me', 'protonmail.com', 'aol.com', 'gmx.com', 'zoho.com',
+    'mail.com', 'yandex.com', 'vtr.net', 'entelchile.net', 'terra.cl', 'tie.cl',
+}
+
+
+def correo_parece_corporativo(email):
+    dominio = (email or '').rsplit('@', 1)[-1].strip().lower()
+    return bool(email) and dominio not in DOMINIOS_CORREO_PERSONAL

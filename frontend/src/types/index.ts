@@ -168,6 +168,10 @@ export interface Empleado {
     comuna: string | null;
     numero_telefono: string | null;
     email: string | null;
+    /** El empleador confirmó que es su correo personal (la DT exige enviar ahí los documentos). */
+    email_personal_confirmado: boolean;
+    /** El dominio no es de un proveedor de correo personal conocido: probablemente corporativo. */
+    correo_parece_corporativo: boolean;
     departamento: string | null;
     cargo: string;
     sucursal: string | null;

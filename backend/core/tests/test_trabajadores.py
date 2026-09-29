@@ -158,3 +158,23 @@ class CargaMasivaRevisionTests(APITestCase):
         self.assertEqual(resultados, ['nuevo', 'nuevo', 'limite'])   # 1 existente + 2 nuevos = 3
         self.assertTrue(r.data['limite_alcanzado'])
         self.assertEqual(r.data['agregados'], 2)
+
+
+class CorreoPersonalTests(APITestCase):
+    """La DT exige enviar los documentos al correo personal (ORD 2965): aviso y confirmación."""
+
+    def setUp(self):
+        from .utiles import crear_empleado, crear_usuario_completo
+        self.user, _, _, self.empresa = crear_usuario_completo('correo_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+
+    def test_aviso_confirmacion_y_reinicio_al_cambiar_el_correo(self):
+        url = f'/api/empleados/{self.emp.id}/'
+        r = self.client.patch(url, {'email': 'ana@empresa-cliente.cl'}, format='json')
+        self.assertTrue(r.data['correo_parece_corporativo'])
+        self.assertFalse(r.data['email_personal_confirmado'])
+        r = self.client.patch(url, {'email_personal_confirmado': True}, format='json')
+        self.assertTrue(r.data['email_personal_confirmado'])
+        r = self.client.patch(url, {'email': 'ana.rojas@gmail.com'}, format='json')
+        self.assertEqual((r.data['correo_parece_corporativo'], r.data['email_personal_confirmado']), (False, False))

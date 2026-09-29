@@ -188,6 +188,8 @@ function DocumentosElectronicos({ empleado, avisar }: { empleado: Empleado; avis
         )}
       </div>
 
+      <CorreoPersonal empleado={empleado} avisar={avisar} refrescar={refrescar} />
+
       <ModalConsentimientoPapel empleado={papel ? { id: empleado.id, nombre: `${empleado.nombres} ${empleado.apellido_paterno}` } : null}
         onCerrar={() => setPapel(false)} avisar={avisar} refrescar={refrescar} />
 
@@ -202,6 +204,47 @@ function DocumentosElectronicos({ empleado, avisar }: { empleado: Empleado; avis
         </p>
       </Modal>
     </section>
+  );
+}
+
+/**
+ * La DT exige enviar los documentos electrónicos al correo PERSONAL del
+ * trabajador (ORD 2965): uno corporativo se pierde al terminar la relación.
+ */
+function CorreoPersonal({ empleado, avisar, refrescar }: { empleado: Empleado; avisar: Avisar; refrescar: () => Promise<unknown> }) {
+  const [confirmando, setConfirmando] = useState(false);
+  if (!empleado.email) {
+    return (
+      <p className="flex items-start gap-2 px-[18px] pb-[18px] text-[12.5px] text-warn">
+        <Mail className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+        Sin correo registrado: no se le pueden enviar documentos a firma ni por correo.
+      </p>
+    );
+  }
+  if (!empleado.correo_parece_corporativo || empleado.email_personal_confirmado) return null;
+  const confirmar = async () => {
+    setConfirmando(true);
+    try {
+      await client.patch(`/empleados/${empleado.id}/`, { email_personal_confirmado: true });
+      await refrescar();
+      avisar('Correo personal confirmado');
+    } catch {
+      avisar('No pudimos guardar la confirmación.', 'error');
+    } finally {
+      setConfirmando(false);
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-[18px] pb-[18px]">
+      <p className="flex-1 min-w-[220px] flex items-start gap-2 text-[12.5px] text-warn">
+        <Mail className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+        <span>
+          {empleado.email} parece un correo corporativo. La DT exige enviar los documentos al correo personal del trabajador,
+          que conserva al terminar la relación laboral.
+        </span>
+      </p>
+      <Button variante="secundario" tamano="sm" cargando={confirmando} onClick={() => void confirmar()}>Es su correo personal</Button>
+    </div>
   );
 }
 

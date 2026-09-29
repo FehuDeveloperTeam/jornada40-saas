@@ -148,6 +148,18 @@ class ContratoSerializer(serializers.ModelSerializer):
 class EmpleadoSerializer(serializers.ModelSerializer):
     contrato_activo = ContratoSerializer(read_only=True)
     tiene_rechazos_pendientes = serializers.BooleanField(read_only=True, default=False)
+    correo_parece_corporativo = serializers.SerializerMethodField()
+
+    def get_correo_parece_corporativo(self, obj):
+        from .models import correo_parece_corporativo
+        return correo_parece_corporativo(obj.email)
+
+    def update(self, instance, validated_data):
+        # Otro correo: la confirmación de que es personal era del anterior.
+        if 'email' in validated_data and (validated_data['email'] or '') != (instance.email or '') \
+                and 'email_personal_confirmado' not in validated_data:
+            validated_data['email_personal_confirmado'] = False
+        return super().update(instance, validated_data)
 
     def validate_empresa(self, empresa):
         return _exigir_propia(self, empresa)
@@ -170,7 +182,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'empresa', 'rut', 'nombres', 'apellido_paterno', 'apellido_materno',
             'sexo', 'fecha_nacimiento', 'nacionalidad', 'estado_civil',
-            'direccion', 'comuna', 'numero_telefono', 'email',
+            'direccion', 'comuna', 'numero_telefono', 'email', 'email_personal_confirmado', 'correo_parece_corporativo',
             'departamento', 'cargo', 'sucursal',
             'horas_laborales', 'modalidad', 'sueldo_base', 'fecha_ingreso',
             'afp', 'sistema_salud', 'plan_isapre_uf', 'isapre', 'numero_fun',
