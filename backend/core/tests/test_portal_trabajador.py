@@ -196,6 +196,7 @@ class DocumentosTests(PortalBase):
         self.assertEqual(r.status_code, 200, r.data)
         solicitud = SolicitudFirma.objects.get(liquidacion=pasada)
         self.assertEqual(r.data['enlace'], f'/firma/{solicitud.token}')
+        self.assertEqual((solicitud.origen, solicitud.emisor_id), ('PORTAL', self.jefe.id))
         self.assertFalse([m for m in mail.outbox if 'Firma requerida' in m.subject])   # sin correo: ya está en el portal
         # Ahora figura como solicitud pendiente, con su enlace, y no se duplica.
         por_firmar = self.client.get('/api/trabajador/firmas/').data

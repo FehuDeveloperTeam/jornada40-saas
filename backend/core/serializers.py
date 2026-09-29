@@ -323,12 +323,17 @@ class PlanSerializer(serializers.ModelSerializer):
 class SolicitudFirmaSerializer(serializers.ModelSerializer):
     empleado_nombre = serializers.SerializerMethodField()
     empresa_nombre  = serializers.SerializerMethodField()
+    emisor_nombre   = serializers.SerializerMethodField()
 
     def get_empleado_nombre(self, obj):
         return f"{obj.empleado.nombres} {obj.empleado.apellido_paterno}"
 
     def get_empresa_nombre(self, obj):
         return obj.empresa.nombre_legal
+
+    def get_emisor_nombre(self, obj):
+        u = obj.emisor
+        return (u.get_full_name() or u.username) if u else ''
 
     class Meta:
         model = SolicitudFirma
@@ -340,6 +345,7 @@ class SolicitudFirmaSerializer(serializers.ModelSerializer):
             'enviado_en', 'firmado_en', 'expira_en',
             'motivo_rechazo', 'folio', 'hash_firmado',
             'empleado_nombre', 'empresa_nombre',
+            'origen', 'emisor_nombre', 'emisor_ip', 'emisor_confirmado_en',
         ]
         read_only_fields = (
             'id', 'token', 'estado', 'email_firmante', 'ip_firmante',

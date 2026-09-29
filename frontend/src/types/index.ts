@@ -516,6 +516,11 @@ export interface SolicitudFirma {
     hash_firmado?: string;
     empleado_nombre: string;
     empresa_nombre: string;
+    /** Firma del empleador: PANEL (confirmó su clave al enviar) o PORTAL (la pidió el trabajador). */
+    origen: 'PANEL' | 'PORTAL';
+    emisor_nombre: string;
+    emisor_ip: string;
+    emisor_confirmado_en: string | null;
 }
 
 export interface Suscripcion {

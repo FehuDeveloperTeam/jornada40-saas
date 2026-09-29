@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.db import transaction
 from django.http import HttpResponse
-from ..models import Empresa, SolicitudFirma, OTPFirma
+from ..models import DocumentoLaboral, Empresa, SolicitudFirma, OTPFirma
 from django.conf import settings
 from django.utils import timezone
 from ..rut import limpiar_rut
@@ -291,6 +291,20 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
 # FASE 8 — Procesamiento de la firma
 # ==========================================
 
+def filas_emision(solicitud):
+    """Filas del certificado de firma sobre la firma del empleador en este documento."""
+    if solicitud.origen == 'PORTAL':
+        return [('FIRMA DEL EMPLEADOR', 'Documento emitido por el empleador; firma pedida por el trabajador en su portal')]
+    if not solicitud.emisor_confirmado_en:
+        return []
+    usuario = solicitud.emisor
+    quien = ' · '.join(p for p in ((usuario.get_full_name() or usuario.username) if usuario else '',
+                                   usuario.email if usuario else '') if p)
+    cuando = timezone.localtime(solicitud.emisor_confirmado_en).strftime('%d/%m/%Y %H:%M') + ' (hora de Chile)'
+    return [('EMITIDO POR EL EMPLEADOR', quien or 'Usuario del empleador'),
+            ('IDENTIDAD CONFIRMADA CON CLAVE', f'{cuando} · IP {solicitud.emisor_ip or "no registrada"}')]
+
+
 def _ip_desde_request(request) -> str:
     """IP real del firmante. IpRealMiddleware ya la dejó en REMOTE_ADDR; el
     primer valor de X-Forwarded-For era la IP de Cloudflare, no la del firmante."""
@@ -510,7 +524,8 @@ def firma_publica_firmar(request, token):
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
         'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
-        'FINIQUITO': 'Finiquito de Término',
+        'FINIQUITO': 'Finiquito (firma de recepción)',
+        **dict(DocumentoLaboral.TIPOS),
     }
     firmado_en  = timezone.now()
     ip_firmante = _ip_desde_request(request)
@@ -534,6 +549,7 @@ def firma_publica_firmar(request, token):
             email_firmante        = solicitud.email_firmante,
             folio                 = solicitud.folio,
             hash_original         = hash_original,
+            emision               = filas_emision(solicitud),
         )
     except Exception:
         logger.exception('Firma %s: no se pudo generar el PDF firmado', solicitud.pk)

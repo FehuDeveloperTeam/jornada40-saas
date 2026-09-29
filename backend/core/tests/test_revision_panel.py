@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from ..models import Contrato, Empleado, Empresa, Plan, SolicitudFirma
-from .utiles import crear_empleado, crear_usuario_completo, indicadores_fijos
+from .utiles import crear_empleado, crear_usuario_completo, indicadores_fijos, confirmar_identidad
 
 
 class FirmaAislamientoTests(APITestCase):
@@ -23,6 +23,7 @@ class FirmaAislamientoTests(APITestCase):
         self.contrato_b = Contrato.objects.create(empleado=self.emp_b, tipo_contrato='INDEFINIDO',
                                                   fecha_inicio='2024-01-01', sueldo_base=3_000_000, cargo='Gerente')
         self.client.force_authenticate(self.user_a)
+        confirmar_identidad(self.client, self.user_a)
 
     @patch('core.b2_client.subir_documento')
     def test_no_se_puede_enviar_a_firma_el_contrato_de_otro_cliente(self, subir):

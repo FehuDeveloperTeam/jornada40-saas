@@ -44,12 +44,27 @@ export function ultimoCodigoPortal(correo: string): string {
   return lineas.at(-1)?.[1] ?? '';
 }
 
-export async function entrar(page: Page, clave = USUARIO.clave) {
+/**
+ * Ingresa al panel. Con `confirmarIdentidad` (por defecto) deja confirmada la
+ * clave para firmar como empleador (vale 10 minutos), como si ya se hubiera
+ * pasado por el modal: las pruebas de otros flujos no lo repiten.
+ */
+export async function entrar(page: Page, clave = USUARIO.clave, { confirmarIdentidad = true } = {}) {
   await page.goto('/login');
   await page.getByLabel('RUT del titular de la cuenta').fill(USUARIO.rut);
   await page.getByLabel('Contraseña', { exact: true }).fill(clave);
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await expect(page).toHaveURL(/\/app$/);
+  if (!confirmarIdentidad) return;
+  const estado = await page.evaluate(async (c) => {
+    const csrf = document.cookie.split('; ').find((x) => x.startsWith('csrftoken='))?.split('=')[1] ?? '';
+    const r = await fetch('/api/firmas/confirmar_identidad/', {
+      method: 'POST', credentials: 'include', body: JSON.stringify({ clave: c }),
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+    });
+    return r.status;
+  }, clave);
+  expect(estado).toBe(200);
 }
 
 /** Espera la descarga que dispara `accion` y devuelve el nombre sugerido. */

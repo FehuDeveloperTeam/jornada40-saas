@@ -597,8 +597,10 @@ def firmar_liquidacion(request):
         return Response({'error': 'Esta liquidación no está disponible para firmar.'}, status=status.HTTP_404_NOT_FOUND)
     empresa = liq.empleado.empresa
     try:
+        # La pide el trabajador sobre una liquidación que el empleador ya emitió: queda registrado el origen.
         solicitud = SolicitudFirmaViewSet()._crear_solicitud(empresa.owner, liq.empleado, 'LIQUIDACION',
-                                                             liquidacion_id=liq.id, avisar_por_correo=False)
+                                                             liquidacion_id=liq.id, avisar_por_correo=False,
+                                                             emision={'origen': 'PORTAL', 'emisor': empresa.owner})
     except _ErrorFirma as e:
         if not empresa.firma_imagen:
             return Response({'error': f'{empresa.nombre_legal.title()} aún no habilita la firma electrónica. '

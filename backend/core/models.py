@@ -893,6 +893,14 @@ class SolicitudFirma(models.Model):
     finiquito        = models.ForeignKey('Finiquito',     on_delete=models.SET_NULL,   null=True, blank=True)
     documento_laboral = models.ForeignKey('DocumentoLaboral', on_delete=models.SET_NULL, null=True, blank=True,
                                           related_name='solicitudes_firma')
+    # Firma del empleador por documento: quién lo emitió y cuándo confirmó su
+    # identidad con su clave (el documento queda vinculado a su autor, ORD 82/2025).
+    # PORTAL: lo pidió el trabajador desde su portal sobre un documento ya emitido.
+    ORIGENES = [('PANEL', 'Enviado por el empleador'), ('PORTAL', 'Solicitado por el trabajador en su portal')]
+    origen = models.CharField(max_length=10, choices=ORIGENES, default='PANEL')
+    emisor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='firmas_emitidas')
+    emisor_ip = models.CharField(max_length=64, blank=True, default='')
+    emisor_confirmado_en = models.DateTimeField(null=True, blank=True)
 
     tipo_documento   = models.CharField(max_length=20, choices=TIPOS_DOCUMENTO)
     token            = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)

@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 from ..models import SolicitudFirma
 
-from .utiles import crear_empleado, crear_usuario_completo
+from .utiles import crear_empleado, crear_usuario_completo, confirmar_identidad
 
 
 class FirmaConcurrenciaTests(APITestCase):
@@ -162,6 +162,7 @@ class DocumentoFirmadoTests(APITestCase):
         from ..models import Empleado, Empresa, Liquidacion
         self.user, _, _, self.empresa = crear_usuario_completo('firmado_owner', '21.000.000-3', '76.000.555-2')
         self.client.force_authenticate(self.user)
+        confirmar_identidad(self.client, self.user)
         self.emp = crear_empleado(self.empresa, '12.345.678-5')
         Empleado.objects.filter(pk=self.emp.pk).update(email='t@correo.cl')
         Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
@@ -200,6 +201,7 @@ class EnvioMasivoLiquidacionesTests(APITestCase):
         from ..models import Empleado, Empresa, Liquidacion
         self.user, _, _, self.empresa = crear_usuario_completo('masivo_owner', '21.000.000-3', '76.000.555-2')
         self.client.force_authenticate(self.user)
+        confirmar_identidad(self.client, self.user)
         Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
         self.con_correo = crear_empleado(self.empresa, '12.345.678-5')
         self.sin_correo = crear_empleado(self.empresa, '9.876.543-3')
@@ -219,3 +221,56 @@ class EnvioMasivoLiquidacionesTests(APITestCase):
         r = self.client.post('/api/firmas/solicitar_liquidaciones/', datos, format='json')
         self.assertEqual(r.data['enviadas'], 0)
         self.assertEqual(SolicitudFirma.objects.filter(tipo_documento='LIQUIDACION').count(), 1)
+
+
+class FirmaDelEmpleadorTests(APITestCase):
+    """Cada envío a firma queda vinculado al empleador que confirmó su identidad con su clave."""
+
+    def setUp(self):
+        from ..models import Empleado, Empresa, Liquidacion
+        self.user, _, _, self.empresa = crear_usuario_completo('emisor_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        Empleado.objects.filter(pk=self.emp.pk).update(email='t@correo.cl')
+        Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
+        self.liq = Liquidacion.objects.create(empleado=self.emp, mes=8, anio=2026, total_imponible=1000,
+                                              sueldo_liquido=900, total_haberes=1000)
+
+    def _enviar(self):
+        return self.client.post('/api/firmas/solicitar/', {'empleado_id': self.emp.id, 'tipo_documento': 'LIQUIDACION',
+                                                           'liquidacion_id': self.liq.id}, format='json')
+
+    @patch('core.b2_client.subir_documento')
+    @patch('core.views.firmas.SolicitudFirmaViewSet._enviar_email_firma')
+    def test_sin_confirmar_pide_la_clave_y_con_ella_registra_al_emisor(self, *_):
+        r = self._enviar()
+        self.assertEqual((r.status_code, r.data['codigo']), (428, 'confirmar_identidad'))
+        self.assertEqual(self.client.post('/api/firmas/solicitar_liquidaciones/',
+                                          {'empresa': self.empresa.id, 'mes': 8, 'anio': 2026},
+                                          format='json').status_code, 428)
+        self.assertEqual(self.client.post('/api/firmas/confirmar_identidad/', {'clave': 'otra'},
+                                          format='json').status_code, 400)
+        r = self.client.post('/api/firmas/confirmar_identidad/', {'clave': 'pass1234'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('jornada40-confirmacion', r.cookies)
+        r = self._enviar()
+        self.assertEqual(r.status_code, 201, r.data)
+        s = SolicitudFirma.objects.get(pk=r.data['id'])
+        self.assertEqual((s.origen, s.emisor_id), ('PANEL', self.user.id))
+        self.assertIsNotNone(s.emisor_confirmado_en)
+        from ..views.firma_publica import filas_emision
+        etiquetas = [e for e, _ in filas_emision(s)]
+        self.assertEqual(etiquetas, ['EMITIDO POR EL EMPLEADOR', 'IDENTIDAD CONFIRMADA CON CLAVE'])
+
+    def test_la_confirmacion_de_otro_usuario_no_sirve(self):
+        otro, _, _, _ = crear_usuario_completo('emisor_otro', '11.111.111-1', '77.777.777-7')
+        confirmar_identidad(self.client, otro)
+        self.assertEqual(self._enviar().status_code, 428)
+
+    def test_confirmacion_vencida(self):
+        from django.core import signing
+        from ..views.firmas import COOKIE_CONFIRMACION, _SAL_CONFIRMACION
+        with patch('django.core.signing.time.time', return_value=0):
+            valor = signing.dumps({'u': self.user.id, 'en': timezone.now().isoformat()}, salt=_SAL_CONFIRMACION)
+        self.client.cookies[COOKIE_CONFIRMACION] = valor
+        self.assertEqual(self._enviar().status_code, 428)

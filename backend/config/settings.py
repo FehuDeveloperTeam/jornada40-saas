@@ -139,6 +139,7 @@ REST_FRAMEWORK = {
         'firma_publica_ip': '1500/day',
         'portal_trabajador': '60/hour',
         'verificar_certificado': '120/hour',
+        'confirmar_identidad': '30/hour',
         'portal_trabajador_sesion': '5000/day',
         'login': '3/minute',
         'register': '3/minute',

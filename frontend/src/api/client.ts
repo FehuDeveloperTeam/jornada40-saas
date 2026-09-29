@@ -7,6 +7,8 @@ declare module 'axios' {
         _reintento?: boolean;
         /** No intentar renovar la sesión ante un 401 (la propia renovación). */
         _sinRenovar?: boolean;
+        /** Petición ya repetida tras confirmar la identidad del empleador. */
+        _reconfirmado?: boolean;
     }
 }
 
@@ -46,9 +48,30 @@ export function irAlLogin() {
     window.location.assign(`/login?volver=${encodeURIComponent(pathname + search)}`);
 }
 
+/**
+ * Firmar como empleador exige confirmar la clave (vale unos minutos). Si el
+ * backend responde 428 con codigo 'confirmar_identidad', el panel muestra el
+ * modal registrado aquí y, confirmada, se repite la petición una vez. Las
+ * peticiones simultáneas esperan el mismo modal.
+ */
+let pedirConfirmacion: (() => Promise<boolean>) | null = null;
+let confirmando: Promise<boolean> | null = null;
+export function registrarConfirmacionIdentidad(fn: (() => Promise<boolean>) | null) {
+    pedirConfirmacion = fn;
+}
+
 client.interceptors.response.use(undefined, async (error: AxiosError) => {
     const config: InternalAxiosRequestConfig | undefined = error.config;
     const url = config?.url ?? '';
+    const codigo = (error.response?.data as { codigo?: string } | undefined)?.codigo;
+    if (error.response?.status === 428 && codigo === 'confirmar_identidad' && config && !config._reconfirmado && pedirConfirmacion) {
+        confirmando ??= pedirConfirmacion().finally(() => { setTimeout(() => { confirmando = null; }, 0); });
+        if (await confirmando) {
+            config._reconfirmado = true;
+            return client(config);
+        }
+        return Promise.reject(error);
+    }
     if (error.response?.status !== 401 || !config || config._reintento || config._sinRenovar
         || SIN_RENOVAR.some((ruta) => url.includes(ruta))) {
         return Promise.reject(error);

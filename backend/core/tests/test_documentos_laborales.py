@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from ..models import (AnexoContrato, ConceptoRemuneracion, Contrato, DocumentoLaboral, Empleado, Empresa, Plan,
                       SolicitudFirma)
 from ..views.documentos_laborales import dias_permiso
-from .utiles import crear_empleado, crear_usuario_completo
+from .utiles import confirmar_identidad, crear_empleado, crear_usuario_completo
 
 
 class DocumentosBase(APITestCase):
@@ -198,6 +198,7 @@ class FirmaYPlanTests(DocumentosBase):
     def test_se_envia_a_firma_y_no_se_anula_en_firma(self, _):
         Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
         doc = self._crear('PERMISO_LEGAL', permiso='FALLECIMIENTO_PADRES', fecha_hecho='2026-09-07').data
+        confirmar_identidad(self.client, self.user)
         with patch('core.views.firmas.SolicitudFirmaViewSet._enviar_email_firma'):
             r = self.client.post('/api/firmas/solicitar/', {'empleado_id': self.emp.id, 'tipo_documento': 'PERMISO_LEGAL',
                                                             'documento_laboral_id': doc['id']}, format='json')

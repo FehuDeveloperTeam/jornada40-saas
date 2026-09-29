@@ -75,3 +75,12 @@ def _mock_config(secret):
             return secret
         return kwargs.get('default')
     return _side_effect
+
+
+def confirmar_identidad(client, user):
+    """Deja al empleador con la identidad confirmada (como tras ingresar su clave antes de firmar)."""
+    from django.core import signing
+    from django.utils import timezone
+    from ..views.firmas import COOKIE_CONFIRMACION, _SAL_CONFIRMACION
+    client.cookies[COOKIE_CONFIRMACION] = signing.dumps({'u': user.id, 'en': timezone.now().isoformat()},
+                                                        salt=_SAL_CONFIRMACION)

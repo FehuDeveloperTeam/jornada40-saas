@@ -190,6 +190,10 @@ export default function Firmas() {
                 <details className="mt-1 text-[12px] text-fg-2">
                   <summary className="cursor-pointer text-fg-3 hover:text-fg w-fit">Detalle de verificación</summary>
                   <dl className="mt-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 rounded-[8px] bg-sunken px-3 py-2">
+                    <dt className="text-fg-3">Firma del empleador</dt>
+                    <dd>{f.origen === 'PORTAL' ? 'Pedida por el trabajador en su portal (documento ya emitido)'
+                      : f.emisor_confirmado_en ? `${f.emisor_nombre} · clave confirmada el ${new Date(f.emisor_confirmado_en).toLocaleString('es-CL', { timeZone: 'America/Santiago' })} · IP ${f.emisor_ip || '—'}`
+                        : 'Enviado antes de la confirmación con clave'}</dd>
                     <dt className="text-fg-3">Token</dt><dd className="j40-mono break-all">{f.token}</dd>
                     <dt className="text-fg-3">Correo verificado</dt><dd>{f.email_firmante || '—'}</dd>
                     <dt className="text-fg-3">IP del firmante</dt><dd className="j40-mono">{f.ip_firmante || '—'}</dd>

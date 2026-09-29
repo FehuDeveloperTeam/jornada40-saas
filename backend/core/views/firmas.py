@@ -6,6 +6,9 @@ from rest_framework import viewsets
 from django.template.loader import render_to_string
 from django.db.models import Exists, OuterRef
 from django.utils import timezone
+from django.core import signing
+from rest_framework.throttling import UserRateThrottle
+import datetime
 from ..models import (AnexoContrato, Contrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Finiquito, Liquidacion,
                       SolicitudFirma, VacacionEmpleado)
 
@@ -26,6 +29,44 @@ from .base import _ctx_contrato, _es_plan_semilla, _html_a_pdf_bytes, logger
 # ==========================================
 # FIRMA ELECTRÓNICA
 # ==========================================
+
+# ── Confirmación de identidad del empleador ─────────────────────────────────
+# Enviar a firma estampa la firma del empleador. Para que cada documento quede
+# vinculado a su autor (no solo a una sesión abierta), antes de enviar el
+# empleador confirma su clave; la confirmación vale unos minutos para los envíos
+# en lote y queda registrada en cada solicitud (quién, cuándo, desde qué IP).
+COOKIE_CONFIRMACION = 'jornada40-confirmacion'
+VIGENCIA_CONFIRMACION = 10 * 60
+_SAL_CONFIRMACION = 'confirmacion-firma-empleador'
+
+
+class ConfirmarIdentidadThrottle(UserRateThrottle):
+    scope = 'confirmar_identidad'
+
+
+def confirmacion_vigente(request):
+    """Momento en que el usuario confirmó su clave, si aún está vigente; si no, None."""
+    valor = request.COOKIES.get(COOKIE_CONFIRMACION)
+    if not valor or not request.user.is_authenticated:
+        return None
+    try:
+        datos = signing.loads(valor, salt=_SAL_CONFIRMACION, max_age=VIGENCIA_CONFIRMACION)
+    except signing.BadSignature:
+        return None
+    if datos.get('u') != request.user.id:
+        return None
+    return datetime.datetime.fromisoformat(datos['en'])
+
+
+def falta_confirmacion():
+    return Response({'error': 'Confirma tu identidad con tu clave para firmar como empleador.',
+                     'codigo': 'confirmar_identidad'}, status=428)
+
+
+def datos_emisor(request, confirmado_en):
+    return {'emisor': request.user, 'emisor_ip': request.META.get('REMOTE_ADDR', ''),
+            'emisor_confirmado_en': confirmado_en, 'origen': 'PANEL'}
+
 
 class _ErrorFirma(Exception):
     def __init__(self, mensaje, estado=400):
@@ -65,6 +106,9 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         tipos_validos = [t[0] for t in SolicitudFirma.TIPOS_DOCUMENTO]
         if tipo_doc not in tipos_validos:
             return Response({'error': 'Tipo de documento inválido.'}, status=400)
+        confirmado_en = confirmacion_vigente(request)
+        if confirmado_en is None:
+            return falta_confirmacion()
 
         try:
             empleado = Empleado.objects.get(id=empleado_id, empresa__owner=request.user)
@@ -74,7 +118,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         try:
             solicitud = self._crear_solicitud(request.user, empleado, tipo_doc, contrato_id, doc_legal_id, anexo_id,
                                               liquidacion_id, vacacion_id, finiquito_id,
-                                              documento_laboral_id=documento_laboral_id)
+                                              documento_laboral_id=documento_laboral_id,
+                                              emision=datos_emisor(request, confirmado_en))
         except _ErrorFirma as e:
             return Response({'error': e.mensaje}, status=e.estado)
         return Response(SolicitudFirmaSerializer(solicitud).data, status=201)
@@ -95,6 +140,9 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         if not empresa.firma_imagen:
             return Response({'error': 'Configura la firma del empleador (Firma electrónica) antes de enviar documentos a firma.'},
                             status=400)
+        confirmado_en = confirmacion_vigente(request)
+        if confirmado_en is None:
+            return falta_confirmacion()
         SolicitudFirma.actualizar_estados(SolicitudFirma.objects.filter(empresa=empresa, tipo_documento='LIQUIDACION'))
         vigentes = SolicitudFirma.objects.filter(liquidacion=OuterRef('pk'),
                                                  estado__in=['PENDIENTE', 'PROCESANDO', 'FIRMADO'])
@@ -105,7 +153,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         for liq in liquidaciones:
             emp = liq.empleado
             try:
-                self._crear_solicitud(request.user, emp, 'LIQUIDACION', liquidacion_id=liq.id)
+                self._crear_solicitud(request.user, emp, 'LIQUIDACION', liquidacion_id=liq.id,
+                                      emision=datos_emisor(request, confirmado_en))
                 enviadas += 1
             except _ErrorFirma as e:
                 omitidas.append({'empleado': emp.id, 'nombre': f'{emp.nombres} {emp.apellido_paterno}'.strip(),
@@ -114,7 +163,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
 
     def _crear_solicitud(self, user, empleado, tipo_doc, contrato_id=None, doc_legal_id=None, anexo_id=None,
                          liquidacion_id=None, vacacion_id=None, finiquito_id=None, avisar_por_correo=True,
-                         documento_laboral_id=None):
+                         documento_laboral_id=None, emision=None):
         """Genera el PDF, lo sube, crea la solicitud y avisa al trabajador. Lanza _ErrorFirma."""
         empresa = empleado.empresa
         if not empresa.firma_imagen:
@@ -180,6 +229,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                 contrato=contrato_obj, documento_legal=doc_legal_obj, anexo_contrato=anexo_obj,
                 liquidacion=liquidacion_obj, vacacion=vacacion_obj, finiquito=finiquito_obj,
                 documento_laboral=doc_laboral_obj,
+                **(emision or {}),
                 email_firmante=email_trabajador, b2_key_temporal=key,
                 # El contrato lleva la cláusula de documentación electrónica; el
                 # anexo de autorización es esa misma cláusula.
@@ -198,6 +248,20 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         except Exception:
             logger.exception('No se pudo enviar el correo de firma de la solicitud %s', solicitud.pk)
         return solicitud
+
+    @action(detail=False, methods=['post'], throttle_classes=[ConfirmarIdentidadThrottle])
+    def confirmar_identidad(self, request):
+        """El empleador confirma su clave antes de firmar documentos; vale unos minutos."""
+        if not request.user.check_password(str(request.data.get('clave') or '')):
+            return Response({'error': 'Clave incorrecta.'}, status=400)
+        ahora = timezone.now()
+        respuesta = Response({'vigente_hasta': (ahora + datetime.timedelta(seconds=VIGENCIA_CONFIRMACION)).isoformat()})
+        desplegado = getattr(settings, 'IS_DEPLOYED', False)
+        respuesta.set_cookie(COOKIE_CONFIRMACION,
+                             signing.dumps({'u': request.user.id, 'en': ahora.isoformat()}, salt=_SAL_CONFIRMACION),
+                             max_age=VIGENCIA_CONFIRMACION, httponly=True, secure=desplegado,
+                             samesite='None' if desplegado else 'Lax')
+        return respuesta
 
     @action(detail=True, methods=['patch'])
     def cancelar(self, request, pk=None):

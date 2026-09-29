@@ -99,6 +99,7 @@ def _generar_pagina_certificado(
     email_firmante: str,
     folio: str = '',
     hash_original: str = '',
+    emision: list | None = None,
 ) -> bytes:
     buf = io.BytesIO()
     ancho, alto = A4          # 595.27 × 841.89 pts
@@ -222,6 +223,8 @@ def _generar_pagina_certificado(
         ('IP DEL FIRMANTE',       ip_firmante or 'No registrada'),
         ('EMAIL VERIFICADO',      email_firmante),
     ]
+    # Firma del empleador: quién emitió el documento y cuándo confirmó su identidad.
+    filas.extend(emision or [])
     if hash_original:
         filas.append(('HUELLA DEL DOCUMENTO (SHA-256)', hash_original))
     datos_h = len(filas) * 0.82*cm + 0.5*cm
@@ -280,6 +283,7 @@ def agregar_certificado_firma(
     email_firmante: str,
     folio: str = '',
     hash_original: str = '',
+    emision: list | None = None,
 ) -> bytes:
     """
     Une el PDF original con la página de certificado de firma.
@@ -316,6 +320,7 @@ def agregar_certificado_firma(
         email_firmante=email_firmante,
         folio=folio,
         hash_original=hash_original,
+        emision=emision,
     )
 
     writer = PdfWriter()

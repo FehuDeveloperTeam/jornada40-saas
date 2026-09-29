@@ -272,6 +272,12 @@ class RegistroDTViewSet(viewsets.ViewSet):
         empresa = self._empresa(request, request.data)
         if not empresa:
             return Response({'error': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        confirmado_en = None
+        if request.data.get('enviar'):
+            from .firmas import confirmacion_vigente, falta_confirmacion
+            confirmado_en = confirmacion_vigente(request)
+            if confirmado_en is None:
+                return falta_confirmacion()
         elegidos = {int(i) for i in (request.data.get('empleados') or [])}
         pendientes = resumen_consentimiento(empresa)['sin']
         creados, enviados, omitidos = 0, 0, []
@@ -297,7 +303,9 @@ class RegistroDTViewSet(viewsets.ViewSet):
                 omitidos.append({'nombre': p['nombre'], 'motivo': 'Ya tiene el anexo enviado a firma.'})
                 continue
             try:
-                vista._crear_solicitud(request.user, empleado, 'ANEXO_CONTRATO', anexo_id=anexo.id)
+                from .firmas import datos_emisor
+                vista._crear_solicitud(request.user, empleado, 'ANEXO_CONTRATO', anexo_id=anexo.id,
+                                       emision=datos_emisor(request, confirmado_en))
                 enviados += 1
             except _ErrorFirma as e:
                 omitidos.append({'nombre': p['nombre'], 'motivo': e.mensaje})

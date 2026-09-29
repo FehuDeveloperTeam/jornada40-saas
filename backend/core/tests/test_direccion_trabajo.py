@@ -11,7 +11,7 @@ from rest_framework.test import APITestCase
 from .. import registro_dt as dt
 from ..models import AnexoContrato, Contrato, Empleado, Empresa, Finiquito, RegistroDT, SolicitudFirma
 from ..views.feriado import es_feriado_cl
-from .utiles import crear_empleado, crear_usuario_completo
+from .utiles import crear_empleado, crear_usuario_completo, confirmar_identidad
 
 
 class PlazosTests(APITestCase):
@@ -161,6 +161,7 @@ class ConsentimientoTests(APITestCase):
         Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', cargo='Analista',
                                 fecha_inicio='2026-01-01', sueldo_base=900_000)
         self.client.force_authenticate(self.user)
+        confirmar_identidad(self.client, self.user)
 
     @patch('core.b2_client.subir_documento')
     def test_anexo_de_consentimiento_se_crea_envia_y_al_firmar_queda_registrado(self, _subir):

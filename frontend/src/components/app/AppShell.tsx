@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
+import { ConfirmarIdentidad } from './ConfirmarIdentidad';
 import { useAuth } from '../../context/AuthContext';
 import {
   useEmpresaActiva, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
@@ -198,6 +199,7 @@ export default function AppShell() {
           </main>
         </div>
         <BarraInferior />
+        <ConfirmarIdentidad />
         <Paleta key={String(paletaAbierta)} abierta={paletaAbierta} onCerrar={() => setPaletaAbierta(false)} trabajadores={contexto.trabajadores}
           agregarTrabajador={contexto.agregarTrabajador} />
         <DrawerTrabajador key={aperturaDrawer} abierto={drawerTrabajador} onCerrar={() => setDrawerTrabajador(false)} />

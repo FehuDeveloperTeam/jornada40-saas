@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { MATIAS, consultar, descargar, entrar, restaurarBase } from './utiles';
+import { MATIAS, USUARIO, consultar, descargar, entrar, restaurarBase } from './utiles';
 
 // Pactos, autorizaciones y constancias: se crean desde listas cerradas, el
 // backend redacta y valida, y se envían a firma desde el historial.
@@ -8,7 +8,8 @@ test.beforeAll(() => restaurarBase());
 
 test('pacto de horas extra y permiso legal desde la carpeta', async ({ page }) => {
   consultar("from core.models import Empresa; Empresa.objects.update(firma_imagen='data:image/png;base64,iVBORw0KGgo='); print('ok')");
-  await entrar(page);
+  // Sin confirmar la clave: al enviar a firma se pide, y luego el envío sigue solo.
+  await entrar(page, undefined, { confirmarIdentidad: false });
   await page.goto(`/app/trabajadores/${MATIAS.id}?tab=documentos`);
   await page.getByRole('link', { name: /Pacto de horas extra/ }).click();
   const drawer = page.getByRole('dialog', { name: 'Pactos y constancias' });
@@ -27,6 +28,12 @@ test('pacto de horas extra y permiso legal desde la carpeta', async ({ page }) =
   expect(await descargar(page, () => fila.getByRole('button', { name: /Descargar Pacto de horas extraordinarias/ }).click()))
     .toMatch(/^Horas_Extra_.*\.pdf$/);
   await fila.getByRole('button', { name: 'Enviar a firma' }).click();
+  const confirmar = page.getByRole('dialog', { name: 'Confirma tu identidad' });
+  await confirmar.getByLabel('Tu clave de Jornada40').fill('clave-equivocada');
+  await confirmar.getByRole('button', { name: 'Confirmar y firmar' }).click();
+  await expect(confirmar.getByText('Clave incorrecta.')).toBeVisible();
+  await confirmar.getByLabel('Tu clave de Jornada40').fill(USUARIO.clave);
+  await confirmar.getByRole('button', { name: 'Confirmar y firmar' }).click();
   await expect(page.getByText('Documento enviado a firma. El trabajador recibirá un correo.')).toBeVisible();
 
   // Permiso por fallecimiento del padre: 4 días hábiles que calcula el sistema.
