@@ -176,6 +176,10 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         empresa_id = self.request.query_params.get('empresa')
         if empresa_id:
             qs = qs.filter(empresa_id=empresa_id)
+        if self.action in ('list', 'retrieve'):
+            # Un pacto de teletrabajo con plazo que ya venció devuelve la ficha a presencial.
+            from .documentos_laborales import actualizar_modalidad_teletrabajo
+            actualizar_modalidad_teletrabajo(qs.filter(modalidad__in=['REMOTO', 'HIBRIDO']))
         return qs
 
     def perform_create(self, serializer):

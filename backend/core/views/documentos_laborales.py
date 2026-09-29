@@ -32,7 +32,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import AnexoContrato, ConceptoRemuneracion, Contrato, DocumentoLaboral, Empleado, SolicitudFirma
+from ..models import AnexoContrato, ConceptoRemuneracion, Contrato, DocumentoLaboral, Empleado
 from ..rut import formatear_rut
 from .base import _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import es_feriado_cl
@@ -356,6 +356,62 @@ def _teletrabajo(emp, contrato, d, hoy):
     return {'desde': desde, 'clausulas': clausulas, 'datos': datos}, []
 
 
+def fin_teletrabajo(anexo):
+    """Último día de un pacto de teletrabajo con plazo; None si es indefinido o no se puede leer."""
+    datos = anexo.datos or {}
+    try:
+        desde = datetime.date.fromisoformat(datos.get('desde'))
+        meses = int(datos.get('duracion'))
+    except (TypeError, ValueError):
+        return None
+    return desde + relativedelta(months=meses) - datetime.timedelta(days=1)
+
+
+def _pactos_teletrabajo_firmados(empleados):
+    """{empleado_id: [anexos TELETRABAJO firmados]}."""
+    anexos = AnexoContrato.objects.filter(
+        tipo='TELETRABAJO', contrato__empleado__in=empleados,
+        solicitudes_firma__estado='FIRMADO').distinct().select_related('contrato')
+    salida = {}
+    for a in anexos:
+        salida.setdefault(a.contrato.empleado_id, []).append(a)
+    return salida
+
+
+def actualizar_modalidad_teletrabajo(empleados, hoy=None):
+    """Devuelve a presencial a quien trabajaba a distancia por un pacto con plazo ya vencido y
+    sin otro vigente. Si la modalidad no vino de un pacto firmado (se registró a mano), no se toca."""
+    hoy = hoy or timezone.localdate()
+    remotos = [e for e in empleados if e.modalidad in ('REMOTO', 'HIBRIDO')]
+    if not remotos:
+        return
+    pactos = _pactos_teletrabajo_firmados(remotos)
+    for emp in remotos:
+        suyos = pactos.get(emp.id)
+        if not suyos:
+            continue
+        fines = [fin_teletrabajo(a) for a in suyos]
+        if all(f is not None and f < hoy for f in fines):
+            emp.modalidad = 'PRESENCIAL'
+            emp.save(update_fields=['modalidad'])
+
+
+def _avisos_teletrabajo(emp, hoy):
+    avisos = []
+    suyos = _pactos_teletrabajo_firmados([emp]).get(emp.id, [])
+    fines = [fin_teletrabajo(a) for a in suyos]
+    if emp.modalidad in ('REMOTO', 'HIBRIDO') and not suyos:
+        avisos.append('El trabajador figura con modalidad remota o híbrida y no tiene un pacto de teletrabajo '
+                      'firmado (Ley 21.220).')
+    vigentes = [f for f in fines if f is None or f >= hoy]
+    if suyos and vigentes and None not in vigentes:
+        fin = max(vigentes)
+        if fin <= hoy + datetime.timedelta(days=30):
+            avisos.append(f'El pacto de teletrabajo vence el {fin:%d-%m-%Y}: después, el trabajador vuelve a la '
+                          'modalidad presencial. Si seguirá a distancia, genera un nuevo pacto.')
+    return avisos
+
+
 _CONSTRUCTORES = {'HORAS_EXTRA': _horas_extra, 'PERMISO_LEGAL': _permiso, 'INDEMNIZACION': _indemnizacion}
 
 
@@ -462,13 +518,8 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
         contrato = Contrato.objects.filter(empleado=emp).first()
         hoy = timezone.localdate()
         anios = _antiguedad_anios(emp, hoy)
-        teletrabajo_firmado = SolicitudFirma.objects.filter(
-            empleado=emp, tipo_documento='ANEXO_CONTRATO', estado='FIRMADO',
-            anexo_contrato__tipo='TELETRABAJO').exists()
-        avisos = []
-        if emp.modalidad in ('REMOTO', 'HIBRIDO') and not teletrabajo_firmado:
-            avisos.append('El trabajador figura con modalidad remota o híbrida y no tiene un pacto de teletrabajo '
-                          'firmado (Ley 21.220).')
+        actualizar_modalidad_teletrabajo([emp], hoy)
+        avisos = _avisos_teletrabajo(emp, hoy)
         return Response({
             'permitido': _plan_permite(request.user, NIVEL_DOCUMENTOS),
             'avisos': avisos,

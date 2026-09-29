@@ -217,3 +217,38 @@ class FirmaYPlanTests(DocumentosBase):
         self.client.force_authenticate(otro)
         self.assertEqual(self.client.get('/api/documentos-laborales/', {'empleado': self.emp.id}).data, [])
         self.assertEqual(self.client.get(f"/api/documentos-laborales/{doc['id']}/generar_pdf/").status_code, 404)
+
+
+class TeletrabajoVencimientoTests(DocumentosBase):
+    def _pacto_firmado(self, desde, duracion):
+        r = self._crear('TELETRABAJO', modalidad='TOTAL', lugar='DOMICILIO', desde=desde, duracion=duracion,
+                        desconexion='20:00', equipos=[], dias_presenciales=[])
+        anexo = AnexoContrato.objects.get(pk=r.data['anexo'])
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, anexo_contrato=anexo,
+                                      tipo_documento='ANEXO_CONTRATO', estado='FIRMADO', firmado_en=timezone.now())
+        Empleado.objects.filter(pk=self.emp.pk).update(modalidad='REMOTO')
+        return anexo
+
+    def test_vencido_vuelve_a_presencial(self):
+        hoy = timezone.localdate()
+        self._pacto_firmado((hoy - datetime.timedelta(days=200)).isoformat(), '6')
+        self.client.get('/api/empleados/', {'empresa': self.empresa.id})
+        self.assertEqual(Empleado.objects.get(pk=self.emp.pk).modalidad, 'PRESENCIAL')
+
+    def test_vigente_se_mantiene_y_avisa_si_vence_pronto(self):
+        hoy = timezone.localdate()
+        self._pacto_firmado((hoy - datetime.timedelta(days=80)).isoformat(), '3')
+        self.client.get(f'/api/empleados/{self.emp.id}/')
+        self.assertEqual(Empleado.objects.get(pk=self.emp.pk).modalidad, 'REMOTO')
+        avisos = self.client.get('/api/documentos-laborales/opciones/', {'empleado': self.emp.id}).data['avisos']
+        self.assertTrue(any('vence el' in a for a in avisos))
+
+    def test_modalidad_registrada_a_mano_no_se_toca(self):
+        Empleado.objects.filter(pk=self.emp.pk).update(modalidad='HIBRIDO')
+        self.client.get('/api/empleados/', {'empresa': self.empresa.id})
+        self.assertEqual(Empleado.objects.get(pk=self.emp.pk).modalidad, 'HIBRIDO')
+
+    def test_indefinido_no_vence(self):
+        self._pacto_firmado('2020-01-01', 'INDEFINIDA')
+        self.client.get('/api/empleados/', {'empresa': self.empresa.id})
+        self.assertEqual(Empleado.objects.get(pk=self.emp.pk).modalidad, 'REMOTO')

@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { LucideIcon } from 'lucide-react';
-import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, Lock, ScrollText, UserX } from 'lucide-react';
+import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, Lock, ScrollText, TriangleAlert, UserX } from 'lucide-react';
 import { AlertaError, Button, Chip, Field, Modal } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
-import type { CertificadoEmitido, Empleado, OpcionSimple } from '../../../types';
+import type { CertificadoEmitido, Empleado, OpcionesDocumentoLaboral, OpcionSimple } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
 import type { DocumentoReciente } from './documentos';
 
@@ -36,6 +36,12 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
 }) {
   const queryClient = useQueryClient();
   const [enviando, setEnviando] = useState<string | null>(null);
+  // Avisos de respaldo (p. ej. teletrabajo sin pacto firmado o por vencer): misma consulta que el formulario.
+  const opciones = useQuery({
+    queryKey: ['documentos-laborales', 'opciones', empleado.id],
+    queryFn: async () => (await client.get<OpcionesDocumentoLaboral>(`/documentos-laborales/opciones/?empleado=${empleado.id}`)).data,
+    enabled: nivel >= 2,
+  });
 
   const enviarAFirma = async (d: DocumentoReciente) => {
     if (!d.envio) return;
@@ -60,6 +66,11 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
 
   return (
     <div className="flex flex-col gap-5">
+      {(opciones.data?.avisos ?? []).map((a) => (
+        <p key={a} role="status" className="flex gap-2 items-start rounded-j40-card bg-warn-soft text-warn px-4 py-3 text-[13px]">
+          <TriangleAlert className="size-[18px] shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{a}
+        </p>
+      ))}
       <Seccion titulo="Generar documento">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,200px),1fr))] gap-2.5 p-[18px]">
           {PLANTILLAS.filter((x) => !x.requiereContrato || empleado.contrato_activo).map(({ titulo, detalle, Icono, nivel: requerido, ruta }) => {
