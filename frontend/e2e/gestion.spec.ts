@@ -89,6 +89,18 @@ test('finiquito calculado por el servidor', async ({ page }) => {
   await page.getByRole('button', { name: 'Guardar borrador' }).click();
   await expect(page.getByText('Finiquito guardado')).toBeVisible();
   expect(await descargar(page, () => page.getByRole('button', { name: 'Descargar PDF' }).click())).toMatch(/\.pdf$/);
+
+  // Electrónico: se otorga en Mi DT (Art. 177); Jornada40 da la ficha y registra la ratificación.
+  await expect(page.getByText(/La firma en Jornada40 es solo de recepción/)).toBeVisible();
+  await page.getByRole('button', { name: 'Ficha para Mi DT' }).click();
+  const ficha = page.getByRole('dialog', { name: 'Otorgar el finiquito en Mi DT' });
+  await expect(ficha.getByText('Total a pagar')).toBeVisible();
+  await ficha.getByRole('button', { name: 'Cerrar' }).click();
+  await page.getByRole('button', { name: 'Registrar ratificación' }).click();
+  await page.getByRole('dialog', { name: 'Registrar ratificación' }).getByRole('button', { name: 'Registrar' }).click();
+  await expect(page.getByText('Ratificación registrada: el finiquito quedó cerrado')).toBeVisible();
+  await expect(page.getByText(/Finiquito ratificado el .* \(Portal Mi DT de la Dirección del Trabajo\)/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
 });
 
 test('desvincular y reactivar', async ({ page }) => {

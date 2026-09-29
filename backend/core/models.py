@@ -713,7 +713,17 @@ class Finiquito(models.Model):
 
     MODALIDAD_CHOICES = [
         ('PRESENCIAL',  'Presencial ante ministro de fe'),
-        ('ELECTRONICO', 'Electrónico (voluntario para el trabajador)'),
+        ('ELECTRONICO', 'Electrónico en el portal Mi DT (voluntario para el trabajador)'),
+    ]
+    # Art. 177: el finiquito vale ratificado ante ministro de fe, o otorgado por el
+    # empleador y firmado por el trabajador en el sitio de la Dirección del Trabajo.
+    # La firma en Jornada40 es solo de recepción: no lo ratifica.
+    RATIFICACION_CHOICES = [
+        ('MI_DT', 'Portal Mi DT de la Dirección del Trabajo'),
+        ('INSPECCION', 'Inspector del Trabajo'),
+        ('NOTARIO', 'Notario público'),
+        ('REGISTRO_CIVIL', 'Oficial del Registro Civil'),
+        ('SECRETARIO_MUNICIPAL', 'Secretario municipal'),
     ]
 
     empleado         = models.ForeignKey(Empleado,       on_delete=models.CASCADE, related_name='finiquitos')
@@ -748,6 +758,8 @@ class Finiquito(models.Model):
     # sin él corresponde la indemnización sustitutiva del aviso previo.
     aviso_previo_dado = models.BooleanField(default=False)
     modalidad  = models.CharField(max_length=15, choices=MODALIDAD_CHOICES, default='PRESENCIAL')
+    ratificado_en = models.DateField(null=True, blank=True)
+    ratificado_via = models.CharField(max_length=20, choices=RATIFICACION_CHOICES, blank=True, default='')
     archivo_pdf = models.FileField(upload_to='finiquitos/', null=True, blank=True)
 
     creado_en     = models.DateTimeField(auto_now_add=True)

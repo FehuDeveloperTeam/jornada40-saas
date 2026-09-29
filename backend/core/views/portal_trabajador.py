@@ -66,9 +66,14 @@ def acceso_hasta(emp):
     """Último día de acceso de un desvinculado; None si está activo (sin límite)."""
     if emp.activo:
         return None
+    # Desde el finiquito ratificado (Mi DT o ministro de fe); si no, desde su firma de
+    # recepción en Jornada40; si tampoco, desde la desvinculación.
+    from ..models import Finiquito
+    ratificado = Finiquito.objects.filter(empleado=emp, ratificado_en__isnull=False).order_by('-ratificado_en').first()
     firma = (SolicitudFirma.objects.filter(empleado=emp, tipo_documento='FINIQUITO', estado='FIRMADO',
                                            firmado_en__isnull=False).order_by('-firmado_en').first())
-    desde = timezone.localtime(firma.firmado_en).date() if firma else emp.fecha_desvinculacion
+    desde = (ratificado.ratificado_en if ratificado else
+             timezone.localtime(firma.firmado_en).date() if firma else emp.fecha_desvinculacion)
     if not desde:
         return timezone.localdate() - datetime.timedelta(days=1)   # sin fecha: sin acceso
     return desde + relativedelta(months=MESES_ACCESO_DESVINCULADO)

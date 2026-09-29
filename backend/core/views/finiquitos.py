@@ -411,6 +411,9 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         """Editar recalcula todo con los hechos nuevos; firmado, ya no se toca."""
         instancia = self.get_object()
+        if instancia.ratificado_en:
+            return Response({'error': 'Este finiquito ya fue ratificado: no se puede modificar.'},
+                            status=status.HTTP_403_FORBIDDEN)
         if SolicitudFirma.objects.filter(finiquito=instancia, estado__in=('FIRMADO', 'PENDIENTE', 'PROCESANDO')).exists():
             return Response({'error': 'Este finiquito tiene una firma pendiente o ya fue firmado: no se puede modificar.'},
                             status=status.HTTP_403_FORBIDDEN)
@@ -434,6 +437,67 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
 
+    @action(detail=True, methods=['post'])
+    def registrar_ratificacion(self, request, pk=None):
+        """Deja constancia de que el finiquito se ratificó (Art. 177): en Mi DT si es
+        electrónico, o ante un ministro de fe si es presencial. Desde ahí queda cerrado."""
+        finiquito = self.get_object()
+        if finiquito.ratificado_en:
+            return Response({'error': 'La ratificación ya está registrada.'}, status=status.HTTP_400_BAD_REQUEST)
+        via = request.data.get('via')
+        permitidas = ['MI_DT'] if finiquito.modalidad == 'ELECTRONICO' else \
+            ['INSPECCION', 'NOTARIO', 'REGISTRO_CIVIL', 'SECRETARIO_MUNICIPAL']
+        if via not in permitidas:
+            return Response({'error': 'Elige ante quién se ratificó.' if finiquito.modalidad == 'PRESENCIAL' else
+                             'El finiquito electrónico se ratifica en el portal Mi DT.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            fecha = datetime.date.fromisoformat(str(request.data.get('fecha')))
+        except (TypeError, ValueError):
+            return Response({'error': 'Indica la fecha de la ratificación.'}, status=status.HTTP_400_BAD_REQUEST)
+        if fecha > timezone.localdate() or fecha < finiquito.fecha_emision:
+            return Response({'error': 'La fecha debe estar entre la emisión del finiquito y hoy.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        finiquito.ratificado_en, finiquito.ratificado_via = fecha, via
+        finiquito.save(update_fields=['ratificado_en', 'ratificado_via', 'actualizado_en'])
+        return Response(self.get_serializer(finiquito).data)
+
+    @action(detail=True, methods=['get'])
+    def ficha_mi_dt(self, request, pk=None):
+        """Datos para otorgar el finiquito en el portal Mi DT (no tiene API): el
+        empleador los copia; el trabajador lo firma allí con su ClaveÚnica."""
+        f = self.get_object()
+        emp = f.empleado
+        pesos = lambda n: '$' + f'{int(n or 0):,}'.replace(',', '.')
+        sueldo_prop = math.floor((f.sueldo_base / 30) * f.dias_trabajados_ultimo_mes)
+        filas = [
+            ('Trabajador', f'{emp.nombres} {emp.apellido_paterno} {emp.apellido_materno or ""}'.strip()),
+            ('RUT del trabajador', emp.rut), ('Fecha de inicio de la relación laboral', f'{emp.fecha_ingreso:%d-%m-%Y}'
+                                               if emp.fecha_ingreso else '—'),
+            ('Fecha de término', f'{f.fecha_termino:%d-%m-%Y}'),
+            ('Causal de término', f.get_causal_articulo_display() if f.causal_articulo else '—'),
+            (f'Sueldo proporcional ({f.dias_trabajados_ultimo_mes} días)', pesos(sueldo_prop)),
+            ('Gratificación proporcional', pesos(f.gratificacion_proporcional)),
+            ('Feriado pendiente y proporcional', pesos(f.feriado_proporcional)),
+            ('Indemnización por años de servicio', pesos(f.indemnizacion_anos_servicio)),
+            ('Indemnización sustitutiva del aviso previo', pesos(f.indemnizacion_sustitutiva_aviso)),
+            ('Otros haberes', pesos(f.otros_haberes)),
+            ('Descuentos legales', pesos(f.descuentos_prevision)),
+            ('Otros descuentos', pesos(f.otros_descuentos)),
+            ('Total a pagar', pesos(f.total_a_pagar)),
+        ]
+        return Response({
+            'filas': [{'etiqueta': e, 'valor': v} for e, v in filas],
+            'pasos': [
+                'Entra a midt.dirtrab.cl con tu ClaveÚnica, perfil Empleador → Término de relación laboral → '
+                'Finiquito electrónico.',
+                'Ingresa el finiquito con estos datos; pega cada monto en su concepto.',
+                'Mi DT le avisa al trabajador, que lo revisa y firma con su ClaveÚnica. Es voluntario: si prefiere, '
+                'se ratifica ante un ministro de fe.',
+                'Cuando lo firme, registra la ratificación aquí para cerrar el finiquito.',
+            ],
+        })
+
     @action(detail=True, methods=['get'], url_path='generar_pdf')
     def generar_pdf(self, request, pk=None):
         try:
@@ -445,7 +509,7 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
             return respuesta_pdf(pdf_finiquito(finiquito), nombre)
         except Finiquito.DoesNotExist:
             return Response({'error': 'Finiquito no encontrado.'}, status=404)
-        except Exception as e:
+        except Exception:
             return error_interno('finiquitos')
 
 
@@ -547,6 +611,7 @@ def html_finiquito(finiquito) -> str:
   y nada más tiene que reclamar al empleador por concepto alguno derivado de la relación laboral
   que los vinculó, quedando ambas partes en paz y a finiquito.</p>
   <p>Modalidad de suscripción del finiquito: <strong>{_modalidad}</strong></p>
+  {f'<p>Ratificado el {_fmt(finiquito.ratificado_en)} ante: <strong>{_esc(finiquito.get_ratificado_via_display())}</strong></p>' if finiquito.ratificado_en else ''}
 </div>
 
 <div class="firma-bloque">
@@ -564,6 +629,9 @@ def html_finiquito(finiquito) -> str:
 
 <p class="aviso">
   Finiquito regulado por los artículos 177 y siguientes del Código del Trabajo de la República de Chile.
+  Solo tiene poder liberatorio una vez ratificado ante un ministro de fe, o otorgado por el empleador y firmado
+  por el trabajador en el sitio electrónico de la Dirección del Trabajo (Art. 177). Una firma de recepción en
+  otra plataforma no reemplaza esa ratificación.
   Generado por Jornada40 · {_fmt(finiquito.fecha_emision)}.
 </p>
 

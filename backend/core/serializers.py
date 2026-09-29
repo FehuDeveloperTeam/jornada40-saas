@@ -387,8 +387,13 @@ class VacacionSerializer(serializers.ModelSerializer):
 class FiniquitoSerializer(serializers.ModelSerializer):
     causal_articulo_label = serializers.SerializerMethodField()
 
+    ratificado_via_label = serializers.SerializerMethodField()
+
     def get_causal_articulo_label(self, obj):
         return obj.get_causal_articulo_display() if obj.causal_articulo else ''
+
+    def get_ratificado_via_label(self, obj):
+        return obj.get_ratificado_via_display() if obj.ratificado_via else ''
 
     def validate_empleado(self, empleado):
         return _exigir_propio_empleado(self, empleado)
@@ -404,10 +409,12 @@ class FiniquitoSerializer(serializers.ModelSerializer):
             'indemnizacion_sustitutiva_aviso', 'otros_haberes', 'otros_descuentos',
             'descuentos_prevision', 'total_a_pagar',
             'modalidad', 'aviso_previo_dado', 'archivo_pdf', 'creado_en',
+            'ratificado_en', 'ratificado_via', 'ratificado_via_label',
         ]
         # Los montos los calcula el backend (_calcular_finiquito): nunca se
-        # aceptan desde el cliente.
+        # aceptan desde el cliente. La ratificación se registra con su acción.
         read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'causal_articulo_label',
+                            'ratificado_en', 'ratificado_via', 'ratificado_via_label',
                             'sueldo_base', 'gratificacion_proporcional', 'feriado_proporcional',
                             'indemnizacion_anos_servicio', 'indemnizacion_sustitutiva_aviso',
                             'descuentos_prevision', 'total_a_pagar')

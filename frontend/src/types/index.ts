@@ -415,10 +415,14 @@ export interface Finiquito {
     aviso_previo_dado: boolean;
     archivo_pdf: string | null;
     creado_en: string;
+    /** Ratificación (Art. 177): en Mi DT si es electrónico, ante ministro de fe si es presencial. */
+    ratificado_en: string | null;
+    ratificado_via: string;
+    ratificado_via_label: string;
 }
 
 /** Respuesta de /finiquitos/simular/: montos calculados por el backend y su detalle. */
-export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' | 'documento_legal' | 'causal_articulo_label' | 'fecha_emision' | 'modalidad' | 'archivo_pdf' | 'creado_en'> {
+export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' | 'documento_legal' | 'causal_articulo_label' | 'fecha_emision' | 'modalidad' | 'archivo_pdf' | 'creado_en' | 'ratificado_en' | 'ratificado_via' | 'ratificado_via_label'> {
     detalle: {
         sueldo_proporcional: number;
         feriado_dias_saldo: number;

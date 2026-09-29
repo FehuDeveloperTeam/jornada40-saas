@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { ArrowLeft, Check, Download, FileText, Info, Lock, Save, Send } from 'lucide-react';
-import { AlertaError, Button, Casilla, Chip, SegmentedControl } from '../../components/j40';
+import { ArrowLeft, Check, ClipboardList, Copy, Download, FileText, Info, Lock, Save, Send, Stamp } from 'lucide-react';
+import { AlertaError, Button, Casilla, Chip, Field, Input, Modal, SegmentedControl } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
@@ -125,13 +125,18 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
   const firma = existente ? firmas.filter((s) => s.finiquito === existente.id).sort((a, b) => b.enviado_en.localeCompare(a.enviado_en))[0] : undefined;
   // PROCESANDO: el trabajador ya firmó y se está sellando el PDF; se trata como en firma.
   const enFirma = firma?.estado === 'PENDIENTE' || firma?.estado === 'PROCESANDO';
-  const bloqueado = firma?.estado === 'FIRMADO' || enFirma;
+  const ratificado = Boolean(existente?.ratificado_en);
+  const bloqueado = ratificado || firma?.estado === 'FIRMADO' || enFirma;
+  const [fichaAbierta, setFichaAbierta] = useState(false);
+  const [ratificando, setRatificando] = useState(false);
   const estado: { texto: string; tono: TonoChip } = !existente ? { texto: 'Nuevo', tono: 'neutro' }
-    : firma?.estado === 'FIRMADO' ? { texto: 'Firmado', tono: 'ok' }
+    : ratificado ? { texto: 'Ratificado', tono: 'ok' }
+    : firma?.estado === 'FIRMADO' ? { texto: 'Recepción firmada', tono: 'marca' }
       : firma?.estado === 'PROCESANDO' ? { texto: 'Procesando firma', tono: 'aviso' }
         : firma?.estado === 'PENDIENTE' ? { texto: 'En firma', tono: 'aviso' }
           : { texto: 'Borrador', tono: 'marca' };
-  const paso = !existente ? 0 : firma?.estado === 'FIRMADO' ? 3 : firma ? 2 : 1;
+  // La firma en Jornada40 es de recepción: el finiquito se cierra con la ratificación (Art. 177).
+  const paso = !existente ? 0 : ratificado ? 3 : 2;
 
   const cambiar = <K extends keyof Formulario>(k: K, v: Formulario[K]) => setF((x) => ({ ...x, [k]: v }));
   const es161 = f.causal_articulo.startsWith('161') || f.causal_articulo === '163bis';
@@ -185,7 +190,7 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
     try {
       await client.post('/firmas/solicitar/', { empleado_id: empleado.id, tipo_documento: 'FINIQUITO', finiquito_id: existente.id });
       await queryClient.invalidateQueries({ queryKey: ['firmas'] });
-      avisar('Finiquito enviado a firma');
+      avisar('Copia enviada al trabajador para su firma de recepción');
     } catch (err) {
       setError(mensaje(err, 'No pudimos enviar el finiquito a firma.'));
     } finally {
@@ -194,7 +199,7 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
   };
 
   const nombre = capitalizar(`${empleado.nombres} ${empleado.apellido_paterno} ${empleado.apellido_materno ?? ''}`);
-  const pasos = ['Cálculo', 'Documento PDF', f.modalidad === 'ELECTRONICO' ? 'Firma electrónica del trabajador' : 'Ratificación ante ministro de fe'];
+  const pasos = ['Cálculo', 'Documento PDF', f.modalidad === 'ELECTRONICO' ? 'Otorgar en Mi DT (firma con ClaveÚnica)' : 'Ratificación ante ministro de fe'];
 
   return (
     <Marco id={String(empleadoId)}>
@@ -227,7 +232,8 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
       {bloqueado && (
         <div className="flex gap-2.5 items-start rounded-[10px] bg-warn-soft text-warn px-3.5 py-3 text-[13px]">
           <Lock className="size-4 mt-0.5 shrink-0" strokeWidth={2} aria-hidden />
-          {firma?.estado === 'FIRMADO' ? 'El trabajador firmó este finiquito: ya no se puede modificar.'
+          {ratificado ? `Finiquito ratificado el ${fechaCL(existente!.ratificado_en)} (${existente!.ratificado_via_label}): ya no se puede modificar.`
+            : firma?.estado === 'FIRMADO' ? 'El trabajador firmó la recepción de este finiquito: ya no se puede modificar. Falta registrar su ratificación.'
             : firma?.estado === 'PROCESANDO' ? 'El trabajador ya firmó y estamos generando el documento firmado. En unos segundos queda listo.'
               : 'El finiquito está en firma. Cancela la solicitud en Firma electrónica para modificarlo.'}
         </div>
@@ -275,13 +281,14 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
             )}
           </Seccion>
 
-          <Seccion titulo="Modalidad de firma">
+          <Seccion titulo="Ratificación (Art. 177)">
             <SegmentedControl etiqueta="Modalidad" valor={f.modalidad} onChange={(v) => cambiar('modalidad', v)} bloque
-              opciones={[{ valor: 'ELECTRONICO', etiqueta: 'Electrónica' }, { valor: 'PRESENCIAL', etiqueta: 'Presencial' }]} />
+              opciones={[{ valor: 'ELECTRONICO', etiqueta: 'Electrónica en Mi DT' }, { valor: 'PRESENCIAL', etiqueta: 'Ante ministro de fe' }]} />
             <p className="text-[12.5px] text-fg-3">
               {f.modalidad === 'ELECTRONICO'
-                ? 'El trabajador lo firma con su correo y un código. Es voluntario para él: puede preferir ratificarlo ante un ministro de fe.'
-                : 'Se imprime y se ratifica ante un ministro de fe (notario o Inspección del Trabajo).'}
+                ? 'Lo otorgas en el portal Mi DT y el trabajador lo firma allí con su ClaveÚnica: así queda ratificado. Es voluntario para él: puede preferir un ministro de fe.'
+                : 'Se imprime y se ratifica ante un ministro de fe: Inspección del Trabajo, notario, oficial del Registro Civil o secretario municipal.'}
+              {' '}La firma en Jornada40 es solo de recepción: no reemplaza la ratificación.
             </p>
           </Seccion>
 
@@ -323,16 +330,118 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
                 {f.modalidad === 'PRESENCIAL' ? 'Descargar para ratificar' : 'Descargar PDF'}
               </Button>
             )}
-            {existente && f.modalidad === 'ELECTRONICO' && firma?.estado !== 'FIRMADO' && !enFirma && (
-              <Button variante="secundario" onClick={enviarAFirma} cargando={guardando === 'firma'} iconoInicio={<Send className="size-4" strokeWidth={2} />}>
-                Enviar a firma
+            {existente && f.modalidad === 'ELECTRONICO' && !ratificado && (
+              <Button variante="secundario" onClick={() => setFichaAbierta(true)} iconoInicio={<ClipboardList className="size-4" strokeWidth={2} />}>
+                Ficha para Mi DT
+              </Button>
+            )}
+            {existente && !ratificado && (
+              <Button onClick={() => setRatificando(true)} iconoInicio={<Stamp className="size-4" strokeWidth={2} />}>
+                Registrar ratificación
+              </Button>
+            )}
+            {existente && !ratificado && firma?.estado !== 'FIRMADO' && !enFirma && (
+              <Button variante="fantasma" onClick={enviarAFirma} cargando={guardando === 'firma'} iconoInicio={<Send className="size-4" strokeWidth={2} />}
+                title="El trabajador recibe una copia y firma su recepción. No ratifica el finiquito.">
+                Enviar copia (firma de recepción)
               </Button>
             )}
             {enFirma && <Link to="/app/firmas" className="text-[12.5px] font-medium text-center">Ver la solicitud de firma</Link>}
           </div>
         </aside>
       </div>
+      {fichaAbierta && existente && <FichaMiDT id={existente.id} onCerrar={() => setFichaAbierta(false)} avisar={avisar} />}
+      {ratificando && existente && (
+        <ModalRatificacion finiquito={existente} onCerrar={() => setRatificando(false)} onListo={async () => {
+          setRatificando(false);
+          await queryClient.invalidateQueries({ queryKey: ['finiquitos', empleadoId] });
+          avisar('Ratificación registrada: el finiquito quedó cerrado');
+        }} />
+      )}
     </Marco>
+  );
+}
+
+function FichaMiDT({ id, onCerrar, avisar }: { id: number; onCerrar: () => void; avisar: (t: string) => void }) {
+  const ficha = useQuery({
+    queryKey: ['finiquito-ficha', id],
+    queryFn: async () => (await client.get<{ filas: { etiqueta: string; valor: string }[]; pasos: string[] }>(`/finiquitos/${id}/ficha_mi_dt/`)).data,
+  });
+  const copiar = async (v: string) => {
+    try { await navigator.clipboard.writeText(v.replace(/^\$/, '').replace(/\./g, '')); avisar('Copiado'); } catch { avisar('No se pudo copiar'); }
+  };
+  return (
+    <Modal abierto onCerrar={onCerrar} titulo="Otorgar el finiquito en Mi DT" ancho="amplio"
+      subtitulo="Mi DT no tiene conexión automática: copia estos datos en su formulario de finiquito electrónico.">
+      {ficha.isLoading && <p className="text-[13px] text-fg-3">Cargando…</p>}
+      {ficha.isError && <AlertaError>No pudimos cargar la ficha.</AlertaError>}
+      {ficha.data && (
+        <div className="flex flex-col gap-4">
+          <ol className="flex flex-col gap-1.5 list-decimal pl-5 text-[13px] text-fg-2">
+            {ficha.data.pasos.map((p) => <li key={p}>{p}</li>)}
+          </ol>
+          <dl className="flex flex-col border border-line rounded-[10px]">
+            {ficha.data.filas.map((r) => (
+              <div key={r.etiqueta} className="flex items-center gap-3 px-3 py-2 border-b border-line last:border-b-0 text-[13px]">
+                <dt className="flex-1 text-fg-3">{r.etiqueta}</dt>
+                <dd className="font-medium j40-num">{r.valor}</dd>
+                <Button variante="fantasma" tamano="sm" soloIcono aria-label={`Copiar ${r.etiqueta}`} onClick={() => void copiar(r.valor)}>
+                  <Copy className="size-4" strokeWidth={2} />
+                </Button>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+const VIAS_PRESENCIAL = [
+  { valor: 'INSPECCION', texto: 'Inspector del Trabajo' }, { valor: 'NOTARIO', texto: 'Notario público' },
+  { valor: 'REGISTRO_CIVIL', texto: 'Oficial del Registro Civil' }, { valor: 'SECRETARIO_MUNICIPAL', texto: 'Secretario municipal' },
+];
+
+function ModalRatificacion({ finiquito, onCerrar, onListo }: { finiquito: TFiniquito; onCerrar: () => void; onListo: () => Promise<void> }) {
+  const electronico = finiquito.modalidad === 'ELECTRONICO';
+  const [via, setVia] = useState(electronico ? 'MI_DT' : '');
+  const [fecha, setFecha] = useState(hoyISO());
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const guardar = async () => {
+    setGuardando(true);
+    setError('');
+    try {
+      await client.post(`/finiquitos/${finiquito.id}/registrar_ratificacion/`, { via, fecha });
+      await onListo();
+    } catch (err) {
+      setError(mensaje(err, 'No pudimos registrar la ratificación.'));
+      setGuardando(false);
+    }
+  };
+  return (
+    <Modal abierto onCerrar={() => !guardando && onCerrar()} titulo="Registrar ratificación"
+      subtitulo={electronico ? 'El trabajador ya lo firmó con su ClaveÚnica en Mi DT.' : 'Se ratificó ante un ministro de fe.'}
+      acciones={<>
+        <Button variante="secundario" onClick={onCerrar} disabled={guardando}>Cancelar</Button>
+        <Button onClick={() => void guardar()} cargando={guardando}>Registrar</Button>
+      </>}>
+      <div className="flex flex-col gap-3">
+        {error && <AlertaError>{error}</AlertaError>}
+        {!electronico && (
+          <Field etiqueta="Ante quién">
+            {(p) => (
+              <select {...p} className={CONTROL} value={via} onChange={(e) => setVia(e.target.value)}>
+                <option value="">Elige…</option>
+                {VIAS_PRESENCIAL.map((v) => <option key={v.valor} value={v.valor}>{v.texto}</option>)}
+              </select>
+            )}
+          </Field>
+        )}
+        <Field etiqueta="Fecha de la ratificación">{(p) => <Input {...p} type="date" value={fecha} max={hoyISO()} onChange={(e) => setFecha(e.target.value)} />}</Field>
+        <p className="text-[12px] text-fg-3">Desde ese momento el finiquito queda cerrado y no se puede modificar.</p>
+      </div>
+    </Modal>
   );
 }
 

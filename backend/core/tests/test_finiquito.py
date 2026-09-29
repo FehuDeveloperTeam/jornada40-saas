@@ -86,6 +86,40 @@ class FiniquitoLegalTests(APITestCase):
         r2 = self.client.patch(f"/api/finiquitos/{r.data['id']}/", {'otros_haberes': 1}, format='json')
         self.assertEqual(r2.status_code, 403)
 
+    def test_ratificacion_segun_modalidad_y_cierre(self, *_):
+        hoy = timezone.localdate().isoformat()
+        r = self.client.post('/api/finiquitos/', {'empleado': self.emp.id, 'fecha_termino': '2026-09-15',
+                                                  'causal_articulo': '159_2', 'modalidad': 'ELECTRONICO'}, format='json')
+        url = f"/api/finiquitos/{r.data['id']}/registrar_ratificacion/"
+        # Electrónico: solo en Mi DT (Art. 177); no ante un notario ni sin fecha.
+        self.assertEqual(self.client.post(url, {'via': 'NOTARIO', 'fecha': hoy}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(url, {'via': 'MI_DT'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(url, {'via': 'MI_DT', 'fecha': '2030-01-01'}, format='json').status_code, 400)
+        ok = self.client.post(url, {'via': 'MI_DT', 'fecha': hoy}, format='json')
+        self.assertEqual((ok.status_code, ok.data['ratificado_via_label']), (200, 'Portal Mi DT de la Dirección del Trabajo'))
+        self.assertEqual(self.client.patch(f"/api/finiquitos/{r.data['id']}/", {'otros_haberes': 1},
+                                           format='json').status_code, 403)
+        self.assertEqual(self.client.post(url, {'via': 'MI_DT', 'fecha': hoy}, format='json').status_code, 400)
+        ficha = self.client.get(f"/api/finiquitos/{r.data['id']}/ficha_mi_dt/").data
+        self.assertEqual(ficha['filas'][-1]['etiqueta'], 'Total a pagar')
+
+    def test_presencial_ante_ministro_de_fe(self, *_):
+        r = self.client.post('/api/finiquitos/', {'empleado': self.emp.id, 'fecha_termino': '2026-09-15',
+                                                  'causal_articulo': '159_2', 'modalidad': 'PRESENCIAL'}, format='json')
+        url = f"/api/finiquitos/{r.data['id']}/registrar_ratificacion/"
+        hoy = timezone.localdate().isoformat()
+        self.assertEqual(self.client.post(url, {'via': 'MI_DT', 'fecha': hoy}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(url, {'via': 'NOTARIO', 'fecha': hoy}, format='json').status_code, 200)
+
+    def test_pdf_advierte_que_la_firma_de_recepcion_no_ratifica(self, *_):
+        from core.views.finiquitos import html_finiquito
+        from core.models import Finiquito
+        r = self.client.post('/api/finiquitos/', {'empleado': self.emp.id, 'fecha_termino': '2026-09-15',
+                                                  'causal_articulo': '159_2', 'modalidad': 'ELECTRONICO'}, format='json')
+        html = html_finiquito(Finiquito.objects.get(pk=r.data['id']))
+        self.assertIn('poder liberatorio', html)
+        self.assertIn('Mi DT', html)
+
 
 @indicadores_fijos
 class CierreBackendTests(APITestCase):
