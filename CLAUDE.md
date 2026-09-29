@@ -508,14 +508,14 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 - **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`, `test_portal_trabajador`, `test_solicitudes_documento`, `test_certificados`, `test_documentos_laborales`, `test_inspeccion`, `test_certificado_sueldos`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
-- **Frontend:** no unit test runner yet; `npm run build` (type-check) and `npm run lint` must pass.
+- **Frontend:** Vitest + Testing Library (jsdom, `vitest.config.ts`), tests next to the code as `*.test.ts(x)` under `src/`: `utils/` (RUT, formatos, Ley 40, contraseña, códigos de verificación) and `api/client.test.ts` (401 → renovación única y vuelta al login, 428 → confirmar identidad y repetir una vez; the axios adapter is replaced per test). Run with `npm test`; `npm run build` (type-check) and `npm run lint` must pass too.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt, portal, pactos, inspeccion). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.
 
 ---
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request: backend (`makemigrations --check`, `manage.py test core`), frontend (`lint`, `build`) and, if both pass, the Playwright e2e suite. Deploys are separate: Railway auto-deploys `main` (backend), Vercel deploys the frontend.
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request: backend (`makemigrations --check`, `manage.py test core`), frontend (`lint`, `test`, `build`) and, if both pass, the Playwright e2e suite. Deploys are separate: Railway auto-deploys `main` (backend), Vercel deploys the frontend.
 
 ---
 

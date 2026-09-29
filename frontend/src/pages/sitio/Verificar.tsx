@@ -7,13 +7,7 @@ import { CircleCheck, CircleX, Search } from 'lucide-react';
 import { Button, Field, Input, J40Root, Logo, ToggleTema } from '../../components/j40';
 import client from '../../api/client';
 import type { VerificacionCertificado } from '../../types';
-
-/** Código con el formato impreso: XXXX-XXXX-XXXX, sin letras ambiguas. */
-const LARGO = 12;
-function normalizar(valor: string): string {
-  const limpio = valor.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, LARGO);
-  return limpio.match(/.{1,4}/g)?.join('-') ?? '';
-}
+import { codigoCompleto, normalizarCodigo as normalizar } from '../../utils/codigos';
 
 /**
  * Verificación pública de certificados emitidos desde el portal del
@@ -28,13 +22,13 @@ export default function Verificar() {
   const consulta = useQuery({
     queryKey: ['verificar-certificado', buscado],
     queryFn: async () => (await client.get<VerificacionCertificado>(`/certificados/verificar/${buscado}/`)).data,
-    enabled: buscado.length === LARGO + 2,
+    enabled: codigoCompleto(buscado),
     retry: false,
   });
 
   const enviar = (e: FormEvent) => {
     e.preventDefault();
-    if (normalizar(valor).length === LARGO + 2) navigate(`/verificar/${normalizar(valor)}`);
+    if (codigoCompleto(valor)) navigate(`/verificar/${normalizar(valor)}`);
   };
   const noExiste = consulta.isError && isAxiosError(consulta.error) && consulta.error.response?.status === 404;
 
@@ -62,7 +56,7 @@ export default function Verificar() {
                 autoComplete="off" spellCheck={false} className="j40-mono tracking-[0.08em]" />
             )}
           </Field>
-          <Button type="submit" disabled={normalizar(valor).length !== LARGO + 2}
+          <Button type="submit" disabled={!codigoCompleto(valor)}
             iconoInicio={<Search className="size-4" strokeWidth={2} />}>Verificar</Button>
         </form>
 
