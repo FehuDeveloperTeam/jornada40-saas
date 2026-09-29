@@ -222,9 +222,31 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             if pdf is None:
                 return Response({'error': 'Error al generar PDF'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return respuesta_pdf(pdf, nombre_archivo)
-        except Exception as e:
+        except Exception:
             logger.exception('Error al generar PDF de liquidación')
             return error_interno('PDF liquidaciones')
+
+    @action(detail=False, methods=['get'], url_path='avisos_periodo')
+    def avisos_periodo(self, request):
+        """Avisos de respaldo documental de las liquidaciones emitidas de un período:
+        {liquidacion_id: [avisos]}, solo las que tienen alguno. Mismos avisos que la vista previa."""
+        from .documentos_laborales import avisos_liquidacion
+        params = request.query_params
+        try:
+            mes, anio = int(params.get('mes')), int(params.get('anio'))
+        except (TypeError, ValueError):
+            return Response({'error': 'Indica el período.'}, status=status.HTTP_400_BAD_REQUEST)
+        qs = Liquidacion.objects.filter(empleado__empresa__owner=request.user, mes=mes, anio=anio) \
+            .select_related('empleado')
+        if params.get('empresa'):
+            qs = qs.filter(empleado__empresa_id=params['empresa'])
+        salida = {}
+        for liq in qs:
+            avisos = avisos_liquidacion(liq.empleado, mes, anio, liq.detalle_items or [], liq.total_haberes,
+                                        liq.dias_ausencia)
+            if avisos:
+                salida[str(liq.id)] = avisos
+        return Response(salida)
 
     @action(detail=False, methods=['get'], url_path='zip_periodo')
     def zip_periodo(self, request):

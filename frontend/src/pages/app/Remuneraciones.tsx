@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
-  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Landmark, Lock, Send, Shapes, Upload,
+  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Landmark, Lock, Send, Shapes, TriangleAlert, Upload,
 } from 'lucide-react';
 import { AlertaError, Button, Chip, Modal } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
@@ -14,7 +14,7 @@ import { firmaDe } from '../../components/app/carpeta/utiles';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { rutaAccion, useFirmas } from '../../hooks/usePanel';
-import { useLiquidacionesPeriodo } from '../../hooks/useRemuneraciones';
+import { useAvisosPeriodo, useLiquidacionesPeriodo } from '../../hooks/useRemuneraciones';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, iniciales, nombreMes, periodo } from '../../utils/formato';
@@ -51,6 +51,8 @@ export default function Remuneraciones() {
   const abiertoId = Number(params.get('trabajador')) || null;
 
   const liquidaciones = useLiquidacionesPeriodo(empresa.id, mes, anio);
+  const avisosPeriodo = useAvisosPeriodo(empresa.id, mes, anio);
+  const avisosDe = (l: Liquidacion | undefined) => (l ? avisosPeriodo.data?.[String(l.id)] ?? [] : []);
   const firmas = useFirmas();
   const [confirmarMasivo, setConfirmarMasivo] = useState(false);
   const [emitiendo, setEmitiendo] = useState(false);
@@ -87,6 +89,8 @@ export default function Remuneraciones() {
     return !f || ['RECHAZADO', 'EXPIRADO', 'CANCELADO'].includes(f.estado);
   });
   const [confirmarFirma, setConfirmarFirma] = useState(false);
+  const nombrePorId = new Map(trabajadores.map((t) => [t.id, `${t.nombres.split(' ')[0]} ${t.apellido_paterno}`]));
+  const conAvisos = sinEnviar.filter((l) => avisosDe(l).length > 0).map((l) => nombrePorId.get(l.empleado) ?? 'Trabajador');
   const [enviandoFirma, setEnviandoFirma] = useState(false);
   const enviarAFirma = async () => {
     setEnviandoFirma(true);
@@ -262,7 +266,7 @@ export default function Remuneraciones() {
               <span role="columnheader">Estado</span><span role="columnheader" className="sr-only">Acción</span>
             </div>
             {filas.map((t) => <Fila key={t.id} t={t} liq={porEmpleado.get(t.id)} firma={firmaDeLiq(porEmpleado.get(t.id))} onAbrir={() => abrir(t.id)}
-              nota={notaFila(t)} />)}
+              nota={notaFila(t)} avisos={avisosDe(porEmpleado.get(t.id))} />)}
             {filas.length === 0 && <p className="px-[18px] py-6 text-[13px] text-fg-3">No hay trabajadores vigentes en esta empresa.</p>}
           </div>
         </div>
@@ -293,6 +297,7 @@ export default function Remuneraciones() {
                   <span className="text-[14px] font-medium truncate">{capitalizar(`${t.nombres.split(' ')[0]} ${t.apellido_paterno}`)}</span>
                   {nota && <span className="text-[12px] text-fg-3">{nota}</span>}
                   <Chip tono={e.tono}>{e.texto}</Chip>
+                  <AvisosFila avisos={avisosDe(liq)} />
                 </span>
                 <span className="flex flex-col items-end">
                   <span className="text-[15px] font-semibold j40-num">{liq ? clp(liq.sueldo_liquido) : '—'}</span>
@@ -370,12 +375,36 @@ export default function Remuneraciones() {
           Cada trabajador recibe un correo para revisar y firmar su liquidación. Las ya firmadas o con firma pendiente no
           se reenvían, y si a alguien le falta el correo te lo indicamos al terminar.
         </p>
+        {conAvisos.length > 0 && (
+          <div className="mt-3 flex gap-2 items-start rounded-[8px] bg-warn-soft text-warn px-3 py-2.5 text-[12.5px]">
+            <TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+            <span>
+              {conAvisos.length === 1 ? '1 liquidación tiene' : `${conAvisos.length} liquidaciones tienen`} avisos de respaldo
+              documental ({conAvisos.map((n) => capitalizar(n)).join(', ')}). Revísalas antes de enviarlas: una vez firmadas
+              no se pueden corregir.
+            </span>
+          </div>
+        )}
       </Modal>
     </div>
   );
 }
 
-function Fila({ t, liq, firma, onAbrir, nota }: { t: Empleado; liq?: Liquidacion; firma?: SolicitudFirma; onAbrir: () => void; nota?: string }) {
+/** Respaldo documental faltante (pacto de horas extra, autorización de descuento…): aviso, no bloqueo. */
+function AvisosFila({ avisos }: { avisos: string[] }) {
+  if (!avisos.length) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-warn" title={avisos.join('\n')}>
+      <TriangleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+      {avisos.length === 1 ? '1 aviso' : `${avisos.length} avisos`}
+      <span className="sr-only">: {avisos.join(' ')}</span>
+    </span>
+  );
+}
+
+function Fila({ t, liq, firma, onAbrir, nota, avisos }: {
+  t: Empleado; liq?: Liquidacion; firma?: SolicitudFirma; onAbrir: () => void; nota?: string; avisos: string[];
+}) {
   const e = estadoFila(liq, firma);
   const sinContrato = !t.contrato_activo;
   return (
@@ -387,6 +416,7 @@ function Fila({ t, liq, firma, onAbrir, nota }: { t: Empleado; liq?: Liquidacion
             {capitalizar(`${t.nombres.split(' ')[0]} ${t.apellido_paterno} ${t.apellido_materno ?? ''}`)}
           </Link>
           <span className="text-[12px] text-fg-3 truncate">{sinContrato ? 'Sin contrato' : nota ?? capitalizar(t.cargo)}</span>
+          <AvisosFila avisos={avisos} />
         </span>
       </span>
       <span role="cell" className="text-fg-2">{liq ? liq.dias_trabajados : '—'}</span>

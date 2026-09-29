@@ -27,9 +27,13 @@ test('emitir una liquidación con la vista previa del servidor', async ({ page }
   await expect(page.getByLabel('Recargo').last()).toHaveValue('100');
   await expect(liquido).not.toHaveText(antes ?? '');
   const despues = (await liquido.textContent())!.trim();
+  // Horas extra sin pacto firmado: se avisa en la vista previa, sin bloquear.
+  await expect(page.getByRole('list', { name: 'Avisos de respaldo documental' }).getByText(/sin un pacto de horas extraordinarias/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Emitir liquidación' }).click();
   await expect(fila.getByText(despues)).toBeVisible();
+  // …y en la fila de la liquidación emitida.
+  await expect(fila.getByText('1 aviso')).toBeVisible();
 });
 
 test('recargo bajo el mínimo legal se rechaza', async ({ page }) => {

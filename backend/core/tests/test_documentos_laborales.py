@@ -252,3 +252,19 @@ class TeletrabajoVencimientoTests(DocumentosBase):
         self._pacto_firmado('2020-01-01', 'INDEFINIDA')
         self.client.get('/api/empleados/', {'empresa': self.empresa.id})
         self.assertEqual(Empleado.objects.get(pk=self.emp.pk).modalidad, 'REMOTO')
+
+
+class AvisosPeriodoTests(DocumentosBase):
+    def test_avisos_de_las_emitidas_del_periodo(self):
+        concepto = ConceptoRemuneracion.objects.get(codigo='HORA_EXTRA_50', empresa=None)
+        r = self.client.post('/api/liquidaciones/', {'empleado': self.emp.id, 'mes': 9, 'anio': 2026, 'detalle_items': [
+            {'concepto': concepto.id, 'naturaleza': 'HORA_EXTRA', 'glosa': 'HE', 'horas': 5, 'recargo': 50}]},
+            format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        datos = self.client.get('/api/liquidaciones/avisos_periodo/',
+                                {'empresa': self.empresa.id, 'mes': 9, 'anio': 2026}).data
+        self.assertEqual(list(datos), [str(r.data['id'])])
+        self.assertIn('horas extra', datos[str(r.data['id'])][0])
+        otro, _, _, _ = crear_usuario_completo('docs_c', '11.111.111-1', '77.777.777-7')
+        self.client.force_authenticate(otro)
+        self.assertEqual(self.client.get('/api/liquidaciones/avisos_periodo/', {'mes': 9, 'anio': 2026}).data, {})

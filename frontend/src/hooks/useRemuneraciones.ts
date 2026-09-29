@@ -12,6 +12,19 @@ export function useLiquidacionesPeriodo(empresaId: number | undefined, mes: numb
   });
 }
 
+/**
+ * Avisos de respaldo documental de las liquidaciones emitidas del período
+ * ({id de liquidación: avisos}). Cuelga de ['liquidaciones']: se refresca al emitir o editar.
+ */
+export function useAvisosPeriodo(empresaId: number | undefined, mes: number, anio: number) {
+  return useQuery({
+    queryKey: ['liquidaciones', 'avisos', empresaId, mes, anio],
+    queryFn: async () => (await client.get<Record<string, string[]>>(
+      `/liquidaciones/avisos_periodo/?empresa=${empresaId}&mes=${mes}&anio=${anio}`)).data,
+    enabled: Boolean(empresaId),
+  });
+}
+
 /** Catálogo de conceptos: los del sistema y los de la empresa. */
 export function useConceptos(empresaId: number | undefined, incluirInactivos = false) {
   return useQuery({
