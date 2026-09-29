@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
                      RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido,
-                     RegistroInspeccion, RatificacionInspeccion)
+                     RegistroInspeccion, RatificacionInspeccion, FactorActualizacionSII, CertificadoSueldos)
 
 
 @admin.register(ConceptoRemuneracion)
@@ -235,4 +235,22 @@ class RatificacionInspeccionAdmin(admin.ModelAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(FactorActualizacionSII)
+class FactorActualizacionSIIAdmin(admin.ModelAdmin):
+    """Factores de actualización de la Operación Renta: cargar los 12 meses del año cuando el SII los publique
+    (tabla de corrección monetaria, columna diciembre, como 1 + porcentaje)."""
+    list_display = ('anio', 'mes', 'factor')
+    list_filter = ('anio',)
+
+
+@admin.register(CertificadoSueldos)
+class CertificadoSueldosAdmin(admin.ModelAdmin):
+    list_display = ('numero', 'anio', 'empresa', 'empleado', 'emitido_en')
+    list_filter = ('anio',)
+    readonly_fields = ('empresa', 'empleado', 'anio', 'numero', 'datos', 'reemplaza', 'emitido_en')
+
+    def has_add_permission(self, request):
         return False

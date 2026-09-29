@@ -418,7 +418,14 @@ def certificados_trabajador(request):
         return Response({**dato_certificado(cert), 'empresa': emp.empresa.nombre_legal.title()},
                         status=status.HTTP_201_CREATED)
     emitidos = CertificadoEmitido.objects.filter(empleado__in=fichas).select_related('empleado__empresa')[:50]
+    from .certificado_sueldos import vigentes
+    sii = []
+    for e in fichas:
+        for anio in sorted(set(e.certificados_sueldos.values_list('anio', flat=True)), reverse=True):
+            sii += [{'id': c.id, 'numero': c.numero, 'anio': c.anio, 'empresa': e.empresa.nombre_legal.title()}
+                    for c in vigentes(e.empresa, anio) if c.empleado_id == e.id]
     return Response({
+        'sueldos_sii': sii,
         # Sin firma del empleador no se emite ninguno: se avisa una vez, no en cada certificado.
         'opciones': [{'empleo': e.id, 'empresa': e.empresa.nombre_legal.title(),
                       'aviso': '' if e.empresa.firma_imagen else SIN_FIRMA,

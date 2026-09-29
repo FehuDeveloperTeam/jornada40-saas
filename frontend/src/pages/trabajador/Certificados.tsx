@@ -29,6 +29,22 @@ export default function Certificados() {
           {data && data.opciones.length > 0 && <Formulario opciones={data.opciones} />}
         </div>
       </Seccion>
+      {(data?.sueldos_sii.length ?? 0) > 0 && (
+        <Seccion titulo="Certificado N°6 del SII" subtitulo="Tus sueldos e impuesto retenido del año, para tu declaración de renta. Lo emite tu empleador.">
+          <ul className="flex flex-col" aria-label="Certificados N°6">
+            {data!.sueldos_sii.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-[18px] py-3 border-b border-line last:border-b-0">
+                <span className="flex-1 min-w-[200px] flex flex-col gap-0.5">
+                  <span className="text-[13.5px] font-medium">Año {c.anio} · certificado N° {c.numero}</span>
+                  {variasEmpresas && <span className="text-[12px] text-fg-3">{c.empresa}</span>}
+                </span>
+                <BotonDescarga tipo="certificado_sii" id={c.id} nombre={`Certificado6_${c.anio}_${c.numero}.pdf`}
+                  etiqueta={`Descargar certificado N°6 del año ${c.anio}`} />
+              </li>
+            ))}
+          </ul>
+        </Seccion>
+      )}
       <Seccion titulo="Certificados emitidos">
         <EstadoLista cargando={isLoading} error={isError} vacia={!emitidos.length} textoVacio="Aún no has emitido certificados." />
         {emitidos.length > 0 && (

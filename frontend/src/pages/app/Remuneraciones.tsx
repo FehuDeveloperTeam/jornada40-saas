@@ -3,13 +3,14 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
-  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Landmark, Lock, Send, Shapes, TriangleAlert, Upload,
+  Check, ChevronLeft, ChevronRight, Download, FileSpreadsheet, FolderArchive, Landmark, Lock, Send, Shapes, Stamp, TriangleAlert, Upload,
 } from 'lucide-react';
 import { AlertaError, Button, Chip, Modal } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { DrawerLiquidacion } from '../../components/app/remuneraciones/DrawerLiquidacion';
 import { ModalLre } from '../../components/app/remuneraciones/ModalLre';
+import { ModalCertificado6 } from '../../components/app/remuneraciones/ModalCertificado6';
 import { firmaDe } from '../../components/app/carpeta/utiles';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
@@ -58,6 +59,7 @@ export default function Remuneraciones() {
   const [emitiendo, setEmitiendo] = useState(false);
   const [descargando, setDescargando] = useState<string | null>(null);
   const [lreAbierto, setLreAbierto] = useState(false);
+  const [cert6Abierto, setCert6Abierto] = useState(false);
 
   const porEmpleado = useMemo(() => new Map((liquidaciones.data ?? []).map((l) => [l.empleado, l])), [liquidaciones.data]);
   const inicioPeriodo = iso(new Date(anio, mes - 1, 1));
@@ -191,6 +193,8 @@ export default function Remuneraciones() {
           <Link to="/app/remuneraciones/conceptos" className="inline-flex items-center gap-2 h-10 px-4 rounded-j40-control border border-line-strong bg-surface text-fg text-[13px] font-medium no-underline hover:no-underline hover:bg-surface-2">
             <Shapes className="size-4" strokeWidth={2} aria-hidden />Conceptos
           </Link>
+          <Button variante="secundario" iconoInicio={<Stamp className="size-4" strokeWidth={2} />}
+            onClick={() => setCert6Abierto(true)}>Certificado N°6 (SII)</Button>
           {cargandoPlan ? null : nivel >= 3 ? (
             <>
               <Button variante="secundario" cargando={descargando === 'previred'} iconoInicio={<Upload className="size-4" strokeWidth={2} />}
@@ -332,6 +336,8 @@ export default function Remuneraciones() {
           </p>
         )}
       </Modal>
+
+      <ModalCertificado6 abierto={cert6Abierto} onCerrar={() => setCert6Abierto(false)} empresaId={empresa.id} avisar={avisar} />
 
       <ModalLre abierto={lreAbierto} onCerrar={() => setLreAbierto(false)} empresaId={empresa.id} empresaRut={empresa.rut}
         mes={mes} anio={anio} trabajadores={trabajadores} avisar={avisar} />

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Certificado N° 6 sobre sueldos y otras rentas similares</title>
+    <style>
+        @page { size: letter landscape; margin: 1.3cm 1.3cm 1.5cm 1.3cm; }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 8pt; color: #111; line-height: 1.35; }
+        table.cab { width: 100%; margin-bottom: 8px; }
+        table.cab td { vertical-align: top; font-size: 8.5pt; }
+        h1 { font-size: 11pt; text-align: center; margin: 4px 0 2px 0; text-transform: uppercase; }
+        .sub { text-align: center; font-size: 8pt; color: #444; margin-bottom: 8px; }
+        p { margin: 0 0 6px 0; text-align: justify; }
+        table.cert { width: 100%; border-collapse: collapse; font-size: 6.8pt; }
+        table.cert th { border: 0.6px solid #555; background: #eef0f3; padding: 3px 2px; text-align: center; vertical-align: middle; }
+        table.cert td { border: 0.6px solid #999; padding: 2px 3px; text-align: right; }
+        table.cert td.mes { text-align: left; }
+        table.cert tr.total td { font-weight: bold; background: #f3f4f6; }
+        .grupo { background: #dfe3ea; font-weight: bold; }
+        .firma { width: 100%; margin-top: 14px; }
+        .linea { border-top: 1px solid #333; padding-top: 3px; text-align: center; font-size: 8pt; }
+        .pie { font-size: 7pt; color: #444; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <table class="cab">
+        <tr>
+            <td style="width: 60%;">
+                <b>{{ d.empresa.nombre }}</b><br>
+                RUT {{ d.empresa.rut }}{% if d.empresa.giro %} · Giro: {{ d.empresa.giro }}{% endif %}<br>
+                {{ d.empresa.direccion }}
+            </td>
+            <td style="width: 40%; text-align: right;">
+                <b>Certificado N° {{ numero }}</b><br>
+                {{ ciudad }}, {{ fecha }}
+                {% if reemplaza %}<br>Reemplaza al certificado N° {{ reemplaza }}{% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <h1>Certificado N° 6 sobre sueldos y otras rentas similares</h1>
+    <div class="sub">Año comercial {{ d.anio }} · Artículo 101 de la Ley sobre Impuesto a la Renta</div>
+
+    <p>El empleador, habilitado o pagador <b>{{ d.empresa.nombre }}</b> certifica que a don(ña) <b>{{ d.trabajador.nombre }}</b>,
+    RUT <b>{{ d.trabajador.rut }}</b>, en su calidad de trabajador dependiente, durante el año {{ d.anio }} se le pagaron las rentas que
+    se indican y sobre ellas se le practicaron las retenciones de impuesto que se señalan.</p>
+
+    <table class="cert">
+        <tr>
+            <th rowspan="2">(1)<br>Período</th>
+            <th rowspan="2">(2)<br>Sueldo bruto</th>
+            <th rowspan="2">(3)<br>Cotización previsional y de salud de cargo del trabajador</th>
+            <th rowspan="2">(4)<br>Renta imponible afecta al Impto. Único de 2ª Cat.</th>
+            <th rowspan="2">(5)<br>Impto. Único retenido</th>
+            <th rowspan="2">(6)<br>Mayor retención solicitada (Art. 88 LIR)</th>
+            <th rowspan="2">(7)<br>Renta total exenta</th>
+            <th rowspan="2">(8)<br>Renta total no gravada</th>
+            <th rowspan="2">(9)<br>Rebaja zonas extremas (D.L. 889)</th>
+            <th rowspan="2">(10)<br>Factor de actualización</th>
+            <th colspan="6" class="grupo">Montos actualizados</th>
+        </tr>
+        <tr>
+            <th>(11)<br>Renta afecta</th>
+            <th>(12)<br>Impto. Único retenido</th>
+            <th>(13)<br>Mayor retención</th>
+            <th>(14)<br>Renta exenta</th>
+            <th>(15)<br>Renta no gravada</th>
+            <th>(16)<br>Rebaja zonas extremas</th>
+        </tr>
+        {% for f in d.filas %}
+        <tr>
+            <td class="mes">{{ f.nombre }}</td>
+            {% if f.vacio %}
+                <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+            {% else %}
+                <td>{{ f.renta_bruta }}</td><td>{{ f.cotizaciones }}</td><td>{{ f.renta_afecta }}</td><td>{{ f.impuesto }}</td>
+                <td>{{ f.mayor_retencion }}</td><td>{{ f.renta_exenta }}</td><td>{{ f.renta_no_gravada }}</td><td>{{ f.zonas_extremas }}</td>
+                <td>{{ f.factor }}</td>
+                <td>{{ f.renta_afecta_act }}</td><td>{{ f.impuesto_act }}</td><td>{{ f.mayor_retencion_act }}</td>
+                <td>{{ f.renta_exenta_act }}</td><td>{{ f.renta_no_gravada_act }}</td><td>{{ f.zonas_extremas_act }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        <tr class="total">
+            <td class="mes">Totales</td>
+            <td>{{ d.totales.renta_bruta }}</td><td>{{ d.totales.cotizaciones }}</td><td>{{ d.totales.renta_afecta }}</td>
+            <td>{{ d.totales.impuesto }}</td><td>{{ d.totales.mayor_retencion }}</td><td>{{ d.totales.renta_exenta }}</td>
+            <td>{{ d.totales.renta_no_gravada }}</td><td>{{ d.totales.zonas_extremas }}</td><td></td>
+            <td>{{ d.totales.renta_afecta_act }}</td><td>{{ d.totales.impuesto_act }}</td><td>{{ d.totales.mayor_retencion_act }}</td>
+            <td>{{ d.totales.renta_exenta_act }}</td><td>{{ d.totales.renta_no_gravada_act }}</td><td>{{ d.totales.zonas_extremas_act }}</td>
+        </tr>
+    </table>
+
+    <p class="pie">Se extiende el presente certificado en cumplimiento de lo dispuesto en la Resolución Ex. N° 6.509 del Servicio de
+    Impuestos Internos, publicada en el Diario Oficial del 20 de diciembre de 1993, y sus modificaciones posteriores. Montos en pesos;
+    las columnas 11 a 16 corresponden a las 4 a 9 multiplicadas por el factor de actualización del mes, y sus totales coinciden con lo
+    informado al SII en la Declaración Jurada N° 1887.</p>
+
+    <table class="firma">
+        <tr>
+            <td style="width: 62%;"></td>
+            <td style="width: 38%; text-align: center;">
+                {% if firma %}<img src="{{ firma }}" height="46">{% endif %}
+                <div class="linea">{{ firmante|default:d.empresa.nombre }}<br>{{ cargo }} · {{ d.empresa.nombre }}</div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

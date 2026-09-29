@@ -1253,3 +1253,44 @@ class RatificacionInspeccion(models.Model):
 
     class Meta:
         ordering = ['-ratificado_en']
+
+
+# ==========================================
+# CERTIFICADO N°6 (SII) — sueldos y otras rentas similares
+# ==========================================
+
+class FactorActualizacionSII(models.Model):
+    """Factor de actualización de cada mes de un año comercial (publicado por el SII
+    para la Operación Renta: 1 + variación del IPC hasta fin de noviembre). Se carga
+    en el admin cuando el SII lo publica; sin los 12 meses no se emiten certificados."""
+    anio = models.PositiveSmallIntegerField()
+    mes = models.PositiveSmallIntegerField()
+    factor = models.DecimalField(max_digits=6, decimal_places=3)
+
+    class Meta:
+        unique_together = ('anio', 'mes')
+        ordering = ['-anio', 'mes']
+        verbose_name = 'factor de actualización SII'
+        verbose_name_plural = 'factores de actualización SII'
+
+    def __str__(self):
+        return f'{self.mes:02d}/{self.anio}: {self.factor}'
+
+
+class CertificadoSueldos(models.Model):
+    """Certificado N°6 sobre sueldos (Art. 101 LIR) de un trabajador y un año. Se numera
+    correlativo por empresa; uno nuevo del mismo año reemplaza al anterior (otro número)."""
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='certificados_sueldos')
+    empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='certificados_sueldos')
+    anio = models.PositiveSmallIntegerField()
+    numero = models.PositiveIntegerField()
+    datos = models.JSONField(default=dict)
+    reemplaza = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='reemplazado_por')
+    emitido_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-anio', '-numero']
+        unique_together = ('empresa', 'numero')
+
+    def __str__(self):
+        return f'Certificado N°6 {self.numero} · {self.empleado} · {self.anio}'

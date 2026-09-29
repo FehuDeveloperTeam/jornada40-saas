@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { descargar, entrar, periodo, restaurarBase } from './utiles';
+import { consultar, descargar, entrar, periodo, restaurarBase } from './utiles';
 
 // Remuneraciones del período y catálogo de conceptos.
 test.describe.configure({ mode: 'serial' });
@@ -107,4 +107,21 @@ test('catálogo de conceptos', async ({ page }) => {
   await page.getByRole('button', { name: 'Nuevo concepto' }).click();
   await page.getByLabel('Nombre').fill('Bono de turno noche');
   await expect(page.getByText(/Ya existe un concepto con este código/)).toBeVisible();
+});
+
+test('certificado N°6 del SII: emisión, ZIP y resumen DJ 1887', async ({ page }) => {
+  consultar("from core.models import Liquidacion; Liquidacion.objects.get_or_create(empleado_id=1, mes=12, anio=2025, "
+    + "defaults=dict(total_imponible=1000000, total_haberes=1050000, afp_monto=110000, salud_monto=70000, "
+    + "seguro_cesantia=6000, impuesto_unico=15000, sueldo_liquido=849000)); print('ok')");
+  await entrar(page);
+  await page.goto('/app/remuneraciones');
+  await page.getByRole('button', { name: 'Certificado N°6 (SII)' }).click();
+  const modal = page.getByRole('dialog', { name: 'Certificado N°6 (SII)' });
+  await modal.getByLabel('Año comercial').selectOption('2025');
+  await expect(modal.getByText(/a más tardar el 14-03-2026/)).toBeVisible();
+  await modal.getByRole('button', { name: 'Emitir certificados 2025' }).click();
+  const lista = modal.getByRole('list', { name: 'Certificados emitidos' });
+  await expect(lista.getByText('N° 1')).toBeVisible();
+  expect(await descargar(page, () => modal.getByRole('button', { name: 'Todos en ZIP' }).click())).toBe('Certificados6_2025.zip');
+  expect(await descargar(page, () => modal.getByRole('button', { name: 'Resumen DJ 1887' }).click())).toBe('Resumen_DJ1887_2025.xlsx');
 });

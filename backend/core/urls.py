@@ -4,6 +4,7 @@ from .views import solicitudes_documento
 from .views import certificados
 from .views import documentos_laborales
 from .views import inspeccion
+from .views import certificado_sueldos
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -56,6 +57,11 @@ urlpatterns = [
     path('trabajador/firmas/', portal.firmas_pendientes, name='portal_firmas'),
     path('trabajador/firmar/', portal.firmar_liquidacion, name='portal_firmar_liquidacion'),
     path('trabajador/solicitudes/', solicitudes_documento.solicitudes_trabajador, name='portal_solicitudes'),
+    path('certificados-sueldos/', certificado_sueldos.estado, name='certificados_sueldos'),
+    path('certificados-sueldos/emitir/', certificado_sueldos.emitir_vista, name='certificados_sueldos_emitir'),
+    path('certificados-sueldos/zip/', certificado_sueldos.zip_vista, name='certificados_sueldos_zip'),
+    path('certificados-sueldos/resumen-dj1887/', certificado_sueldos.resumen_dj1887, name='certificados_sueldos_dj1887'),
+    path('certificados-sueldos/<int:certificado_id>/pdf/', certificado_sueldos.pdf_vista, name='certificados_sueldos_pdf'),
     path('inspeccion/ingreso/', inspeccion.ingreso, name='inspeccion_ingreso'),
     path('inspeccion/verificar/', inspeccion.verificar, name='inspeccion_verificar'),
     path('inspeccion/yo/', inspeccion.yo, name='inspeccion_yo'),

@@ -499,6 +499,13 @@ def descargar(request):
             nombre = f'Liquidacion_{liq.anio}_{liq.mes:02d}.pdf'
             firmado = pdf_firmado('LIQUIDACION', liquidacion=liq)
             return respuesta_pdf(firmado or _pdf_liquidacion(liq, False), nombre, firmado=bool(firmado))
+        if tipo == 'certificado_sii':
+            from ..models import CertificadoSueldos
+            from .certificado_sueldos import pdf_certificado_sueldos, vigentes
+            cert = CertificadoSueldos.objects.filter(id=ident, empleado__in=fichas).select_related('empresa', 'reemplaza').first()
+            if not cert or cert not in vigentes(cert.empresa, cert.anio):
+                raise LookupError
+            return respuesta_pdf(pdf_certificado_sueldos(cert), f'Certificado6_{cert.anio}_{cert.numero}.pdf')
         if tipo == 'certificado':
             from ..models import CertificadoEmitido
             from .certificados import pdf_certificado

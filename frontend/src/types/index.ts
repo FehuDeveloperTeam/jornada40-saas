@@ -656,7 +656,7 @@ export interface LiquidacionPortal {
     firmada: boolean;
 }
 
-export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'certificado';
+export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'certificado' | 'certificado_sii';
 
 export interface DocumentoPortal {
     tipo: Exclude<TipoDocumentoPortal, 'liquidacion'>;
@@ -767,6 +767,8 @@ export interface CertificadosPortal {
     /** `aviso`: por qué no se puede emitir ninguno en ese empleo (p. ej. sin firma del empleador). */
     opciones: OpcionesCertificado[];
     emitidos: CertificadoEmitido[];
+    /** Certificados N°6 del SII (sueldos) que emitió el empleador, vigentes por año. */
+    sueldos_sii: { id: number; numero: number; anio: number; empresa: string }[];
 }
 
 /** Respuesta pública de /certificados/verificar/<código>/. */
@@ -841,4 +843,18 @@ export interface RegistroInspeccion {
     correo: string;
     detalle: string;
     fecha: string;
+}
+
+/** Estado del Certificado N°6 (SII) de una empresa y año. */
+export interface EstadoCertificado6 {
+    anio: number;
+    anios: number[];
+    factores_completos: boolean;
+    anio_cerrado: boolean;
+    plazo_certificados: string;
+    plazo_dj1887: string;
+    trabajadores: number;
+    sin_certificado: number;
+    certificados: { id: number; numero: number; anio: number; empleado: number; trabajador: string; rut: string;
+        renta_afecta_act: number; impuesto_act: number; emitido_en: string; reemplaza: number | null }[];
 }
