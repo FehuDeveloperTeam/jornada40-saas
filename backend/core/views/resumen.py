@@ -21,7 +21,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Cliente, Contrato, Empresa, SolicitudDocumento, SolicitudFirma
+from ..models import Cliente, Contrato, Empleado, Empresa, SolicitudDocumento, SolicitudFirma
+from .base import _plan_permite
 from . import horas_compensatorias as hc
 from .direccion_trabajo import items_registro
 from .solicitudes_documento import actualizar_solicitudes
@@ -118,7 +119,31 @@ def _horas_descanso(empresa, desde, hoy):
     return _seccion('Días libres por horas extra por vencer', lineas, '/app/trabajadores', 'Ver trabajadores')
 
 
-FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso]
+def _reglamento_y_ley_karin(empresa, desde, hoy):
+    """Reglamento interno (remisión, entregas) y aviso semestral de la Ley Karin (Pyme+)."""
+    from .ley_karin import NIVEL_LEY_KARIN, avance_semestre, semestre
+    from .reglamento import avisos_reglamento, entrega, vigente
+    if not _plan_permite(empresa.owner, NIVEL_LEY_KARIN):
+        return None
+    trabajadores = Empleado.objects.filter(empresa=empresa, activo=True).count()
+    if not trabajadores:
+        return None
+    actual = vigente(empresa)
+    lineas = list(avisos_reglamento(empresa, hoy, trabajadores, actual))
+    if actual:
+        e = entrega(actual)
+        faltan = e['total'] - e['firmados']
+        if faltan:
+            lineas.append(f'{faltan} de {e["total"]} trabajadores aún no firman la recepción del reglamento.')
+    clave, texto, _, fin = semestre(hoy)
+    avance = avance_semestre(empresa, clave)
+    if avance['enviados'] < avance['total']:
+        lineas.append(f'Falta informar los canales de denuncia del {texto} (Ley Karin) a '
+                      f'{avance["total"] - avance["enviados"]} trabajadores; plazo: {_fecha(fin)}.')
+    return _seccion('Reglamento interno y Ley Karin', lineas, '/app/reglamento', 'Ver reglamento')
+
+
+FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin]
 
 
 def contenido(cliente, desde, hoy=None):

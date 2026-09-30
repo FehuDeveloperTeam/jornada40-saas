@@ -463,9 +463,15 @@ def pdf_documento_laboral(doc, es_plan_semilla):
         'empresa': empresa, 'empresa_rut': formatear_rut(empresa.rut),
         'ciudad': str(empresa.ciudad or empresa.comuna or 'Santiago').strip().title(),
         'fecha': _fecha(doc.fecha_emision), 'es_plan_semilla': es_plan_semilla,
-        'es_constancia': doc.tipo == 'PERMISO_LEGAL',
+        'es_constancia': doc.tipo in ('PERMISO_LEGAL', 'REGLAMENTO', 'CANALES_DENUNCIA'),
     })
-    return _html_a_pdf_bytes(html, f'{doc.tipo}_{emp.rut}_{doc.fecha_emision}')
+    pdf = _html_a_pdf_bytes(html, f'{doc.tipo}_{emp.rut}_{doc.fecha_emision}')
+    if doc.tipo == 'REGLAMENTO' and doc.reglamento_id:
+        # La constancia lleva adjunto el reglamento completo: el trabajador lo lee
+        # al firmar y el PDF firmado prueba qué versión recibió.
+        from .reglamento import anexar_reglamento
+        pdf = anexar_reglamento(pdf, doc.reglamento)
+    return pdf
 
 
 # ── Avisos para la liquidación ───────────────────────────────────────────────

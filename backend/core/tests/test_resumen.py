@@ -16,7 +16,11 @@ LUNES, MARTES = date(2026, 9, 28), date(2026, 9, 29)
 
 class ResumenTests(APITestCase):
     def setUp(self):
-        self.user, self.cliente, _, self.empresa = crear_usuario_completo('resumen', '21.000.000-3', '76.000.555-K')
+        self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('resumen', '21.000.000-3',
+                                                                                '76.000.555-K')
+        # Starter: sin los temas de Pyme (reglamento, Ley Karin, días libres), que se prueban aparte.
+        self.plan.nivel = 2
+        self.plan.save()
         self.emp = crear_empleado(self.empresa, '12.345.678-5', nombres='Ana', apellido='Rojas')
         # Contrato registrado en Mi DT hace tiempo: no aparece en el resumen salvo que se pida.
         self.contrato = Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', fecha_inicio='2024-01-01',
@@ -79,3 +83,11 @@ class ResumenTests(APITestCase):
         self.assertEqual(r.data['frecuencia'], 'NUNCA')
         self.assertEqual(self.client.patch('/api/clientes/resumen/', {'frecuencia': 'X'}, format='json').status_code, 400)
         self.assertEqual(len(self.client.get('/api/clientes/resumen/').data['opciones']), 3)
+
+    def test_pyme_recuerda_reglamento_y_ley_karin(self):
+        self.plan.nivel = 3
+        self.plan.save()
+        self.assertTrue(enviar(self.cliente))
+        cuerpo = mail.outbox[0].body
+        self.assertIn('Reglamento interno y Ley Karin', cuerpo)
+        self.assertIn('canales de denuncia', cuerpo)

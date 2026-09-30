@@ -47,7 +47,8 @@ const DOCUMENTO: Record<SolicitudFirma['tipo_documento'], string> = {
   DESPIDO: 'Carta de término', CONSTANCIA: 'Constancia laboral', ANEXO_CONTRATO: 'Anexo de contrato',
   LIQUIDACION: 'Liquidación de sueldo', VACACION: 'Comprobante de vacaciones', FINIQUITO: 'Finiquito',
   HORAS_EXTRA: 'Pacto de horas extra', DESCUENTO: 'Autorización de descuento', PERMISO_LEGAL: 'Constancia de permiso legal',
-  INDEMNIZACION: 'Pacto de indemnización a todo evento',
+  INDEMNIZACION: 'Pacto de indemnización a todo evento', REGLAMENTO: 'Recepción del reglamento interno',
+  CANALES_DENUNCIA: 'Aviso de canales de denuncia (Ley Karin)',
 };
 
 const mensaje = (err: unknown, porDefecto: string) =>

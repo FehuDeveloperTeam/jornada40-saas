@@ -6,6 +6,8 @@ from .views import documentos_laborales
 from .views import inspeccion
 from .views import certificado_sueldos
 from .views import resumen
+from .views import reglamento
+from .views import ley_karin
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -32,6 +34,8 @@ router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
 router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
 router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
 router.register(r'registro-dt', RegistroDTViewSet, basename='registro_dt')
+router.register(r'ley-karin', ley_karin.LeyKarinViewSet, basename='ley_karin')
+router.register(r'reglamentos', reglamento.ReglamentoViewSet, basename='reglamento')
 router.register(r'documentos-laborales', documentos_laborales.DocumentoLaboralViewSet, basename='documento_laboral')
 router.register(r'solicitudes-documento', solicitudes_documento.SolicitudDocumentoViewSet, basename='solicitud_documento')
 

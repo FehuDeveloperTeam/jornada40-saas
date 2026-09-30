@@ -489,7 +489,8 @@ export type TipoDocumentoLaboral = 'HORAS_EXTRA' | 'DESCUENTO' | 'PERMISO_LEGAL'
 export interface DocumentoLaboral {
     id: number;
     empleado: number;
-    tipo: TipoDocumentoLaboral;
+    /** Además de los que se crean en la carpeta, las constancias del reglamento y de la Ley Karin. */
+    tipo: TipoDocumentoLaboral | 'REGLAMENTO' | 'CANALES_DENUNCIA';
     tipo_texto: string;
     resumen: string;
     fecha_emision: string;
@@ -531,7 +532,7 @@ export interface SolicitudFirma {
     finiquito: number | null;
     documento_laboral: number | null;
     tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION'
-        | 'VACACION' | 'FINIQUITO' | TipoDocumentoLaboral;
+        | 'VACACION' | 'FINIQUITO' | TipoDocumentoLaboral | 'REGLAMENTO' | 'CANALES_DENUNCIA';
     token: string;
     estado: 'PENDIENTE' | 'PROCESANDO' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;
@@ -681,7 +682,7 @@ export interface LiquidacionPortal {
     firmada: boolean;
 }
 
-export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'certificado' | 'certificado_sii';
+export type TipoDocumentoPortal = 'liquidacion' | 'contrato' | 'firma' | 'certificado' | 'certificado_sii' | 'reglamento';
 
 export interface DocumentoPortal {
     tipo: Exclude<TipoDocumentoPortal, 'liquidacion'>;
@@ -897,3 +898,49 @@ export interface EstadoCertificado6 {
     certificados: { id: number; numero: number; anio: number; empleado: number; trabajador: string; rut: string;
         renta_afecta_act: number; impuesto_act: number; emitido_en: string; reemplaza: number | null }[];
 }
+
+/** Reglamento interno subido por el empleador (GET /reglamentos/?empresa=). */
+export interface ReglamentoVersion {
+    id: number;
+    tipo: 'RIOHS' | 'RIHS';
+    tipo_texto: string;
+    version: number;
+    publicado_en: string;
+    vigente_desde: string;
+    rige: boolean;
+    plazo_remision: string;
+    remitido_dt_en: string | null;
+    remitido_salud_en: string | null;
+    revisar: boolean;
+    activo: boolean;
+}
+
+/** Trabajador y el estado de su constancia (recepción del reglamento o aviso de la Ley Karin). */
+export interface EntregaTrabajador {
+    id: number;
+    nombre: string;
+    correo: boolean;
+    estado: SolicitudFirma['estado'] | 'SIN_ENVIAR' | null;
+}
+
+export interface EstadoReglamento {
+    permitido: boolean;
+    trabajadores: number;
+    tipo_sugerido: 'RIOHS' | 'RIHS';
+    rubros: OpcionSimple[];
+    actual: ReglamentoVersion | null;
+    versiones: ReglamentoVersion[];
+    entrega: { total: number; firmados: number; trabajadores: EntregaTrabajador[] };
+    avisos: string[];
+}
+
+export interface EstadoLeyKarin {
+    permitido: boolean;
+    canal: { responsable: string; correo: string };
+    semestre: { clave: string; texto: string; hasta: string };
+    avance: { total: number; firmados: number; enviados: number; trabajadores: EntregaTrabajador[] };
+    mutual: string;
+}
+
+/** Resultado de un envío masivo a firma. */
+export interface EnvioMasivo { enviadas: number; omitidas: { nombre: string; motivo: string }[] }

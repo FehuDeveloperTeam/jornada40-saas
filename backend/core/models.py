@@ -189,6 +189,10 @@ class Empresa(models.Model):
         ('04', '18 de Septiembre'),
     ]
     mutual = models.CharField(max_length=2, choices=MUTUAL_CHOICES, default='00')
+    # Canal interno de denuncias de la Ley Karin (Art. 211-A): se informa cada semestre.
+    denuncias_responsable = models.CharField(max_length=120, blank=True, default='',
+                                             help_text='Persona o cargo que recibe las denuncias.')
+    denuncias_correo = models.EmailField(blank=True, default='')
     # Tasa total de accidentes del trabajo (base + adicional + Ley Sanna) que
     # informa la mutual o el ISL. Vacía = tasa base de los parámetros.
     tasa_accidentes = models.DecimalField(max_digits=6, decimal_places=5, null=True, blank=True)
@@ -891,6 +895,8 @@ class SolicitudFirma(models.Model):
         ('DESCUENTO',       'Autorización de descuento'),
         ('PERMISO_LEGAL',   'Constancia de permiso legal'),
         ('INDEMNIZACION',   'Pacto de indemnización a todo evento'),
+        ('REGLAMENTO',      'Constancia de recepción del reglamento interno'),
+        ('CANALES_DENUNCIA', 'Constancia de canales de denuncia (Ley Karin)'),
     ]
 
     empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
@@ -1179,9 +1185,14 @@ class DocumentoLaboral(models.Model):
     TIPOS = [('HORAS_EXTRA', 'Pacto de horas extraordinarias'),
              ('DESCUENTO', 'Autorización de descuento'),
              ('PERMISO_LEGAL', 'Constancia de permiso legal con goce'),
-             ('INDEMNIZACION', 'Pacto de indemnización a todo evento')]
+             ('INDEMNIZACION', 'Pacto de indemnización a todo evento'),
+             ('REGLAMENTO', 'Constancia de recepción del reglamento interno'),
+             ('CANALES_DENUNCIA', 'Constancia de información de canales de denuncia (Ley Karin)')]
     empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='documentos_laborales')
-    tipo = models.CharField(max_length=15, choices=TIPOS)
+    # Solo constancias de recepción del reglamento: qué versión recibió.
+    reglamento = models.ForeignKey('ReglamentoInterno', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='constancias')
+    tipo = models.CharField(max_length=20, choices=TIPOS)
     fecha_emision = models.DateField()
     vigente_desde = models.DateField()
     vigente_hasta = models.DateField(null=True, blank=True, help_text='Vacío: sin término (hasta revocación).')
@@ -1305,3 +1316,31 @@ class CertificadoSueldos(models.Model):
 
     def __str__(self):
         return f'Certificado N°6 {self.numero} · {self.empleado} · {self.anio}'
+
+
+class ReglamentoInterno(models.Model):
+    """Reglamento interno que el empleador sube (PDF final), con sus plazos.
+
+    Se da a conocer a los trabajadores 30 días antes de regir (Art. 156) y se
+    remite a la DT y a la Seremi de Salud dentro de los 5 días siguientes a su
+    vigencia (Art. 153). Cada versión nueva reemplaza a la anterior; la entrega
+    a cada trabajador queda en una constancia firmada (DocumentoLaboral REGLAMENTO)."""
+    TIPOS = [('RIOHS', 'Reglamento Interno de Orden, Higiene y Seguridad'),
+             ('RIHS', 'Reglamento Interno de Higiene y Seguridad')]
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reglamentos')
+    tipo = models.CharField(max_length=5, choices=TIPOS)
+    version = models.PositiveIntegerField()
+    archivo = models.FileField(upload_to='reglamentos/')
+    publicado_en = models.DateField(help_text='Día en que se dio a conocer a los trabajadores.')
+    vigente_desde = models.DateField()
+    remitido_dt_en = models.DateField(null=True, blank=True)
+    remitido_salud_en = models.DateField(null=True, blank=True)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-version']
+        constraints = [models.UniqueConstraint(fields=['empresa', 'version'], name='reglamento_version_unica')]
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} v{self.version} · {self.empresa}'

@@ -32,6 +32,7 @@ const CuentaPanel = lazy(() => import('./pages/app/Cuenta'));
 
 const ReportesPanel = lazy(() => import('./pages/app/Reportes'));
 const DireccionTrabajoPanel = lazy(() => import('./pages/app/DireccionTrabajo'));
+const ReglamentoPanel = lazy(() => import('./pages/app/Reglamento'));
 const EmpresasPanel = lazy(() => import('./pages/app/Empresas'));
 const Terminos = lazy(() => import('./pages/sitio/Terminos'));
 const FirmaPublica = lazy(() => import('./pages/sitio/Firma'));
@@ -191,6 +192,7 @@ export default function App() {
           <Route path="solicitudes" element={<SolicitudesPanel />} />
           <Route path="reportes" element={<ReportesPanel />} />
           <Route path="dt" element={<DireccionTrabajoPanel />} />
+          <Route path="reglamento" element={<ReglamentoPanel />} />
           <Route path="empresas" element={<EmpresasPanel />} />
         </Route>
         <Route path="/dashboard" element={<RedireccionDashboard />} />

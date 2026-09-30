@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CreditCard,
-  Ellipsis, FileUp, Inbox, Info, Landmark, LayoutDashboard, LogOut, Plus, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
+  Ellipsis, FileUp, Inbox, Info, Landmark, LayoutDashboard, LogOut, Plus, ScrollText, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
@@ -69,6 +69,7 @@ const NAV: ItemNav[] = [
   { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
   { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
   { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark },
+  { a: '/app/reglamento', etiqueta: 'Reglamento y Ley Karin', corta: 'Reglamento', Icono: ScrollText },
   { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox },
   { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn },
   { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'] },
@@ -503,6 +504,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   if (pathname.startsWith('/app/plan')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Plan y facturación' }];
   if (pathname.startsWith('/app/cuenta')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Mi cuenta' }];
   if (pathname.startsWith('/app/dt')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Dirección del Trabajo' }];
+  if (pathname.startsWith('/app/reglamento')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Reglamento y Ley Karin' }];
   if (pathname.startsWith('/app/solicitudes')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Solicitudes' }];
   if (pathname.startsWith('/app/firmas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Firma electrónica' }];
   if (pathname.startsWith('/app/remuneraciones')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Remuneraciones' }];
@@ -515,6 +517,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firmas'];
 const MAS: { a: string; etiqueta: string; Icono: LucideIcon }[] = [
   { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark },
+  { a: '/app/reglamento', etiqueta: 'Reglamento y Ley Karin', Icono: ScrollText },
   { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox },
   { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2 },
   { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn },
@@ -628,6 +631,7 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
     { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')) },
     { clave: 'firmas', Icono: Signature, texto: 'Firma electrónica', ejecutar: ir(() => navigate('/app/firmas')) },
     { clave: 'dt', Icono: Landmark, texto: 'Dirección del Trabajo · registro de contratos en Mi DT', ejecutar: ir(() => navigate('/app/dt')) },
+    { clave: 'reglamento', Icono: ScrollText, texto: 'Reglamento interno y Ley Karin (canales de denuncia)', ejecutar: ir(() => navigate('/app/reglamento')) },
     { clave: 'consentimiento', Icono: Landmark, texto: 'Autorización de documentos electrónicos', ejecutar: ir(() => navigate('/app/dt')) },
     { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')) },
     { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', ejecutar: ir(() => navigate('/app/trabajadores/importar')) },

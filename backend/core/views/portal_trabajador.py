@@ -521,6 +521,12 @@ def _documentos(fichas):
             titulo = s.anexo_contrato.titulo if s.anexo_contrato else titulo
         docs.append(('firma', s.id, s.empleado, titulo, timezone.localtime(s.firmado_en).date() if s.firmado_en else None,
                      True))
+    # Reglamento interno vigente de cada empresa: el trabajador siempre puede consultarlo (Art. 156).
+    from ..models import ReglamentoInterno
+    empresas = {f.empresa_id: f for f in fichas}
+    for r in ReglamentoInterno.objects.filter(empresa_id__in=empresas, activo=True):
+        docs.append(('reglamento', r.id, empresas[r.empresa_id], f'{r.get_tipo_display()} (versión {r.version})',
+                     r.publicado_en, False))
     # Cartas y constancias: solo firmadas (van arriba como 'firma'); las pendientes esperan en Inicio.
     # Comprobantes de vacaciones: igual, solo firmados; los demás se piden en Solicitudes.
     return docs
@@ -586,6 +592,11 @@ def descargar(request):
             pdf = firmado or _html_a_pdf_bytes(render_to_string('contrato_trabajo.html',
                                                                 _ctx_contrato(contrato, False)), 'Contrato')
             return respuesta_pdf(pdf, 'Contrato.pdf', firmado=bool(firmado))
+        if tipo == 'reglamento':
+            from ..models import ReglamentoInterno
+            r = ReglamentoInterno.objects.get(id=ident)
+            with r.archivo.open('rb') as f:
+                return respuesta_pdf(f.read(), f'Reglamento_interno_v{r.version}.pdf')
         if tipo == 'firma':
             from .. import b2_client
             solicitud = SolicitudFirma.objects.get(id=ident)
