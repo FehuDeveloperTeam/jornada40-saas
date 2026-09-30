@@ -155,11 +155,12 @@ def registrar_peticion(request, estado):
             return
     elif request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
         return
-    cuenta, tipo = cuenta_de(getattr(request, 'user', None))
+    persona = getattr(request, 'actor', None) or getattr(request, 'user', None)
+    cuenta, tipo = cuenta_de(persona)
     if cuenta is None:
         return
     accion, texto = describir(request, estado)
-    registrar(cuenta, accion, texto, actor=request.user, actor_tipo=tipo, empresa=_empresa_de(request, cuenta),
+    registrar(cuenta, accion, texto, actor=persona, actor_tipo=tipo, empresa=_empresa_de(request, cuenta),
               metodo=request.method, ruta=ruta, estado_http=estado, ip=request.META.get('REMOTE_ADDR', ''))
 
 

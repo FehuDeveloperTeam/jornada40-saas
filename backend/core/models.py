@@ -1,5 +1,7 @@
 import uuid
 from django.db import models
+
+from .contexto import EnEmpresas
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Max
@@ -162,6 +164,7 @@ class Cliente(models.Model):
 
 
 class Empresa(models.Model):
+    objects = EnEmpresas('id')   # empresas del usuario del equipo
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='empresas')
     nombre_legal = models.CharField(max_length=255)
     rut = models.CharField(max_length=20, unique=True)
@@ -215,6 +218,7 @@ class Empresa(models.Model):
 
 
 class Empleado(models.Model):
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='empleados')
     rut = models.CharField(max_length=20)
     nombres = models.CharField(max_length=100)
@@ -329,6 +333,7 @@ class Empleado(models.Model):
 # 3. CONTRATO
 # ==========================================
 class Contrato(models.Model):
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     TIPO_CONTRATO_CHOICES = [
         ('INDEFINIDO', 'Indefinido'),
         ('PLAZO_FIJO', 'Plazo Fijo'),
@@ -427,6 +432,7 @@ class ConceptoRemuneracion(models.Model):
     Con empresa en null es un concepto del catálogo del sistema, disponible
     para todos. Con empresa, es propio de esa empresa.
     """
+    objects = EnEmpresas('empresa_id', permite_nulo=True)   # empresas del usuario del equipo
     TIPOS = [
         ('HABER_IMPONIBLE',    'Haber imponible'),
         ('HABER_NO_IMPONIBLE', 'Haber no imponible'),
@@ -506,6 +512,7 @@ class ConceptoRemuneracion(models.Model):
 # 3b. ANEXOS DE CONTRATO (Modificaciones contractuales)
 # ==========================================
 class AnexoContrato(models.Model):
+    objects = EnEmpresas('contrato__empleado__empresa_id')   # empresas del usuario del equipo
     contrato = models.ForeignKey(Contrato, on_delete=models.CASCADE, related_name='anexos')
     TIPOS = [('GENERAL', 'Modificación del contrato'),
              ('CONSENTIMIENTO_ELECTRONICO', 'Autorización de documentación electrónica'),
@@ -538,6 +545,7 @@ class AnexoContrato(models.Model):
 # 4. HISTORIAL LEGAL (Amonestaciones y Despidos)
 # ==========================================
 class DocumentoLegal(models.Model):
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     TIPO_DOCUMENTO_CHOICES = [
         ('AMONESTACION', 'Carta de Amonestación'),
         ('DESPIDO', 'Carta de Término de Contrato (Despido)'),
@@ -615,6 +623,7 @@ class DocumentoLegal(models.Model):
 # 5. LIQUIDACIONES DE SUELDO (Remuneraciones)
 # ==========================================
 class Liquidacion(models.Model):
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='liquidaciones')
     mes = models.IntegerField()
     anio = models.IntegerField()
@@ -719,6 +728,7 @@ class RegistroDT(models.Model):
     """Constancia de que un contrato, anexo o término quedó registrado en Mi DT
     (Ley 21.327). `clave` identifica lo registrado: CONTRATO:<id>,
     ANEXO:<id>, ANEXO40H:<solicitud>, TERMINO:<finiquito> o TERMINO_EMP:<empleado>."""
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='registros_dt')
     clave = models.CharField(max_length=40)
     registrado_en = models.DateField()
@@ -732,6 +742,7 @@ class RegistroDT(models.Model):
 
 
 class Finiquito(models.Model):
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     CAUSAL_ARTICULO_CHOICES = DocumentoLegal.CAUSAL_ARTICULO_CHOICES
 
     MODALIDAD_CHOICES = [
@@ -881,6 +892,7 @@ class EventoPasarela(models.Model):
 # ==========================================
 
 class SolicitudFirma(models.Model):
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
     ESTADOS = [
         ('PENDIENTE',  'Pendiente de firma'),
         ('PROCESANDO', 'Procesando firma'),
@@ -995,6 +1007,7 @@ class SolicitudFirma(models.Model):
 # 8. VACACIONES Y PERMISOS
 # ==========================================
 class VacacionEmpleado(models.Model):
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
     TIPO_CHOICES = [
         ('VACACION_LEGAL',      'Vacación Legal (Art. 67)'),
         ('VACACION_PROGRESIVA', 'Feriado Progresivo (Art. 68)'),
@@ -1122,6 +1135,7 @@ class SolicitudDocumento(models.Model):
     hay texto libre. Se resuelven solos cuando el empleador envía el documento
     a firma (ese correo es el aviso al trabajador); el empleador puede
     descartarlas eligiendo un motivo."""
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     TIPOS = [('LIQUIDACION', 'Liquidación de sueldo'), ('CONTRATO', 'Contrato de trabajo'),
              ('ANEXO_40H', 'Anexo Ley 40 horas'), ('VACACION', 'Comprobante de vacaciones'),
              ('FINIQUITO', 'Finiquito')]
@@ -1156,6 +1170,7 @@ class CertificadoEmitido(models.Model):
     del empleador. `datos` guarda exactamente lo que el certificado afirma: el
     PDF se reconstruye desde ahí (misma versión siempre) y la página pública de
     verificación lo muestra con el código impreso en el documento."""
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     TIPOS = [('ANTIGUEDAD', 'Certificado de antigüedad laboral'),
              ('RENTA', 'Certificado de renta'),
              ('VACACIONES', 'Certificado de vacaciones'),
@@ -1193,6 +1208,7 @@ class DocumentoLaboral(models.Model):
     estructurados (sin texto libre): el backend valida cada tipo y arma su
     texto; se firman como los demás documentos (SolicitudFirma.documento_laboral).
     Surten efecto (avisos en la liquidación, marca en la ficha) solo firmados."""
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
     TIPOS = [('HORAS_EXTRA', 'Pacto de horas extraordinarias'),
              ('DESCUENTO', 'Autorización de descuento'),
              ('PERMISO_LEGAL', 'Constancia de permiso legal con goce'),
@@ -1316,6 +1332,7 @@ class FactorActualizacionSII(models.Model):
 class CertificadoSueldos(models.Model):
     """Certificado N°6 sobre sueldos (Art. 101 LIR) de un trabajador y un año. Se numera
     correlativo por empresa; uno nuevo del mismo año reemplaza al anterior (otro número)."""
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='certificados_sueldos')
     empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='certificados_sueldos')
     anio = models.PositiveSmallIntegerField()
@@ -1339,6 +1356,7 @@ class ReglamentoInterno(models.Model):
     remite a la DT y a la Seremi de Salud dentro de los 5 días siguientes a su
     vigencia (Art. 153). Cada versión nueva reemplaza a la anterior; la entrega
     a cada trabajador queda en una constancia firmada (DocumentoLaboral REGLAMENTO)."""
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
     TIPOS = [('RIOHS', 'Reglamento Interno de Orden, Higiene y Seguridad'),
              ('RIHS', 'Reglamento Interno de Higiene y Seguridad')]
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reglamentos')

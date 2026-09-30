@@ -23,6 +23,7 @@ import uuid as uuid_mod
 from .documentos import pdf_anexo_contrato, pdf_documento_legal
 from .finiquitos import pdf_finiquito
 from .vacaciones import pdf_vacacion
+from ..autenticacion import actor
 from .base import _ctx_contrato, _es_plan_semilla, _html_a_pdf_bytes, logger
 
 
@@ -53,7 +54,8 @@ def confirmacion_vigente(request):
         datos = signing.loads(valor, salt=_SAL_CONFIRMACION, max_age=VIGENCIA_CONFIRMACION)
     except signing.BadSignature:
         return None
-    if datos.get('u') != request.user.id:
+    # La confirmación es de la persona que actúa (titular o usuario del equipo), no de la cuenta.
+    if datos.get('u') != actor(request).id:
         return None
     return datetime.datetime.fromisoformat(datos['en'])
 
@@ -64,7 +66,7 @@ def falta_confirmacion():
 
 
 def datos_emisor(request, confirmado_en):
-    return {'emisor': request.user, 'emisor_ip': request.META.get('REMOTE_ADDR', ''),
+    return {'emisor': actor(request), 'emisor_ip': request.META.get('REMOTE_ADDR', ''),
             'emisor_confirmado_en': confirmado_en, 'origen': 'PANEL'}
 
 

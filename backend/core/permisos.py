@@ -73,14 +73,85 @@ def cupo_ley_karin(plan, adicionales=0):
     return ENCARGADOS_LEY_KARIN + max(adicionales or 0, 0)
 
 
-# Rutas que un usuario del equipo puede usar siempre (su sesión y su identidad).
-RUTAS_EQUIPO_LIBRES = (
+# ── Cerco de los usuarios del equipo ─────────────────────────────────────────
+#
+# Cada ruta del panel pertenece a un módulo. Leer (GET, o POST que solo calcula
+# o descarga) pide "solo ver"; lo demás pide "ver y gestionar". Lo que no está
+# en estas listas es del titular (empresa, plan, pagos, equipo, bitácora…) y se
+# rechaza. Las rutas de identidad actúan como la propia persona; las demás, sobre
+# los datos de la cuenta, limitados a sus empresas.
+
+# Actúan como la persona (su clave, su sesión, su confirmación para firmar).
+RUTAS_IDENTIDAD = (
     '/api/auth/logout/', '/api/auth/user/', '/api/auth/sesion/', '/api/auth/password/change/',
-    '/api/auth/token/refresh/', '/api/firmas/confirmar_identidad/', '/api/indicadores/',
+    '/api/auth/token/refresh/', '/api/firmas/confirmar_identidad/',
 )
+# Datos de la cuenta que todo usuario del equipo necesita para usar el panel (solo lectura).
+RUTAS_COMUNES_LECTURA = (
+    '/api/empresas/', '/api/clientes/mi_suscripcion/', '/api/indicadores/', '/api/parametros/vigentes/',
+    '/api/planes/',
+)
+# POST que no modifican nada: vistas previas y descargas.
+_SOLO_LECTURA_POST = ('/simular/', '/evaluar-jornada/', '/descarga_masiva/', '/descargar_anexos_zip/')
+
+# (prefijo, módulos que la abren). El primero que calce decide; con varios módulos basta uno.
+RUTAS_MODULO = [
+    ('/api/empleados/', lambda ruta: (
+        ('DIRECCION_TRABAJO',) if '/consentimiento/' in ruta else
+        ('CONTRATOS',) if '/digitalizar_contrato/' in ruta else
+        ('REPORTES',) if '/descarga_masiva/' in ruta or '/descargar_anexos_zip/' in ruta else
+        ('TRABAJADORES',))),
+    ('/api/contratos/', ('CONTRATOS',)),
+    ('/api/anexos_contrato/', ('CONTRATOS',)),
+    ('/api/liquidaciones/consolidado/', ('REMUNERACIONES', 'REPORTES')),
+    ('/api/liquidaciones/libro_remuneraciones/', ('REMUNERACIONES', 'REPORTES')),
+    ('/api/liquidaciones/zip_periodo/', ('REMUNERACIONES', 'REPORTES')),
+    ('/api/liquidaciones/', ('REMUNERACIONES',)),
+    ('/api/conceptos/', ('REMUNERACIONES',)),
+    ('/api/certificados-sueldos/', ('REMUNERACIONES',)),
+    ('/api/vacaciones/', ('VACACIONES',)),
+    ('/api/finiquitos/', ('TERMINO',)),
+    ('/api/registro-dt/', ('DIRECCION_TRABAJO',)),
+    ('/api/inspeccion/bitacora/', ('DIRECCION_TRABAJO',)),
+    ('/api/reglamentos/', ('SEGURIDAD',)),
+    ('/api/ley-karin/', ('SEGURIDAD',)),
+    ('/api/solicitudes-documento/', ('SOLICITUDES',)),
+    ('/api/certificados/', ('TRABAJADORES',)),
+]
+
+# Documentos que se firman o se crean por tipo: el módulo sale del tipo.
+MODULO_POR_TIPO = {
+    'CONTRATO': 'CONTRATOS', 'ANEXO_40H': 'CONTRATOS', 'ANEXO_CONTRATO': 'CONTRATOS',
+    'LIQUIDACION': 'REMUNERACIONES', 'VACACION': 'VACACIONES', 'PERMISO_LEGAL': 'VACACIONES',
+    'FINIQUITO': 'TERMINO', 'DESPIDO': 'TERMINO',
+    'AMONESTACION': 'DOCUMENTOS', 'CONSTANCIA': 'DOCUMENTOS', 'HORAS_EXTRA': 'DOCUMENTOS',
+    'DESCUENTO': 'DOCUMENTOS', 'INDEMNIZACION': 'DOCUMENTOS', 'REVOCACION_DESCUENTO': 'DOCUMENTOS',
+    'MUTUO_ACUERDO': 'TERMINO',
+    'REGLAMENTO': 'SEGURIDAD', 'CANALES_DENUNCIA': 'SEGURIDAD', 'ENTREGA_EPP': 'SEGURIDAD',
+    'INFORMACION_RIESGOS': 'SEGURIDAD',
+}
+MODULOS_DOCUMENTOS = ('DOCUMENTOS', 'TERMINO', 'VACACIONES', 'SEGURIDAD', 'CONTRATOS', 'REMUNERACIONES')
 
 
-def equipo_puede(usuario_equipo, ruta, metodo):
-    """Si un usuario del equipo puede llamar esa ruta. Todo lo que no esté permitido
-    expresamente se rechaza (los módulos se habilitan en la fase de permisos)."""
-    return ruta.startswith(RUTAS_EQUIPO_LIBRES)
+def es_lectura(ruta, metodo):
+    return metodo in ('GET', 'HEAD', 'OPTIONS') or (metodo == 'POST' and any(p in ruta for p in _SOLO_LECTURA_POST))
+
+
+def tiene(permisos, modulos, escribir):
+    """Si con esos permisos se abre alguno de los módulos (en el nivel pedido)."""
+    for m in modulos:
+        nivel = permisos.get(m)
+        if nivel == GESTIONAR or (nivel == VER and not escribir):
+            return True
+    # Quien tiene cualquier módulo puede ver las fichas de los trabajadores.
+    if not escribir and 'TRABAJADORES' in modulos and permisos:
+        return True
+    return False
+
+
+def modulos_de_ruta(ruta):
+    """Módulos que abren la ruta, o None si no es de ningún módulo."""
+    for prefijo, modulos in RUTAS_MODULO:
+        if ruta.startswith(prefijo):
+            return modulos(ruta) if callable(modulos) else modulos
+    return None

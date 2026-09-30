@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.contexto.ContextoMiddleware',   # empresas visibles del usuario del equipo (se limpian siempre)
     'core.bitacora.BitacoraMiddleware',   # escrituras y descargas del panel (solo lectura, 5 años)
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

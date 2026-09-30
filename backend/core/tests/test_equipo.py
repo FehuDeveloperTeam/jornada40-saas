@@ -54,7 +54,7 @@ class EquipoTests(APITestCase):
         self._activar()
         equipo = APIClient()
         equipo.post('/api/auth/equipo/ingresar/', {'rut': '12.345.678-5', 'clave': CLAVE}, format='json')
-        self.assertEqual(equipo.get('/api/empleados/').status_code, 403)     # módulos aún no habilitados
+        self.assertEqual(equipo.get('/api/empleados/').status_code, 200)     # sus módulos le abren las fichas
         self.assertEqual(equipo.post('/api/empresas/', {'nombre_legal': 'X', 'rut': '77.777.777-7'},
                                      format='json').status_code, 403)
         self.assertEqual(equipo.get('/api/equipo/').status_code, 403)       # el equipo lo administra el titular
