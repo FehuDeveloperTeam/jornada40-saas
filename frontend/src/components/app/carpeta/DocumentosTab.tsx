@@ -4,12 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { LucideIcon } from 'lucide-react';
 import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, HardHat, Lock, ScrollText, ShieldAlert, TriangleAlert, UserX } from 'lucide-react';
-import { AlertaError, Button, Chip, Field, Modal } from '../../j40';
+import { AlertaError, Button, Chip, Field, Input, Modal } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
 import type { CertificadoEmitido, Empleado, OpcionesDocumentoLaboral, OpcionSimple } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
+import { fechaCL, hoyISO } from '../../../utils/formato';
 import type { DocumentoReciente } from './documentos';
 
 interface Plantilla { titulo: string; detalle: string; Icono: LucideIcon; nivel: number; ruta: (id: number) => string; requiereContrato?: boolean }
@@ -38,6 +39,10 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
 }) {
   const queryClient = useQueryClient();
   const [enviando, setEnviando] = useState<string | null>(null);
+  const [revocar, setRevocar] = useState<DocumentoReciente | null>(null);
+  const [fechaRevocacion, setFechaRevocacion] = useState(hoyISO());
+  const [errorRevocacion, setErrorRevocacion] = useState('');
+  const [revocando, setRevocando] = useState(false);
   // Avisos de respaldo (p. ej. teletrabajo sin pacto firmado o por vencer): misma consulta que el formulario.
   const opciones = useQuery({
     queryKey: ['documentos-laborales', 'opciones', empleado.id],
@@ -57,6 +62,22 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
       avisar(datos?.error ?? 'No pudimos enviar el documento a firma.');
     } finally {
       setEnviando(null);
+    }
+  };
+
+  const confirmarRevocacion = async () => {
+    if (!revocar?.revocable) return;
+    setRevocando(true);
+    setErrorRevocacion('');
+    try {
+      await client.post(`/documentos-laborales/${revocar.revocable}/revocar/`, { fecha: fechaRevocacion });
+      await queryClient.invalidateQueries({ queryKey: ['documentos-laborales', empleado.id] });
+      avisar('Revocación registrada: el descuento deja de aplicarse. Envía a firma la constancia de revocación.');
+      setRevocar(null);
+    } catch (err) {
+      setErrorRevocacion((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos registrar la revocación.');
+    } finally {
+      setRevocando(false);
     }
   };
 
@@ -107,6 +128,12 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
               <span className="text-[11.5px] text-fg-3">{d.fechaTexto}</span>
             </div>
             <ChipFirma firma={d.firma} corto />
+            {d.revocadoEn && <Chip tono="neutro">Revocada el {fechaCL(d.revocadoEn)}</Chip>}
+            {d.revocable && d.firma?.estado === 'FIRMADO' && (
+              <Button variante="secundario" tamano="sm" onClick={() => { setRevocar(d); setFechaRevocacion(hoyISO()); setErrorRevocacion(''); }}>
+                Registrar revocación
+              </Button>
+            )}
             {d.envio && (!d.firma || ['RECHAZADO', 'EXPIRADO', 'CANCELADO'].includes(d.firma.estado)) && (
               <Button variante="secundario" tamano="sm" onClick={() => enviarAFirma(d)} cargando={enviando === d.clave}
                 disabled={enviando !== null} iconoInicio={<Send className="size-4" strokeWidth={2} />}>
@@ -124,6 +151,24 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
       </Seccion>
 
       <CertificadosEmitidos empleadoId={empleado.id} avisar={avisar} />
+
+      <Modal abierto={Boolean(revocar)} onCerrar={() => !revocando && setRevocar(null)} titulo="Revocación de la autorización de descuento"
+        subtitulo={revocar?.titulo}
+        acciones={<>
+          <Button variante="secundario" onClick={() => setRevocar(null)} disabled={revocando}>Volver</Button>
+          <Button cargando={revocando} onClick={() => void confirmarRevocacion()}>Registrar revocación</Button>
+        </>}>
+        <div className="flex flex-col gap-3">
+          {errorRevocacion && <AlertaError>{errorRevocacion}</AlertaError>}
+          <p className="text-[13.5px] text-fg-2 leading-relaxed">
+            El trabajador puede dejar sin efecto por escrito su autorización (Art. 58). Desde esa fecha el descuento no se aplica;
+            si debe dinero, se paga por otra vía. Se genera una constancia de revocación para que la firme.
+          </p>
+          <Field etiqueta="Fecha en que el trabajador la revocó">
+            {(p) => <Input {...p} type="date" max={hoyISO()} value={fechaRevocacion} onChange={(e) => setFechaRevocacion(e.target.value)} />}
+          </Field>
+        </div>
+      </Modal>
     </div>
   );
 }

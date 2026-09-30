@@ -71,3 +71,26 @@ test('pacto de teletrabajo como anexo y pacto del Art. 164', async ({ page }) =>
   await expect(drawer).toHaveCount(0);
   await expect(page.getByText(/Aporte de 4,11 % desde/)).toBeVisible();
 });
+
+test('el trabajador revoca una autorización de descuento firmada', async ({ page }) => {
+  consultar(`
+import datetime
+from django.utils import timezone
+from core.models import ConceptoRemuneracion, DocumentoLaboral, Empleado, SolicitudFirma
+e = Empleado.objects.get(pk=${MATIAS.id})
+c = ConceptoRemuneracion.objects.get(codigo='PRESTAMO', empresa=None)
+hoy = timezone.localdate()
+d = DocumentoLaboral.objects.create(empleado=e, tipo='DESCUENTO', concepto=c, fecha_emision=hoy, vigente_desde=hoy.replace(day=1),
+    datos={'clausulas': ['Autoriza el descuento.'], 'resumen': 'Préstamo · cuota mensual', 'monto_cuota': 10000})
+SolicitudFirma.objects.create(empleado=e, empresa=e.empresa, documento_laboral=d, tipo_documento='DESCUENTO', estado='FIRMADO',
+    firmado_en=timezone.now(), expira_en=timezone.now() + datetime.timedelta(days=7))
+print('ok')`);
+  await entrar(page);
+  await page.goto(`/app/trabajadores/${MATIAS.id}?tab=documentos`);
+  await page.getByRole('button', { name: 'Registrar revocación' }).click();
+  const modal = page.getByRole('dialog', { name: 'Revocación de la autorización de descuento' });
+  await modal.getByRole('button', { name: 'Registrar revocación' }).click();
+  await expect(page.getByText(/Revocación registrada/)).toBeVisible();
+  await expect(page.getByText(/^Revocada el /)).toBeVisible();
+  await expect(page.getByText('Constancia de revocación de descuento')).toBeVisible();
+});

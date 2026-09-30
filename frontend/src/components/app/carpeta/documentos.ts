@@ -18,6 +18,10 @@ export interface DocumentoReciente {
   pdf?: { url: string; nombre: string };
   /** Datos para POST /firmas/solicitar/; sin él, el documento no se firma en línea. */
   envio?: { tipo_documento: SolicitudFirma['tipo_documento']; [campo: string]: number | string };
+  /** Autorización de descuento (Art. 58) que el trabajador puede revocar: id del documento laboral. */
+  revocable?: number;
+  /** Fecha ISO en que el trabajador revocó la autorización. */
+  revocadoEn?: string | null;
 }
 
 const TIPO_LEGAL: Record<string, string> = {
@@ -129,6 +133,8 @@ export function documentosDe(
       firma: firmaDe(firmas, 'documento_laboral', d.id),
       pdf: { url: `/documentos-laborales/${d.id}/generar_pdf/`, nombre: `${d.tipo}_${rut}_${d.fecha_emision}.pdf` },
       envio: { tipo_documento: d.tipo, documento_laboral_id: d.id },
+      revocable: d.tipo === 'DESCUENTO' && !d.revocado_en ? d.id : undefined,
+      revocadoEn: d.revocado_en ?? null,
     });
   }
   return lista.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));

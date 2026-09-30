@@ -49,7 +49,7 @@ const DOCUMENTO: Record<SolicitudFirma['tipo_documento'], string> = {
   HORAS_EXTRA: 'Pacto de horas extra', DESCUENTO: 'Autorización de descuento', PERMISO_LEGAL: 'Constancia de permiso legal',
   INDEMNIZACION: 'Pacto de indemnización a todo evento', REGLAMENTO: 'Recepción del reglamento interno',
   CANALES_DENUNCIA: 'Aviso de canales de denuncia (Ley Karin)', ENTREGA_EPP: 'Entrega de elementos de protección',
-  INFORMACION_RIESGOS: 'Información de riesgos',
+  INFORMACION_RIESGOS: 'Información de riesgos', REVOCACION_DESCUENTO: 'Revocación de descuento',
 };
 
 const mensaje = (err: unknown, porDefecto: string) =>

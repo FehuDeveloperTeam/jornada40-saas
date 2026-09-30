@@ -490,19 +490,23 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
 
 export type TipoDocumentoLaboral = 'HORAS_EXTRA' | 'DESCUENTO' | 'PERMISO_LEGAL' | 'INDEMNIZACION' | 'ENTREGA_EPP'
     | 'INFORMACION_RIESGOS';
+/** Documentos laborales que genera el sistema (no se crean desde el formulario de la carpeta). */
+export type TipoDocumentoLaboralSistema = 'REGLAMENTO' | 'CANALES_DENUNCIA' | 'REVOCACION_DESCUENTO';
 
 /** Pacto, autorización o constancia redactado por el backend desde opciones cerradas. */
 export interface DocumentoLaboral {
     id: number;
     empleado: number;
     /** Además de los que se crean en la carpeta, las constancias del reglamento y de la Ley Karin. */
-    tipo: TipoDocumentoLaboral | 'REGLAMENTO' | 'CANALES_DENUNCIA';
+    tipo: TipoDocumentoLaboral | TipoDocumentoLaboralSistema;
     tipo_texto: string;
     resumen: string;
     fecha_emision: string;
     vigente_desde: string;
     vigente_hasta: string | null;
     activo: boolean;
+    /** Solo autorizaciones de descuento: fecha en que el trabajador la revocó. */
+    revocado_en?: string | null;
 }
 
 export interface OpcionSimple { valor: string; texto: string }
@@ -547,7 +551,7 @@ export interface SolicitudFirma {
     finiquito: number | null;
     documento_laboral: number | null;
     tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION'
-        | 'VACACION' | 'FINIQUITO' | TipoDocumentoLaboral | 'REGLAMENTO' | 'CANALES_DENUNCIA';
+        | 'VACACION' | 'FINIQUITO' | TipoDocumentoLaboral | TipoDocumentoLaboralSistema;
     token: string;
     estado: 'PENDIENTE' | 'PROCESANDO' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';
     email_firmante: string;

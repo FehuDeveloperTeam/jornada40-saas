@@ -120,6 +120,28 @@ class DescuentoTests(DocumentosBase):
                          [])
 
 
+    def test_revocacion_de_la_autorizacion(self):
+        doc = self._crear('DESCUENTO', concepto=self.prestamo.id, finalidad='PRESTAMO', monto_cuota=50_000, cuotas=0,
+                          desde='2026-09-01').data
+        url = f"/api/documentos-laborales/{doc['id']}/revocar/"
+        self.assertEqual(self.client.post(url, {'fecha': '2026-09-10'}, format='json').status_code, 400)  # sin firmar
+        self._firmar(doc['id'])
+        self.assertEqual(self.client.post(url, {'fecha': '2026-08-01'}, format='json').status_code, 400)  # antes
+        r = self.client.post(url, {'fecha': '2026-09-10'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual((r.data['autorizacion']['vigente_hasta'], r.data['autorizacion']['revocado_en']),
+                         ('2026-09-10', '2026-09-10'))
+        constancia = DocumentoLaboral.objects.get(tipo='REVOCACION_DESCUENTO')
+        self.assertIn('no extingue las obligaciones', ' '.join(constancia.datos['clausulas']))
+        pdf = self.client.get(f'/api/documentos-laborales/{constancia.id}/generar_pdf/')
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+        self.assertEqual(self.client.post(url, {'fecha': '2026-09-11'}, format='json').status_code, 400)  # ya revocada
+        datos = {'empleado': self.emp.id, 'mes': 10, 'anio': 2026, 'detalle_items': [
+            {'concepto': self.prestamo.id, 'naturaleza': 'DESCUENTO', 'glosa': 'P', 'valor': 50_000}]}
+        avisos = self.client.post('/api/liquidaciones/simular/', datos, format='json').data['avisos_documentos']
+        self.assertTrue(any('revocó la autorización el 10-09-2026' in a for a in avisos))
+
+
 class PermisoTests(DocumentosBase):
     def test_dias_calculados_por_el_sistema(self):
         # 4 hábiles desde el viernes 18-09-2026: 18 y 19 son feriados (Fiestas Patrias), domingo 20 no cuenta.

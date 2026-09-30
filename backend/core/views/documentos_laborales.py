@@ -564,7 +564,7 @@ def pdf_documento_laboral(doc, es_plan_semilla):
         'ciudad': str(empresa.ciudad or empresa.comuna or 'Santiago').strip().title(),
         'fecha': _fecha(doc.fecha_emision), 'es_plan_semilla': es_plan_semilla,
         'es_constancia': doc.tipo in ('PERMISO_LEGAL', 'REGLAMENTO', 'CANALES_DENUNCIA', 'ENTREGA_EPP',
-                                      'INFORMACION_RIESGOS'),
+                                      'INFORMACION_RIESGOS', 'REVOCACION_DESCUENTO'),
     })
     pdf = _html_a_pdf_bytes(html, f'{doc.tipo}_{emp.rut}_{doc.fecha_emision}')
     if doc.tipo == 'REGLAMENTO' and doc.reglamento_id:
@@ -610,6 +610,8 @@ def avisos_liquidacion(empleado, mes, anio, items, total_haberes, dias_ausencia=
     autorizaciones = {}
     for doc in _vigentes_en(firmados.filter(tipo='DESCUENTO'), desde, hasta):
         autorizaciones.setdefault(doc.concepto_id, []).append(doc)
+    revocadas = {doc.concepto_id: doc.datos['revocado_en'] for doc in firmados.filter(tipo='DESCUENTO')
+                 if doc.datos.get('revocado_en')}
     voluntarios = 0
     for i in descuentos:
         concepto = conceptos.get(i.get('concepto'))
@@ -618,7 +620,12 @@ def avisos_liquidacion(empleado, mes, anio, items, total_haberes, dias_ausencia=
         voluntarios += valor(i)
         nombre = concepto.nombre if concepto else (i.get('glosa') or 'Descuento')
         docs = autorizaciones.get(concepto.id if concepto else None, [])
-        if not docs:
+        revocada = revocadas.get(concepto.id if concepto else None)
+        if not docs and revocada:
+            avisos.append(f'«{nombre}»: el trabajador revocó la autorización el '
+                          f'{datetime.date.fromisoformat(revocada):%d-%m-%Y}; no corresponde seguir descontándolo '
+                          '(Art. 58).')
+        elif not docs:
             avisos.append(f'«{nombre}» no tiene una autorización de descuento firmada y vigente (Art. 58).')
         elif valor(i) > sum(int(d.datos.get('monto_cuota') or 0) for d in docs):
             avisos.append(f'«{nombre}» supera la cuota autorizada por escrito.')
@@ -644,7 +651,7 @@ def dato_documento(doc):
             'resumen': doc.datos.get('resumen', ''), 'fecha_emision': doc.fecha_emision.isoformat(),
             'vigente_desde': doc.vigente_desde.isoformat(),
             'vigente_hasta': doc.vigente_hasta.isoformat() if doc.vigente_hasta else None,
-            'activo': doc.activo}
+            'activo': doc.activo, 'revocado_en': doc.datos.get('revocado_en')}
 
 
 class DocumentoLaboralViewSet(viewsets.ViewSet):
@@ -760,6 +767,44 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
         if firmado:
             return respuesta_pdf(firmado, nombre, firmado=True)
         return respuesta_pdf(pdf_documento_laboral(doc, not _plan_permite(request.user, 2)), nombre)
+
+    @action(detail=True, methods=['post'])
+    def revocar(self, request, pk=None):
+        """El trabajador revocó por escrito una autorización de descuento firmada (Art. 58): deja de regir
+        desde esa fecha y se genera la constancia de revocación para que la firme."""
+        doc = DocumentoLaboral.objects.filter(pk=pk, empleado__empresa__owner=request.user, tipo='DESCUENTO',
+                                              activo=True).select_related('empleado', 'concepto').first()
+        if doc is None:
+            return Response({'error': 'Autorización no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if not doc.solicitudes_firma.filter(estado='FIRMADO').exists():
+            return Response({'error': 'La autorización no está firmada: anúlala en vez de revocarla.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if doc.datos.get('revocado_en'):
+            return Response({'error': 'La autorización ya fue revocada.'}, status=status.HTTP_400_BAD_REQUEST)
+        hoy = timezone.localdate()
+        try:
+            fecha = _fecha_param(request.data.get('fecha'), 'la fecha de la revocación')
+        except DatoInvalido as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        if fecha > hoy or fecha < doc.vigente_desde:
+            return Response({'error': 'La fecha debe estar entre el inicio de la autorización y hoy.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        doc.vigente_hasta = fecha if not doc.vigente_hasta else min(doc.vigente_hasta, fecha)
+        doc.datos = {**doc.datos, 'revocado_en': fecha.isoformat()}
+        doc.save(update_fields=['vigente_hasta', 'datos'])
+        nombre = doc.concepto.nombre if doc.concepto else 'el descuento'
+        clausulas = [
+            f'El trabajador revoca, a contar del {_fecha(fecha)}, la autorización que otorgó el {_fecha(doc.fecha_emision)} '
+            f'para descontar de sus remuneraciones «{nombre}» ({doc.datos.get("resumen", "")}), conforme al artículo 58 del '
+            'Código del Trabajo.',
+            'Desde esa fecha el empleador no efectuará ese descuento. La revocación no extingue las obligaciones que '
+            'el trabajador tenga con el empleador o con terceros, que deberán pagarse por otra vía.',
+        ]
+        constancia = DocumentoLaboral.objects.create(
+            empleado=doc.empleado, tipo='REVOCACION_DESCUENTO', concepto=doc.concepto, fecha_emision=hoy,
+            vigente_desde=fecha, datos={'autorizacion': doc.id, 'clausulas': clausulas,
+                                        'resumen': f'Revoca «{nombre}» desde el {fecha:%d-%m-%Y}'})
+        return Response({'autorizacion': dato_documento(doc), 'constancia': dato_documento(constancia)})
 
     @action(detail=True, methods=['post'])
     def anular(self, request, pk=None):

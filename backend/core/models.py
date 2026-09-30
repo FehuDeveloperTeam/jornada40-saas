@@ -904,6 +904,7 @@ class SolicitudFirma(models.Model):
         ('CANALES_DENUNCIA', 'Constancia de canales de denuncia (Ley Karin)'),
         ('ENTREGA_EPP',     'Constancia de entrega de EPP'),
         ('INFORMACION_RIESGOS', 'Constancia de información de riesgos'),
+        ('REVOCACION_DESCUENTO', 'Constancia de revocación de descuento'),
     ]
 
     empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
@@ -1196,7 +1197,8 @@ class DocumentoLaboral(models.Model):
              ('REGLAMENTO', 'Constancia de recepción del reglamento interno'),
              ('CANALES_DENUNCIA', 'Constancia de información de canales de denuncia (Ley Karin)'),
              ('ENTREGA_EPP', 'Constancia de entrega de elementos de protección personal'),
-             ('INFORMACION_RIESGOS', 'Constancia de información de riesgos laborales')]
+             ('INFORMACION_RIESGOS', 'Constancia de información de riesgos laborales'),
+             ('REVOCACION_DESCUENTO', 'Constancia de revocación de descuento')]
     empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='documentos_laborales')
     # Solo constancias de recepción del reglamento: qué versión recibió.
     reglamento = models.ForeignKey('ReglamentoInterno', on_delete=models.PROTECT, null=True, blank=True,
