@@ -19,7 +19,7 @@ from .utiles import crear_empleado, crear_usuario_completo
 CLAVE = 'Clave-Equipo-2026'
 # Rutas que nunca abre un usuario del equipo, aunque tenga todos los módulos.
 SOLO_TITULAR = ['/api/equipo/', '/api/bitacora/', '/api/bitacora/verificar/', '/api/clientes/perfil/',
-                '/api/clientes/resumen/', '/api/pagos/bajar-plan/', '/api/pagos/crear-checkout/',
+                '/api/pagos/bajar-plan/', '/api/pagos/crear-checkout/',
                 '/api/pagos/cancelar-cambio/', '/api/pagos/reanudar/']
 
 
@@ -160,10 +160,12 @@ class PermisosEquipoTests(APITestCase):
         self.assertGreater(len(rutas), 60)
         solo = UsuarioEquipo(cuenta=self.user, permisos={'SOLICITUDES': 'VER'})
         abiertas = {r for r in rutas if self._cerco(solo, r, 'GET')}
-        permitidas = ('/api/firmas/confirmar_identidad/', '/api/solicitudes-documento/', '/api/empleados/', '/api/certificados/', '/api/empresas/',
+        # Rutas de identidad: actúan sobre la propia persona (su preferencia de resumen, su confirmación).
+        identidad = ('/api/firmas/confirmar_identidad/', '/api/clientes/resumen/')
+        permitidas = identidad + ('/api/solicitudes-documento/', '/api/empleados/', '/api/certificados/', '/api/empresas/',
                       '/api/clientes/mi_suscripcion/', '/api/indicadores/', '/api/parametros/vigentes/', '/api/planes/')
         self.assertEqual({r for r in abiertas if not r.startswith(permitidas)}, set())
-        escritura = {r for r in rutas if self._cerco(solo, r, 'POST') and r != '/api/firmas/confirmar_identidad/'}
+        escritura = {r for r in rutas if self._cerco(solo, r, 'POST') and r not in identidad}
         self.assertEqual(escritura, set(), f'Rutas que un usuario "solo ver" puede modificar: {escritura}')
 
     def test_cada_modulo_abre_sus_rutas(self):

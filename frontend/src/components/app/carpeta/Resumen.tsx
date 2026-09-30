@@ -3,6 +3,7 @@ import { Download, FileText, Mail, MapPin, Phone } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion, rutaLiquidacion } from '../../../hooks/usePanel';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../../types';
 import { capitalizar, clp, periodo } from '../../../utils/formato';
 import { ListaAvisos } from '../Avisos';
@@ -15,6 +16,7 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
   empleado: Empleado; liquidaciones: Liquidacion[]; firmas: SolicitudFirma[]; documentos: DocumentoReciente[];
   maximo: number | undefined; cargando: boolean; avisar: (t: string) => void;
 }) {
+  const { puede } = usePermisos();
   const contrato = empleado.contrato_activo;
   const ultima = [...liquidaciones].sort((a, b) => b.anio - a.anio || b.mes - a.mes)[0];
   const horas = Number(contrato?.horas_semanales ?? 0);
@@ -52,7 +54,7 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
         ) : (
           <div className="px-[18px] py-5 flex flex-col gap-3 items-start">
             <p className="text-[13px] text-fg-3">Todavía no hay liquidaciones emitidas.</p>
-            <BotonEnlace a={rutaLiquidacion(empleado.id)} primario>Emitir la primera</BotonEnlace>
+            {puede('REMUNERACIONES', true) && <BotonEnlace a={rutaLiquidacion(empleado.id)} primario>Emitir la primera</BotonEnlace>}
           </div>
         )}
       </Seccion>
@@ -73,13 +75,13 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
             </>
           )}
           <ListaAvisos avisos={contrato?.avisos_jornada} compacto />
-          {contrato?.avisos_jornada?.some((a) => a.codigo === 'EXCEDE_MAXIMO') && (
+          {contrato?.avisos_jornada?.some((a) => a.codigo === 'EXCEDE_MAXIMO') && puede('CONTRATOS', true) && (
             <BotonEnlace a={rutaAccion(empleado.id, 'contrato')} primario>Ajustar jornada o generar anexo 40 horas</BotonEnlace>
           )}
         </div>
       </Seccion>
 
-      <Seccion titulo="Contacto" accion={<EnlaceAccion a={`${base}?tab=personal`}>Editar</EnlaceAccion>}>
+      <Seccion titulo="Contacto" accion={<EnlaceAccion a={`${base}?tab=personal`}>{puede('TRABAJADORES', true) ? 'Editar' : 'Ver ficha'}</EnlaceAccion>}>
         <div className="px-[18px] pt-1.5 pb-2.5">
           <Contacto Icono={Mail} texto={empleado.email?.toLowerCase() || 'Sin correo'} />
           <Contacto Icono={Phone} texto={empleado.numero_telefono || 'Sin teléfono'} />

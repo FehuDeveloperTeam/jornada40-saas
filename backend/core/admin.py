@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import (RegistroBitacora, Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
+from .models import (RegistroBitacora, ExportacionBitacora, Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
                      RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido,
                      RegistroInspeccion, RatificacionInspeccion, FactorActualizacionSII, CertificadoSueldos)
@@ -253,6 +253,22 @@ class CertificadoSueldosAdmin(admin.ModelAdmin):
     readonly_fields = ('empresa', 'empleado', 'anio', 'numero', 'datos', 'reemplaza', 'emitido_en')
 
     def has_add_permission(self, request):
+        return False
+
+
+@admin.register(ExportacionBitacora)
+class ExportacionBitacoraAdmin(admin.ModelAdmin):
+    """Copias descargadas de la bitácora (solo lectura)."""
+    list_display = ('creado_en', 'cuenta', 'numero', 'codigo', 'formato', 'registros', 'generado_por_nombre')
+    search_fields = ('codigo', 'cuenta__username')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 

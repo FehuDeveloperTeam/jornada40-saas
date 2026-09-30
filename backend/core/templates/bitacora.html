@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Bitácora de acciones {{ e.folio }}</title>
+    <style>
+        @page { size: letter landscape; margin: 1.2cm 1.2cm 1.4cm 1.2cm; }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 8pt; color: #111; line-height: 1.35; }
+        h1 { font-size: 13pt; margin: 0 0 2px 0; }
+        table.cab { width: 100%; margin-bottom: 8px; }
+        table.cab td { vertical-align: top; font-size: 8.5pt; }
+        .codigo { font-family: "Courier", monospace; font-weight: bold; letter-spacing: 1px; }
+        .huella { font-family: "Courier", monospace; font-size: 7pt; }
+        .ok { color: #1a7f4b; font-weight: bold; }
+        .alerta { color: #b42318; font-weight: bold; }
+        table.reg { width: 100%; border-collapse: collapse; font-size: 7pt; }
+        table.reg th { border: 0.6px solid #555; background: #eef0f3; padding: 3px; text-align: left; }
+        table.reg td { border: 0.6px solid #aaa; padding: 2px 3px; vertical-align: top; }
+        .pie { font-size: 7pt; color: #444; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <table class="cab">
+        <tr>
+            <td style="width: 62%;">
+                <h1>Bitácora de acciones</h1>
+                <b>{{ nombre }}</b> · RUT {{ rut }}<br>
+                Período: {{ periodo }}{% if e.persona %} · Persona: {{ filas.0.actor }}{% endif %}<br>
+                Registros: {{ e.registros }} · Descargada el {{ generado }} por {{ e.generado_por_nombre }}<br>
+                Cadena de la cuenta:
+                {% if cadena.ok %}<span class="ok">íntegra ({{ cadena.registros }} registros verificados)</span>
+                {% else %}<span class="alerta">alterada desde el registro N° {{ cadena.roto_en }}</span>{% endif %}
+            </td>
+            <td style="width: 2.4cm;"><img src="{{ qr }}" width="66" height="66"></td>
+            <td style="text-align: right;">
+                Folio <b>{{ e.folio }}</b><br>
+                Código de verificación<br><span class="codigo">{{ e.codigo }}</span><br>
+                Verifica esta copia en<br>{{ url }}
+            </td>
+        </tr>
+    </table>
+
+    <table class="reg" repeat="1">
+        <thead>
+            <tr>
+                <th style="width: 5%;">N°</th>
+                <th style="width: 11%;">Fecha y hora</th>
+                <th style="width: 15%;">Persona</th>
+                <th style="width: 6%;">Tipo</th>
+                <th style="width: 35%;">Acción</th>
+                <th style="width: 15%;">Empresa</th>
+                <th style="width: 9%;">IP</th>
+                <th style="width: 4%;">Res.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in filas %}
+            <tr>
+                <td>{{ f.id }}</td>
+                <td>{{ f.fecha }}</td>
+                <td>{{ f.actor }}</td>
+                <td>{{ f.actor_tipo }}</td>
+                <td>{{ f.descripcion }}</td>
+                <td>{{ f.empresa|default:"—" }}</td>
+                <td>{{ f.ip }}</td>
+                <td>{{ f.resultado|default:"" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p class="pie">
+        Registro generado automáticamente por Jornada40: guarda quién hizo cada acción en el panel, cuándo y desde qué IP,
+        nunca el contenido de lo enviado. Los registros no se pueden editar ni borrar y se conservan al menos {{ anios }} años.
+        Cada uno guarda la huella SHA-256 del anterior, de modo que cambiar o quitar uno se detecta.<br>
+        Huella de esta copia (SHA-256 de los {{ e.registros }} registros): <span class="huella">{{ e.huella }}</span>
+    </p>
+</body>
+</html>

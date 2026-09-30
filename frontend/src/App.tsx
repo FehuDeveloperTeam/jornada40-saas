@@ -2,8 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } 
 import { isAxiosError } from 'axios';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
-import client from './api/client';
+import client, { rutaIngreso } from './api/client';
 import { Button, J40Root } from './components/j40';
+import { ConPermiso } from './components/app/ConPermiso';
+import { MODULOS_DOCUMENTOS } from './hooks/usePermisos';
 
 // Sitio público y acceso: rediseño (paso E). El resto sigue con el diseño
 // anterior hasta su propio paso de la migración.
@@ -12,6 +14,8 @@ const Login = lazy(() => import('./pages/sitio/Login'));
 const Registro = lazy(() => import('./pages/sitio/Registro'));
 const Recuperar = lazy(() => import('./pages/sitio/Recuperar'));
 const NuevaContrasena = lazy(() => import('./pages/sitio/NuevaContrasena'));
+const IngresoEquipo = lazy(() => import('./pages/sitio/IngresoEquipo'));
+const ClaveEquipo = lazy(() => import('./pages/sitio/ClaveEquipo'));
 const Bienvenida = lazy(() => import('./pages/sitio/Bienvenida'));
 
 // Panel rediseñado (paso A): shell, inicio, trabajadores y carpeta.
@@ -34,6 +38,7 @@ const ReportesPanel = lazy(() => import('./pages/app/Reportes'));
 const DireccionTrabajoPanel = lazy(() => import('./pages/app/DireccionTrabajo'));
 const ReglamentoPanel = lazy(() => import('./pages/app/Reglamento'));
 const EmpresasPanel = lazy(() => import('./pages/app/Empresas'));
+const EquipoPanel = lazy(() => import('./pages/app/Equipo'));
 const Terminos = lazy(() => import('./pages/sitio/Terminos'));
 const FirmaPublica = lazy(() => import('./pages/sitio/Firma'));
 
@@ -115,7 +120,7 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   }, [intento]);
 
   if (estado === 'verificando') return <PageLoader />;
-  if (estado === 'sin-sesion') return <Navigate to={`/login?volver=${encodeURIComponent(pathname + search)}`} replace />;
+  if (estado === 'sin-sesion') return <Navigate to={rutaIngreso(pathname + search)} replace />;
   if (estado === 'error') {
     return (
       <J40Root className="min-h-dvh grid place-items-center bg-canvas px-4">
@@ -143,6 +148,8 @@ export default function App() {
         <Route path="/forgot-password" element={<Recuperar />} />
         {/* La ruta la fija el backend en el correo (PASSWORD_RESET_CONFIRM_URL). */}
         <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />
+        <Route path="/equipo" element={<IngresoEquipo />} />
+        <Route path="/equipo/clave/:uid/:token" element={<ClaveEquipo />} />
         <Route path="/firma/:token" element={<FirmaPublica />} />
         <Route path="/inspeccion" element={<InspeccionDT />} />
         <Route path="/verificar" element={<VerificarCertificado />} />
@@ -178,22 +185,23 @@ export default function App() {
           }
         >
           <Route index element={<Inicio />} />
-          <Route path="trabajadores" element={<Trabajadores />} />
-          <Route path="trabajadores/:id" element={<Carpeta />} />
-          <Route path="trabajadores/importar" element={<ImportarPanel />} />
-          <Route path="trabajadores/:id/finiquito" element={<FiniquitoPanel />} />
-          <Route path="trabajadores/:id/contrato" element={<ContratoPanel />} />
-          <Route path="empresa" element={<EmpresaPanel />} />
-          <Route path="plan" element={<PlanPanel />} />
+          <Route path="trabajadores" element={<ConPermiso modulos={['TRABAJADORES']}><Trabajadores /></ConPermiso>} />
+          <Route path="trabajadores/:id" element={<ConPermiso modulos={['TRABAJADORES']} avisoLectura={false}><Carpeta /></ConPermiso>} />
+          <Route path="trabajadores/importar" element={<ConPermiso modulos={['TRABAJADORES']} gestionar><ImportarPanel /></ConPermiso>} />
+          <Route path="trabajadores/:id/finiquito" element={<ConPermiso modulos={['TERMINO']}><FiniquitoPanel /></ConPermiso>} />
+          <Route path="trabajadores/:id/contrato" element={<ConPermiso modulos={['CONTRATOS']}><ContratoPanel /></ConPermiso>} />
+          <Route path="empresa" element={<ConPermiso titular><EmpresaPanel /></ConPermiso>} />
+          <Route path="plan" element={<ConPermiso titular><PlanPanel /></ConPermiso>} />
           <Route path="cuenta" element={<CuentaPanel />} />
-          <Route path="remuneraciones" element={<RemuneracionesPanel />} />
-          <Route path="remuneraciones/conceptos" element={<Conceptos />} />
-          <Route path="firmas" element={<FirmasPanel />} />
-          <Route path="solicitudes" element={<SolicitudesPanel />} />
-          <Route path="reportes" element={<ReportesPanel />} />
-          <Route path="dt" element={<DireccionTrabajoPanel />} />
-          <Route path="reglamento" element={<ReglamentoPanel />} />
-          <Route path="empresas" element={<EmpresasPanel />} />
+          <Route path="remuneraciones" element={<ConPermiso modulos={['REMUNERACIONES']}><RemuneracionesPanel /></ConPermiso>} />
+          <Route path="remuneraciones/conceptos" element={<ConPermiso modulos={['REMUNERACIONES']}><Conceptos /></ConPermiso>} />
+          <Route path="firmas" element={<ConPermiso modulos={MODULOS_DOCUMENTOS} avisoLectura={false}><FirmasPanel /></ConPermiso>} />
+          <Route path="solicitudes" element={<ConPermiso modulos={['SOLICITUDES']}><SolicitudesPanel /></ConPermiso>} />
+          <Route path="reportes" element={<ConPermiso modulos={['REPORTES']}><ReportesPanel /></ConPermiso>} />
+          <Route path="dt" element={<ConPermiso modulos={['DIRECCION_TRABAJO']}><DireccionTrabajoPanel /></ConPermiso>} />
+          <Route path="reglamento" element={<ConPermiso modulos={['SEGURIDAD']}><ReglamentoPanel /></ConPermiso>} />
+          <Route path="empresas" element={<ConPermiso titular><EmpresasPanel /></ConPermiso>} />
+          <Route path="equipo" element={<ConPermiso titular><EquipoPanel /></ConPermiso>} />
         </Route>
         <Route path="/dashboard" element={<RedireccionDashboard />} />
         <Route path="/empresas" element={<Navigate to="/app/empresas" replace />} />

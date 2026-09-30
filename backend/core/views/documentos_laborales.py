@@ -32,6 +32,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from ..autenticacion import tipos_visibles
 from ..models import AnexoContrato, ConceptoRemuneracion, Contrato, DocumentoLaboral, Empleado
 from ..rut import formatear_rut
 from .base import _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
@@ -662,6 +663,9 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
 
     def list(self, request):
         qs = DocumentoLaboral.objects.filter(empleado__empresa__owner=request.user, activo=True)
+        tipos = tipos_visibles(request)
+        if tipos is not None:
+            qs = qs.filter(tipo__in=tipos)
         if request.query_params.get('empleado'):
             qs = qs.filter(empleado_id=request.query_params['empleado'])
         return Response([dato_documento(d) for d in qs])

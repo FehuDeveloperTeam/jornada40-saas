@@ -24,6 +24,8 @@
       <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:26px 0 0;border-top:1px solid #e5e7eb;padding-top:16px;">
         Recibe este resumen {% if diario %}cada día{% else %}cada lunes{% endif %}. Puede cambiarlo o dejar de recibirlo en
         <a href="{{ sitio }}/app/cuenta" style="color:#2563eb;">Mi cuenta</a>.
+        {% if equipo %}<br>Incluye solo las secciones y empresas que le asignó el titular. Entre con su RUT por
+        <a href="{{ sitio }}/equipo" style="color:#2563eb;">Ingreso del equipo</a>.{% endif %}
       </p>
     </div>
   </div>

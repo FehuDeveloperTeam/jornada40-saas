@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react'; 
 import { useQueryClient } from '@tanstack/react-query';
-import client from '../api/client';
+import client, { recordarIngreso } from '../api/client';
 import type { User } from '../types';
 
 // 1. Creamos una interfaz estricta para los datos del login
@@ -18,8 +18,12 @@ interface AuthContextType {
     isAuthenticated: boolean;
     loading: boolean;
     login: (data: LoginData) => Promise<void>; 
+    /** Ingreso de un usuario del equipo. Si su clave vale en varias cuentas, devuelve cuáles para elegir. */
+    loginEquipo: (rut: string, clave: string, cuenta?: number) => Promise<CuentaParaElegir[] | null>;
     logout: () => void;
 }
+
+export interface CuentaParaElegir { cuenta: number; nombre: string }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -49,11 +53,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const login = async (data: LoginData) => {
         // 1. Enviar credenciales (Django responde con Set-Cookie)
         await client.post('/auth/login/', data);
+        recordarIngreso('titular');
         // 2. Confirmar que la cookie quedó: si el navegador la bloqueó, el
         // login "funciona" pero la sesión no existe; mejor decirlo aquí.
         queryClient.clear();
         const res = await client.get<User>('/auth/user/');
         setUser(res.data);
+    };
+
+    const loginEquipo = async (rut: string, clave: string, cuenta?: number) => {
+        const res = await client.post<{ elegir_cuenta?: CuentaParaElegir[] }>('/auth/equipo/ingresar/', { rut, clave, cuenta });
+        if (res.data.elegir_cuenta) return res.data.elegir_cuenta;
+        recordarIngreso('equipo');
+        queryClient.clear();
+        const usuario = await client.get<User>('/auth/user/');
+        setUser(usuario.data);
+        return null;
     };
 
     const logout = async () => {
@@ -69,7 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, login, loginEquipo, logout }}>
             {children}
         </AuthContext.Provider>
     );

@@ -91,3 +91,37 @@ class ResumenTests(APITestCase):
         cuerpo = mail.outbox[0].body
         self.assertIn('Reglamento interno y Ley Karin', cuerpo)
         self.assertIn('canales de denuncia', cuerpo)
+
+    def test_usuario_del_equipo_recibe_solo_sus_modulos_y_empresas(self):
+        from django.contrib.auth.models import User
+        from rest_framework.test import APIClient
+        from ..models import Empresa, UsuarioEquipo
+        from ..views.resumen import enviar_equipo
+        SolicitudDocumento.objects.create(empleado=self.emp, tipo='CONTRATO')
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, tipo_documento='LIQUIDACION',
+                                      expira_en=timezone.now() + timedelta(days=1))
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, tipo_documento='DESPIDO',
+                                      expira_en=timezone.now() + timedelta(days=1))
+        otra = Empresa.objects.create(owner=self.user, nombre_legal='Otra', rut='77.111.111-1')
+        SolicitudDocumento.objects.create(empleado=crear_empleado(otra, '9.876.543-3', nombres='Luis'), tipo='CONTRATO')
+        persona = User.objects.create(username='equipo:x:111111111', is_active=True)
+        ue = UsuarioEquipo.objects.create(cuenta=self.user, usuario=persona, rut='11.111.111-1', nombres='Eva',
+                                          correo='eva@x.cl', estado='ACTIVO',
+                                          permisos={'REMUNERACIONES': 'VER'})
+        ue.empresas.set([self.empresa])
+        self.assertTrue(enviar_equipo(ue))
+        cuerpo = mail.outbox[-1].body
+        self.assertEqual(mail.outbox[-1].to, ['eva@x.cl'])
+        self.assertIn('liquidación de sueldo de Ana Rojas', cuerpo)      # firmas de su módulo
+        self.assertNotIn('despido', cuerpo.lower())                        # no las de Término
+        self.assertNotIn('pidió', cuerpo)                                   # sin Solicitudes
+        self.assertNotIn('Luis', cuerpo)                                    # ni otras empresas
+        self.assertIn('/equipo', cuerpo)
+        # Elige su frecuencia en Mi cuenta (su propia preferencia, no la del titular).
+        c = APIClient()
+        c.force_authenticate(persona)
+        self.assertEqual(c.patch('/api/clientes/resumen/', {'frecuencia': 'NUNCA'}, format='json').data['correo'],
+                         'eva@x.cl')
+        ue.refresh_from_db()
+        self.cliente.refresh_from_db()
+        self.assertEqual((ue.frecuencia_resumen, self.cliente.frecuencia_resumen), ('NUNCA', 'SEMANAL'))

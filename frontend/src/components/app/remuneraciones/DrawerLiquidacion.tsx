@@ -6,6 +6,7 @@ import client from '../../../api/client';
 import { AlertaError, Button, Drawer } from '../../j40';
 import { useConceptos, TIPO_CONCEPTO } from '../../../hooks/useRemuneraciones';
 import type { DatosLiquidacion, ItemEnviado, Simulacion } from '../../../hooks/useRemuneraciones';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { ConceptoRemuneracion, Empleado, Liquidacion, SolicitudFirma, TipoConcepto } from '../../../types';
 import { capitalizar, clp, periodo } from '../../../utils/formato';
 import { cn } from '../../../utils/cn';
@@ -75,9 +76,12 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
   const [items, setItems] = useState<ItemForm[]>(() => (existente ? itemsDesde(existente) : comisionesDelContrato(empleado)));
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const gestionar = usePermisos().puede('REMUNERACIONES', true);
 
   // Firmada: inmutable. Con firma pendiente: hay que cancelarla antes (lo exige el backend).
-  const bloqueo = firma?.estado === 'FIRMADO'
+  const bloqueo = !gestionar
+    ? 'Tienes solo lectura en remuneraciones: puedes ver el cálculo, pero no emitir ni modificar liquidaciones.'
+    : firma?.estado === 'FIRMADO'
     ? 'El trabajador ya firmó esta liquidación: no se puede modificar.'
     : firma?.estado === 'PENDIENTE'
       ? 'Tiene una firma pendiente. Cancela la solicitud en Firma electrónica para poder modificarla.'

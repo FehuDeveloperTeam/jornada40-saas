@@ -7,6 +7,7 @@ import { AlertaError, Button, Chip, Drawer, TarjetaOpcion } from '../../componen
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
 import { TIPO_CONCEPTO, useConceptos } from '../../hooks/useRemuneraciones';
+import { usePermisos } from '../../hooks/usePermisos';
 import type { ConceptoRemuneracion, TipoConcepto } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar } from '../../utils/formato';
@@ -46,6 +47,7 @@ function slug(texto: string): string {
 export default function Conceptos() {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
+  const gestionar = usePermisos().puede('REMUNERACIONES', true);
   const conceptos = useConceptos(empresa.id, true);
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [busqueda, setBusqueda] = useState('');
@@ -81,7 +83,7 @@ export default function Conceptos() {
             Haberes y descuentos disponibles en las liquidaciones. El tipo fija su tratamiento previsional y tributario.
           </p>
         </div>
-        <Button onClick={() => setEditando('nuevo')} iconoInicio={<Plus className="size-4" strokeWidth={2} />}>Nuevo concepto</Button>
+        {gestionar && <Button onClick={() => setEditando('nuevo')} iconoInicio={<Plus className="size-4" strokeWidth={2} />}>Nuevo concepto</Button>}
       </div>
 
       <div className="flex flex-wrap gap-2.5 items-center">
@@ -126,7 +128,7 @@ export default function Conceptos() {
                   {c.es_del_sistema ? <><Lock className="size-3.5 text-fg-3" strokeWidth={2} aria-hidden />Sistema</> : 'Empresa'}
                 </span>
                 <span role="cell" className="flex items-center justify-end gap-1.5">
-                  {!c.es_del_sistema && (
+                  {!c.es_del_sistema && gestionar && (
                     <>
                       <Interruptor activo={c.activo} onCambio={() => alternar(c)} etiqueta={`${c.nombre} activo`} />
                       <Button variante="fantasma" tamano="sm" soloIcono aria-label={`Editar ${c.nombre}`} onClick={() => setEditando(c)}>
@@ -151,7 +153,7 @@ export default function Conceptos() {
               </span>
               {c.es_del_sistema
                 ? <Lock className="size-4 text-fg-3" strokeWidth={2} aria-label="Catálogo del sistema" />
-                : (
+                : gestionar && (
                   <span className="flex items-center gap-1.5 shrink-0">
                     <Interruptor activo={c.activo} onCambio={() => alternar(c)} etiqueta={`${c.nombre} activo`} />
                     <Button variante="fantasma" tamano="sm" soloIcono aria-label={`Editar ${c.nombre}`} onClick={() => setEditando(c)}><Pencil className="size-4" strokeWidth={2} /></Button>

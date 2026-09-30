@@ -2,28 +2,31 @@ import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import { CalendarDays, ChevronRight, FileSignature, FileText, Receipt, UserX } from 'lucide-react';
 import { rutaAccion, rutaLiquidacion } from '../../../hooks/usePanel';
-import type { Empleado } from '../../../types';
+import { usePermisos } from '../../../hooks/usePermisos';
+import type { Empleado, ModuloPanel } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
 import { PortalTrabajador } from './PortalTrabajador';
 import type { DocumentoReciente } from './documentos';
 
-const ACCIONES: { texto: string; Icono: LucideIcon; nivel: number; ruta: (id: number) => string }[] = [
-  { texto: 'Emitir liquidación', Icono: Receipt, nivel: 1, ruta: (id) => rutaLiquidacion(id) },
-  { texto: 'Editar contrato', Icono: FileSignature, nivel: 1, ruta: (id) => rutaAccion(id, 'contrato') },
-  { texto: 'Crear anexo de contrato', Icono: FileSignature, nivel: 1, ruta: (id) => rutaAccion(id, 'anexo') },
-  { texto: 'Registrar vacaciones', Icono: CalendarDays, nivel: 2, ruta: (id) => rutaAccion(id, 'vacacion') },
-  { texto: 'Emitir documento legal', Icono: FileText, nivel: 1, ruta: (id) => rutaAccion(id, 'documento') },
-  { texto: 'Calcular finiquito', Icono: UserX, nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito` },
+// `modulos`: lo que la abre a un usuario del equipo con "ver y gestionar".
+const ACCIONES: { texto: string; Icono: LucideIcon; nivel: number; ruta: (id: number) => string; modulos: ModuloPanel[] }[] = [
+  { texto: 'Emitir liquidación', Icono: Receipt, nivel: 1, ruta: (id) => rutaLiquidacion(id), modulos: ['REMUNERACIONES'] },
+  { texto: 'Editar contrato', Icono: FileSignature, nivel: 1, ruta: (id) => rutaAccion(id, 'contrato'), modulos: ['CONTRATOS'] },
+  { texto: 'Crear anexo de contrato', Icono: FileSignature, nivel: 1, ruta: (id) => rutaAccion(id, 'anexo'), modulos: ['CONTRATOS'] },
+  { texto: 'Registrar vacaciones', Icono: CalendarDays, nivel: 2, ruta: (id) => rutaAccion(id, 'vacacion'), modulos: ['VACACIONES'] },
+  { texto: 'Emitir documento legal', Icono: FileText, nivel: 1, ruta: (id) => rutaAccion(id, 'documento'), modulos: ['DOCUMENTOS', 'TERMINO'] },
+  { texto: 'Calcular finiquito', Icono: UserX, nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito`, modulos: ['TERMINO'] },
 ];
 
 export function Lateral({ empleado, documentos, nivel, avisar }: {
   empleado: Empleado; documentos: DocumentoReciente[]; nivel: number; avisar: (texto: string, tipo?: 'ok' | 'error') => void;
 }) {
-  const avisos = empleado.contrato_activo?.avisos_jornada ?? [];
+  const { puede } = usePermisos();
+  const avisos = puede('CONTRATOS') ? empleado.contrato_activo?.avisos_jornada ?? [] : [];
   const pendientes: { texto: string; detalle: string; a: string; alta?: boolean }[] = [];
   const base = `/app/trabajadores/${empleado.id}`;
 
-  if (!empleado.contrato_activo) {
+  if (!empleado.contrato_activo && puede('CONTRATOS')) {
     pendientes.push({ texto: 'Sin contrato registrado', detalle: 'Crea el contrato para emitir liquidaciones', a: rutaAccion(empleado.id, 'contrato'), alta: true });
   }
   for (const a of avisos) {
@@ -34,11 +37,14 @@ export function Lateral({ empleado, documentos, nivel, avisar }: {
     else if (d.firma?.estado === 'PENDIENTE') pendientes.push({ texto: `${d.titulo}: firma pendiente`, detalle: 'Esperando al trabajador', a: `${base}?tab=documentos` });
   }
 
+  const acciones = ACCIONES.filter((x) => nivel >= x.nivel && puede(x.modulos, true)
+    && (empleado.contrato_activo || !/anexo|liquidaci/i.test(x.texto)));
+
   return (
     <div className="flex flex-col gap-5">
-      <Seccion titulo="Acciones">
+      {acciones.length > 0 && <Seccion titulo="Acciones">
         <div className="py-1.5">
-          {ACCIONES.filter((x) => nivel >= x.nivel && (empleado.contrato_activo || !/anexo|liquidaci/i.test(x.texto))).map(({ texto, Icono, ruta }) => (
+          {acciones.map(({ texto, Icono, ruta }) => (
             <Link key={texto} to={ruta(empleado.id)}
               className="flex items-center gap-3 px-[18px] py-2.5 text-[13px] text-fg no-underline hover:no-underline hover:bg-surface-2">
               <Icono className="size-[18px] text-fg-3" strokeWidth={2} aria-hidden />
@@ -47,7 +53,7 @@ export function Lateral({ empleado, documentos, nivel, avisar }: {
             </Link>
           ))}
         </div>
-      </Seccion>
+      </Seccion>}
 
       <PortalTrabajador empleado={empleado} avisar={avisar} />
 

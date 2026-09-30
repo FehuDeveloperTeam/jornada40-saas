@@ -82,7 +82,7 @@ def _enlace_clave(ue):
 def _enviar(ue, plantilla, asunto):
     cliente = ue.cuenta.perfil_cliente
     ctx = {'nombre': ue.nombres, 'cuenta': cliente.razon_social or f'{cliente.nombres} {cliente.apellido_paterno or ""}'.strip(),
-           'enlace': _enlace_clave(ue), 'ingreso': f'{_sitio()}/login'}
+           'enlace': _enlace_clave(ue), 'ingreso': f'{_sitio()}/equipo'}
     msg = EmailMultiAlternatives(asunto, render_to_string(f'{plantilla}.txt', ctx), settings.DEFAULT_FROM_EMAIL,
                                  to=[ue.correo])
     msg.attach_alternative(render_to_string(f'{plantilla}.html', ctx), 'text/html')

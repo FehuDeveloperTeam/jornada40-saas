@@ -3,6 +3,7 @@ import { Button, Chip } from '../../j40';
 import type { TonoChip } from '../../j40';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { BolsaCompensatoria, Empleado, SaldoVacaciones, SolicitudFirma, VacacionEmpleado } from '../../../types';
 import { decimalCL, fechaCL } from '../../../utils/formato';
 import { BotonEnlace, ChipFirma, Seccion } from './comun';
@@ -17,7 +18,7 @@ const TIPO: Record<string, string> = {
 const horas = (n: number) => `${decimalCL(n, Number.isInteger(n) ? 0 : 1)} h`;
 
 /** Días libres ganados con horas extra (Ley 40 horas, Art. 32): cuánto tiene y cuándo vence. */
-function DiasLibresHorasExtra({ bolsa }: { bolsa: BolsaCompensatoria }) {
+function DiasLibresHorasExtra({ bolsa, gestionar }: { bolsa: BolsaCompensatoria; gestionar: boolean }) {
   const disponibles = bolsa.horas_disponibles ?? 0;
   const tope = bolsa.tope_horas ?? 0;
   return (
@@ -37,7 +38,7 @@ function DiasLibresHorasExtra({ bolsa }: { bolsa: BolsaCompensatoria }) {
         )}
         <p className="text-[13px] text-fg-3">
           Este año de contrato lleva {horas(bolsa.generadas_anualidad ?? 0)} de un máximo de {horas(tope)} (5 días).
-          Para darle un día libre, use «Registrar vacaciones» y elija «Día libre por horas extra».
+          {gestionar && ' Para darle un día libre, use «Registrar vacaciones» y elija «Día libre por horas extra».'}
         </p>
       </div>
     </Seccion>
@@ -78,6 +79,7 @@ function VacacionesContenido({ empleado, nivel, vacaciones, saldo, firmas, avisa
   empleado: Empleado; nivel: number; vacaciones: VacacionEmpleado[]; saldo: SaldoVacaciones | undefined;
   firmas: SolicitudFirma[]; avisar: (t: string) => void;
 }) {
+  const gestionar = usePermisos().puede('VACACIONES', true);
   const bolsa = useBolsaCompensatoria(empleado.id, nivel >= 3).data;
   const verBolsa = bolsa?.permitido && ((bolsa.horas_disponibles ?? 0) > 0 || (bolsa.generadas_anualidad ?? 0) > 0
     || (bolsa.compensacion_vigente && bolsa.compensacion_vigente !== 'PAGO'));
@@ -105,10 +107,10 @@ function VacacionesContenido({ empleado, nivel, vacaciones, saldo, firmas, avisa
         </p>
       )}
 
-      {verBolsa && bolsa && <DiasLibresHorasExtra bolsa={bolsa} />}
+      {verBolsa && bolsa && <DiasLibresHorasExtra bolsa={bolsa} gestionar={gestionar} />}
 
       <Seccion titulo="Registro de vacaciones y permisos"
-        accion={<BotonEnlace a={rutaAccion(empleado.id, 'vacacion')}>Registrar vacaciones</BotonEnlace>}>
+        accion={gestionar && <BotonEnlace a={rutaAccion(empleado.id, 'vacacion')}>Registrar vacaciones</BotonEnlace>}>
         {ordenadas.length === 0 && <p className="px-[18px] py-5 text-[13px] text-fg-3">Sin vacaciones registradas.</p>}
         {ordenadas.map((v) => {
           const estado = ESTADO[v.estado] ?? ESTADO.PENDIENTE;

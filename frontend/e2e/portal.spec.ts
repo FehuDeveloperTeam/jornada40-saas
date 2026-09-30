@@ -210,7 +210,7 @@ test('el trabajador genera un certificado y un tercero lo verifica', async ({ pa
   await expect(resultado.getByText('Certificado auténtico')).toBeVisible();
   await expect(resultado.getByText(/RUT ••\.•••\.112-K/)).toBeVisible();
   await page.goto('/verificar/ZZZZ-ZZZZ-ZZZZ');
-  await expect(page.getByText('No encontramos un certificado con ese código')).toBeVisible();
+  await expect(page.getByText('No encontramos un documento con ese código')).toBeVisible();
 
   // El empleador lo ve en la carpeta del trabajador.
   await entrar(page);

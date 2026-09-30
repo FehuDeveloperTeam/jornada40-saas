@@ -66,3 +66,48 @@ class BitacoraTests(APITestCase):
         sin_perfil = User.objects.create_user('suelto', password='x')
         self.client.force_authenticate(sin_perfil)
         self.assertEqual(self.client.get('/api/bitacora/').status_code, 403)
+
+
+class ExportacionBitacoraTests(APITestCase):
+    def setUp(self):
+        self.user, _, _, self.empresa = crear_usuario_completo('bexp', '21.000.001-1', '76.000.556-8')
+        self.client.force_authenticate(self.user)
+        for n in range(3):
+            registrar(self.user, 'PRUEBA', f'Acción {n}', actor=self.user, actor_tipo='TITULAR')
+
+    def test_pdf_y_excel_con_codigo_que_se_verifica(self):
+        r = self.client.get('/api/bitacora/exportar/?formato=pdf')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+        codigo = r['X-Codigo-Verificacion']
+        x = self.client.get('/api/bitacora/exportar/?formato=xlsx')
+        self.assertEqual(x.status_code, 200)
+        self.assertIn('B-000002', x['Content-Disposition'])
+        from ..models import ExportacionBitacora
+        e = ExportacionBitacora.objects.get(codigo=codigo)
+        self.assertEqual((e.numero, e.registros, e.formato), (1, 3, 'PDF'))
+        # La descarga misma queda anotada (después de la copia: no se incluye a sí misma).
+        self.assertEqual(RegistroBitacora.objects.filter(descripcion='Descargó una copia de la bitácora').count(), 2)
+        # Verificación pública: sin sesión, la misma página que los certificados.
+        self.client.force_authenticate(None)
+        v = self.client.get(f'/api/certificados/verificar/{codigo}/').data
+        self.assertTrue(v['valido'])
+        self.assertEqual(v['folio'], 'B-000001')
+        # Alguien altera un registro incluido en la copia: la verificación ya no la da por válida.
+        from django.db import connection
+        with connection.cursor() as c:
+            c.execute('UPDATE core_registrobitacora SET hash = %s WHERE id = %s', ['0' * 64, e.primer_registro])
+        v = self.client.get(f'/api/certificados/verificar/{codigo}/').data
+        self.assertFalse(v['valido'])
+        self.assertTrue(v['alterado'])
+
+    def test_filtros_y_limites(self):
+        self.assertEqual(self.client.get('/api/bitacora/exportar/?formato=doc').status_code, 400)
+        self.assertEqual(self.client.get('/api/bitacora/exportar/?desde=2000-01-01&hasta=2000-01-02').status_code, 400)
+        datos = self.client.get('/api/bitacora/').data
+        self.assertEqual(datos['personas'][0]['rut'], self.user.username)
+        self.assertEqual(self.client.get('/api/bitacora/?persona=otro').data['total'], 0)
+        otro, *_ = crear_usuario_completo('bexp2', '21.000.002-K', '76.000.557-6')
+        self.client.force_authenticate(otro)
+        # Otra cuenta no ve ni descarga registros ajenos.
+        self.assertEqual(self.client.get('/api/bitacora/exportar/').status_code, 400)

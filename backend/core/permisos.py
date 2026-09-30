@@ -84,7 +84,7 @@ def cupo_ley_karin(plan, adicionales=0):
 # Actúan como la persona (su clave, su sesión, su confirmación para firmar).
 RUTAS_IDENTIDAD = (
     '/api/auth/logout/', '/api/auth/user/', '/api/auth/sesion/', '/api/auth/password/change/',
-    '/api/auth/token/refresh/', '/api/firmas/confirmar_identidad/',
+    '/api/auth/token/refresh/', '/api/firmas/confirmar_identidad/', '/api/clientes/resumen/',
 )
 # Datos de la cuenta que todo usuario del equipo necesita para usar el panel (solo lectura).
 RUTAS_COMUNES_LECTURA = (

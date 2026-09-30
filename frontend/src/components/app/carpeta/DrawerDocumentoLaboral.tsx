@@ -5,6 +5,8 @@ import { isAxiosError } from 'axios';
 import { TriangleAlert } from 'lucide-react';
 import { AlertaError, Button, Casilla, Drawer, Input } from '../../j40';
 import client from '../../../api/client';
+import { usePermisos } from '../../../hooks/usePermisos';
+import { moduloDeTipo } from '../../../utils/moduloDocumento';
 import type { Empleado, OpcionesDocumentoLaboral, OpcionSimple } from '../../../types';
 import { TITULOS_LABORALES } from './laborales';
 import type { TipoLaboral } from './laborales';
@@ -62,8 +64,12 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
   empleado: Empleado; tipoInicial: TipoLaboral; onCerrar: () => void; avisar: (t: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [tipo, setTipo] = useState<TipoLaboral>(tipoInicial);
-  const [v, setV] = useState<Valores>(() => inicial(tipoInicial, undefined));
+  const { puede } = usePermisos();
+  // Solo los tipos cuyo módulo puede gestionar quien está conectado.
+  const tipos = TIPOS.filter((t) => puede(moduloDeTipo(t), true));
+  const tipoPartida = tipos.includes(tipoInicial) ? tipoInicial : tipos[0] ?? tipoInicial;
+  const [tipo, setTipo] = useState<TipoLaboral>(tipoPartida);
+  const [v, setV] = useState<Valores>(() => inicial(tipoPartida, undefined));
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const opciones = useQuery({
@@ -121,7 +127,7 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
         ))}
         <Campo etiqueta="Documento">
           <select className={CONTROL} value={tipo} onChange={(e) => { const t = e.target.value as TipoLaboral; setTipo(t); setV(inicial(t, o)); setError(''); }}>
-            {TIPOS.map((t) => <option key={t} value={t}>{TITULOS_LABORALES[t]}</option>)}
+            {tipos.map((t) => <option key={t} value={t}>{TITULOS_LABORALES[t]}</option>)}
           </select>
         </Campo>
         {estado && !estado.disponible && <p className="text-[13px] text-fg-2">{estado.motivo}</p>}

@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios';
 import { Info, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { AlertaError, Button, Casilla, Drawer, Input, SegmentedControl } from '../../j40';
 import client from '../../../api/client';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, SaldoVacaciones, SimulacionFiniquito, TipoVacacion } from '../../../types';
 import { cn } from '../../../utils/cn';
 import { capitalizar, clp, decimalCL, hoyISO } from '../../../utils/formato';
@@ -183,7 +184,13 @@ export function DrawerDocumento({ empleado, tipoInicial, nivel, onCerrar, avisar
   empleado: Empleado; tipoInicial: TipoDocumento; nivel: number; onCerrar: () => void; avisar: (t: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [tipo, setTipo] = useState<TipoDocumento>(tipoInicial);
+  const { puede } = usePermisos();
+  // Amonestación y constancia son de Documentos; la carta de término, de Término de contrato.
+  const tipos = [
+    ...(puede('DOCUMENTOS', true) ? [{ valor: 'AMONESTACION' as const, etiqueta: 'Amonestación' }, { valor: 'CONSTANCIA' as const, etiqueta: 'Constancia' }] : []),
+    ...(nivel >= 2 && puede('TERMINO', true) ? [{ valor: 'DESPIDO' as const, etiqueta: 'Carta de término' }] : []),
+  ];
+  const [tipo, setTipo] = useState<TipoDocumento>(() => (tipos.some((t) => t.valor === tipoInicial) ? tipoInicial : tipos[0]?.valor ?? tipoInicial));
   const [fecha, setFecha] = useState(hoyISO());
   const [hechos, setHechos] = useState('');
   const [causal, setCausal] = useState('');
@@ -241,10 +248,8 @@ export function DrawerDocumento({ empleado, tipoInicial, nivel, onCerrar, avisar
       acciones={<Acciones onCerrar={onCerrar} onGuardar={guardar} guardando={guardando} texto="Crear documento" />}>
       <div className="flex flex-col gap-4">
         {error && <AlertaError>{error}</AlertaError>}
-        <SegmentedControl etiqueta="Tipo de documento" valor={tipo} bloque onChange={setTipo}
-          opciones={[{ valor: 'AMONESTACION', etiqueta: 'Amonestación' }, { valor: 'CONSTANCIA', etiqueta: 'Constancia' },
-            ...(nivel >= 2 ? [{ valor: 'DESPIDO' as const, etiqueta: 'Carta de término' }] : [])]} />
-        {nivel < 2 && <p className="text-[12px] text-fg-3">Las cartas de término están disponibles desde el plan Starter.</p>}
+        <SegmentedControl etiqueta="Tipo de documento" valor={tipo} bloque onChange={setTipo} opciones={tipos} />
+        {nivel < 2 && puede('TERMINO', true) && <p className="text-[12px] text-fg-3">Las cartas de término están disponibles desde el plan Starter.</p>}
         <Campo etiqueta="Fecha de emisión"><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></Campo>
         {despido && (
           <>

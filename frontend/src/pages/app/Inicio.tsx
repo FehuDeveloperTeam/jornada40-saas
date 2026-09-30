@@ -11,10 +11,11 @@ import type { RespuestaLista } from '../../api/lista';
 import { Button, Card, CardHeader, Chip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { useAuth } from '../../context/AuthContext';
+import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
 import {
   rutaAccion, useFirmas, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useVacacionesEmpresa,
 } from '../../hooks/usePanel';
-import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
+import type { Empleado, Liquidacion, ModuloPanel, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes } from '../../utils/formato';
 // Solo el calendario de la ley, para mostrarlo; el máximo vigente lo informa el backend.
@@ -26,7 +27,11 @@ function saludo(hora: number) {
   return 'Buenas noches';
 }
 
-interface Tarea { clave: string; Icono: LucideIcon; tono: 'peligro' | 'aviso' | 'marca' | 'neutro'; titulo: string; detalle: string; accion: string; a: string }
+interface Tarea {
+  clave: string; Icono: LucideIcon; tono: 'peligro' | 'aviso' | 'marca' | 'neutro'; titulo: string; detalle: string; accion: string; a: string;
+  /** Módulo que abre la tarea a un usuario del equipo. */
+  modulo?: ModuloPanel;
+}
 
 /** Documento al que apunta una solicitud de firma (un documento puede tener varias solicitudes). */
 function claveDocumento(f: SolicitudFirma): string {
@@ -53,11 +58,15 @@ export default function Inicio() {
   const indicadores = useIndicadores();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const firmas = useFirmas();
-  const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2);
+  // Un usuario del equipo solo ve (y consulta) lo de sus módulos.
+  const { puede } = usePermisos();
+  const verRemuneraciones = puede('REMUNERACIONES');
+  const verVacaciones = puede('VACACIONES');
+  const firmas = useFirmas(puede(MODULOS_DOCUMENTOS));
+  const vacaciones = useVacacionesEmpresa(empresa.id, nivel >= 2 && verVacaciones);
   // Plazos de registro en Mi DT y consentimientos: si falla, Inicio se ve igual sin esos avisos.
-  const registroDT = useRegistroDT(empresa.id);
-  const solicitudesDoc = useSolicitudesDocumento(empresa.id);
+  const registroDT = useRegistroDT(empresa.id, puede('DIRECCION_TRABAJO'));
+  const solicitudesDoc = useSolicitudesDocumento(empresa.id, puede('SOLICITUDES'));
   const hoy = new Date();
   const mes = hoy.getMonth() + 1;
   const anio = hoy.getFullYear();
@@ -72,6 +81,7 @@ export default function Inicio() {
       const ids = new Set(trabajadores.map((t) => t.id));
       return todas.filter((l) => ids.has(l.empleado) && l.mes === mes && l.anio === anio);
     },
+    enabled: verRemuneraciones,
   });
 
   const activos = trabajadores.filter((t) => t.activo);
@@ -87,8 +97,8 @@ export default function Inicio() {
       sub: suscripcion ? `de ${suscripcion.plan.limite_trabajadores} cupos del plan` : '' },
     { etiqueta: maximo ? `Contratos sobre ${maximo} h` : 'Contratos sobre el máximo', Icono: TriangleAlert, valor: String(sobreMaximo.length),
       sub: sobreMaximo.length ? 'Requieren anexo de jornada' : 'Todos dentro del máximo', alerta: sobreMaximo.length > 0 },
-    { etiqueta: 'Firmas pendientes', Icono: Signature, valor: String(pendientes.length),
-      sub: rechazadas.length ? `${rechazadas.length} rechazada${rechazadas.length === 1 ? '' : 's'}` : 'Ninguna rechazada' },
+    ...(puede(MODULOS_DOCUMENTOS) ? [{ etiqueta: 'Firmas pendientes', Icono: Signature, valor: String(pendientes.length),
+      sub: rechazadas.length ? `${rechazadas.length} rechazada${rechazadas.length === 1 ? '' : 's'}` : 'Ninguna rechazada' }] : []),
     { etiqueta: 'Masa salarial base', Icono: Banknote, valor: clp(masa),
       sub: activos.length ? `Promedio ${clp(masa / activos.length)} por trabajador` : '' },
   ];
@@ -104,13 +114,13 @@ export default function Inicio() {
     for (const e of activos) {
       if (!e.contrato_activo) {
         t.push({ clave: `sc${e.id}`, Icono: FileWarning, tono: 'aviso', titulo: `${nombre(e.id)} no tiene contrato`,
-          detalle: 'Sin contrato no se pueden emitir liquidaciones.', accion: 'Crear contrato', a: rutaAccion(e.id, 'contrato') });
+          detalle: 'Sin contrato no se pueden emitir liquidaciones.', accion: 'Crear contrato', a: rutaAccion(e.id, 'contrato'), modulo: 'CONTRATOS' });
         continue;
       }
       const alta = e.contrato_activo.avisos_jornada?.find((a) => a.gravedad === 'alta');
       if (alta) {
         t.push({ clave: `j${e.id}`, Icono: CircleAlert, tono: 'peligro', titulo: `${alta.titulo} · ${nombre(e.id)}`,
-          detalle: alta.recomendacion, accion: 'Revisar', a: `/app/trabajadores/${e.id}?tab=contrato` });
+          detalle: alta.recomendacion, accion: 'Revisar', a: `/app/trabajadores/${e.id}?tab=contrato`, modulo: 'CONTRATOS' });
       }
     }
     const dt = registroDT.data;
@@ -141,7 +151,7 @@ export default function Inicio() {
       if (fin && fin.getTime() >= ahora - 86_400_000 && fin.getTime() <= en30) {
         t.push({ clave: `pf${e.id}`, Icono: Clock, tono: 'aviso', titulo: `Contrato a plazo vence el ${fechaCL(c!.fecha_fin)} · ${nombre(e.id)}`,
           detalle: 'Renueva, crea un anexo o prepara el término: si sigue trabajando después, pasa a ser indefinido (Art. 159 N°4).',
-          accion: 'Revisar', a: `/app/trabajadores/${e.id}?tab=contrato` });
+          accion: 'Revisar', a: `/app/trabajadores/${e.id}?tab=contrato`, modulo: 'CONTRATOS' });
       }
     }
     const enTresDias = ahora + 3 * 86_400_000;
@@ -158,7 +168,7 @@ export default function Inicio() {
       t.push({ clave: 'liq-sin-firma', Icono: FileSignature, tono: 'aviso',
         titulo: `${sinEnviar} ${sinEnviar === 1 ? 'liquidación' : 'liquidaciones'} del mes sin enviar a firma`,
         detalle: 'Envíalas de una vez desde Remuneraciones: el trabajador recibe un correo para firmar.',
-        accion: 'Enviar a firma', a: '/app/remuneraciones' });
+        accion: 'Enviar a firma', a: '/app/remuneraciones', modulo: 'REMUNERACIONES' });
     }
     if (dt?.resumen.por_vencer) {
       const n = dt.resumen.por_vencer;
@@ -174,7 +184,7 @@ export default function Inicio() {
         detalle: 'La DT exige su autorización expresa para firmar y enviar documentos en forma electrónica. Envíales el anexo.',
         accion: 'Ver', a: '/app/dt' });
     }
-    return t;
+    return t.filter((x) => !x.modulo || puede(x.modulo));
   })();
 
   // Distribución de contratos por jornada (Art. 22 no pacta horas: queda fuera).
@@ -215,9 +225,11 @@ export default function Inicio() {
           </h1>
           <p className="text-[13px] text-fg-3 mt-0.5">{fechaLarga(hoy)} · {capitalizar(empresa.nombre_legal)}</p>
         </div>
-        <Button onClick={() => navigate('/app/remuneraciones')} iconoInicio={<Banknote className="size-[19px]" strokeWidth={2} />}>
-          Ir a remuneraciones
-        </Button>
+        {verRemuneraciones && (
+          <Button onClick={() => navigate('/app/remuneraciones')} iconoInicio={<Banknote className="size-[19px]" strokeWidth={2} />}>
+            Ir a remuneraciones
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,210px),1fr))] gap-4">
@@ -287,7 +299,7 @@ export default function Inicio() {
           </div>
         </Card>
 
-        <Card>
+        {verRemuneraciones && <Card>
           <CardHeader titulo={`Remuneraciones · ${nombreMes(mes)} ${anio}`} />
           <div className="p-[18px] flex flex-col gap-4">
             {[{ t: 'Liquidaciones emitidas', v: emitidas }, { t: 'Firmadas por el trabajador', v: firmadas }].map(({ t, v }) => (
@@ -300,9 +312,9 @@ export default function Inicio() {
             ))}
             <Button variante="secundario" onClick={() => navigate('/app/remuneraciones')}>Ir al proceso</Button>
           </div>
-        </Card>
+        </Card>}
 
-        <Card>
+        {verVacaciones && <Card>
           <CardHeader titulo="Ausencias" />
           {cargandoPlan ? (
             <p className="px-[18px] py-6 text-[13px] text-fg-3" role="status">Cargando…</p>
@@ -326,7 +338,7 @@ export default function Inicio() {
               </Link>
             );
           })}
-        </Card>
+        </Card>}
 
         <ComposicionEquipo activos={activos} />
       </div>

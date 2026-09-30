@@ -447,6 +447,13 @@ class VerificarCertificadoThrottle(AnonRateThrottle):
 def verificar_certificado(request, codigo):
     cert = (CertificadoEmitido.objects.filter(codigo=str(codigo).strip().upper()).select_related('empleado').first())
     if cert is None:
+        # El mismo código sirve para las copias de la bitácora que el empleador presenta.
+        from ..models import ExportacionBitacora
+        from .bitacora import verificacion_exportacion
+        exportacion = ExportacionBitacora.objects.filter(codigo=str(codigo).strip().upper()).select_related(
+            'cuenta__perfil_cliente', 'empresa').first()
+        if exportacion is not None:
+            return Response(verificacion_exportacion(exportacion))
         return Response({'valido': False, 'error': 'No existe un certificado con ese código.'},
                         status=status.HTTP_404_NOT_FOUND)
     d = cert.datos

@@ -1429,6 +1429,42 @@ class RegistroBitacora(models.Model):
         raise PermissionError('La bitácora es de solo lectura.')
 
 
+
+class ExportacionBitacora(models.Model):
+    """Copia de la bitácora descargada en PDF o Excel para presentarla (p. ej. a la DT).
+
+    Guarda qué registros incluyó y la huella SHA-256 de todos ellos: con el código
+    impreso, cualquiera verifica en /verificar que la copia salió de Jornada40 y
+    que esos registros siguen iguales en el sistema."""
+    FORMATOS = [('PDF', 'PDF'), ('XLSX', 'Excel')]
+    cuenta = models.ForeignKey(User, on_delete=models.PROTECT, related_name='exportaciones_bitacora')
+    numero = models.PositiveIntegerField(help_text='Correlativo por cuenta.')
+    codigo = models.CharField(max_length=14, unique=True)
+    formato = models.CharField(max_length=4, choices=FORMATOS)
+    empresa = models.ForeignKey('Empresa', on_delete=models.SET_NULL, null=True, blank=True)
+    desde = models.DateField(null=True, blank=True)
+    hasta = models.DateField(null=True, blank=True)
+    persona = models.CharField(max_length=15, blank=True, default='', help_text='RUT de la persona filtrada, si hubo.')
+    registros = models.PositiveIntegerField()
+    primer_registro = models.PositiveBigIntegerField(null=True, blank=True)
+    ultimo_registro = models.PositiveBigIntegerField(null=True, blank=True)
+    huella = models.CharField(max_length=64)
+    generado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    generado_por_nombre = models.CharField(max_length=150)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en']
+        constraints = [models.UniqueConstraint(fields=['cuenta', 'numero'], name='exportacion_bitacora_numero_unico')]
+
+    @property
+    def folio(self):
+        return f'B-{self.numero:06d}'
+
+    def __str__(self):
+        return f'{self.folio} · {self.cuenta}'
+
+
 class UsuarioEquipo(models.Model):
     """Persona del equipo que el titular invita al panel (tabla aparte de los clientes).
 
@@ -1452,6 +1488,9 @@ class UsuarioEquipo(models.Model):
     invitado_en = models.DateTimeField(null=True, blank=True)
     activado_en = models.DateTimeField(null=True, blank=True)
     eliminado_en = models.DateTimeField(null=True, blank=True)
+    # Resumen por correo de lo pendiente, solo de sus módulos y empresas (como el del titular).
+    frecuencia_resumen = models.CharField(max_length=8, choices=Cliente.FRECUENCIAS_RESUMEN, default='SEMANAL')
+    resumen_hasta = models.DateTimeField(null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:

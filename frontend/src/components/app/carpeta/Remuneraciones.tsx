@@ -3,6 +3,7 @@ import { Download, TrendingDown, TrendingUp } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
 import { rutaLiquidacion } from '../../../hooks/usePanel';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../../types';
 import { clp, decimalCL, fechaCL, nombreMes, periodo } from '../../../utils/formato';
 import { BotonEnlace, ChipFirma, Seccion } from './comun';
@@ -14,6 +15,7 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
   empleado: Empleado; liquidaciones: Liquidacion[]; firmas: SolicitudFirma[]; cargando: boolean;
   avisar: (t: string) => void;
 }) {
+  const gestionar = usePermisos().puede('REMUNERACIONES', true);
   const ordenadas = [...liquidaciones].sort((a, b) => b.anio - a.anio || b.mes - a.mes);
   const ultimas6 = ordenadas.slice(0, 6).reverse();
   const tope = Math.max(1, ...ultimas6.map((l) => l.total_haberes));
@@ -41,7 +43,7 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
       <Seccion titulo="Remuneraciones">
         <div className="px-[18px] py-5 flex flex-col gap-3 items-start">
           <p className="text-[13px] text-fg-3">Todavía no hay liquidaciones emitidas para este trabajador.</p>
-          <BotonEnlace a={rutaLiquidacion(empleado.id)} primario>Emitir liquidación</BotonEnlace>
+          {gestionar && <BotonEnlace a={rutaLiquidacion(empleado.id)} primario>Emitir liquidación</BotonEnlace>}
         </div>
       </Seccion>
     );
@@ -84,7 +86,7 @@ export function Remuneraciones({ empleado, liquidaciones, firmas, cargando, avis
       </Seccion>
 
       <Seccion titulo="Liquidaciones emitidas"
-        accion={<BotonEnlace a={rutaLiquidacion(empleado.id)}>Emitir liquidación</BotonEnlace>}>
+        accion={gestionar && <BotonEnlace a={rutaLiquidacion(empleado.id)}>Emitir liquidación</BotonEnlace>}>
         {/* Escritorio y tablet: tabla */}
         <div className="hidden min-[720px]:block overflow-x-auto">
           <div className="min-w-[680px]">

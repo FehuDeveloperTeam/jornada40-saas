@@ -23,7 +23,7 @@ import uuid as uuid_mod
 from .documentos import pdf_anexo_contrato, pdf_documento_legal
 from .finiquitos import pdf_finiquito
 from .vacaciones import pdf_vacacion
-from ..autenticacion import actor
+from ..autenticacion import actor, tipos_visibles
 from .base import _ctx_contrato, _es_plan_semilla, _html_a_pdf_bytes, logger
 
 
@@ -81,9 +81,11 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return SolicitudFirma.objects.filter(
+        qs = SolicitudFirma.objects.filter(
             empresa__owner=self.request.user
         ).select_related('empleado', 'empresa')
+        tipos = tipos_visibles(self.request)
+        return qs if tipos is None else qs.filter(tipo_documento__in=tipos)
 
     def list(self, request):
         empleado_id = request.query_params.get('empleado_id')

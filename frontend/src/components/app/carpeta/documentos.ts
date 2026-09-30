@@ -6,6 +6,7 @@ import type {
   AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Finiquito, Liquidacion, SolicitudFirma, VacacionEmpleado,
 } from '../../../types';
 import { fechaCL, periodo } from '../../../utils/formato';
+import { usePermisos } from '../../../hooks/usePermisos';
 import { firmaDe } from './utiles';
 
 export interface DocumentoReciente {
@@ -42,11 +43,12 @@ const TIPO_VACACION: Record<string, string> = {
  * guardar uno ahí refresca la carpeta. El backend filtra por ?empleado=.
  */
 export function useFiniquitos(empleadoId: number | undefined) {
+  const { puede } = usePermisos();
   return useQuery({
     queryKey: ['finiquitos', empleadoId],
     queryFn: async () => comoLista((await client.get<RespuestaLista<Finiquito>>(`/finiquitos/?empleado=${empleadoId}`)).data)
       .filter((f) => f.empleado === empleadoId),
-    enabled: Boolean(empleadoId),
+    enabled: Boolean(empleadoId) && puede('TERMINO'),
   });
 }
 

@@ -24,18 +24,21 @@ import { DocumentosTab } from '../../components/app/carpeta/DocumentosTab';
 import { Lateral } from '../../components/app/carpeta/Lateral';
 import { descargar } from '../../api/descargas';
 import { useCarpeta, useIndicadores, useSuscripcion } from '../../hooks/usePanel';
+import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
+import type { ModuloPanel } from '../../types';
 import { cn } from '../../utils/cn';
 import { antiguedad, capitalizar, clp, fechaCL, hoyISO, iniciales } from '../../utils/formato';
 
 type Pestana = 'resumen' | 'personal' | 'contrato' | 'remuneraciones' | 'vacaciones' | 'documentos';
 
-const PESTANAS: { clave: Pestana; texto: string }[] = [
+// `modulos`: lo que abre la pestaña a un usuario del equipo (sin módulos: la ve cualquiera).
+const PESTANAS: { clave: Pestana; texto: string; modulos?: ModuloPanel[] }[] = [
   { clave: 'resumen', texto: 'Resumen' },
   { clave: 'personal', texto: 'Datos personales' },
-  { clave: 'contrato', texto: 'Contrato y jornada' },
-  { clave: 'remuneraciones', texto: 'Remuneraciones' },
-  { clave: 'vacaciones', texto: 'Vacaciones' },
-  { clave: 'documentos', texto: 'Documentos' },
+  { clave: 'contrato', texto: 'Contrato y jornada', modulos: ['CONTRATOS'] },
+  { clave: 'remuneraciones', texto: 'Remuneraciones', modulos: ['REMUNERACIONES'] },
+  { clave: 'vacaciones', texto: 'Vacaciones', modulos: ['VACACIONES'] },
+  { clave: 'documentos', texto: 'Documentos', modulos: MODULOS_DOCUMENTOS },
 ];
 
 // Todo lo que el backend sabe empaquetar en el expediente ZIP.
@@ -53,6 +56,8 @@ export default function Carpeta() {
   const { cargando: cargandoPlan } = useSuscripcion();
   const indicadores = useIndicadores();
   const [descargandoZip, setDescargandoZip] = useState(false);
+  const { puede } = usePermisos();
+  const pestanas = PESTANAS.filter((p) => !p.modulos || puede(p.modulos));
 
   const orden = useMemo(() => [...trabajadores].sort((a, b) =>
     Number(b.activo) - Number(a.activo) || a.apellido_paterno.localeCompare(b.apellido_paterno)), [trabajadores]);
@@ -69,7 +74,7 @@ export default function Carpeta() {
   const tipoParam = params.get('tipo');
   const tipoAnexo = esCampoAnexo(tipoParam) ? tipoParam : undefined;
   const accion = params.get('accion');
-  const pestana: Pestana = PESTANAS.some((p) => p.clave === pestanaParam) ? pestanaParam! : 'resumen';
+  const pestana: Pestana = pestanas.some((p) => p.clave === pestanaParam) ? pestanaParam! : 'resumen';
 
   const liquidaciones = carpeta.liquidaciones.data ?? [];
   const firmas = carpeta.firmas.data ?? [];
@@ -174,10 +179,12 @@ export default function Carpeta() {
               {empleado.ficha_numero ? `Ficha N° ${empleado.ficha_numero} · ` : ''}{capitalizar(empresa.nombre_legal)}
             </p>
           </div>
-          <Button variante={empleado.activo ? 'peligro-contorno' : 'secundario'} onClick={() => setConfirmarEstado(true)}>
-            {empleado.activo ? 'Desvincular' : 'Reactivar'}
-          </Button>
-          {cargandoPlan ? null : nivel >= 3 ? (
+          {puede('TRABAJADORES', true) && (
+            <Button variante={empleado.activo ? 'peligro-contorno' : 'secundario'} onClick={() => setConfirmarEstado(true)}>
+              {empleado.activo ? 'Desvincular' : 'Reactivar'}
+            </Button>
+          )}
+          {cargandoPlan || !puede('REPORTES') ? null : nivel >= 3 ? (
             <Button variante="secundario" onClick={descargarCarpeta} cargando={descargandoZip}
               iconoInicio={<FolderDown className="size-4" strokeWidth={2} />}>Descargar carpeta</Button>
           ) : (
@@ -198,7 +205,7 @@ export default function Carpeta() {
 
       <nav aria-label="Secciones de la carpeta" className="border-b border-line overflow-x-auto">
         <div className="flex gap-1 min-w-max">
-          {PESTANAS.map((p) => (
+          {pestanas.map((p) => (
             <Link key={p.clave} to={p.clave === 'resumen' ? base : `${base}?tab=${p.clave}`} replace
               aria-current={pestana === p.clave ? 'page' : undefined}
               className={cn('px-3.5 py-2.5 -mb-px border-b-2 text-[13px] font-medium no-underline hover:no-underline whitespace-nowrap',
@@ -230,19 +237,19 @@ export default function Carpeta() {
         <Lateral empleado={empleado} documentos={documentos} nivel={nivel} avisar={avisar} />
       </div>
 
-      {accion === 'anexo' && empleado.contrato_activo && (
+      {accion === 'anexo' && empleado.contrato_activo && puede('CONTRATOS', true) && (
         <DrawerAnexo empleado={empleado} onCerrar={cerrarAccion} avisar={avisar}
           preseleccion={tipoAnexo} />
       )}
-      {accion === 'documento' && (
+      {accion === 'documento' && puede(['DOCUMENTOS', 'TERMINO'], true) && (
         <DrawerDocumento empleado={empleado} nivel={nivel} onCerrar={cerrarAccion} avisar={avisar}
           tipoInicial={(['AMONESTACION', 'CONSTANCIA', 'DESPIDO'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'AMONESTACION') as TipoDocumento} />
       )}
-      {accion === 'laboral' && (nivel >= 2 || params.get('tipo') === 'ENTREGA_EPP') && (
+      {accion === 'laboral' && (nivel >= 2 || params.get('tipo') === 'ENTREGA_EPP') && puede(['DOCUMENTOS', 'SEGURIDAD', 'VACACIONES'], true) && (
         <DrawerDocumentoLaboral empleado={empleado} onCerrar={cerrarAccion} avisar={avisar}
           tipoInicial={(params.get('tipo') && params.get('tipo')! in TITULOS_LABORALES ? params.get('tipo') : nivel >= 2 ? 'HORAS_EXTRA' : 'ENTREGA_EPP') as TipoLaboral} />
       )}
-      {accion === 'vacacion' && nivel >= 2 && <DrawerVacacion empleado={empleado} saldo={carpeta.saldo.data} onCerrar={cerrarAccion} avisar={avisar} />}
+      {accion === 'vacacion' && nivel >= 2 && puede('VACACIONES', true) && <DrawerVacacion empleado={empleado} saldo={carpeta.saldo.data} onCerrar={cerrarAccion} avisar={avisar} />}
 
       <Modal abierto={confirmarEstado} onCerrar={() => !cambiandoEstado && setConfirmarEstado(false)}
         titulo={empleado.activo ? 'Desvincular al trabajador' : 'Reactivar al trabajador'}

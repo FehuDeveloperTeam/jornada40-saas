@@ -8,8 +8,10 @@ import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
 import { rutaLiquidacion, useSolicitudesDocumento } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import type { EstadoSolicitudDocumento, SolicitudDocumentoPanel } from '../../types';
 import { cn } from '../../utils/cn';
+import { moduloDeTipo } from '../../utils/moduloDocumento';
 import { capitalizar, fechaCL } from '../../utils/formato';
 
 const ESTADO: Record<EstadoSolicitudDocumento, { texto: string; tono: TonoChip }> = {
@@ -50,6 +52,9 @@ function rutaCrear(s: SolicitudDocumentoPanel): { a: string; texto: string } | n
 export default function Solicitudes() {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
+  // Atender una solicitud es gestionarla; crear o enviar el documento pide además su módulo.
+  const { puede } = usePermisos();
+  const gestionar = puede('SOLICITUDES', true);
   const solicitudes = useSolicitudesDocumento(empresa.id);
   const [filtro, setFiltro] = useState<EstadoSolicitudDocumento | 'todas'>('PENDIENTE');
   const [ocupada, setOcupada] = useState<number | null>(null);
@@ -122,9 +127,10 @@ export default function Solicitudes() {
                 </span>
                 {s.estado === 'DESCARTADA' && s.motivo_texto && <span className="text-[12.5px] text-fg-2">Motivo: {s.motivo_texto}</span>}
               </div>
-              {pendiente && (() => {
-                const envio = envioAFirma(s);
-                const crear = rutaCrear(s);
+              {pendiente && gestionar && (() => {
+                const deModulo = puede(moduloDeTipo(s.tipo), true);
+                const envio = deModulo ? envioAFirma(s) : null;
+                const crear = deModulo ? rutaCrear(s) : null;
                 return (
                   <div className="flex gap-2 flex-wrap">
                     {crear && (

@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios';
 import { CircleCheck, CircleDashed, Send } from 'lucide-react';
 import { Button } from '../../j40';
 import client from '../../../api/client';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, EstadoPortal } from '../../../types';
 import { fechaCL } from '../../../utils/formato';
 import { Seccion } from './comun';
@@ -14,6 +15,8 @@ export function PortalTrabajador({ empleado, avisar }: {
   empleado: Empleado; avisar: (texto: string, tipo?: 'ok' | 'error') => void;
 }) {
   const queryClient = useQueryClient();
+  const { esTitular, puede } = usePermisos();
+  const gestionar = puede('TRABAJADORES', true);
   const [enviando, setEnviando] = useState(false);
   const clave = ['portal-trabajador', empleado.id, empleado.email];
   const portal = useQuery({
@@ -52,11 +55,11 @@ export function PortalTrabajador({ empleado, avisar }: {
             {p.acceso_hasta && p.estado !== 'SIN_ACCESO' && (
               <p className="text-[13px] text-fg-2">Puede entrar hasta el {fechaCL(p.acceso_hasta)}.</p>
             )}
-            {p.estado === 'SIN_CORREO' && (
+            {p.estado === 'SIN_CORREO' && gestionar && (
               <Link to={`/app/trabajadores/${empleado.id}?tab=personal`} className="text-[14px] font-medium">Agregar correo</Link>
             )}
-            {p.estado === 'SIN_PLAN' && <Link to="/app/plan" className="text-[14px] font-medium">Ver planes</Link>}
-            {(p.estado === 'NO_INGRESA' || p.estado === 'ACTIVO') && (
+            {p.estado === 'SIN_PLAN' && esTitular && <Link to="/app/plan" className="text-[14px] font-medium">Ver planes</Link>}
+            {(p.estado === 'NO_INGRESA' || p.estado === 'ACTIVO') && gestionar && (
               <>
                 <Button variante={activo ? 'secundario' : 'primario'} onClick={() => void invitar()} cargando={enviando}
                   disabled={!p.puede_invitar} iconoInicio={<Send className="size-4" strokeWidth={2} />} className="self-start">

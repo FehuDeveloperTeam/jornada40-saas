@@ -32,7 +32,7 @@ const client = axios.create({
  * página, salvo en las rutas públicas.
  */
 // '/trabajador/': el portal del trabajador tiene su propia sesión (responde 403 sin ella).
-const SIN_RENOVAR = ['/auth/login/', '/auth/token/refresh/', '/auth/logout/', '/firma-publica/', '/trabajador/',
+const SIN_RENOVAR = ['/auth/login/', '/auth/equipo/', '/auth/token/refresh/', '/auth/logout/', '/firma-publica/', '/trabajador/',
     '/inspeccion/ingreso/', '/inspeccion/verificar/', '/inspeccion/yo/', '/inspeccion/salir/', '/inspeccion/trabajadores/',
     '/inspeccion/documentos/', '/inspeccion/descargar/', '/inspeccion/ratificar/'];
 let renovando: Promise<boolean> | null = null;
@@ -44,10 +44,25 @@ function renovarSesion(): Promise<boolean> {
     return renovando;
 }
 
+/**
+ * El titular y los usuarios del equipo entran por puertas distintas: se
+ * recuerda por cuál entró este navegador para devolverlo a la misma.
+ */
+const CLAVE_INGRESO = 'j40-ingreso';
+export function recordarIngreso(tipo: 'titular' | 'equipo') {
+    try { localStorage.setItem(CLAVE_INGRESO, tipo); } catch { /* sin almacenamiento: vuelve al ingreso del titular */ }
+}
+export function rutaIngreso(volver?: string): string {
+    let tipo: string | null = null;
+    try { tipo = localStorage.getItem(CLAVE_INGRESO); } catch { /* sin almacenamiento */ }
+    const base = tipo === 'equipo' ? '/equipo' : '/login';
+    return volver ? `${base}?volver=${encodeURIComponent(volver)}` : base;
+}
+
 export function irAlLogin() {
     const { pathname, search } = window.location;
     if (!pathname.startsWith('/app') && !pathname.startsWith('/bienvenida')) return;
-    window.location.assign(`/login?volver=${encodeURIComponent(pathname + search)}`);
+    window.location.assign(rutaIngreso(pathname + search));
 }
 
 /**
@@ -73,6 +88,11 @@ client.interceptors.response.use(undefined, async (error: AxiosError) => {
             return client(config);
         }
         return Promise.reject(error);
+    }
+    // El cerco del equipo responde 403 con `detail`: las pantallas muestran `error`.
+    const datos = error.response?.data as { detail?: unknown; error?: unknown } | undefined;
+    if (error.response?.status === 403 && datos && typeof datos === 'object' && typeof datos.detail === 'string' && !datos.error) {
+        datos.error = datos.detail;
     }
     if (error.response?.status !== 401 || !config || config._reintento || config._sinRenovar
         || SIN_RENOVAR.some((ruta) => url.includes(ruta))) {

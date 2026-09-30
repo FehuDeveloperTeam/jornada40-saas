@@ -4,6 +4,7 @@ import { Download } from 'lucide-react';
 import { Button } from '../../j40';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, SolicitudFirma } from '../../../types';
 import { capitalizar, clp, fechaCL } from '../../../utils/formato';
 import { ListaAvisos } from '../Avisos';
@@ -30,12 +31,13 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
   empleado: Empleado; firmas: SolicitudFirma[]; maximo: number | undefined; avisar: (t: string) => void;
 }) {
   const contrato = empleado.contrato_activo;
+  const gestionar = usePermisos().puede('CONTRATOS', true);
   if (!contrato) {
     return (
       <Seccion titulo="Contrato">
         <div className="px-[18px] py-5 flex flex-col gap-3 items-start">
           <p className="text-[13px] text-fg-3">Este trabajador todavía no tiene un contrato registrado.</p>
-          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')} primario>Crear contrato</BotonEnlace>
+          {gestionar && <BotonEnlace a={rutaAccion(empleado.id, 'contrato')} primario>Crear contrato</BotonEnlace>}
         </div>
       </Seccion>
     );
@@ -68,7 +70,7 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
           <Dato t="Inicio" v={fechaCL(contrato.fecha_inicio)} />
           <Dato t="Término" v={contrato.fecha_fin ? fechaCL(contrato.fecha_fin) : 'Sin fecha de término'} />
           <Dato t="Sueldo base" v={clp(contrato.sueldo_base)}
-            extra={<Link to={rutaAccion(empleado.id, 'anexo', 'sueldo_base')} className="text-[12px] font-medium">Cambiar con anexo</Link>} />
+            extra={gestionar && <Link to={rutaAccion(empleado.id, 'anexo', 'sueldo_base')} className="text-[12px] font-medium">Cambiar con anexo</Link>} />
           <Dato t="Gratificación" v={contrato.gratificacion_legal === 'ANUAL' ? 'Anual (art. 47)' : 'Mensual (art. 50)'} />
           <Dato t="Día de pago" v={`Día ${contrato.dia_pago} de cada mes`} />
           <Dato t="Anticipo" v={contrato.tiene_quincena ? `${clp(contrato.monto_quincena)} el día ${contrato.dia_quincena}` : 'Sin anticipo'} />
@@ -77,8 +79,8 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
           <Button variante="secundario" className="h-9" onClick={pdf} iconoInicio={<Download className="size-4" strokeWidth={2} />}>
             Descargar contrato
           </Button>
-          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')}>{condicionesFijas ? 'Ver contrato' : 'Editar contrato'}</BotonEnlace>
-          <BotonEnlace a={rutaAccion(empleado.id, 'anexo')}>Crear anexo</BotonEnlace>
+          <BotonEnlace a={rutaAccion(empleado.id, 'contrato')}>{condicionesFijas || !gestionar ? 'Ver contrato' : 'Editar contrato'}</BotonEnlace>
+          {gestionar && <BotonEnlace a={rutaAccion(empleado.id, 'anexo')}>Crear anexo</BotonEnlace>}
         </div>
       </Seccion>
 
@@ -96,9 +98,11 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
             </span>
           </div>
           {!esArt22 && maximo !== undefined && <BarraJornada horas={horas} maximo={maximo} />}
-          <Link to={rutaAccion(empleado.id, 'anexo', 'horas_semanales')} className="text-[12.5px] font-medium self-start">
-            Cambiar la jornada con anexo
-          </Link>
+          {gestionar && (
+            <Link to={rutaAccion(empleado.id, 'anexo', 'horas_semanales')} className="text-[12.5px] font-medium self-start">
+              Cambiar la jornada con anexo
+            </Link>
+          )}
           <ListaAvisos avisos={contrato.avisos_jornada} />
           {contrato.jornada_personalizada && (
             <p className="text-[13px] text-fg-2 whitespace-pre-line">{contrato.jornada_personalizada}</p>

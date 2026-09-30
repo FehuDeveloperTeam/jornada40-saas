@@ -103,6 +103,7 @@ urlpatterns = [
     path('auth/equipo/clave/', equipo.clave_equipo, name='clave_equipo'),
     path('auth/sesion/', equipo.sesion, name='sesion'),
     path('bitacora/verificar/', vista_bitacora.verificar_bitacora, name='verificar_bitacora'),
+    path('bitacora/exportar/', vista_bitacora.exportar_bitacora, name='exportar_bitacora'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
     # Firma electrónica — endpoints públicos (sin autenticación)
     path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),

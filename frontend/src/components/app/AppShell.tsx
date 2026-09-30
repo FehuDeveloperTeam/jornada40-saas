@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight, Banknote, ChartColumn, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, CircleAlert, CreditCard,
-  Ellipsis, FileUp, Inbox, Info, Landmark, LayoutDashboard, LogOut, Plus, ScrollText, Search, Shapes, Signature, TriangleAlert, UserPlus, UserRound, Users, X,
+  Ellipsis, FileUp, Inbox, Info, Landmark, LayoutDashboard, LogOut, Plus, ScrollText, Search, Shapes, Signature, TriangleAlert, UserCog, UserPlus, UserRound, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
@@ -12,7 +12,9 @@ import {
   useEmpresaActiva, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
 } from '../../hooks/usePanel';
 import type { Suscripcion } from '../../hooks/usePanel';
-import type { Empleado, Empresa } from '../../types';
+import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
+import type { Permisos } from '../../hooks/usePermisos';
+import type { Empleado, Empresa, ModuloPanel } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, decimalCL, iniciales } from '../../utils/formato';
 import { DrawerTrabajador } from './DrawerTrabajador';
@@ -61,18 +63,29 @@ interface ItemNav {
   /** Pantallas hijas que marcan este ítem como activo (p. ej. Plan → Empresa). */
   hijas?: string[];
   fin?: boolean;
+  /** Módulos que abren el ítem a un usuario del equipo (basta uno). Sin módulos: todos lo ven. */
+  modulos?: ModuloPanel[];
+  /** Solo para el titular de la cuenta. */
+  titular?: boolean;
+}
+
+/** Si el ítem se muestra a quien está conectado. */
+function visible(item: { modulos?: ModuloPanel[]; titular?: boolean }, permisos: Permisos): boolean {
+  if (item.titular) return permisos.esTitular;
+  return !item.modulos || permisos.puede(item.modulos);
 }
 
 const NAV: ItemNav[] = [
   { a: '/app', etiqueta: 'Inicio', corta: 'Inicio', Icono: LayoutDashboard, fin: true },
-  { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users },
-  { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote },
-  { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature },
-  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark },
-  { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', corta: 'Seguridad', Icono: ScrollText },
-  { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox },
-  { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn },
-  { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'] },
+  { a: '/app/trabajadores', etiqueta: 'Trabajadores', corta: 'Personal', Icono: Users, modulos: ['TRABAJADORES'] },
+  { a: '/app/remuneraciones', etiqueta: 'Remuneraciones', corta: 'Sueldos', Icono: Banknote, modulos: ['REMUNERACIONES'] },
+  { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature, modulos: MODULOS_DOCUMENTOS },
+  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark, modulos: ['DIRECCION_TRABAJO'] },
+  { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', corta: 'Seguridad', Icono: ScrollText, modulos: ['SEGURIDAD'] },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES'] },
+  { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn, modulos: ['REPORTES'] },
+  { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'], titular: true },
+  { a: '/app/equipo', etiqueta: 'Usuarios y bitácora', corta: 'Usuarios', Icono: UserCog, titular: true },
 ];
 
 const ESTADO_SUSCRIPCION: Record<string, { texto: string; tono: 'ok' | 'marca' | 'aviso' | 'peligro' }> = {
@@ -100,6 +113,7 @@ export default function AppShell() {
   const { suscripcion, nivel, maxEmpresas, cargando: cargandoPlan, error: errorSuscripcion, reintentar } = useSuscripcion();
   const reintentarSuscripcion = useCallback(() => { void reintentar(); }, [reintentar]);
   const trabajadores = useTrabajadores(empresa?.id);
+  const permisos = usePermisos();
   const [drawerTrabajador, setDrawerTrabajador] = useState(false);
   // Cambia en cada apertura: el formulario se monta de nuevo y parte vacío.
   const [aperturaDrawer, setAperturaDrawer] = useState(0);
@@ -159,7 +173,8 @@ export default function AppShell() {
   }
 
   const volvioAGratis = suscripcion?.estado === 'CANCELED' && !suscripcion.plan.precio;
-  const aviso = volvioAGratis ? (avisoGratisCerrado ? undefined : AVISO_PLAN_GRATIS) : suscripcion && AVISO_SUSCRIPCION[suscripcion.estado];
+  // Los avisos del plan son para el titular: el equipo no puede hacer nada con ellos.
+  const aviso = !permisos.esTitular ? undefined : volvioAGratis ? (avisoGratisCerrado ? undefined : AVISO_PLAN_GRATIS) : suscripcion && AVISO_SUSCRIPCION[suscripcion.estado];
   const cerrarAvisoGratis = () => {
     setAvisoGratisCerrado(true);
     try { localStorage.setItem(CLAVE_AVISO_GRATIS, '1'); } catch { /* sin almacenamiento: vuelve a verse al recargar */ }
@@ -174,7 +189,8 @@ export default function AppShell() {
           abrirPaleta={() => setPaletaAbierta(true)} />
         <div className="flex-1 min-w-0 flex flex-col">
           <Encabezado empresa={contexto.empresa} empresas={empresas} cambiarEmpresa={cambiar} maxEmpresas={maxEmpresas}
-            abrirPaleta={() => setPaletaAbierta(true)} agregarTrabajador={contexto.agregarTrabajador} />
+            abrirPaleta={() => setPaletaAbierta(true)}
+            agregarTrabajador={permisos.puede('TRABAJADORES', true) ? contexto.agregarTrabajador : undefined} />
           <main className="flex-1 p-[clamp(16px,2.4vw,32px)] pb-24 min-[720px]:pb-[clamp(16px,2.4vw,32px)]">
             {aviso && (
               <div role="status" className={cn('max-w-[1440px] mx-auto mb-[18px] flex gap-3 items-center flex-wrap px-4 py-3 rounded-j40-card', aviso.clase)}>
@@ -202,7 +218,7 @@ export default function AppShell() {
         <BarraInferior />
         <ConfirmarIdentidad />
         <Paleta key={String(paletaAbierta)} abierta={paletaAbierta} onCerrar={() => setPaletaAbierta(false)} trabajadores={contexto.trabajadores}
-          agregarTrabajador={contexto.agregarTrabajador} />
+          agregarTrabajador={contexto.agregarTrabajador} permisos={permisos} />
         <DrawerTrabajador key={aperturaDrawer} abierto={drawerTrabajador} onCerrar={() => setDrawerTrabajador(false)} />
         {toast && (toast.tipo === 'error' ? (
           <div key={toast.id} role="alert" className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[90] flex items-start gap-2.5 w-max max-w-[min(560px,calc(100vw-32px))] pl-4 pr-2 py-2.5 rounded-[10px] bg-[#3A1418] text-white text-[13px] shadow-pop border border-[#E5484D]/60 j40-anim-pop">
@@ -230,19 +246,21 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
   suscripcion: Suscripcion | undefined; totalTrabajadores: number; abrirPaleta: () => void;
 }) {
   const { user, logout } = useAuth();
+  const permisos = usePermisos();
   const navigate = useNavigate();
   const esMac = /Mac|iPhone|iPad/.test(navigator.platform);
   const estado = suscripcion ? ESTADO_SUSCRIPCION[suscripcion.estado] : undefined;
   const limite = suscripcion?.plan.limite_trabajadores ?? 0;
   const uso = limite ? Math.min(100, Math.round(((suscripcion?.trabajadores_actuales ?? 0) / limite) * 100)) : 0;
   // Registros en la DT vencidos o por vencer: si la consulta falla, el menú se ve igual sin la cifra.
-  const registroDT = useRegistroDT(empresa.id);
+  const registroDT = useRegistroDT(empresa.id, permisos.puede('DIRECCION_TRABAJO'));
   const urgentesDT = registroDT.data ? registroDT.data.resumen.VENCIDO + registroDT.data.resumen.por_vencer : 0;
   // Documentos pedidos desde el portal del trabajador que esperan respuesta.
-  const solicitudes = useSolicitudesDocumento(empresa.id);
+  const solicitudes = useSolicitudesDocumento(empresa.id, permisos.puede('SOLICITUDES'));
   const porAtender = (solicitudes.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
 
-  const salir = async () => { await logout(); navigate('/login'); };
+  const salir = async () => { await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
+  const equipo = permisos.esTitular ? undefined : permisos.sesion;
 
   return (
     <aside className="hidden min-[720px]:flex sticky top-0 h-screen shrink-0 w-[72px] min-[1080px]:w-[252px] flex-col gap-1 px-3 py-3.5 bg-surface border-r border-line z-30">
@@ -261,7 +279,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
       </button>
 
       <nav aria-label="Principal" className="flex flex-col gap-1">
-        {NAV.map((item) => (
+        {NAV.filter((item) => visible(item, permisos)).map((item) => (
           <ItemLateral key={item.etiqueta} item={item}
             badge={item.a === '/app/trabajadores' ? totalTrabajadores
               : item.a === '/app/dt' && urgentesDT > 0 ? urgentesDT
@@ -274,6 +292,12 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
 
       <div className="flex-1" />
 
+      {equipo ? (
+        <div className="hidden min-[1080px]:flex flex-col gap-1 p-3 mb-2 rounded-[10px] border border-line bg-surface-2">
+          <span className="text-[12.5px] font-semibold">Usuario del equipo</span>
+          <span className="text-[12px] text-fg-3">Cuenta de {equipo.cuenta}. Ves solo las secciones que te asignó el titular.</span>
+        </div>
+      ) : (
       <Link to="/app/plan" title="Plan y facturación"
         className="hidden min-[1080px]:flex flex-col gap-2 p-3 mb-2 rounded-[10px] border border-line bg-surface text-fg no-underline hover:no-underline hover:border-line-strong">
         <span className="flex items-center justify-between w-full">
@@ -288,6 +312,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
           {suscripcion?.trabajadores_actuales ?? 0} de {limite} trabajadores · {empresas.length} de {maxEmpresas} {maxEmpresas === 1 ? 'empresa' : 'empresas'}
         </span>
       </Link>
+      )}
 
       <div className="flex items-center gap-2.5 px-1 py-1.5">
         <Link to="/app/cuenta" title="Mi cuenta" className="flex flex-1 min-w-0 items-center gap-2.5 rounded-[8px] no-underline hover:no-underline text-fg hover:bg-sunken">
@@ -296,7 +321,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
           </span>
           <span className="hidden min-[1080px]:flex flex-1 min-w-0 flex-col">
             <span className="text-[13px] font-medium truncate">{capitalizar(user?.first_name) || 'Mi cuenta'}</span>
-            <span className="text-[11.5px] text-fg-3 truncate j40-mono">{user?.username}</span>
+            <span className="text-[11.5px] text-fg-3 truncate j40-mono">{equipo ? 'Equipo' : user?.username}</span>
           </span>
         </Link>
         <Button variante="fantasma" soloIcono tamano="sm" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={salir}
@@ -352,6 +377,7 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
 }) {
   const [abierto, setAbierto] = useState(false);
   const navigate = useNavigate();
+  const { esTitular } = usePermisos();
 
   useEffect(() => {
     if (!abierto) return;
@@ -393,7 +419,9 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
             'z-[61] p-1.5 rounded-j40-card border border-line bg-surface shadow-pop j40-anim-pop max-h-[calc(100dvh-140px)] overflow-y-auto',
             variante === 'lateral' ? 'absolute top-full mt-1 left-0 w-[min(300px,calc(100vw-24px))]' : 'fixed top-[64px] left-3 right-3 max-w-[360px]',
           )}>
-            <div className="text-[11.5px] text-fg-3 px-2.5 pt-2 pb-1.5">Tus empresas · {empresas.length} de {maxEmpresas} en uso</div>
+            <div className="text-[11.5px] text-fg-3 px-2.5 pt-2 pb-1.5">
+              {esTitular ? `Tus empresas · ${empresas.length} de ${maxEmpresas} en uso` : 'Empresas que puedes ver'}
+            </div>
             {empresas.map((e) => (
               <button key={e.id} type="button" role="menuitemradio" aria-checked={e.id === empresa.id}
                 onClick={() => { cambiar(e.id); setAbierto(false); }}
@@ -407,10 +435,12 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
                 {e.id === empresa.id && <Check className="size-[18px] text-brand-text" strokeWidth={2} aria-hidden />}
               </button>
             ))}
-            <button type="button" role="menuitem" onClick={() => { setAbierto(false); navigate('/app/empresas'); }}
-              className="flex items-center gap-2.5 w-full mt-1 p-2.5 rounded-[8px] text-fg-2 text-[13px] text-left cursor-pointer hover:bg-sunken">
-              <Plus className="size-[19px]" strokeWidth={2} aria-hidden />Agregar o administrar empresas
-            </button>
+            {esTitular && (
+              <button type="button" role="menuitem" onClick={() => { setAbierto(false); navigate('/app/empresas'); }}
+                className="flex items-center gap-2.5 w-full mt-1 p-2.5 rounded-[8px] text-fg-2 text-[13px] text-left cursor-pointer hover:bg-sunken">
+                <Plus className="size-[19px]" strokeWidth={2} aria-hidden />Agregar o administrar empresas
+              </button>
+            )}
           </div>
         </>
       )}
@@ -422,7 +452,7 @@ function SelectorEmpresa({ empresa, empresas, cambiar, maxEmpresas, variante }: 
 
 function Encabezado({ empresa, empresas, cambiarEmpresa, maxEmpresas, abrirPaleta, agregarTrabajador }: {
   empresa: Empresa; empresas: Empresa[]; cambiarEmpresa: (id: number) => void; maxEmpresas: number;
-  abrirPaleta: () => void; agregarTrabajador: () => void;
+  abrirPaleta: () => void; agregarTrabajador?: () => void;
 }) {
   const indicadores = useIndicadores();
   const migas = useMigas(empresa);
@@ -458,10 +488,12 @@ function Encabezado({ empresa, empresas, cambiarEmpresa, maxEmpresas, abrirPalet
         <Search className="size-[22px]" strokeWidth={2} />
       </Button>
       <ToggleTema />
-      <Button onClick={agregarTrabajador} className="hidden min-[720px]:inline-flex h-[38px] pl-2.5 pr-3.5"
-        iconoInicio={<Plus className="size-5" strokeWidth={2} />}>
-        Agregar trabajador
-      </Button>
+      {agregarTrabajador && (
+        <Button onClick={agregarTrabajador} className="hidden min-[720px]:inline-flex h-[38px] pl-2.5 pr-3.5"
+          iconoInicio={<Plus className="size-5" strokeWidth={2} />}>
+          Agregar trabajador
+        </Button>
+      )}
     </header>
   );
 }
@@ -502,6 +534,7 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
   if (pathname.startsWith('/app/empresas')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Todas las empresas' }];
   if (pathname.startsWith('/app/empresa')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa' }];
   if (pathname.startsWith('/app/plan')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Empresa', a: '/app/empresa' }, { texto: 'Plan y facturación' }];
+  if (pathname.startsWith('/app/equipo')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Usuarios y bitácora' }];
   if (pathname.startsWith('/app/cuenta')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Mi cuenta' }];
   if (pathname.startsWith('/app/dt')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Dirección del Trabajo' }];
   if (pathname.startsWith('/app/reglamento')) return [{ texto: nombreEmpresa, a: '/app' }, { texto: 'Reglamento y seguridad' }];
@@ -515,13 +548,14 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 
 // Lo que no cabe en la barra inferior va en "Más".
 const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firmas'];
-const MAS: { a: string; etiqueta: string; Icono: LucideIcon }[] = [
-  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark },
-  { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', Icono: ScrollText },
-  { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox },
-  { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2 },
-  { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn },
-  { a: '/app/plan', etiqueta: 'Plan y facturación', Icono: CreditCard },
+const MAS: { a: string; etiqueta: string; Icono: LucideIcon; modulos?: ModuloPanel[]; titular?: boolean }[] = [
+  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark, modulos: ['DIRECCION_TRABAJO'] },
+  { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', Icono: ScrollText, modulos: ['SEGURIDAD'] },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES'] },
+  { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2, titular: true },
+  { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn, modulos: ['REPORTES'] },
+  { a: '/app/equipo', etiqueta: 'Usuarios y bitácora', Icono: UserCog, titular: true },
+  { a: '/app/plan', etiqueta: 'Plan y facturación', Icono: CreditCard, titular: true },
   { a: '/app/cuenta', etiqueta: 'Mi cuenta', Icono: UserRound },
 ];
 
@@ -530,7 +564,9 @@ function BarraInferior() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const enMas = MAS.some((m) => pathname.startsWith(m.a));
+  const permisos = usePermisos();
+  const mas_ = MAS.filter((m) => visible(m, permisos));
+  const enMas = mas_.some((m) => pathname.startsWith(m.a));
 
   useEffect(() => {
     if (!mas) return;
@@ -539,12 +575,12 @@ function BarraInferior() {
     return () => document.removeEventListener('keydown', alTeclear);
   }, [mas]);
 
-  const salir = async () => { setMas(false); await logout(); navigate('/login'); };
+  const salir = async () => { setMas(false); await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
 
   return (
     <>
       <nav aria-label="Principal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
-        {NAV.filter((n) => EN_BARRA.includes(n.a)).map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
+        {NAV.filter((n) => EN_BARRA.includes(n.a) && visible(n, permisos)).map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
           <NavLink key={etiqueta} to={a} end={fin} onClick={() => setMas(false)}
             className={({ isActive }) => cn(
               'flex flex-col items-center justify-center gap-[3px] min-w-0 h-[52px] text-[10.5px] font-medium no-underline hover:no-underline',
@@ -564,7 +600,7 @@ function BarraInferior() {
           <div className="min-[720px]:hidden fixed inset-0 z-[38] bg-overlay" onClick={() => setMas(false)} aria-hidden />
           <div role="menu" aria-label="Más opciones"
             className="min-[720px]:hidden fixed left-3 right-3 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[39] p-1.5 rounded-j40-card border border-line bg-surface shadow-pop j40-anim-pop">
-            {MAS.map(({ a, etiqueta, Icono }) => (
+            {mas_.map(({ a, etiqueta, Icono }) => (
               <Link key={a} to={a} role="menuitem" onClick={() => setMas(false)}
                 className={cn('flex items-center gap-3 h-12 px-3 rounded-[8px] text-[14px] no-underline hover:no-underline',
                   pathname.startsWith(a) ? 'bg-brand-soft text-brand-text font-semibold' : 'text-fg hover:bg-sunken')}>
@@ -586,8 +622,8 @@ function BarraInferior() {
 
 interface Resultado { clave: string; Icono: LucideIcon; texto: string; detalle?: string; ejecutar: () => void }
 
-function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
-  abierta: boolean; onCerrar: () => void; trabajadores: Empleado[]; agregarTrabajador: () => void;
+function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador, permisos }: {
+  abierta: boolean; onCerrar: () => void; trabajadores: Empleado[]; agregarTrabajador: () => void; permisos: Permisos;
 }) {
   const navigate = useNavigate();
   const [q, setQ] = useState('');
@@ -623,24 +659,29 @@ function Paleta({ abierta, onCerrar, trabajadores, agregarTrabajador }: {
       ejecutar: ir(() => navigate(`/app/trabajadores/${t.id}`)),
     }));
 
+  // Cada acción dice qué la abre a un usuario del equipo (ver `visible`).
+  type Accion = Resultado & { modulos?: ModuloPanel[]; titular?: boolean; gestionar?: boolean };
   const acciones: Resultado[] = ([
-    { clave: 'agregar', Icono: UserPlus, texto: 'Agregar trabajador', ejecutar: ir(agregarTrabajador) },
+    { clave: 'agregar', Icono: UserPlus, texto: 'Agregar trabajador', ejecutar: ir(agregarTrabajador), modulos: ['TRABAJADORES'], gestionar: true },
     { clave: 'trab', Icono: Users, texto: 'Ver trabajadores', ejecutar: ir(() => navigate('/app/trabajadores')) },
     { clave: 'inicio', Icono: LayoutDashboard, texto: 'Ir a Inicio', ejecutar: ir(() => navigate('/app')) },
-    { clave: 'rem', Icono: Banknote, texto: 'Remuneraciones del mes', ejecutar: ir(() => navigate('/app/remuneraciones')) },
-    { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')) },
-    { clave: 'firmas', Icono: Signature, texto: 'Firma electrónica', ejecutar: ir(() => navigate('/app/firmas')) },
-    { clave: 'dt', Icono: Landmark, texto: 'Dirección del Trabajo · registro de contratos en Mi DT', ejecutar: ir(() => navigate('/app/dt')) },
-    { clave: 'reglamento', Icono: ScrollText, texto: 'Reglamento interno, riesgos del trabajo y Ley Karin', ejecutar: ir(() => navigate('/app/reglamento')) },
-    { clave: 'consentimiento', Icono: Landmark, texto: 'Autorización de documentos electrónicos', ejecutar: ir(() => navigate('/app/dt')) },
-    { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')) },
-    { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', ejecutar: ir(() => navigate('/app/trabajadores/importar')) },
-    { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/app/plan')) },
-    { clave: 'empresa', Icono: Building2, texto: 'Datos de la empresa', ejecutar: ir(() => navigate('/app/empresa')) },
-    { clave: 'empresas', Icono: Building2, texto: 'Agregar o administrar empresas', ejecutar: ir(() => navigate('/app/empresas')) },
-    { clave: 'reportes', Icono: ChartColumn, texto: 'Reportes multiempresa', ejecutar: ir(() => navigate('/app/reportes')) },
+    { clave: 'rem', Icono: Banknote, texto: 'Remuneraciones del mes', ejecutar: ir(() => navigate('/app/remuneraciones')), modulos: ['REMUNERACIONES'] },
+    { clave: 'liq', Icono: Banknote, texto: 'Nueva liquidación', ejecutar: ir(() => navigate('/app/remuneraciones')), modulos: ['REMUNERACIONES'], gestionar: true },
+    { clave: 'firmas', Icono: Signature, texto: 'Firma electrónica', ejecutar: ir(() => navigate('/app/firmas')), modulos: MODULOS_DOCUMENTOS },
+    { clave: 'dt', Icono: Landmark, texto: 'Dirección del Trabajo · registro de contratos en Mi DT', ejecutar: ir(() => navigate('/app/dt')), modulos: ['DIRECCION_TRABAJO'] },
+    { clave: 'reglamento', Icono: ScrollText, texto: 'Reglamento interno, riesgos del trabajo y Ley Karin', ejecutar: ir(() => navigate('/app/reglamento')), modulos: ['SEGURIDAD'] },
+    { clave: 'consentimiento', Icono: Landmark, texto: 'Autorización de documentos electrónicos', ejecutar: ir(() => navigate('/app/dt')), modulos: ['DIRECCION_TRABAJO'] },
+    { clave: 'conc', Icono: Shapes, texto: 'Catálogo de conceptos', ejecutar: ir(() => navigate('/app/remuneraciones/conceptos')), modulos: ['REMUNERACIONES'] },
+    { clave: 'imp', Icono: FileUp, texto: 'Importar trabajadores desde Excel', ejecutar: ir(() => navigate('/app/trabajadores/importar')), modulos: ['TRABAJADORES'], gestionar: true },
+    { clave: 'plan', Icono: Building2, texto: 'Plan y facturación', ejecutar: ir(() => navigate('/app/plan')), titular: true },
+    { clave: 'empresa', Icono: Building2, texto: 'Datos de la empresa', ejecutar: ir(() => navigate('/app/empresa')), titular: true },
+    { clave: 'empresas', Icono: Building2, texto: 'Agregar o administrar empresas', ejecutar: ir(() => navigate('/app/empresas')), titular: true },
+    { clave: 'equipo', Icono: UserCog, texto: 'Usuarios del equipo y bitácora', ejecutar: ir(() => navigate('/app/equipo')), titular: true },
+    { clave: 'reportes', Icono: ChartColumn, texto: 'Reportes multiempresa', ejecutar: ir(() => navigate('/app/reportes')), modulos: ['REPORTES'] },
     { clave: 'cuenta', Icono: Users, texto: 'Mi cuenta', ejecutar: ir(() => navigate('/app/cuenta')) },
-  ] as Resultado[]).filter((a) => !texto || a.texto.toLowerCase().includes(texto));
+  ] as Accion[])
+    .filter((a) => visible(a, permisos) && (!a.gestionar || !a.modulos || permisos.puede(a.modulos, true)))
+    .filter((a) => !texto || a.texto.toLowerCase().includes(texto));
 
   const todos = [...personas, ...acciones];
   const activo = Math.min(marcado, Math.max(0, todos.length - 1));

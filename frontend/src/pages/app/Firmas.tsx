@@ -9,8 +9,10 @@ import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
 import { useFirmas } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import type { SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
+import { moduloDeTipo } from '../../utils/moduloDocumento';
 import { capitalizar, fechaCL } from '../../utils/formato';
 
 type Estado = SolicitudFirma['estado'];
@@ -65,6 +67,8 @@ const datosReenvio = (f: SolicitudFirma) => ({
 export default function Firmas() {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
+  // La firma del empleador es de la empresa (solo titular); cada solicitud, del módulo de su documento.
+  const { esTitular, puede } = usePermisos();
   const firmas = useFirmas();
   const [filtro, setFiltro] = useState<Filtro>('PENDIENTE');
   const [busqueda, setBusqueda] = useState('');
@@ -127,9 +131,11 @@ export default function Firmas() {
           <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">Firma electrónica</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">Documentos enviados a firmar por correo · firma electrónica simple (Ley 19.799)</p>
         </div>
-        <Button variante="secundario" onClick={() => setConfigurar(true)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>
-          Firma del empleador
-        </Button>
+        {esTitular && (
+          <Button variante="secundario" onClick={() => setConfigurar(true)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>
+            Firma del empleador
+          </Button>
+        )}
       </div>
 
       {!empresa.firma_configurada && (
@@ -139,7 +145,7 @@ export default function Firmas() {
             <strong className="font-semibold">Falta la firma del empleador.</strong> Sin ella, los documentos firmados muestran
             "Sin firma registrada" en la parte del empleador.
           </p>
-          <Button tamano="sm" onClick={() => setConfigurar(true)}>Configurar ahora</Button>
+          {esTitular && <Button tamano="sm" onClick={() => setConfigurar(true)}>Configurar ahora</Button>}
         </div>
       )}
 
@@ -167,6 +173,7 @@ export default function Firmas() {
           const e = estado === 'VENCIDA' ? VENCIDA : ESTADO[estado] ?? ESTADO.CANCELADO;
           const ultima = esUltima(f);
           const cargando = (k: string) => ocupada === `${k}${f.id}`;
+          const gestionar = puede(moduloDeTipo(f.tipo_documento), true);
           return (
             <div key={f.id} className="flex flex-wrap items-center gap-x-4 gap-y-2.5 px-[18px] py-3.5 border-b border-line last:border-b-0">
               <div className="flex-1 min-w-[240px] flex flex-col gap-0.5">
@@ -206,7 +213,7 @@ export default function Firmas() {
                 </details>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {estado === 'PENDIENTE' && (
+                {estado === 'PENDIENTE' && gestionar && (
                   <>
                     <Button variante="secundario" tamano="sm" cargando={cargando('r')} iconoInicio={<Mail className="size-4" strokeWidth={2} />}
                       onClick={() => accion(`r${f.id}`, () => client.post(`/firmas/${f.id}/reenviar/`), 'Correo de firma reenviado')}>Reenviar correo</Button>
@@ -218,7 +225,7 @@ export default function Firmas() {
                   <Button variante="secundario" tamano="sm" cargando={cargando('d')} iconoInicio={<Download className="size-4" strokeWidth={2} />}
                     onClick={() => descargar(f)}>PDF firmado</Button>
                 )}
-                {ultima && (estado === 'RECHAZADO' || estado === 'VENCIDA' || estado === 'CANCELADO') && (
+                {ultima && gestionar && (estado === 'RECHAZADO' || estado === 'VENCIDA' || estado === 'CANCELADO') && (
                   <Button variante="secundario" tamano="sm" cargando={cargando('n')} iconoInicio={f.estado === 'RECHAZADO' ? <RotateCcw className="size-4" strokeWidth={2} /> : <Send className="size-4" strokeWidth={2} />}
                     onClick={() => accion(`n${f.id}`, () => client.post('/firmas/solicitar/', datosReenvio(f)), 'Documento enviado a firma de nuevo')}>
                     Enviar de nuevo

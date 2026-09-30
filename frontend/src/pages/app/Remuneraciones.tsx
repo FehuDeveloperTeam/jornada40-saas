@@ -15,6 +15,7 @@ import { firmaDe } from '../../components/app/carpeta/utiles';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { rutaAccion, useFirmas } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import { useAvisosPeriodo, useLiquidacionesPeriodo } from '../../hooks/useRemuneraciones';
 import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
@@ -45,6 +46,9 @@ function leerFaltantesPrevired(mensaje: string): { intro: string; lineas: string
 export default function Remuneraciones() {
   const { empresa, trabajadores, nivel, avisar, cargandoPlan } = usePanelContexto();
   const queryClient = useQueryClient();
+  const { puede } = usePermisos();
+  const gestionar = puede('REMUNERACIONES', true);
+  const crearContrato = puede('CONTRATOS', true);
   const [params, setParams] = useSearchParams();
   const hoy = new Date();
   const mes = Number(params.get('mes')) || hoy.getMonth() + 1;
@@ -249,11 +253,11 @@ export default function Remuneraciones() {
             <span className="text-[12px] text-fg-3">{filas.length} trabajadores · los montos los calcula el servidor al emitir</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-          {sinEnviar.length > 0 && (
+          {gestionar && sinEnviar.length > 0 && (
             <Button variante={pendientes.length ? 'secundario' : 'primario'} tamano="sm" iconoInicio={<Send className="size-4" strokeWidth={2} />}
               onClick={() => setConfirmarFirma(true)}>Enviar {sinEnviar.length} a firma</Button>
           )}
-          {pendientes.length > 0 && (
+          {gestionar && pendientes.length > 0 && (
             <Button tamano="sm" onClick={() => setConfirmarMasivo(true)}>Emitir {pendientes.length} pendiente{pendientes.length === 1 ? '' : 's'}</Button>
           )}
           </div>
@@ -270,7 +274,7 @@ export default function Remuneraciones() {
               <span role="columnheader">Estado</span><span role="columnheader" className="sr-only">Acción</span>
             </div>
             {filas.map((t) => <Fila key={t.id} t={t} liq={porEmpleado.get(t.id)} firma={firmaDeLiq(porEmpleado.get(t.id))} onAbrir={() => abrir(t.id)}
-              nota={notaFila(t)} avisos={avisosDe(porEmpleado.get(t.id))} />)}
+              nota={notaFila(t)} avisos={avisosDe(porEmpleado.get(t.id))} gestionar={gestionar} crearContrato={crearContrato} />)}
             {filas.length === 0 && <p className="px-[18px] py-6 text-[13px] text-fg-3">No hay trabajadores vigentes en esta empresa.</p>}
           </div>
         </div>
@@ -282,7 +286,7 @@ export default function Remuneraciones() {
             const e = estadoFila(liq, firmaDeLiq(liq));
             const nota = notaFila(t);
             // Sin contrato no hay liquidación que abrir: la tarjeta lleva a crearlo.
-            if (!t.contrato_activo && !liq) {
+            if (!t.contrato_activo && !liq && crearContrato) {
               return (
                 <Link key={t.id} to={rutaAccion(t.id, 'contrato')}
                   className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-b-0 text-left text-fg no-underline hover:no-underline">
@@ -295,7 +299,7 @@ export default function Remuneraciones() {
               );
             }
             return (
-              <button key={t.id} type="button" onClick={() => abrir(t.id)}
+              <button key={t.id} type="button" onClick={() => abrir(t.id)} disabled={!liq && !gestionar}
                 className="flex items-center gap-3 px-4 py-3 border-b border-line last:border-b-0 text-left">
                 <span className="flex-1 min-w-0 flex flex-col gap-1">
                   <span className="text-[14px] font-medium truncate">{capitalizar(`${t.nombres.split(' ')[0]} ${t.apellido_paterno}`)}</span>
@@ -408,8 +412,9 @@ function AvisosFila({ avisos }: { avisos: string[] }) {
   );
 }
 
-function Fila({ t, liq, firma, onAbrir, nota, avisos }: {
+function Fila({ t, liq, firma, onAbrir, nota, avisos, gestionar, crearContrato }: {
   t: Empleado; liq?: Liquidacion; firma?: SolicitudFirma; onAbrir: () => void; nota?: string; avisos: string[];
+  gestionar: boolean; crearContrato: boolean;
 }) {
   const e = estadoFila(liq, firma);
   const sinContrato = !t.contrato_activo;
@@ -433,8 +438,8 @@ function Fila({ t, liq, firma, onAbrir, nota, avisos }: {
       <span role="cell"><Chip tono={e.tono}>{e.texto}</Chip></span>
       <span role="cell" className="text-right">
         {sinContrato && !liq ? (
-          <Link to={rutaAccion(t.id, 'contrato')} className="text-[12.5px] font-medium">Crear contrato</Link>
-        ) : (
+          crearContrato && <Link to={rutaAccion(t.id, 'contrato')} className="text-[12.5px] font-medium">Crear contrato</Link>
+        ) : !liq && !gestionar ? null : (
           <Button variante={liq ? 'secundario' : 'primario'} tamano="sm" onClick={onAbrir}>{liq ? 'Abrir' : 'Emitir'}</Button>
         )}
       </span>

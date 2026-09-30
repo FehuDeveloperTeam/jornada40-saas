@@ -6,6 +6,7 @@ import { Button, Chip, SegmentedControl } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { estadoTrabajador, TIPO_CONTRATO } from '../../components/app/trabajador';
 import { useIndicadores, useVacacionesEmpresa } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import type { Empleado, VacacionEmpleado } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLocal, iniciales } from '../../utils/formato';
@@ -39,6 +40,7 @@ function deVacacionesHoy(vacaciones: VacacionEmpleado[] | undefined): Set<number
 export default function Trabajadores() {
   const { empresa, trabajadores, cargandoTrabajadores, agregarTrabajador, nivel, avisar } = usePanelContexto();
   const navigate = useNavigate();
+  const gestionar = usePermisos().puede('TRABAJADORES', true);
   const [params, setParams] = useSearchParams();
   const [busqueda, setBusqueda] = useState('');
   const cargo = params.get('cargo') ?? '';
@@ -116,17 +118,21 @@ export default function Trabajadores() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variante="secundario" onClick={() => navigate('/app/trabajadores/importar')} className="h-[38px]"
-            title={nivel >= 3 ? 'Cargar o actualizar trabajadores desde una planilla' : 'Disponible desde el plan Pyme'}
-            iconoInicio={<Upload className="size-[18px]" strokeWidth={2} />}>Importar Excel</Button>
+          {gestionar && (
+            <Button variante="secundario" onClick={() => navigate('/app/trabajadores/importar')} className="h-[38px]"
+              title={nivel >= 3 ? 'Cargar o actualizar trabajadores desde una planilla' : 'Disponible desde el plan Pyme'}
+              iconoInicio={<Upload className="size-[18px]" strokeWidth={2} />}>Importar Excel</Button>
+          )}
           <Button variante="secundario" onClick={exportar} disabled={!lista.length} className="h-[38px]"
             iconoInicio={<Download className="size-[18px]" strokeWidth={2} />}>Exportar</Button>
           {nivel >= 3 && (
             <Button variante="secundario" onClick={() => setExpedientes(true)} disabled={!trabajadores.length} className="h-[38px]"
               iconoInicio={<FolderArchive className="size-[18px]" strokeWidth={2} />}>Expedientes ZIP</Button>
           )}
-          <Button onClick={agregarTrabajador} className="min-[720px]:hidden h-[38px]"
-            iconoInicio={<Plus className="size-[19px]" strokeWidth={2} />}>Agregar</Button>
+          {gestionar && (
+            <Button onClick={agregarTrabajador} className="min-[720px]:hidden h-[38px]"
+              iconoInicio={<Plus className="size-[19px]" strokeWidth={2} />}>Agregar</Button>
+          )}
         </div>
       </div>
 
@@ -210,7 +216,7 @@ export default function Trabajadores() {
           })}
           {!cargandoTrabajadores && lista.length === 0 && (
             <div className="p-10 text-center text-fg-3 text-[13px]">
-              {trabajadores.length ? 'Ningún trabajador coincide con la búsqueda.' : 'Todavía no agregas trabajadores.'}
+              {trabajadores.length ? 'Ningún trabajador coincide con la búsqueda.' : 'Todavía no hay trabajadores.'}
             </div>
           )}
         </div>
@@ -247,7 +253,7 @@ export default function Trabajadores() {
         })}
         {!cargandoTrabajadores && lista.length === 0 && (
           <p className="p-8 text-center text-fg-3 text-[13px]">
-            {trabajadores.length ? 'Ningún trabajador coincide con la búsqueda.' : 'Todavía no agregas trabajadores.'}
+            {trabajadores.length ? 'Ningún trabajador coincide con la búsqueda.' : 'Todavía no hay trabajadores.'}
           </p>
         )}
       </div>

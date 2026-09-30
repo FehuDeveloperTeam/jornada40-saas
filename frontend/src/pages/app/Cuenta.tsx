@@ -8,6 +8,8 @@ import { AlertaError, Button, Input, InputContrasena, MedidorContrasena, Segment
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { NOMBRES_MODULOS, usePermisos } from '../../hooks/usePermisos';
+import type { ModuloPanel } from '../../types';
 import { contrasenaAceptable } from '../../utils/contrasena';
 import { cn } from '../../utils/cn';
 
@@ -34,6 +36,41 @@ function mensaje(err: unknown, porDefecto: string): string {
 }
 
 export default function Cuenta() {
+  const { esTitular, cargando } = usePermisos();
+  if (cargando) return <p className="text-[14px] text-fg-3" role="status">Cargando…</p>;
+  return esTitular ? <CuentaTitular /> : <CuentaEquipo />;
+}
+
+/** Un usuario del equipo: qué puede ver, su clave y su sesión (los datos del titular no son suyos). */
+function CuentaEquipo() {
+  const { sesion } = usePermisos();
+  const permisos = Object.entries(sesion?.permisos ?? {}) as [ModuloPanel, string][];
+  return (
+    <div className="max-w-[860px] mx-auto flex flex-col gap-5 pb-20">
+      <div>
+        <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">Mi cuenta</h1>
+        <p className="text-[14px] text-fg-3 mt-0.5">{sesion?.nombre} · usuario del equipo de {sesion?.cuenta}</p>
+      </div>
+      <Seccion titulo="Tu acceso" nota="Lo asigna el titular de la cuenta. Si necesitas otra sección, pídesela.">
+        <ul className="flex flex-col">
+          {permisos.map(([modulo, nivel]) => (
+            <li key={modulo} className="flex items-center justify-between gap-3 py-2.5 border-b border-line last:border-b-0 text-[15px]">
+              <span>{NOMBRES_MODULOS[modulo] ?? modulo}</span>
+              <span className={cn('text-[13.5px] font-medium', nivel === 'GESTIONAR' ? 'text-brand-text' : 'text-fg-2')}>
+                {nivel === 'GESTIONAR' ? 'Ver y gestionar' : 'Solo ver'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Seccion>
+      <ResumenCorreo equipo />
+      <CambioClave />
+      <Preferencias />
+    </div>
+  );
+}
+
+function CuentaTitular() {
   const perfil = useQuery({ queryKey: ['perfil'], queryFn: async () => (await client.get<Perfil>('/clientes/perfil/')).data });
   return (
     <div className="max-w-[860px] mx-auto flex flex-col gap-5 pb-20">
@@ -118,7 +155,7 @@ type Frecuencia = 'DIARIA' | 'SEMANAL' | 'NUNCA';
 interface PreferenciaResumen { frecuencia: Frecuencia; correo: string; opciones: { valor: Frecuencia; texto: string }[] }
 
 /** Resumen por correo de lo pendiente: se guarda al elegir, sin botón extra. */
-function ResumenCorreo() {
+function ResumenCorreo({ equipo = false }: { equipo?: boolean }) {
   const { avisar } = usePanelContexto();
   const queryClient = useQueryClient();
   const [guardando, setGuardando] = useState(false);
@@ -139,7 +176,9 @@ function ResumenCorreo() {
 
   return (
     <Seccion titulo="Resumen por correo"
-      nota="Le avisamos lo que necesita su atención: documentos que le pidieron sus trabajadores, firmas por vencer o rechazadas y plazos de la Dirección del Trabajo. Si no hay nada pendiente, no le escribimos.">
+      nota={equipo
+        ? 'Le avisamos lo pendiente solo de las secciones y empresas que le asignó el titular. Si no hay nada pendiente, no le escribimos.'
+        : 'Le avisamos lo que necesita su atención: documentos que le pidieron sus trabajadores, firmas por vencer o rechazadas y plazos de la Dirección del Trabajo. Si no hay nada pendiente, no le escribimos.'}>
       {pref.data ? (
         <>
           <SegmentedControl etiqueta="¿Cada cuánto quiere recibirlo?" valor={pref.data.frecuencia} bloque
@@ -147,7 +186,8 @@ function ResumenCorreo() {
             opciones={pref.data.opciones.map((o) => ({ valor: o.valor, etiqueta: o.texto }))} />
           <p className="flex items-center gap-2 text-[14px] text-fg-2">
             <Mail className="size-4 shrink-0" strokeWidth={2} aria-hidden />
-            {pref.data.correo ? <>Se envía a <b className="font-medium text-fg">{pref.data.correo}</b> (lo cambia arriba, en Correo).</>
+            {pref.data.correo
+              ? <>Se envía a <b className="font-medium text-fg">{pref.data.correo}</b>{equipo ? ' (si cambió, pídale al titular que lo actualice).' : ' (lo cambia arriba, en Correo).'}</>
               : 'Agregue su correo arriba para recibirlo.'}
           </p>
         </>
@@ -213,6 +253,7 @@ function CambioClave() {
 
 function Preferencias() {
   const { logout } = useAuth();
+  const { esTitular } = usePermisos();
   const navigate = useNavigate();
   return (
     <Seccion titulo="Preferencias y sesión">
@@ -222,7 +263,7 @@ function Preferencias() {
       <div className="flex items-center justify-between gap-3 pt-3 border-t border-line">
         <span className="text-[13.5px]">Cerrar la sesión en este equipo</span>
         <Button variante="peligro-contorno" tamano="sm" iconoInicio={<LogOut className="size-4" strokeWidth={2} />}
-          onClick={async () => { await logout(); navigate('/login'); }}>Cerrar sesión</Button>
+          onClick={async () => { await logout(); navigate(esTitular ? '/login' : '/equipo'); }}>Cerrar sesión</Button>
       </div>
     </Seccion>
   );

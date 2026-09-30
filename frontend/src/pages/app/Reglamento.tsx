@@ -9,6 +9,7 @@ import { usePanelContexto } from '../../components/app/AppShell';
 import { BotonEnlace } from '../../components/app/carpeta/comun';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
+import { usePermisos } from '../../hooks/usePermisos';
 import type { EntregaTrabajador, EnvioMasivo, EstadoLeyKarin, EstadoReglamento } from '../../types';
 import { fechaCL, hoyISO } from '../../utils/formato';
 
@@ -69,6 +70,8 @@ function ListaEntrega({ filas }: { filas: EntregaTrabajador[] }) {
  */
 export default function Reglamento() {
   const { empresa, nivel, cargandoPlan } = usePanelContexto();
+  // Solo lectura en Seguridad: se ve el estado y se descargan plantilla y reglamento, sin subir ni enviar.
+  const gestionar = usePermisos().puede('SEGURIDAD', true);
   const reglamento = useQuery({
     queryKey: ['reglamento', empresa.id],
     queryFn: async () => (await client.get<EstadoReglamento>(`/reglamentos/?empresa=${empresa.id}`)).data,
@@ -98,7 +101,7 @@ export default function Reglamento() {
             <>
               {reglamento.data.avisos.map((a) => <Aviso key={a}>{a}</Aviso>)}
               <PasoPlantilla estado={reglamento.data} />
-              <PasoSubir estado={reglamento.data} />
+              {gestionar && <PasoSubir estado={reglamento.data} />}
               {reglamento.data.actual && <PasoVigente estado={reglamento.data} />}
               <SeccionRiesgos estado={reglamento.data} />
               {karin.data && <SeccionLeyKarin estado={karin.data} />}
@@ -211,6 +214,7 @@ function PasoVigente({ estado }: { estado: EstadoReglamento }) {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
   const r = estado.actual!;
+  const gestionar = usePermisos().puede('SEGURIDAD', true);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [omitidas, setOmitidas] = useState<EnvioMasivo['omitidas']>([]);
   const faltan = estado.entrega.trabajadores.filter((t) => !t.estado || !['FIRMADO', 'PENDIENTE', 'PROCESANDO'].includes(t.estado));
@@ -249,7 +253,7 @@ function PasoVigente({ estado }: { estado: EstadoReglamento }) {
     <li className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-line last:border-b-0 text-[14.5px]">
       {fecha ? <CircleCheck className="size-5 text-ok" strokeWidth={2} aria-hidden /> : <Send className="size-5 text-fg-3" strokeWidth={2} aria-hidden />}
       <span className="flex-1 min-w-[200px]">{texto}{fecha ? ` · enviado el ${fechaCL(fecha)}` : ''}</span>
-      {fecha
+      {!gestionar ? null : fecha
         ? <Button variante="fantasma" tamano="sm" cargando={ocupado === destino} onClick={() => void remitir(destino, true)}>Deshacer</Button>
         : <Button variante="secundario" cargando={ocupado === destino} onClick={() => void remitir(destino)}>Ya lo envié</Button>}
     </li>
@@ -279,7 +283,7 @@ function PasoVigente({ estado }: { estado: EstadoReglamento }) {
         <p className="text-[13.5px] text-fg-2">
           Cada trabajador recibe por correo el reglamento completo y firma una constancia de recepción (Art. 156). A los trabajadores nuevos se les envía solo, junto con su contrato.
         </p>
-        {faltan.length > 0 && (
+        {faltan.length > 0 && gestionar && (
           <Button tamano="lg" className="self-start" cargando={ocupado === 'entregar'} onClick={() => void entregar()}
             iconoInicio={<Send className="size-5" strokeWidth={2} />}>
             Enviar a firma a {faltan.length === 1 ? '1 trabajador' : `${faltan.length} trabajadores`}
@@ -299,6 +303,7 @@ function SeccionLeyKarin({ estado }: { estado: EstadoLeyKarin }) {
   const queryClient = useQueryClient();
   const [responsable, setResponsable] = useState(estado.canal.responsable);
   const [correo, setCorreo] = useState(estado.canal.correo);
+  const gestionar = usePermisos().puede('SEGURIDAD', true);
   const [guardando, setGuardando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
@@ -345,13 +350,13 @@ function SeccionLeyKarin({ estado }: { estado: EstadoLeyKarin }) {
       {error && <AlertaError>{error}</AlertaError>}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-3.5">
         <Field etiqueta="Quién recibe las denuncias (persona o cargo)">
-          {(props) => <Input {...props} value={responsable} maxLength={120} onChange={(e) => setResponsable(e.target.value)} placeholder="Ej.: Jefa de personas" />}
+          {(props) => <Input {...props} disabled={!gestionar} value={responsable} maxLength={120} onChange={(e) => setResponsable(e.target.value)} placeholder="Ej.: Jefa de personas" />}
         </Field>
         <Field etiqueta="Correo para denuncias">
-          {(props) => <Input {...props} type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="denuncias@suempresa.cl" />}
+          {(props) => <Input {...props} disabled={!gestionar} type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="denuncias@suempresa.cl" />}
         </Field>
       </div>
-      {cambios && (
+      {cambios && gestionar && (
         <Button variante="secundario" className="self-start" cargando={guardando} onClick={() => void guardar()}>Guardar canal</Button>
       )}
       <div className="flex flex-col gap-2.5 pt-2 border-t border-line">
@@ -359,13 +364,13 @@ function SeccionLeyKarin({ estado }: { estado: EstadoLeyKarin }) {
           {estado.semestre.texto[0].toUpperCase() + estado.semestre.texto.slice(1)}: informado a {estado.avance.enviados} de {estado.avance.total}
           {' '}· plazo {fechaCL(estado.semestre.hasta)}
         </h3>
-        {faltan > 0 && (
+        {faltan > 0 && gestionar && (
           <Button tamano="lg" className="self-start" disabled={!guardado || cambios} cargando={enviando} onClick={() => void informar()}
             iconoInicio={<Send className="size-5" strokeWidth={2} />}>
             Enviar el aviso a {faltan === 1 ? '1 trabajador' : `${faltan} trabajadores`}
           </Button>
         )}
-        {!guardado && <p className="text-[13.5px] text-fg-3">Primero guarde su canal interno de denuncias.</p>}
+        {!guardado && gestionar && <p className="text-[13.5px] text-fg-3">Primero guarde su canal interno de denuncias.</p>}
         {omitidas.length > 0 && (
           <Aviso>No se envió a: {omitidas.map((o) => `${o.nombre} (${o.motivo.replace(/\.$/, '').toLowerCase()})`).join(', ')}.</Aviso>
         )}
@@ -379,6 +384,7 @@ function SeccionRiesgos({ estado }: { estado: EstadoReglamento }) {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
   const r = estado.riesgos;
+  const gestionar = usePermisos().puede('SEGURIDAD', true);
   const [rubro, setRubro] = useState(r.rubro);
   const [marcados, setMarcados] = useState<string[]>(r.rubro ? r.por_rubro[r.rubro] ?? [] : []);
   const [fecha, setFecha] = useState(hoyISO());
@@ -412,31 +418,35 @@ function SeccionRiesgos({ estado }: { estado: EstadoReglamento }) {
         o para la entrega de elementos de protección, use la carpeta del trabajador → Documentos.
       </p>
       {error && <AlertaError>{error}</AlertaError>}
-      <Field etiqueta="Rubro de su empresa">
-        {(props) => (
-          <select {...props} className={CONTROL} value={rubro}
-            onChange={(e) => { setRubro(e.target.value); setMarcados(r.por_rubro[e.target.value] ?? []); }}>
-            <option value="">Elija su rubro…</option>
-            {estado.rubros.map((x) => <option key={x.valor} value={x.valor}>{x.texto}</option>)}
-          </select>
-        )}
-      </Field>
-      {visibles.length > 0 && (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-[13.5px] font-medium text-fg-2 mb-1">Riesgos que se informan (desmarque los que no apliquen)</legend>
-          {visibles.map((c) => (
-            <Casilla key={c.valor} marcada={marcados.includes(c.valor)}
-              onChange={(m) => setMarcados((x) => (m ? [...x, c.valor] : x.filter((y) => y !== c.valor)))}>{c.texto}</Casilla>
-          ))}
-        </fieldset>
+      {gestionar && (
+        <>
+          <Field etiqueta="Rubro de su empresa">
+            {(props) => (
+              <select {...props} className={CONTROL} value={rubro}
+                onChange={(e) => { setRubro(e.target.value); setMarcados(r.por_rubro[e.target.value] ?? []); }}>
+                <option value="">Elija su rubro…</option>
+                {estado.rubros.map((x) => <option key={x.valor} value={x.valor}>{x.texto}</option>)}
+              </select>
+            )}
+          </Field>
+          {visibles.length > 0 && (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-[13.5px] font-medium text-fg-2 mb-1">Riesgos que se informan (desmarque los que no apliquen)</legend>
+              {visibles.map((c) => (
+                <Casilla key={c.valor} marcada={marcados.includes(c.valor)}
+                  onChange={(m) => setMarcados((x) => (m ? [...x, c.valor] : x.filter((y) => y !== c.valor)))}>{c.texto}</Casilla>
+              ))}
+            </fieldset>
+          )}
+          <Field etiqueta="Fecha de la capacitación presencial en procedimientos de trabajo seguro"
+            ayuda="Se enseñan en persona (DT, ORD 374/2024); la constancia deja registro de lo informado.">
+            {(props) => <Input {...props} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
+          </Field>
+        </>
       )}
-      <Field etiqueta="Fecha de la capacitación presencial en procedimientos de trabajo seguro"
-        ayuda="Se enseñan en persona (DT, ORD 374/2024); la constancia deja registro de lo informado.">
-        {(props) => <Input {...props} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
-      </Field>
       <div className="flex flex-col gap-2.5 pt-2 border-t border-line">
         <h3 className="text-[15.5px] font-semibold">Informados: {r.firmados} de {r.total} firmaron</h3>
-        {faltan > 0 && (
+        {faltan > 0 && gestionar && (
           <Button tamano="lg" className="self-start" disabled={!rubro || marcados.length === 0 || !fecha} cargando={enviando}
             onClick={() => void informar()} iconoInicio={<Send className="size-5" strokeWidth={2} />}>
             Enviar a firma a {faltan === 1 ? '1 trabajador' : `${faltan} trabajadores`}

@@ -5,6 +5,7 @@ import { Download, FileSpreadsheet, FolderArchive, Stamp, TriangleAlert } from '
 import { AlertaError, Button, Modal } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { EstadoCertificado6 } from '../../../types';
 import { clp } from '../../../utils/formato';
 
@@ -17,6 +18,7 @@ export function ModalCertificado6({ abierto, onCerrar, empresaId, avisar }: {
   abierto: boolean; onCerrar: () => void; empresaId: number; avisar: (t: string, tipo?: 'ok' | 'error') => void;
 }) {
   const queryClient = useQueryClient();
+  const gestionar = usePermisos().puede('REMUNERACIONES', true);
   const [anio, setAnio] = useState<number | null>(null);
   const [emitiendo, setEmitiendo] = useState(false);
   const [error, setError] = useState('');
@@ -83,8 +85,10 @@ export function ModalCertificado6({ abierto, onCerrar, empresaId, avisar }: {
               Si corriges una liquidación, emite de nuevo: se genera un certificado con otro número que reemplaza al anterior.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void emitir()} cargando={emitiendo} disabled={!e.factores_completos || !e.anio_cerrado || e.trabajadores === 0}
-                iconoInicio={<Stamp className="size-4" strokeWidth={2} />}>Emitir certificados {e.anio}</Button>
+              {gestionar && (
+                <Button onClick={() => void emitir()} cargando={emitiendo} disabled={!e.factores_completos || !e.anio_cerrado || e.trabajadores === 0}
+                  iconoInicio={<Stamp className="size-4" strokeWidth={2} />}>Emitir certificados {e.anio}</Button>
+              )}
               {e.certificados.length > 0 && (
                 <>
                   <Button variante="secundario" cargando={bajando === 'zip'} iconoInicio={<FolderArchive className="size-4" strokeWidth={2} />}

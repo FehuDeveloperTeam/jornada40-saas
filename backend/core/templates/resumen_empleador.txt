@@ -6,4 +6,5 @@ Hola {{ nombre }}, este es su resumen de Jornada40 del {{ fecha }}.
 {% for l in s.lineas %}- {{ l }}
 {% endfor %}{{ s.boton }}: {{ sitio }}{{ s.ruta }}
 {% endfor %}{% endfor %}
-Recibe este resumen {% if diario %}cada día{% else %}cada lunes{% endif %}. Puede cambiarlo en {{ sitio }}/app/cuenta
+Recibe este resumen {% if diario %}cada día{% else %}cada lunes{% endif %}. Puede cambiarlo en {{ sitio }}/app/cuenta{% if equipo %}
+Incluye solo las secciones y empresas que le asignó el titular. Entre con su RUT por Ingreso del equipo: {{ sitio }}/equipo{% endif %}

@@ -846,6 +846,8 @@ export interface VerificacionCertificado {
     nota?: string;
     anulado_en?: string;
     motivo_anulacion?: string;
+    /** Copia de la bitácora cuyos registros ya no coinciden con los del sistema. */
+    alterado?: boolean;
 }
 
 export interface FirmaPendientePortal {
@@ -968,3 +970,63 @@ export interface EstadoLeyKarin {
 
 /** Resultado de un envío masivo a firma. */
 export interface EnvioMasivo { enviadas: number; omitidas: { nombre: string; motivo: string }[] }
+
+/** Módulos del panel que el titular asigna a los usuarios del equipo (core/permisos.py). */
+export type ModuloPanel = 'TRABAJADORES' | 'CONTRATOS' | 'REMUNERACIONES' | 'VACACIONES' | 'DOCUMENTOS' | 'TERMINO'
+    | 'DIRECCION_TRABAJO' | 'SEGURIDAD' | 'SOLICITUDES' | 'REPORTES';
+export type NivelPermiso = 'VER' | 'GESTIONAR';
+
+/** Quién está conectado (GET /auth/sesion/). El titular no trae permisos: ve todo. */
+export interface SesionPanel {
+    tipo: 'TITULAR' | 'EQUIPO';
+    nombre: string;
+    cuenta?: string;
+    permisos: Partial<Record<ModuloPanel, NivelPermiso>> | null;
+    empresas: number[] | null;
+}
+
+/** Usuario del equipo como lo administra el titular (GET /equipo/). */
+export interface UsuarioEquipo {
+    id: number;
+    rut: string;
+    nombres: string;
+    apellidos: string;
+    correo: string;
+    permisos: Partial<Record<ModuloPanel, NivelPermiso>>;
+    empresas: number[];
+    estado: 'INVITADO' | 'ACTIVO' | 'ELIMINADO';
+    invitado_en: string | null;
+    activado_en: string | null;
+}
+
+export interface EquipoCuenta {
+    cupo: number;
+    usados: number;
+    modulos: { valor: ModuloPanel; texto: string; detalle: string }[];
+    niveles: { valor: NivelPermiso; texto: string }[];
+    usuarios: UsuarioEquipo[];
+}
+
+/** Registro de la bitácora (GET /bitacora/). */
+export interface RegistroBitacora {
+    id: number;
+    fecha: string;
+    actor: string;
+    actor_tipo: 'TITULAR' | 'EQUIPO' | 'SISTEMA';
+    accion: string;
+    descripcion: string;
+    empresa: string | null;
+    ip: string;
+    resultado: number | null;
+}
+
+export interface BitacoraPagina {
+    total: number;
+    pagina: number;
+    por_pagina: number;
+    anios_conservacion: number;
+    personas: { rut: string; nombre: string }[];
+    registros: RegistroBitacora[];
+}
+
+export interface VerificacionBitacora { ok: boolean; registros: number; roto_en: number | null }

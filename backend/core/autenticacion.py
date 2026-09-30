@@ -28,6 +28,20 @@ def actor(request):
     return getattr(request, 'actor', None) or request.user
 
 
+def tipos_visibles(request):
+    """Tipos de documento que la persona puede ver, o None si ve todos (titular).
+
+    Las listas de firmas y documentos mezclan tipos de varios módulos: un usuario
+    del equipo solo ve los de sus módulos (p. ej. con Remuneraciones, solo las
+    firmas de liquidaciones).
+    """
+    ue = usuario_equipo_de(getattr(request, 'actor', None))
+    if ue is None:
+        return None
+    permisos = ue.permisos or {}
+    return {t for t, m in p.MODULO_POR_TIPO.items() if permisos.get(m)}
+
+
 def _tipo_de(modelo, pk, cuenta, campo='tipo'):
     from . import models
     fila = getattr(models, modelo)._base_manager.filter(pk=pk).values(campo, *(

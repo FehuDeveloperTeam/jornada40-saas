@@ -11,6 +11,7 @@ import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { useAvisosJornada } from '../../hooks/useAvisosJornada';
 import { rutaAccion, useIndicadores } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import { errorHorasSemanales, firmaDe, mensajeErrorCampos } from '../../components/app/carpeta/utiles';
 import type { ComisionConfig, Contrato, HorarioSemana, SolicitudFirma } from '../../types';
 import { lista } from '../../api/lista';
@@ -149,6 +150,9 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
   // Última solicitud de firma del contrato: si está firmado o en firma, solo lectura.
   const firmaContrato = contrato ? firmaDe(firmas.data, 'contrato', contrato.id, 'CONTRATO') : undefined;
   const soloLectura = ESTADOS_SOLO_ANEXO.includes(firmaContrato?.estado ?? '');
+  // Quien solo ve contratos no edita ni crea anexos (el backend responde 403).
+  const gestionar = usePermisos().puede('CONTRATOS', true);
+  const bloqueado = soloLectura || !gestionar;
 
   const conHorario = CON_HORARIO.includes(f.tipo_jornada);
   const esArt22 = f.tipo_jornada === 'ART_22';
@@ -268,13 +272,13 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
       </Link>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{!contrato ? 'Nuevo contrato' : soloLectura ? 'Contrato' : 'Editar contrato'}</h1>
+          <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{!contrato ? 'Nuevo contrato' : bloqueado ? 'Contrato' : 'Editar contrato'}</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">{capitalizar(`${empleado.nombres} ${empleado.apellido_paterno}`)} · {empleado.rut}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <input ref={archivo} type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only"
             onChange={(e) => { const x = e.target.files?.[0]; if (x) void digitalizar(x); e.target.value = ''; }} />
-          {!soloLectura && (
+          {!bloqueado && (
             <Button variante="secundario" cargando={guardando === 'ia'} onClick={() => archivo.current?.click()}
               iconoInicio={<FileScan className="size-4" strokeWidth={2} />}>{guardando === 'ia' ? 'Leyendo…' : 'Digitalizar contrato en papel'}</Button>
           )}
@@ -291,9 +295,11 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
               ? 'El trabajador firmó este contrato: sus condiciones solo cambian con un anexo firmado por ambas partes (Art. 11).'
               : 'Este contrato está en firma: mientras tanto sus condiciones no se editan. Para cambiarlas, cancela la solicitud en Firma electrónica o pacta el cambio con un anexo (Art. 11).'}
           </p>
-          <Link to={rutaAccion(empleado.id, 'anexo')} className="inline-flex items-center gap-1.5 font-medium">
-            <FilePlus className="size-4" strokeWidth={2} aria-hidden />Crear anexo
-          </Link>
+          {gestionar && (
+            <Link to={rutaAccion(empleado.id, 'anexo')} className="inline-flex items-center gap-1.5 font-medium">
+              <FilePlus className="size-4" strokeWidth={2} aria-hidden />Crear anexo
+            </Link>
+          )}
         </div>
       )}
       {extraidos && (
@@ -309,7 +315,7 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
         </div>
       )}
 
-      <fieldset disabled={soloLectura} className="flex flex-col gap-5 min-w-0">
+      <fieldset disabled={bloqueado} className="flex flex-col gap-5 min-w-0">
       <Seccion titulo="1. Condiciones generales">
         <Rejilla>
           <Campo etiqueta="Tipo de contrato">
@@ -436,7 +442,12 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
       )}
 
       <div className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[60] flex items-center gap-3 px-4 py-2.5 rounded-[12px] bg-surface border border-line-strong shadow-pop w-[min(620px,calc(100vw-24px))]">
-        {soloLectura ? (
+        {!gestionar ? (
+          <>
+            <span className="flex-1 text-[13px]">Tienes solo lectura en contratos.</span>
+            <Button variante="secundario" onClick={() => navigate(`/app/trabajadores/${empleado.id}?tab=contrato`)}>Volver</Button>
+          </>
+        ) : soloLectura ? (
           <>
             <span className="flex-1 text-[13px]">Para cambiar las condiciones, crea un anexo.</span>
             <Button variante="secundario" onClick={() => navigate(`/app/trabajadores/${empleado.id}?tab=contrato`)}>Volver</Button>

@@ -9,7 +9,11 @@ Karin, horas compensatorias, EPP…) agregan la suya.
 
 `Cliente.resumen_hasta` marca el momento revisado: lo "nuevo" del siguiente
 resumen es lo ocurrido desde ahí.
+
+Los usuarios del equipo reciben el suyo (misma frecuencia a elegir en Mi
+cuenta), solo con los temas de sus módulos y de sus empresas.
 """
+from functools import partial
 import logging
 from datetime import date, timedelta
 
@@ -21,7 +25,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Cliente, Contrato, Empleado, Empresa, SolicitudDocumento, SolicitudFirma
+from ..models import Cliente, Contrato, Empleado, Empresa, SolicitudDocumento, SolicitudFirma, UsuarioEquipo
+from ..permisos import MODULO_POR_TIPO, MODULOS_DOCUMENTOS
 from .base import _plan_permite
 from . import horas_compensatorias as hc
 from .direccion_trabajo import items_registro
@@ -70,9 +75,11 @@ def _solicitudes(empresa, desde, hoy):
     return _seccion(titulo, lineas, '/app/solicitudes', 'Ver solicitudes')
 
 
-def _firmas(empresa, desde, hoy):
+def _firmas(empresa, desde, hoy, tipos=None):
     qs = SolicitudFirma.objects.filter(empresa=empresa)
     SolicitudFirma.actualizar_estados(qs)
+    if tipos is not None:
+        qs = qs.filter(tipo_documento__in=tipos)
     limite = timezone.now() + timedelta(days=DIAS_POR_VENCER)
     lineas = []
     for f in qs.filter(estado='PENDIENTE', expira_en__lte=limite).select_related('empleado').order_by('expira_en'):
@@ -163,30 +170,55 @@ def _seguridad(empresa, desde, hoy):
 
 
 FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin, _seguridad]
+# Módulos que dan acceso a cada tema a un usuario del equipo (basta uno).
+MODULOS_FUENTE = {
+    _solicitudes: ('SOLICITUDES',), _firmas: MODULOS_DOCUMENTOS, _registro_dt: ('DIRECCION_TRABAJO',),
+    _horas_descanso: ('VACACIONES',), _reglamento_y_ley_karin: ('SEGURIDAD',), _seguridad: ('SEGURIDAD',),
+}
 
 
-def contenido(cliente, desde, hoy=None):
-    """Secciones del resumen por empresa; lista vacía si no hay nada que contar."""
+def _fuentes(permisos):
+    """Temas que ve alguien: el titular todos; un usuario del equipo, los de sus módulos."""
+    if permisos is None:
+        return FUENTES
+    tipos = {t for t, m in MODULO_POR_TIPO.items() if permisos.get(m)}
+    elegidas = []
+    for fuente in FUENTES:
+        if any(permisos.get(m) for m in MODULOS_FUENTE[fuente]):
+            # Las firmas se limitan a los tipos de documento de sus módulos.
+            elegidas.append(partial(_firmas, tipos=tipos) if fuente is _firmas else fuente)
+    return elegidas
+
+
+def contenido(cliente, desde, hoy=None, *, empresas=None, permisos=None):
+    """Secciones del resumen por empresa; lista vacía si no hay nada que contar.
+
+    Para un usuario del equipo se pasan sus `empresas` y sus `permisos`."""
     hoy = hoy or timezone.localdate()
-    empresas = []
-    for empresa in Empresa.objects.filter(owner=cliente.usuario, activo=True).order_by('nombre_legal'):
+    if empresas is None:
+        empresas = Empresa.objects.filter(owner=cliente.usuario, activo=True)
+    fuentes = _fuentes(permisos)
+    resultado = []
+    for empresa in empresas.order_by('nombre_legal'):
         secciones = []
-        for fuente in FUENTES:
+        for fuente in fuentes:
             try:
                 s = fuente(empresa, desde, hoy)
             except Exception:
                 # Un tema que falla no deja sin resumen al cliente.
-                logger.exception('Resumen: falló %s en la empresa %s', fuente.__name__, empresa.id)
+                nombre = getattr(fuente, '__name__', None) or fuente.func.__name__
+                logger.exception('Resumen: falló %s en la empresa %s', nombre, empresa.id)
                 s = None
             if s:
                 secciones.append(s)
         if secciones:
-            empresas.append({'nombre': empresa.alias or empresa.nombre_legal, 'secciones': secciones})
-    return empresas
+            resultado.append({'nombre': empresa.alias or empresa.nombre_legal, 'secciones': secciones})
+    return resultado
 
 
 def corresponde(cliente, hoy):
-    """Si hoy toca enviarle el resumen. Semanal = los lunes (o si se saltó uno)."""
+    """Si hoy toca enviarle el resumen (a un titular o a un usuario del equipo).
+    Semanal = los lunes (o si se saltó uno)."""
     if cliente.frecuencia_resumen == 'NUNCA':
         return False
     ultimo = timezone.localtime(cliente.resumen_hasta).date() if cliente.resumen_hasta else None
@@ -202,18 +234,31 @@ def _correo(cliente):
 
 
 def enviar(cliente, hoy=None, ahora=None):
-    """Arma y envía el resumen. Devuelve True si se envió un correo."""
+    """Arma y envía el resumen del titular. Devuelve True si se envió un correo."""
+    return _enviar(cliente, cliente.nombres, _correo(cliente), hoy, ahora, lambda desde, dia: contenido(cliente, desde, dia))
+
+
+def enviar_equipo(ue, hoy=None, ahora=None):
+    """Resumen de un usuario del equipo: solo sus módulos y sus empresas activas."""
+    cliente = ue.cuenta.perfil_cliente
+    empresas = ue.empresas.filter(activo=True, owner=ue.cuenta)
+    return _enviar(ue, ue.nombres, ue.correo, hoy, ahora,
+                   lambda desde, dia: contenido(cliente, desde, dia, empresas=empresas, permisos=ue.permisos or {}),
+                   equipo=True)
+
+
+def _enviar(destinatario, nombre, correo, hoy, ahora, armar, equipo=False):
     hoy = hoy or timezone.localdate()
     ahora = ahora or timezone.now()
-    dias = 1 if cliente.frecuencia_resumen == 'DIARIA' else 7
-    desde = cliente.resumen_hasta or ahora - timedelta(days=dias)
-    empresas = contenido(cliente, desde, hoy)
+    dias = 1 if destinatario.frecuencia_resumen == 'DIARIA' else 7
+    desde = destinatario.resumen_hasta or ahora - timedelta(days=dias)
+    empresas = armar(desde, hoy)
     enviado = False
-    correo = _correo(cliente)
+    correo = (correo or '').strip()
     if empresas and correo:
         sitio = getattr(settings, 'SITIO_URL', 'https://jornada40.cl').rstrip('/')
-        ctx = {'nombre': cliente.nombres, 'empresas': empresas, 'sitio': sitio,
-               'fecha': _fecha(hoy), 'diario': cliente.frecuencia_resumen == 'DIARIA'}
+        ctx = {'nombre': nombre, 'empresas': empresas, 'sitio': sitio, 'equipo': equipo,
+               'fecha': _fecha(hoy), 'diario': destinatario.frecuencia_resumen == 'DIARIA'}
         html = render_to_string('resumen_empleador.html', ctx)
         texto = render_to_string('resumen_empleador.txt', ctx)
         asunto = f'Jornada40: {sum(len(e["secciones"]) for e in empresas)} temas por revisar'
@@ -221,16 +266,17 @@ def enviar(cliente, hoy=None, ahora=None):
         msg.attach_alternative(html, 'text/html')
         msg.send()
         enviado = True
-    cliente.resumen_hasta = ahora
-    cliente.save(update_fields=['resumen_hasta'])
+    destinatario.resumen_hasta = ahora
+    destinatario.save(update_fields=['resumen_hasta'])
     return enviado
 
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def preferencia_resumen(request):
-    """Frecuencia del resumen por correo (lista cerrada)."""
-    cliente = getattr(request.user, 'perfil_cliente', None)
+    """Frecuencia del resumen por correo (lista cerrada), del titular o del usuario del equipo."""
+    ue = UsuarioEquipo.objects.filter(usuario=request.user, estado='ACTIVO').first()
+    cliente = ue or getattr(request.user, 'perfil_cliente', None)
     if not cliente:
         return Response({'error': 'Perfil no encontrado.'}, status=404)
     if request.method == 'PATCH':
@@ -239,5 +285,5 @@ def preferencia_resumen(request):
             return Response({'error': 'Elige una de las opciones.'}, status=400)
         cliente.frecuencia_resumen = frecuencia
         cliente.save(update_fields=['frecuencia_resumen'])
-    return Response({'frecuencia': cliente.frecuencia_resumen, 'correo': _correo(cliente),
+    return Response({'frecuencia': cliente.frecuencia_resumen, 'correo': ue.correo if ue else _correo(cliente),
                      'opciones': [{'valor': v, 'texto': t} for v, t in Cliente.FRECUENCIAS_RESUMEN]})

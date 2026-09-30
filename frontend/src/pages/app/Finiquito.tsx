@@ -12,6 +12,7 @@ import { descargar } from '../../api/descargas';
 import { lista } from '../../api/lista';
 import type { RespuestaLista } from '../../api/lista';
 import { rutaAccion, useSuscripcion } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import { useFiniquitos } from '../../components/app/carpeta/documentos';
 import type { Finiquito as TFiniquito, SimulacionFiniquito, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
@@ -127,6 +128,8 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
   const enFirma = firma?.estado === 'PENDIENTE' || firma?.estado === 'PROCESANDO';
   const ratificado = Boolean(existente?.ratificado_en);
   const bloqueado = ratificado || firma?.estado === 'FIRMADO' || enFirma;
+  // Solo lectura en Término: puede simular uno nuevo, pero no guardar, ratificar ni enviar a firma.
+  const gestionar = usePermisos().puede('TERMINO', true);
   const [fichaAbierta, setFichaAbierta] = useState(false);
   const [ratificando, setRatificando] = useState(false);
   const estado: { texto: string; tono: TonoChip } = !existente ? { texto: 'Nuevo', tono: 'neutro' }
@@ -240,7 +243,7 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
       )}
 
       <div className="grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1fr)_400px] gap-5 items-start">
-        <fieldset disabled={bloqueado} className="flex flex-col gap-5 min-w-0">
+        <fieldset disabled={bloqueado || (!gestionar && Boolean(existente))} className="flex flex-col gap-5 min-w-0">
           <Seccion titulo="Término de la relación laboral">
             <label className="flex flex-col gap-1.5">
               <span className="text-[12.5px] font-medium text-fg-2">Causal de término</span>
@@ -321,7 +324,7 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
                 <Calculo s={sim.data} />
               )}
           <div className="flex flex-col gap-2 pt-3 mt-1 border-t border-line">
-            {!bloqueado && (
+            {!bloqueado && gestionar && (
               <Button onClick={guardar} cargando={guardando === 'guardar'} disabled={!f.causal_articulo || Boolean(errorSim)}
                 iconoInicio={<Save className="size-4" strokeWidth={2} />}>{existente ? 'Guardar cambios' : 'Guardar borrador'}</Button>
             )}
@@ -335,12 +338,12 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
                 Ficha para Mi DT
               </Button>
             )}
-            {existente && !ratificado && (
+            {existente && !ratificado && gestionar && (
               <Button onClick={() => setRatificando(true)} iconoInicio={<Stamp className="size-4" strokeWidth={2} />}>
                 Registrar ratificación
               </Button>
             )}
-            {existente && !ratificado && firma?.estado !== 'FIRMADO' && !enFirma && (
+            {existente && !ratificado && firma?.estado !== 'FIRMADO' && !enFirma && gestionar && (
               <Button variante="fantasma" onClick={enviarAFirma} cargando={guardando === 'firma'} iconoInicio={<Send className="size-4" strokeWidth={2} />}
                 title="El trabajador recibe una copia y firma su recepción. No ratifica el finiquito.">
                 Enviar copia (firma de recepción)

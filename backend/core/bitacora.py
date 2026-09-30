@@ -45,6 +45,7 @@ _ESPECIALES = {
     'solicitudfirma-confirmar-identidad': ('IDENTIDAD', 'Confirmó su identidad con su clave para firmar'),
     'perfil_usuario': ('PERFIL', 'Modificó los datos del titular'),
     'preferencia_resumen': ('PERFIL', 'Cambió la frecuencia del resumen por correo'),
+    'exportar_bitacora': ('DESCARGA', 'Descargó una copia de la bitácora'),
 }
 
 

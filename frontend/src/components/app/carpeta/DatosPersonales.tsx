@@ -8,6 +8,7 @@ import client from '../../../api/client';
 import { AlertaError, Button, Input, Modal } from '../../j40';
 import type { TipoAviso } from '../AppShell';
 import { ModalConsentimientoPapel } from '../ModalConsentimientoPapel';
+import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, ViaConsentimiento } from '../../../types';
 import { capitalizar, fechaCL } from '../../../utils/formato';
 import { AFPS, mensajeErrorCampos } from './utiles';
@@ -127,6 +128,8 @@ const VIA_CONSENTIMIENTO: Record<Exclude<ViaConsentimiento, ''>, string> = {
 /** Autorización para la documentación laboral electrónica (Dictamen 0789/15). */
 function DocumentosElectronicos({ empleado, avisar }: { empleado: Empleado; avisar: Avisar }) {
   const queryClient = useQueryClient();
+  // El consentimiento es de Dirección del Trabajo; el correo, de la ficha.
+  const gestionarDT = usePermisos().puede('DIRECCION_TRABAJO', true);
   const [papel, setPapel] = useState(false);
   const [revocar, setRevocar] = useState(false);
   const [revocando, setRevocando] = useState(false);
@@ -175,12 +178,12 @@ function DocumentosElectronicos({ empleado, avisar }: { empleado: Empleado; avis
           <div className="flex-1 min-w-[220px] flex flex-col gap-0.5">
             <span className="text-[13.5px] font-medium text-warn">Sin autorización para documentos electrónicos</span>
             <span className="text-[12.5px] text-fg-3">
-              La DT exige su autorización expresa para firmar y enviarle documentos en forma electrónica.{' '}
-              <Link to="/app/dt">Enviarle el anexo</Link>
+              La DT exige su autorización expresa para firmar y enviarle documentos en forma electrónica.
+              {gestionarDT && <>{' '}<Link to="/app/dt">Enviarle el anexo</Link></>}
             </span>
           </div>
         )}
-        {autorizado ? (
+        {!gestionarDT ? null : autorizado ? (
           <Button variante="peligro-contorno" tamano="sm" onClick={() => setRevocar(true)}>Revocar</Button>
         ) : (
           <Button variante="secundario" tamano="sm" onClick={() => setPapel(true)}
@@ -213,6 +216,7 @@ function DocumentosElectronicos({ empleado, avisar }: { empleado: Empleado; avis
  */
 function CorreoPersonal({ empleado, avisar, refrescar }: { empleado: Empleado; avisar: Avisar; refrescar: () => Promise<unknown> }) {
   const [confirmando, setConfirmando] = useState(false);
+  const gestionar = usePermisos().puede('TRABAJADORES', true);
   if (!empleado.email) {
     return (
       <p className="flex items-start gap-2 px-[18px] pb-[18px] text-[12.5px] text-warn">
@@ -243,7 +247,7 @@ function CorreoPersonal({ empleado, avisar, refrescar }: { empleado: Empleado; a
           que conserva al terminar la relación laboral.
         </span>
       </p>
-      <Button variante="secundario" tamano="sm" cargando={confirmando} onClick={() => void confirmar()}>Es su correo personal</Button>
+      {gestionar && <Button variante="secundario" tamano="sm" cargando={confirmando} onClick={() => void confirmar()}>Es su correo personal</Button>}
     </div>
   );
 }
@@ -254,6 +258,7 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
   const [borrador, setBorrador] = useState<Partial<Empleado>>({});
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const gestionar = usePermisos().puede('TRABAJADORES', true);
   const { Icono } = seccion;
 
   const empezar = () => {
@@ -302,7 +307,7 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
             <Button variante="secundario" tamano="sm" onClick={() => setEditando(false)} disabled={guardando}>Cancelar</Button>
             <Button tamano="sm" onClick={guardar} cargando={guardando}>Guardar</Button>
           </>
-        ) : (
+        ) : gestionar && (
           <Button variante="secundario" tamano="sm" onClick={empezar} iconoInicio={<Pencil className="size-4" strokeWidth={2} />}>Editar</Button>
         )}
       </div>

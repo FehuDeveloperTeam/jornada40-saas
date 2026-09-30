@@ -12,6 +12,7 @@ import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
 import { ModalConsentimientoPapel } from '../../components/app/ModalConsentimientoPapel';
 import { useRegistroDT } from '../../hooks/usePanel';
+import { usePermisos } from '../../hooks/usePermisos';
 import type {
   EstadoRegistroDT, FichaDT as TFichaDT, ItemRegistroDT, PendienteConsentimiento, RegistroInspeccion, ResultadoAnexosConsentimiento,
   TipoRegistroDT,
@@ -62,6 +63,8 @@ function estadoAnexo(p: PendienteConsentimiento): { texto: string; tono: TonoChi
 export default function DireccionTrabajo() {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
+  // Solo lectura: se ven las fichas y los plazos, pero no se marca ni se envía nada.
+  const gestionar = usePermisos().puede('DIRECCION_TRABAJO', true);
   const registro = useRegistroDT(empresa.id);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('por_registrar');
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos');
@@ -151,7 +154,7 @@ export default function DireccionTrabajo() {
     <span className="flex flex-wrap justify-end gap-1.5">
       <Button variante={i.estado === 'REGISTRADO' ? 'fantasma' : 'primario'} tamano="sm" onClick={() => setFicha(i.clave)}
         iconoInicio={<FileText className="size-4" strokeWidth={2} />}>Ver ficha</Button>
-      {i.estado === 'REGISTRADO' ? (
+      {!gestionar ? null : i.estado === 'REGISTRADO' ? (
         <Button variante="fantasma" tamano="sm" cargando={ocupada === `d${i.clave}`} onClick={() => desmarcar(i)}
           iconoInicio={<RotateCcw className="size-4" strokeWidth={2} />}>Deshacer</Button>
       ) : (
@@ -220,22 +223,26 @@ export default function DireccionTrabajo() {
             opciones={FILTROS_TIPO.map(([valor, etiqueta]) => ({ valor, etiqueta }))} />
         </div>
 
-        <div className="flex items-start gap-2.5 mx-[18px] mt-3 px-3.5 py-2.5 rounded-[10px] bg-brand-soft text-brand-text text-[12.5px]">
-          <Info className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
-          <span>¿Ya registraste antes estos contratos en Mi DT? Márcalos como registrados con la fecha en que lo hiciste.</span>
-        </div>
+        {gestionar && (
+          <div className="flex items-start gap-2.5 mx-[18px] mt-3 px-3.5 py-2.5 rounded-[10px] bg-brand-soft text-brand-text text-[12.5px]">
+            <Info className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+            <span>¿Ya registraste antes estos contratos en Mi DT? Márcalos como registrados con la fecha en que lo hiciste.</span>
+          </div>
+        )}
 
-        <div className="flex flex-wrap items-center gap-2 px-[18px] py-3">
-          <span className="text-[12.5px] text-fg-3 flex-1 min-w-[160px]">
-            {elegidos.length ? plural(elegidos.length, 'seleccionado', 'seleccionados') : 'Selecciona filas para actuar sobre varias a la vez'}
-          </span>
-          {porMarcar.length > 0 && (
-            <Button tamano="sm" onClick={() => setMarcar(porMarcar.map((i) => i.clave))}
-              iconoInicio={<CircleCheck className="size-4" strokeWidth={2} />}>
-              Marcar {porMarcar.length} como {porMarcar.length === 1 ? 'registrado' : 'registrados'}
-            </Button>
-          )}
-        </div>
+        {gestionar && (
+          <div className="flex flex-wrap items-center gap-2 px-[18px] py-3">
+            <span className="text-[12.5px] text-fg-3 flex-1 min-w-[160px]">
+              {elegidos.length ? plural(elegidos.length, 'seleccionado', 'seleccionados') : 'Selecciona filas para actuar sobre varias a la vez'}
+            </span>
+            {porMarcar.length > 0 && (
+              <Button tamano="sm" onClick={() => setMarcar(porMarcar.map((i) => i.clave))}
+                iconoInicio={<CircleCheck className="size-4" strokeWidth={2} />}>
+                Marcar {porMarcar.length} como {porMarcar.length === 1 ? 'registrado' : 'registrados'}
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Escritorio y tablet: tabla */}
         <div className="hidden min-[720px]:block border-t border-line overflow-x-auto">
@@ -300,7 +307,7 @@ export default function DireccionTrabajo() {
       <Fiscalizacion empresaId={empresa.id} />
 
       <FichaMiDT clave={ficha} empresaId={empresa.id} onCerrar={() => setFicha(null)} avisar={avisar}
-        onMarcar={(clave) => setMarcar([clave])} />
+        onMarcar={gestionar ? (clave) => setMarcar([clave]) : undefined} />
 
       <ModalMarcar claves={marcar} empresaId={empresa.id} onCerrar={() => setMarcar(null)}
         alMarcar={async (n) => {
@@ -325,6 +332,7 @@ function Consentimiento({ empresaId, datos, pct, avisar, refrescar }: {
   const [creando, setCreando] = useState<'enviar' | 'crear' | null>(null);
   const [resultado, setResultado] = useState<{ enviar: boolean; datos: ResultadoAnexosConsentimiento } | null>(null);
   const [papel, setPapel] = useState<PendienteConsentimiento | null>(null);
+  const gestionar = usePermisos().puede('DIRECCION_TRABAJO', true);
   const sinCorreo = datos.sin.filter((p) => !p.email.trim()).length;
 
   const crearAnexos = async (enviar: boolean) => {
@@ -361,7 +369,7 @@ function Consentimiento({ empresaId, datos, pct, avisar, refrescar }: {
           {/* Ancho calculado: no hay clase de Tailwind para un porcentaje variable. */}
           <div className={cn('h-full rounded-full', pct === 100 ? 'bg-ok' : 'bg-brand')} style={{ width: `${pct}%` }} />
         </div>
-        {datos.sin.length > 0 && (
+        {datos.sin.length > 0 && gestionar && (
           <div className="flex flex-wrap gap-2">
             <Button tamano="sm" cargando={creando === 'enviar'} disabled={creando !== null} onClick={() => crearAnexos(true)}
               iconoInicio={<Send className="size-4" strokeWidth={2} />}>Crear y enviar anexos a firma</Button>
@@ -399,8 +407,10 @@ function Consentimiento({ empresaId, datos, pct, avisar, refrescar }: {
                   </span>
                 </span>
                 <Chip tono={e.tono}>{e.texto}</Chip>
-                <Button variante="secundario" tamano="sm" onClick={() => setPapel(p)}
-                  iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>Firmado en papel</Button>
+                {gestionar && (
+                  <Button variante="secundario" tamano="sm" onClick={() => setPapel(p)}
+                    iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>Firmado en papel</Button>
+                )}
               </div>
             );
           })}
@@ -502,7 +512,7 @@ function ModalMarcar({ claves, empresaId, onCerrar, alMarcar, alFallar }: {
  * etapas, con botón para copiar los textos que el formulario pide pegar.
  */
 function FichaMiDT({ clave, empresaId, onCerrar, onMarcar, avisar }: {
-  clave: string | null; empresaId: number; onCerrar: () => void; onMarcar: (clave: string) => void;
+  clave: string | null; empresaId: number; onCerrar: () => void; onMarcar?: (clave: string) => void;
   avisar: (texto: string, tipo?: 'error') => void;
 }) {
   const [copiado, setCopiado] = useState<string | null>(null);
@@ -530,7 +540,7 @@ function FichaMiDT({ clave, empresaId, onCerrar, onMarcar, avisar }: {
           className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-[10px] border border-line-strong text-[13px] font-medium text-fg">
           Abrir Mi DT<ExternalLink className="size-3.5" strokeWidth={2} aria-hidden />
         </a>
-        {datos && datos.estado !== 'REGISTRADO' && (
+        {datos && datos.estado !== 'REGISTRADO' && onMarcar && (
           <Button onClick={() => { onMarcar(datos.clave); onCerrar(); }}
             iconoInicio={<CircleCheck className="size-4" strokeWidth={2} />}>Ya lo registré</Button>
         )}

@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
 from django.template.loader import render_to_string
+from ..autenticacion import tipos_visibles
 from ..models import Contrato, DocumentoLegal
 import datetime
 from ..serializers import DocumentoLegalSerializer
@@ -111,6 +112,9 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
         queryset = DocumentoLegal.objects.filter(
             empleado__empresa__owner=self.request.user
         ).order_by('-fecha_emision', '-creado_en')
+        tipos = tipos_visibles(self.request)
+        if tipos is not None:
+            queryset = queryset.filter(tipo__in=tipos)
         empleado_id = self.request.query_params.get('empleado', None)
         if empleado_id is not None:
             queryset = queryset.filter(empleado_id=empleado_id)

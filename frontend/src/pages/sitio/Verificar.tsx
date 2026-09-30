@@ -12,7 +12,8 @@ import { codigoCompleto, normalizarCodigo as normalizar } from '../../utils/codi
 /**
  * Verificación pública de certificados emitidos desde el portal del
  * trabajador: quien recibe un certificado ingresa (o escanea) el código y ve
- * lo que el certificado afirma según Jornada40.
+ * lo que el certificado afirma según Jornada40. El mismo código sirve para las
+ * copias de la bitácora que un empleador presenta (folio B-…).
  */
 export default function Verificar() {
   const { codigo = '' } = useParams();
@@ -43,9 +44,9 @@ export default function Verificar() {
       </header>
       <main className="max-w-[760px] mx-auto px-4 py-10 flex flex-col gap-6">
         <div>
-          <h1 className="text-[clamp(22px,3vw,30px)] font-semibold tracking-[-0.02em]">Verificar un certificado</h1>
+          <h1 className="text-[clamp(22px,3vw,30px)] font-semibold tracking-[-0.02em]">Verificar un documento</h1>
           <p className="text-[14px] text-fg-2 mt-1">
-            Ingresa el código de verificación impreso al pie del certificado para confirmar que fue emitido por Jornada40.
+            Ingresa el código de verificación impreso en el certificado o en la copia de la bitácora para confirmar que fue emitido por Jornada40.
           </p>
         </div>
 
@@ -65,7 +66,7 @@ export default function Verificar() {
           <div role="alert" className="flex gap-3 items-start rounded-j40-card border border-line bg-surface p-4">
             <CircleX className="size-6 text-danger shrink-0" strokeWidth={2} aria-hidden />
             <div>
-              <p className="text-[15px] font-semibold">No encontramos un certificado con ese código</p>
+              <p className="text-[15px] font-semibold">No encontramos un documento con ese código</p>
               <p className="text-[13px] text-fg-2">Revisa que esté bien escrito. Si lo está, el documento no fue emitido por Jornada40.</p>
             </div>
           </div>
@@ -97,20 +98,32 @@ function Anulado({ v }: { v: VerificacionCertificado }) {
 function Resultado({ v }: { v: VerificacionCertificado }) {
   return (
     <section aria-label="Resultado de la verificación" className="rounded-j40-card border border-line bg-surface shadow-card flex flex-col">
+      {v.alterado ? (
+        <div role="alert" className="flex gap-3 items-start p-4 border-b border-line bg-danger-soft rounded-t-j40-card">
+          <CircleX className="size-6 text-danger shrink-0" strokeWidth={2} aria-hidden />
+          <div>
+            <p className="text-[15px] font-semibold">Los registros ya no coinciden con esta copia</p>
+            <p className="text-[13px] text-fg-2">
+              {v.titulo} · folio <span className="j40-mono">{v.folio}</span> · emitida el {v.emitido}
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="flex gap-3 items-start p-4 border-b border-line bg-ok-soft rounded-t-j40-card">
         <CircleCheck className="size-6 text-ok shrink-0" strokeWidth={2} aria-hidden />
         <div>
-          <p className="text-[15px] font-semibold">Certificado auténtico</p>
+          <p className="text-[15px] font-semibold">{v.trabajador ? 'Certificado auténtico' : 'Documento auténtico'}</p>
           <p className="text-[13px] text-fg-2">
             {v.titulo} · folio <span className="j40-mono">{v.folio}</span> · emitido el {v.emitido}
           </p>
         </div>
       </div>
+      )}
       <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 p-4 text-[13.5px]">
-        <dt className="text-fg-3">Empleador</dt><dd className="font-medium">{v.empresa.nombre} · RUT {v.empresa.rut}</dd>
+        <dt className="text-fg-3">{v.trabajador ? 'Empleador' : 'Titular'}</dt><dd className="font-medium">{v.empresa.nombre} · RUT {v.empresa.rut}</dd>
         {v.trabajador && <><dt className="text-fg-3">Trabajador</dt><dd className="font-medium">{v.trabajador.nombre} · RUT {v.trabajador.rut}</dd></>}
         {(v.filas ?? []).map(([etiqueta, valor]) => (
-          <div key={etiqueta} className="contents"><dt className="text-fg-3">{etiqueta}</dt><dd>{valor}</dd></div>
+          <div key={etiqueta} className="contents"><dt className="text-fg-3">{etiqueta}</dt><dd className="break-all">{valor}</dd></div>
         ))}
       </dl>
       {v.tabla && (
@@ -130,7 +143,8 @@ function Resultado({ v }: { v: VerificacionCertificado }) {
       )}
       {v.nota && <p className="px-4 pb-4 text-[12.5px] text-fg-3">{v.nota}</p>}
       <p className="px-4 pb-4 text-[12px] text-fg-3">
-        Compara estos datos con el documento que recibiste: deben coincidir. El RUT del trabajador se muestra en parte para proteger sus datos.
+        Compara estos datos con el documento que recibiste: deben coincidir.
+        {v.trabajador ? ' El RUT del trabajador se muestra en parte para proteger sus datos.' : ' La huella debe ser la misma impresa en la copia.'}
       </p>
     </section>
   );

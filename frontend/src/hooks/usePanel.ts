@@ -6,6 +6,7 @@ import type {
   AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudDocumentoPanel,
   SolicitudFirma, VacacionEmpleado,
 } from '../types';
+import { MODULOS_DOCUMENTOS, usePermisos } from './usePermisos';
 import { usePlanes } from './usePlanes';
 
 /**
@@ -110,25 +111,25 @@ export function useTrabajadores(empresaId: number | undefined) {
   });
 }
 
-export function useFirmas() {
-  return useQuery({ queryKey: ['firmas'], queryFn: () => obtener<SolicitudFirma>('/firmas/') });
+export function useFirmas(habilitado = true) {
+  return useQuery({ queryKey: ['firmas'], queryFn: () => obtener<SolicitudFirma>('/firmas/'), enabled: habilitado });
 }
 
 /** Registros pendientes en la Dirección del Trabajo y consentimientos de la empresa. */
-export function useRegistroDT(empresaId: number | undefined) {
+export function useRegistroDT(empresaId: number | undefined, habilitado = true) {
   return useQuery({
     queryKey: ['registro-dt', empresaId],
     queryFn: async () => (await client.get<RegistroDT>(`/registro-dt/?empresa=${empresaId}`)).data,
-    enabled: Boolean(empresaId),
+    enabled: Boolean(empresaId) && habilitado,
   });
 }
 
 /** Documentos que los trabajadores pidieron desde su portal (todas; la pantalla filtra por estado). */
-export function useSolicitudesDocumento(empresaId: number | undefined) {
+export function useSolicitudesDocumento(empresaId: number | undefined, habilitado = true) {
   return useQuery({
     queryKey: ['solicitudes-documento', empresaId],
     queryFn: async () => (await client.get<SolicitudDocumentoPanel[]>(`/solicitudes-documento/?empresa=${empresaId}`)).data,
-    enabled: Boolean(empresaId),
+    enabled: Boolean(empresaId) && habilitado,
   });
 }
 
@@ -142,13 +143,15 @@ export function useVacacionesEmpresa(empresaId: number | undefined, habilitado: 
 
 /** Todo lo que muestra la carpeta de un trabajador. */
 export function useCarpeta(empleadoId: number | undefined, nivel: number) {
+  // Un usuario del equipo solo consulta lo de sus módulos (el resto respondería 403).
+  const { puede } = usePermisos();
   const activo = Boolean(empleadoId);
-  const vacacionesHabilitadas = activo && nivel >= 2;  // vacaciones: plan Starter en adelante
+  const vacacionesHabilitadas = activo && nivel >= 2 && puede('VACACIONES');  // vacaciones: plan Starter en adelante
   return {
     liquidaciones: useQuery({
       queryKey: ['liquidaciones', empleadoId],
       queryFn: () => obtener<Liquidacion>(`/liquidaciones/?empleado=${empleadoId}`),
-      enabled: activo,
+      enabled: activo && puede('REMUNERACIONES'),
     }),
     vacaciones: useQuery({
       queryKey: ['vacaciones', empleadoId],
@@ -163,22 +166,22 @@ export function useCarpeta(empleadoId: number | undefined, nivel: number) {
     documentos: useQuery({
       queryKey: ['documentos', empleadoId],
       queryFn: () => obtener<DocumentoLegal>(`/documentos_legales/?empleado=${empleadoId}`),
-      enabled: activo,
+      enabled: activo && puede(['DOCUMENTOS', 'TERMINO']),
     }),
     anexos: useQuery({
       queryKey: ['anexos', empleadoId],
       queryFn: () => obtener<AnexoContrato>(`/anexos_contrato/?empleado=${empleadoId}`),
-      enabled: activo,
+      enabled: activo && puede('CONTRATOS'),
     }),
     documentosLaborales: useQuery({
       queryKey: ['documentos-laborales', empleadoId],
       queryFn: async () => (await client.get<DocumentoLaboral[]>(`/documentos-laborales/?empleado=${empleadoId}`)).data,
-      enabled: activo,
+      enabled: activo && puede(MODULOS_DOCUMENTOS),
     }),
     firmas: useQuery({
       queryKey: ['firmas', empleadoId],
       queryFn: () => obtener<SolicitudFirma>(`/firmas/?empleado_id=${empleadoId}`),
-      enabled: activo,
+      enabled: activo && puede(MODULOS_DOCUMENTOS),
     }),
   };
 }
