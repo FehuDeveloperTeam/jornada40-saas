@@ -9,6 +9,7 @@ from .views import resumen
 from .views import reglamento
 from .views import ley_karin
 from .views import bitacora as vista_bitacora
+from .views import equipo
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -35,6 +36,7 @@ router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
 router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
 router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
 router.register(r'registro-dt', RegistroDTViewSet, basename='registro_dt')
+router.register(r'equipo', equipo.EquipoViewSet, basename='equipo')
 router.register(r'ley-karin', ley_karin.LeyKarinViewSet, basename='ley_karin')
 router.register(r'reglamentos', reglamento.ReglamentoViewSet, basename='reglamento')
 router.register(r'documentos-laborales', documentos_laborales.DocumentoLaboralViewSet, basename='documento_laboral')
@@ -96,6 +98,10 @@ urlpatterns = [
     path('clientes/perfil/', perfil_usuario, name='perfil_usuario'),
     path('clientes/resumen/', resumen.preferencia_resumen, name='preferencia_resumen'),
     path('bitacora/', vista_bitacora.bitacora, name='bitacora'),
+    path('auth/equipo/ingresar/', equipo.ingresar_equipo, name='ingresar_equipo'),
+    path('auth/equipo/recuperar/', equipo.recuperar_equipo, name='recuperar_equipo'),
+    path('auth/equipo/clave/', equipo.clave_equipo, name='clave_equipo'),
+    path('auth/sesion/', equipo.sesion, name='sesion'),
     path('bitacora/verificar/', vista_bitacora.verificar_bitacora, name='verificar_bitacora'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
     # Firma electrónica — endpoints públicos (sin autenticación)

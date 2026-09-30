@@ -22,7 +22,7 @@ from .models import Empresa, RegistroBitacora
 logger = logging.getLogger(__name__)
 
 _EXCLUIDAS = ('/api/trabajador/', '/api/inspeccion/', '/api/firma-publica/', '/api/auth/token/refresh/',
-              '/api/auth/login/', '/api/ley-karin/denuncias/')
+              '/api/auth/login/', '/api/auth/equipo/', '/api/ley-karin/denuncias/')
 # POST que solo calculan una vista previa: no son acciones.
 _SOLO_CALCULO = re.compile(r'/(simular|evaluar-jornada|evaluar_jornada|dias_habiles)/?$')
 _DESCARGA = re.compile(r'(pdf|descargar|exportar|zip|plantilla|resumen-dj1887|csv)', re.IGNORECASE)
@@ -35,6 +35,7 @@ _ENTIDADES = {
     'solicitudfirma': 'solicitud de firma', 'firma': 'solicitud de firma', 'documento_laboral': 'pacto o constancia',
     'reglamento': 'reglamento interno', 'ley_karin': 'aviso Ley Karin', 'registro_dt': 'registro en Mi DT',
     'solicitud_documento': 'solicitud de documento', 'certificado': 'certificado',
+    'equipo': 'usuario del equipo',
 }
 _VERBOS = {'POST': 'Creó', 'PUT': 'Modificó', 'PATCH': 'Modificó', 'DELETE': 'Eliminó'}
 # Rutas con un texto propio.
@@ -64,10 +65,16 @@ def cuenta_de(user):
         return None, None
     if hasattr(user, 'perfil_cliente'):
         return user, 'TITULAR'
+    ue = getattr(user, 'usuario_equipo', None)
+    if ue is not None and ue.estado == 'ACTIVO':
+        return ue.cuenta, 'EQUIPO'
     return None, None
 
 
 def _nombre(user):
+    ue = getattr(user, 'usuario_equipo', None)
+    if ue is not None:
+        return f'{ue.nombre_completo} (equipo)'
     cliente = getattr(user, 'perfil_cliente', None)
     if cliente:
         nombre = ' '.join(p for p in (cliente.nombres, cliente.apellido_paterno) if p).strip()
@@ -86,7 +93,7 @@ def registrar(cuenta, accion, descripcion, *, actor=None, actor_tipo='SISTEMA', 
         r = RegistroBitacora(
             cuenta=cuenta, actor=actor, actor_tipo=actor_tipo,
             actor_nombre=(_nombre(actor) if actor else 'Jornada40')[:150],
-            actor_rut=(actor.username if actor else '')[:15], empresa=empresa, accion=accion[:40],
+            actor_rut=(getattr(getattr(actor, 'usuario_equipo', None), 'rut', None) or (actor.username if actor else ''))[:15], empresa=empresa, accion=accion[:40],
             descripcion=descripcion[:300], metodo=metodo[:8], ruta=ruta[:200], estado_http=estado_http, ip=ip[:64],
             creado_en=timezone.now(), hash_anterior=anterior or '')
         r.hash = _huella(_contenido(r))

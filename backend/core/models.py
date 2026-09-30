@@ -1409,3 +1409,43 @@ class RegistroBitacora(models.Model):
 
     def delete(self, *args, **kwargs):
         raise PermissionError('La bitácora es de solo lectura.')
+
+
+class UsuarioEquipo(models.Model):
+    """Persona del equipo que el titular invita al panel (tabla aparte de los clientes).
+
+    Entra por "Ingreso del equipo" con su RUT y su propia clave. Ve solo los
+    módulos marcados en `permisos` ({módulo: VER | GESTIONAR}, core.permisos) y
+    solo las `empresas` elegidas. Usa un `User` propio de Django para la clave y la
+    sesión, con un nombre de usuario interno que no choca con el RUT del titular:
+    la misma persona puede estar en varias cuentas, con una clave en cada una.
+    Eliminar quita el acceso para siempre y libera el cupo; el registro queda
+    por las firmas y la bitácora."""
+    ESTADOS = [('INVITADO', 'Invitado (aún no crea su clave)'), ('ACTIVO', 'Activo'), ('ELIMINADO', 'Eliminado')]
+    cuenta = models.ForeignKey(User, on_delete=models.PROTECT, related_name='equipo')
+    usuario = models.OneToOneField(User, on_delete=models.PROTECT, related_name='usuario_equipo')
+    rut = models.CharField(max_length=12, db_index=True, help_text='Formato 12.345.678-5.')
+    nombres = models.CharField(max_length=100)
+    apellidos = models.CharField(max_length=150, blank=True, default='')
+    correo = models.EmailField()
+    permisos = models.JSONField(default=dict)
+    empresas = models.ManyToManyField('Empresa', related_name='usuarios_equipo', blank=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='INVITADO')
+    invitado_en = models.DateTimeField(null=True, blank=True)
+    activado_en = models.DateTimeField(null=True, blank=True)
+    eliminado_en = models.DateTimeField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombres', 'apellidos']
+
+    def __str__(self):
+        return f'{self.nombre_completo} ({self.rut}) · equipo de {self.cuenta.username}'
+
+    @property
+    def nombre_completo(self):
+        return f'{self.nombres} {self.apellidos}'.strip()
+
+    @property
+    def ocupa_cupo(self):
+        return self.estado in ('INVITADO', 'ACTIVO')

@@ -1,0 +1,6 @@
+Hola {{ nombre }}:
+
+{{ cuenta }} te dio acceso a su panel de Jornada40. Para empezar, crea tu clave en este enlace (sirve una sola vez):
+{{ enlace }}
+
+Después entra en {{ ingreso }} con el botón «Ingreso del equipo», tu RUT y tu clave.

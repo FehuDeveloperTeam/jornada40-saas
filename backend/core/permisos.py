@@ -71,3 +71,16 @@ def cupo_ley_karin(plan, adicionales=0):
     if plan is None or plan.nivel < NIVEL_LEY_KARIN:
         return 0
     return ENCARGADOS_LEY_KARIN + max(adicionales or 0, 0)
+
+
+# Rutas que un usuario del equipo puede usar siempre (su sesión y su identidad).
+RUTAS_EQUIPO_LIBRES = (
+    '/api/auth/logout/', '/api/auth/user/', '/api/auth/sesion/', '/api/auth/password/change/',
+    '/api/auth/token/refresh/', '/api/firmas/confirmar_identidad/', '/api/indicadores/',
+)
+
+
+def equipo_puede(usuario_equipo, ruta, metodo):
+    """Si un usuario del equipo puede llamar esa ruta. Todo lo que no esté permitido
+    expresamente se rechaza (los módulos se habilitan en la fase de permisos)."""
+    return ruta.startswith(RUTAS_EQUIPO_LIBRES)

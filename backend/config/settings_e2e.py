@@ -13,7 +13,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Las pruebas inician sesión muchas veces seguidas desde la misma IP.
 REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {
     **REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'],
-    'login': '1000/minute', 'register': '1000/minute', 'password_reset': '1000/hour',
+    'login': '1000/minute', 'register': '1000/minute', 'password_reset': '1000/hour', 'equipo_clave': '1000/hour',
     'anon': '100000/day', 'user': '100000/day',
     'firma_publica': '100000/hour', 'firma_publica_ip': '100000/day',
     'portal_trabajador': '100000/hour', 'verificar_certificado': '100000/hour', 'confirmar_identidad': '100000/hour', 'inspeccion': '100000/hour', 'inspeccion_sesion': '100000/day', 'portal_trabajador_sesion': '100000/day'}}
