@@ -238,9 +238,9 @@ export default function Carpeta() {
         <DrawerDocumento empleado={empleado} nivel={nivel} onCerrar={cerrarAccion} avisar={avisar}
           tipoInicial={(['AMONESTACION', 'CONSTANCIA', 'DESPIDO'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'AMONESTACION') as TipoDocumento} />
       )}
-      {accion === 'laboral' && nivel >= 2 && (
+      {accion === 'laboral' && (nivel >= 2 || params.get('tipo') === 'ENTREGA_EPP') && (
         <DrawerDocumentoLaboral empleado={empleado} onCerrar={cerrarAccion} avisar={avisar}
-          tipoInicial={(params.get('tipo') && params.get('tipo')! in TITULOS_LABORALES ? params.get('tipo') : 'HORAS_EXTRA') as TipoLaboral} />
+          tipoInicial={(params.get('tipo') && params.get('tipo')! in TITULOS_LABORALES ? params.get('tipo') : nivel >= 2 ? 'HORAS_EXTRA' : 'ENTREGA_EPP') as TipoLaboral} />
       )}
       {accion === 'vacacion' && nivel >= 2 && <DrawerVacacion empleado={empleado} saldo={carpeta.saldo.data} onCerrar={cerrarAccion} avisar={avisar} />}
 

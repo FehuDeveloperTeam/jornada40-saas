@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { LucideIcon } from 'lucide-react';
-import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, Lock, ScrollText, TriangleAlert, UserX } from 'lucide-react';
+import { BadgeCheck, Clock, Download, FileSignature, HandCoins, House, Landmark, Send, FileText, FileWarning, HardHat, Lock, ScrollText, ShieldAlert, TriangleAlert, UserX } from 'lucide-react';
 import { AlertaError, Button, Chip, Field, Modal } from '../../j40';
 import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
@@ -24,6 +24,8 @@ const PLANTILLAS: Plantilla[] = [
   { titulo: 'Pacto de teletrabajo', detalle: 'Anexo Ley 21.220', Icono: House, nivel: 2, ruta: (id) => rutaLaboral(id, 'TELETRABAJO'), requiereContrato: true },
   { titulo: 'Autorización de descuento', detalle: 'Art. 58, tope 15 %', Icono: HandCoins, nivel: 2, ruta: (id) => rutaLaboral(id, 'DESCUENTO') },
   { titulo: 'Permiso legal con goce', detalle: 'Fallecimiento, nacimiento, matrimonio', Icono: ScrollText, nivel: 2, ruta: (id) => rutaLaboral(id, 'PERMISO_LEGAL') },
+  { titulo: 'Entrega de EPP', detalle: 'Elementos de protección, sin costo', Icono: HardHat, nivel: 1, ruta: (id) => rutaLaboral(id, 'ENTREGA_EPP') },
+  { titulo: 'Información de riesgos', detalle: 'DS 44, al ingresar o cambiar de puesto', Icono: ShieldAlert, nivel: 3, ruta: (id) => rutaLaboral(id, 'INFORMACION_RIESGOS') },
   { titulo: 'Indemnización a todo evento', detalle: 'Art. 164, desde el año 7', Icono: Landmark, nivel: 2, ruta: (id) => rutaLaboral(id, 'INDEMNIZACION') },
 ];
 
@@ -40,7 +42,7 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
   const opciones = useQuery({
     queryKey: ['documentos-laborales', 'opciones', empleado.id],
     queryFn: async () => (await client.get<OpcionesDocumentoLaboral>(`/documentos-laborales/opciones/?empleado=${empleado.id}`)).data,
-    enabled: nivel >= 2,
+    enabled: nivel >= 1,
   });
 
   const enviarAFirma = async (d: DocumentoReciente) => {

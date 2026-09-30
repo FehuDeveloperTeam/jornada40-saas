@@ -37,6 +37,8 @@ from ..rut import formatear_rut
 from .base import _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import es_feriado_cl
 from .horas_compensatorias import COMPENSACIONES, permite_compensacion
+from .. import seguridad
+from ..reglamento_plantilla import OPCIONES_RUBRO, RUBROS
 
 NIVEL_DOCUMENTOS = 2   # Starter en adelante
 _VIVAS = ['PENDIENTE', 'PROCESANDO', 'FIRMADO']
@@ -449,7 +451,105 @@ def _avisos_teletrabajo(emp, hoy):
     return avisos
 
 
-_CONSTRUCTORES = {'HORAS_EXTRA': _horas_extra, 'PERMISO_LEGAL': _permiso, 'INDEMNIZACION': _indemnizacion}
+
+# ── Seguridad laboral: EPP (todos los planes) e información de riesgos (Pyme) ─
+
+NIVEL_RIESGOS = 3
+MESES_REFUERZO_EPP = 12
+
+
+def _entrega_epp(emp, contrato, d, hoy):
+    """Constancia de entrega gratuita de EPP (Art. 68 Ley 16.744; Art. 13 DS 44)."""
+    elegidos = []
+    for item in d.get('items') or []:
+        if not isinstance(item, dict):
+            continue
+        codigo = _opcion(item.get('codigo'), seguridad.EPP, 'los elementos entregados')
+        elegidos.append((codigo, _entero(item.get('cantidad'), 'la cantidad', 1, 20)))
+    if not elegidos:
+        raise DatoInvalido('Elige al menos un elemento de protección entregado.')
+    if len({c for c, _ in elegidos}) != len(elegidos):
+        raise DatoInvalido('Un mismo elemento aparece dos veces: indica una sola vez su cantidad.')
+    motivo = _opcion(d.get('motivo'), seguridad.MOTIVOS_EPP, 'el motivo de la entrega')
+    entrega = _fecha_param(d.get('fecha'), 'la fecha de entrega')
+    if entrega > hoy:
+        raise DatoInvalido('La fecha de entrega no puede ser futura.')
+    capacitado = d.get('capacitacion') == 'SI'
+    capacitacion = _fecha_param(d.get('fecha_capacitacion'), 'la fecha de la capacitación') if capacitado else None
+    if capacitacion and capacitacion > hoy:
+        raise DatoInvalido('La fecha de la capacitación no puede ser futura.')
+    lista = ', '.join(f'{n} × {seguridad.TEXTO_EPP[c].lower()}' for c, n in elegidos)
+    clausulas = [
+        f'Se deja constancia de que el empleador entregó al trabajador el {_fecha(entrega)}, sin costo alguno para '
+        f'este, los siguientes elementos de protección personal: {lista}. Motivo: '
+        f'{dict(seguridad.MOTIVOS_EPP)[motivo].lower()} (artículo 68 de la Ley 16.744 y artículo 13 del DS 44 de 2023).',
+    ]
+    if capacitacion:
+        clausulas.append(f'El {_fecha(capacitacion)} el trabajador recibió capacitación teórica y práctica, de al menos '
+                         'una hora, sobre su correcta colocación y uso, sus limitaciones, su limpieza, almacenamiento y '
+                         'revisión diaria (artículo 13 del DS 44 y artículo 53 del DS 594).')
+    clausulas.append('El trabajador se compromete a usar estos elementos durante su trabajo, cuidarlos y avisar '
+                     'cuando se deterioren o pierdan; su reposición es gratuita.')
+    avisos = [] if capacitacion else ['Falta registrar la capacitación de al menos una hora sobre el uso de estos '
+                                      'elementos (Art. 13 del DS 44).']
+    return {'vigente_desde': entrega, 'vigente_hasta': None,
+            'datos': {'items': [{'codigo': c, 'cantidad': n} for c, n in elegidos], 'motivo': motivo,
+                      'capacitacion_en': capacitacion.isoformat() if capacitacion else None,
+                      'clausulas': clausulas,
+                      'resumen': f'{sum(n for _, n in elegidos)} elementos · {entrega:%d-%m-%Y}'}}, avisos
+
+
+def _informacion_riesgos(emp, contrato, d, hoy):
+    """Constancia de la información de riesgos del Art. 15 del DS 44 (lista cerrada del rubro)."""
+    rubro = _opcion(d.get('rubro'), list(RUBROS), 'el rubro')
+    catalogo = seguridad.riesgos()
+    codigos = [c for c in (d.get('riesgos') or []) if c in catalogo]
+    if not codigos:
+        raise DatoInvalido('Marca al menos un riesgo del puesto.')
+    motivo = _opcion(d.get('motivo'), seguridad.MOTIVOS_RIESGOS, 'el momento en que se informa')
+    capacitacion = _fecha_param(d.get('fecha_capacitacion'), 'la fecha de la capacitación presencial')
+    cargo = (emp.cargo or (contrato.cargo if contrato else '') or 'su cargo').strip()
+    clausulas = [
+        f'Conforme al artículo 15 del DS 44 de 2023, el empleador informó al trabajador, que se desempeña como {cargo}, '
+        f'{dict(seguridad.MOTIVOS_RIESGOS)[motivo].lower()}, los riesgos de su trabajo, las medidas preventivas y '
+        'los procedimientos de trabajo seguro. Los riesgos informados y sus medidas son:',
+        *[f'{catalogo[c][0]}. Medidas: {catalogo[c][1]}' for c in codigos],
+        f'Los procedimientos de trabajo seguro se capacitaron en forma presencial el {_fecha(capacitacion)} '
+        '(Dirección del Trabajo, ORD 374 de 2024).',
+        'El trabajador conoce las características de su lugar de trabajo, el plan de emergencia y, cuando '
+        'corresponde, las hojas de datos de seguridad de los productos que usa, y puede consultar la matriz de '
+        'riesgos de la empresa.',
+    ]
+    if emp.empresa.rubro != rubro:
+        emp.empresa.rubro = rubro
+        emp.empresa.save(update_fields=['rubro'])
+    return {'vigente_desde': hoy, 'vigente_hasta': None,
+            'datos': {'rubro': rubro, 'riesgos': codigos, 'motivo': motivo, 'cargo': cargo,
+                      'capacitacion_en': capacitacion.isoformat(), 'clausulas': clausulas,
+                      'resumen': f'{len(codigos)} riesgos · {dict(seguridad.MOTIVOS_RIESGOS)[motivo].lower()}'}}, []
+
+
+def avisos_seguridad(emp, hoy, permite_riesgos):
+    """Avisos de la carpeta: información de riesgos pendiente o desactualizada y refuerzo anual de EPP."""
+    avisos = []
+    firmados = _firmados(DocumentoLaboral.objects.filter(empleado=emp))
+    if permite_riesgos and emp.activo:
+        ultimo = firmados.filter(tipo='INFORMACION_RIESGOS').order_by('-fecha_emision', '-id').first()
+        if ultimo is None:
+            avisos.append('No hay constancia firmada de que se le informaron los riesgos de su trabajo (Art. 15 del '
+                          'DS 44). Genérala en Documentos → Información de riesgos.')
+        elif (emp.cargo or '').strip() and ultimo.datos.get('cargo') and ultimo.datos['cargo'] != emp.cargo.strip():
+            avisos.append('Cambió de cargo desde la última información de riesgos: infórmale los riesgos del nuevo '
+                          'puesto (Art. 15 del DS 44).')
+    capacitaciones = [datetime.date.fromisoformat(d.datos['capacitacion_en'])
+                      for d in firmados.filter(tipo='ENTREGA_EPP') if d.datos.get('capacitacion_en')]
+    if capacitaciones and max(capacitaciones) < hoy - relativedelta(months=MESES_REFUERZO_EPP):
+        avisos.append('La última capacitación en el uso de sus elementos de protección fue hace más de un año: '
+                      'refuérzala (Art. 13 del DS 44).')
+    return avisos
+
+_CONSTRUCTORES = {'HORAS_EXTRA': _horas_extra, 'PERMISO_LEGAL': _permiso, 'INDEMNIZACION': _indemnizacion,
+                  'ENTREGA_EPP': _entrega_epp, 'INFORMACION_RIESGOS': _informacion_riesgos}
 
 
 # ── PDF ──────────────────────────────────────────────────────────────────────
@@ -463,7 +563,8 @@ def pdf_documento_laboral(doc, es_plan_semilla):
         'empresa': empresa, 'empresa_rut': formatear_rut(empresa.rut),
         'ciudad': str(empresa.ciudad or empresa.comuna or 'Santiago').strip().title(),
         'fecha': _fecha(doc.fecha_emision), 'es_plan_semilla': es_plan_semilla,
-        'es_constancia': doc.tipo in ('PERMISO_LEGAL', 'REGLAMENTO', 'CANALES_DENUNCIA'),
+        'es_constancia': doc.tipo in ('PERMISO_LEGAL', 'REGLAMENTO', 'CANALES_DENUNCIA', 'ENTREGA_EPP',
+                                      'INFORMACION_RIESGOS'),
     })
     pdf = _html_a_pdf_bytes(html, f'{doc.tipo}_{emp.rut}_{doc.fecha_emision}')
     if doc.tipo == 'REGLAMENTO' and doc.reglamento_id:
@@ -568,7 +669,7 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
         hoy = timezone.localdate()
         anios = _antiguedad_anios(emp, hoy)
         actualizar_modalidad_teletrabajo([emp], hoy)
-        avisos = _avisos_teletrabajo(emp, hoy)
+        avisos = _avisos_teletrabajo(emp, hoy) + avisos_seguridad(emp, hoy, _plan_permite(request.user, NIVEL_RIESGOS))
         return Response({
             'permitido': _plan_permite(request.user, NIVEL_DOCUMENTOS),
             'avisos': avisos,
@@ -577,6 +678,10 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
                 'TELETRABAJO': {'disponible': bool(contrato), 'motivo': '' if contrato else 'Requiere contrato.'},
                 'DESCUENTO': {'disponible': True, 'motivo': ''},
                 'PERMISO_LEGAL': {'disponible': True, 'motivo': ''},
+                'ENTREGA_EPP': {'disponible': True, 'motivo': ''},
+                'INFORMACION_RIESGOS': {'disponible': _plan_permite(request.user, NIVEL_RIESGOS),
+                                        'motivo': '' if _plan_permite(request.user, NIVEL_RIESGOS)
+                                        else 'Disponible desde el plan Pyme.'},
                 'INDEMNIZACION': {'disponible': anios >= 6,
                                   'motivo': '' if anios >= 6 else 'Desde el séptimo año de servicio (Art. 164).'},
             },
@@ -597,10 +702,22 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
             'dias_semana': [{'valor': v, 'texto': t.capitalize()} for v, t in DIAS_SEMANA],
             'horas_desconexion': [{'valor': h, 'texto': f'Desde las {h}'} for h in HORAS_DESCONEXION],
             'duraciones_teletrabajo': [{'valor': v, 'texto': t} for v, t in DURACIONES_TELETRABAJO],
+            'epp': [{'valor': v, 'texto': t} for v, t in seguridad.EPP],
+            'epp_sugeridos': seguridad.EPP_POR_RUBRO.get(emp.empresa.rubro, []),
+            'motivos_epp': [{'valor': v, 'texto': t} for v, t in seguridad.MOTIVOS_EPP],
+            'motivos_riesgos': [{'valor': v, 'texto': t} for v, t in seguridad.MOTIVOS_RIESGOS],
+            'rubros': [{'valor': v, 'texto': t} for v, t in OPCIONES_RUBRO],
+            'rubro_empresa': emp.empresa.rubro if emp.empresa.rubro in RUBROS else '',
+            'riesgos': [{'valor': c, 'texto': r} for c, (r, _) in seguridad.riesgos().items()],
+            'riesgos_por_rubro': {rubro: seguridad.riesgos_del_rubro(rubro) for rubro in RUBROS},
         })
 
     def create(self, request):
-        if not _plan_permite(request.user, NIVEL_DOCUMENTOS):
+        tipo_pedido = request.data.get('tipo')
+        # La entrega de EPP es para todos los planes; la información de riesgos, desde Pyme.
+        if tipo_pedido == 'INFORMACION_RIESGOS' and not _plan_permite(request.user, NIVEL_RIESGOS):
+            return Response({'error': 'Disponible desde el plan Pyme.'}, status=status.HTTP_403_FORBIDDEN)
+        if tipo_pedido != 'ENTREGA_EPP' and not _plan_permite(request.user, NIVEL_DOCUMENTOS):
             return Response({'error': 'Disponible desde el plan Starter.'}, status=status.HTTP_403_FORBIDDEN)
         emp = self._empleado(request, request.data.get('empleado'))
         if emp is None:

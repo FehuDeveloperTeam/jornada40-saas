@@ -483,7 +483,8 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
     };
 }
 
-export type TipoDocumentoLaboral = 'HORAS_EXTRA' | 'DESCUENTO' | 'PERMISO_LEGAL' | 'INDEMNIZACION';
+export type TipoDocumentoLaboral = 'HORAS_EXTRA' | 'DESCUENTO' | 'PERMISO_LEGAL' | 'INDEMNIZACION' | 'ENTREGA_EPP'
+    | 'INFORMACION_RIESGOS';
 
 /** Pacto, autorización o constancia redactado por el backend desde opciones cerradas. */
 export interface DocumentoLaboral {
@@ -518,6 +519,15 @@ export interface OpcionesDocumentoLaboral {
     dias_semana: OpcionSimple[];
     horas_desconexion: OpcionSimple[];
     duraciones_teletrabajo: OpcionSimple[];
+    epp: OpcionSimple[];
+    /** Códigos de EPP que se sugieren marcados según el rubro de la empresa. */
+    epp_sugeridos: string[];
+    motivos_epp: OpcionSimple[];
+    motivos_riesgos: OpcionSimple[];
+    rubros: OpcionSimple[];
+    rubro_empresa: string;
+    riesgos: OpcionSimple[];
+    riesgos_por_rubro: Record<string, string[]>;
 }
 
 export interface SolicitudFirma {
@@ -931,6 +941,11 @@ export interface EstadoReglamento {
     actual: ReglamentoVersion | null;
     versiones: ReglamentoVersion[];
     entrega: { total: number; firmados: number; trabajadores: EntregaTrabajador[] };
+    /** Información de riesgos del Art. 15 del DS 44, con el catálogo cerrado por rubro. */
+    riesgos: {
+        total: number; firmados: number; trabajadores: EntregaTrabajador[]; rubro: string;
+        catalogo: OpcionSimple[]; por_rubro: Record<string, string[]>;
+    };
     avisos: string[];
 }
 

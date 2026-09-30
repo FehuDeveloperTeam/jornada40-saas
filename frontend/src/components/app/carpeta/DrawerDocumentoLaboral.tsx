@@ -9,6 +9,7 @@ import type { Empleado, OpcionesDocumentoLaboral, OpcionSimple } from '../../../
 import { TITULOS_LABORALES } from './laborales';
 import type { TipoLaboral } from './laborales';
 import { capitalizar, hoyISO } from '../../../utils/formato';
+import { cn } from '../../../utils/cn';
 
 const TIPOS = Object.keys(TITULOS_LABORALES) as TipoLaboral[];
 
@@ -42,6 +43,17 @@ const mensaje = (err: unknown, porDefecto: string) =>
 
 type Valores = Record<string, string | string[]>;
 
+/** Valores de partida de cada tipo: hoy como fecha y, en EPP y riesgos, lo sugerido para el rubro de la empresa. */
+function inicial(tipo: TipoLaboral, o: OpcionesDocumentoLaboral | undefined): Valores {
+  const hoy = hoyISO();
+  if (tipo === 'ENTREGA_EPP') return { fecha: hoy, motivo: 'INGRESO', capacitacion: 'SI', fecha_capacitacion: hoy, epp: o?.epp_sugeridos ?? [] };
+  if (tipo === 'INFORMACION_RIESGOS') {
+    const rubro = o?.rubro_empresa ?? '';
+    return { rubro, riesgos: rubro ? o?.riesgos_por_rubro[rubro] ?? [] : [], motivo: 'INGRESO', fecha_capacitacion: hoy };
+  }
+  return { desde: hoy };
+}
+
 /**
  * Pactos, autorizaciones y constancias: todo se elige de listas cerradas y
  * el backend valida la ley, calcula plazos y días y redacta las cláusulas.
@@ -51,7 +63,7 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
 }) {
   const queryClient = useQueryClient();
   const [tipo, setTipo] = useState<TipoLaboral>(tipoInicial);
-  const [v, setV] = useState<Valores>({ desde: hoyISO() });
+  const [v, setV] = useState<Valores>(() => inicial(tipoInicial, undefined));
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const opciones = useQuery({
@@ -59,6 +71,12 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
     queryFn: async () => (await client.get<OpcionesDocumentoLaboral>(`/documentos-laborales/opciones/?empleado=${empleado.id}`)).data,
   });
   const o = opciones.data;
+  // Las sugerencias del rubro (EPP y riesgos) llegan con las opciones: se aplican una vez.
+  const [sugerido, setSugerido] = useState(false);
+  if (o && !sugerido) {
+    setSugerido(true);
+    setV((x) => ({ ...inicial(tipo, o), ...x }));
+  }
   const estado = o?.tipos[tipo];
   const texto = (k: string) => (typeof v[k] === 'string' ? (v[k] as string) : '');
   const lista = (k: string) => (Array.isArray(v[k]) ? (v[k] as string[]) : []);
@@ -71,7 +89,10 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
     setGuardando(true);
     setError('');
     try {
-      const { data } = await client.post<{ avisos?: string[] }>('/documentos-laborales/', { empleado: empleado.id, tipo, datos: v });
+      const datos = tipo === 'ENTREGA_EPP'
+        ? { ...v, items: lista('epp').map((codigo) => ({ codigo, cantidad: Number(texto(`cantidad_${codigo}`) || '1') })) }
+        : v;
+      const { data } = await client.post<{ avisos?: string[] }>('/documentos-laborales/', { empleado: empleado.id, tipo, datos });
       await queryClient.invalidateQueries({ queryKey: [tipo === 'TELETRABAJO' ? 'anexos' : 'documentos-laborales', empleado.id] });
       const avisos = data.avisos ?? [];
       avisar(`${TITULOS_LABORALES[tipo]} creado. Envíalo a firma desde el historial.${avisos.length ? ` Atención: ${avisos.join(' ')}` : ''}`);
@@ -86,20 +107,20 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
     <Drawer abierto onCerrar={onCerrar} titulo="Pactos y constancias" subtitulo={capitalizar(`${empleado.nombres} ${empleado.apellido_paterno}`)}
       acciones={<>
         <Button variante="secundario" onClick={onCerrar} disabled={guardando}>Cancelar</Button>
-        <Button onClick={guardar} cargando={guardando} disabled={!o || !o.permitido || !estado?.disponible}>Crear documento</Button>
+        <Button onClick={guardar} cargando={guardando} disabled={!o || (!o.permitido && tipo !== 'ENTREGA_EPP') || !estado?.disponible}>Crear documento</Button>
       </>}>
       <div className="flex flex-col gap-4">
         {error && <AlertaError>{error}</AlertaError>}
         {opciones.isLoading && <p className="text-[13px] text-fg-3" role="status">Cargando…</p>}
         {opciones.isError && <AlertaError>No pudimos cargar las opciones del documento.</AlertaError>}
-        {o && !o.permitido && <p className="text-[13px] text-fg-2">Disponible desde el plan Starter.</p>}
+        {o && !o.permitido && tipo !== 'ENTREGA_EPP' && <p className="text-[13px] text-fg-2">Disponible desde el plan Starter.</p>}
         {o?.avisos.map((a) => (
           <p key={a} className="flex gap-2 items-start rounded-[8px] bg-warn-soft text-warn px-3 py-2.5 text-[12.5px]">
             <TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{a}
           </p>
         ))}
         <Campo etiqueta="Documento">
-          <select className={CONTROL} value={tipo} onChange={(e) => { setTipo(e.target.value as TipoLaboral); setV({ desde: hoyISO() }); setError(''); }}>
+          <select className={CONTROL} value={tipo} onChange={(e) => { const t = e.target.value as TipoLaboral; setTipo(t); setV(inicial(t, o)); setError(''); }}>
             {TIPOS.map((t) => <option key={t} value={t}>{TITULOS_LABORALES[t]}</option>)}
           </select>
         </Campo>
@@ -161,6 +182,55 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
               <Input type="month" value={texto('desde').slice(0, 7)} onChange={(e) => poner('desde', e.target.value ? `${e.target.value}-01` : '')} />
             </Campo>
             <p className="text-[12px] text-fg-3">Por ahora solo se genera el pacto; el aporte en la liquidación y Previred se agrega más adelante.</p>
+          </>
+        )}
+
+        {o && estado?.disponible && tipo === 'ENTREGA_EPP' && (
+          <>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-[13px] font-medium text-fg-2 mb-1">Elementos entregados (sin costo para el trabajador)</legend>
+              {o.epp.map((e) => {
+                const marcada = lista('epp').includes(e.valor);
+                return (
+                  <div key={e.valor} className="flex items-center gap-3">
+                    <Casilla marcada={marcada} onChange={(m) => alternar('epp', e.valor, m)}>{e.texto}</Casilla>
+                    {marcada && (
+                      <select aria-label={`Cantidad de ${e.texto}`} className={cn(CONTROL, 'w-20 ml-auto')} value={texto(`cantidad_${e.valor}`) || '1'}
+                        onChange={(ev) => poner(`cantidad_${e.valor}`, ev.target.value)}>
+                        {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+            </fieldset>
+            <Lista etiqueta="Motivo de la entrega" valor={texto('motivo')} vacia={null} onChange={(x) => poner('motivo', x)} opciones={o.motivos_epp} />
+            <Campo etiqueta="Fecha de entrega"><Input type="date" max={hoyISO()} value={texto('fecha')} onChange={(e) => poner('fecha', e.target.value)} /></Campo>
+            <Lista etiqueta="¿Recibió la capacitación de al menos 1 hora sobre su uso?" valor={texto('capacitacion')} vacia={null}
+              onChange={(x) => poner('capacitacion', x)} opciones={[{ valor: 'SI', texto: 'Sí' }, { valor: 'NO', texto: 'Todavía no' }]}
+              ayuda="Se refuerza cada año y al cambiar de elementos (Art. 13 del DS 44)." />
+            {texto('capacitacion') === 'SI' && (
+              <Campo etiqueta="Fecha de la capacitación"><Input type="date" max={hoyISO()} value={texto('fecha_capacitacion')} onChange={(e) => poner('fecha_capacitacion', e.target.value)} /></Campo>
+            )}
+          </>
+        )}
+
+        {o && estado?.disponible && tipo === 'INFORMACION_RIESGOS' && (
+          <>
+            <Lista etiqueta="Rubro de la empresa" valor={texto('rubro')} vacia="Elija el rubro…" opciones={o.rubros}
+              onChange={(x) => setV((y) => ({ ...y, rubro: x, riesgos: o.riesgos_por_rubro[x] ?? [] }))} />
+            <Lista etiqueta="Cuándo se informa" valor={texto('motivo')} vacia={null} onChange={(x) => poner('motivo', x)} opciones={o.motivos_riesgos} />
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-[13px] font-medium text-fg-2 mb-1">Riesgos de su puesto (marcados los del rubro)</legend>
+              {o.riesgos.filter((r) => lista('riesgos').includes(r.valor) || (texto('rubro') && (r.valor.startsWith(`${texto('rubro')}_`) || r.valor.startsWith('COMUN_'))))
+                .map((r) => (
+                  <Casilla key={r.valor} marcada={lista('riesgos').includes(r.valor)} onChange={(m) => alternar('riesgos', r.valor, m)}>{r.texto}</Casilla>
+                ))}
+            </fieldset>
+            <Campo etiqueta="Fecha de la capacitación presencial en procedimientos de trabajo seguro">
+              <Input type="date" value={texto('fecha_capacitacion')} onChange={(e) => poner('fecha_capacitacion', e.target.value)} />
+            </Campo>
+            <p className="text-[12.5px] text-fg-3">Los procedimientos de trabajo seguro se enseñan en persona (DT, ORD 374/2024); esta constancia deja registro de lo informado (Art. 15 del DS 44).</p>
           </>
         )}
 

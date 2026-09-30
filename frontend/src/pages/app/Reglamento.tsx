@@ -2,8 +2,8 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { CircleCheck, Download, FileText, Lock, Megaphone, Send, TriangleAlert, Upload } from 'lucide-react';
-import { AlertaError, Button, Chip, Field, Input } from '../../components/j40';
+import { CircleCheck, Download, FileText, Lock, Megaphone, Send, ShieldAlert, TriangleAlert, Upload } from 'lucide-react';
+import { AlertaError, Button, Casilla, Chip, Field, Input } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { BotonEnlace } from '../../components/app/carpeta/comun';
@@ -81,8 +81,8 @@ export default function Reglamento() {
   return (
     <div className="max-w-[900px] mx-auto flex flex-col gap-5 pb-20">
       <div>
-        <h1 className="text-[clamp(22px,2.6vw,28px)] font-semibold tracking-[-0.015em]">Reglamento y Ley Karin</h1>
-        <p className="text-[14px] text-fg-3 mt-1">El reglamento interno de su empresa y el aviso de canales de denuncia que exige la ley.</p>
+        <h1 className="text-[clamp(22px,2.6vw,28px)] font-semibold tracking-[-0.015em]">Reglamento y seguridad</h1>
+        <p className="text-[14px] text-fg-3 mt-1">El reglamento interno, la información de riesgos a sus trabajadores y el aviso de canales de denuncia (Ley Karin).</p>
       </div>
       {cargandoPlan || reglamento.isLoading ? <p className="text-[15px] text-fg-3" role="status">Cargando…</p>
         : !reglamento.data ? <AlertaError>{mensaje(reglamento.error, 'No pudimos cargar el reglamento.')}</AlertaError>
@@ -100,6 +100,7 @@ export default function Reglamento() {
               <PasoPlantilla estado={reglamento.data} />
               <PasoSubir estado={reglamento.data} />
               {reglamento.data.actual && <PasoVigente estado={reglamento.data} />}
+              <SeccionRiesgos estado={reglamento.data} />
               {karin.data && <SeccionLeyKarin estado={karin.data} />}
             </>
           )}
@@ -369,6 +370,82 @@ function SeccionLeyKarin({ estado }: { estado: EstadoLeyKarin }) {
           <Aviso>No se envió a: {omitidas.map((o) => `${o.nombre} (${o.motivo.replace(/\.$/, '').toLowerCase()})`).join(', ')}.</Aviso>
         )}
         <ListaEntrega filas={estado.avance.trabajadores} />
+      </div>
+    </Paso>
+  );
+}
+
+function SeccionRiesgos({ estado }: { estado: EstadoReglamento }) {
+  const { empresa, avisar } = usePanelContexto();
+  const queryClient = useQueryClient();
+  const r = estado.riesgos;
+  const [rubro, setRubro] = useState(r.rubro);
+  const [marcados, setMarcados] = useState<string[]>(r.rubro ? r.por_rubro[r.rubro] ?? [] : []);
+  const [fecha, setFecha] = useState(hoyISO());
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState('');
+  const [omitidas, setOmitidas] = useState<EnvioMasivo['omitidas']>([]);
+  const faltan = r.trabajadores.filter((t) => !t.estado || !['FIRMADO', 'PENDIENTE', 'PROCESANDO'].includes(t.estado)).length;
+  const visibles = r.catalogo.filter((c) => marcados.includes(c.valor) || (rubro && (c.valor.startsWith(`${rubro}_`) || c.valor.startsWith('COMUN_'))));
+
+  const informar = async () => {
+    setEnviando(true);
+    setError('');
+    try {
+      const { data } = await client.post<EnvioMasivo>('/reglamentos/informar_riesgos/', {
+        empresa: empresa.id, rubro, riesgos: marcados, fecha_capacitacion: fecha });
+      setOmitidas(data.omitidas);
+      await queryClient.invalidateQueries({ queryKey: ['reglamento', empresa.id] });
+      avisar(data.enviadas ? `Información de riesgos enviada a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
+    } catch (err) {
+      setError(mensaje(err, 'No pudimos enviar la información de riesgos.'));
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <Paso titulo="Información de riesgos del trabajo" icono={<ShieldAlert className="size-6 text-brand" strokeWidth={2} aria-hidden />}>
+      <p className="text-[15px] leading-relaxed">
+        Antes de empezar a trabajar, y cada vez que cambie de puesto o de proceso, cada trabajador debe conocer los riesgos
+        de su trabajo y cómo prevenirlos (Art. 15 del DS 44). Aquí lo informa a todos los que faltan; para uno en particular
+        o para la entrega de elementos de protección, use la carpeta del trabajador → Documentos.
+      </p>
+      {error && <AlertaError>{error}</AlertaError>}
+      <Field etiqueta="Rubro de su empresa">
+        {(props) => (
+          <select {...props} className={CONTROL} value={rubro}
+            onChange={(e) => { setRubro(e.target.value); setMarcados(r.por_rubro[e.target.value] ?? []); }}>
+            <option value="">Elija su rubro…</option>
+            {estado.rubros.map((x) => <option key={x.valor} value={x.valor}>{x.texto}</option>)}
+          </select>
+        )}
+      </Field>
+      {visibles.length > 0 && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-[13.5px] font-medium text-fg-2 mb-1">Riesgos que se informan (desmarque los que no apliquen)</legend>
+          {visibles.map((c) => (
+            <Casilla key={c.valor} marcada={marcados.includes(c.valor)}
+              onChange={(m) => setMarcados((x) => (m ? [...x, c.valor] : x.filter((y) => y !== c.valor)))}>{c.texto}</Casilla>
+          ))}
+        </fieldset>
+      )}
+      <Field etiqueta="Fecha de la capacitación presencial en procedimientos de trabajo seguro"
+        ayuda="Se enseñan en persona (DT, ORD 374/2024); la constancia deja registro de lo informado.">
+        {(props) => <Input {...props} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />}
+      </Field>
+      <div className="flex flex-col gap-2.5 pt-2 border-t border-line">
+        <h3 className="text-[15.5px] font-semibold">Informados: {r.firmados} de {r.total} firmaron</h3>
+        {faltan > 0 && (
+          <Button tamano="lg" className="self-start" disabled={!rubro || marcados.length === 0 || !fecha} cargando={enviando}
+            onClick={() => void informar()} iconoInicio={<Send className="size-5" strokeWidth={2} />}>
+            Enviar a firma a {faltan === 1 ? '1 trabajador' : `${faltan} trabajadores`}
+          </Button>
+        )}
+        {omitidas.length > 0 && (
+          <Aviso>No se envió a: {omitidas.map((o) => `${o.nombre} (${o.motivo.replace(/\.$/, '').toLowerCase()})`).join(', ')}.</Aviso>
+        )}
+        <ListaEntrega filas={r.trabajadores} />
       </div>
     </Paso>
   );

@@ -20,7 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from ..docx_simple import a_html, construir_docx
-from ..models import DocumentoLaboral, Empleado, Empresa, ReglamentoInterno, SolicitudFirma
+from ..models import Contrato, DocumentoLaboral, Empleado, Empresa, ReglamentoInterno, SolicitudFirma
 from ..reglamento_plantilla import OPCIONES_RUBRO, RUBROS, UMBRAL_RIOHS, bloques, tipo_segun_dotacion
 from .base import _html_a_pdf_bytes, _plan_permite, logger, respuesta_pdf
 
@@ -71,6 +71,24 @@ def entrega(reglamento):
         filas.append({'id': emp.id, 'nombre': _nombre(emp), 'correo': bool(emp.email),
                       'estado': _estado_constancia(docs.get(emp.id))})
     return {'total': len(filas), 'firmados': sum(1 for f in filas if f['estado'] == 'FIRMADO'), 'trabajadores': filas}
+
+
+def informacion_riesgos(empresa):
+    """Quién tiene firmada la información de riesgos del Art. 15 del DS 44, con el catálogo para informarla."""
+    from .. import seguridad
+    docs = {}
+    for d in DocumentoLaboral.objects.filter(empleado__empresa=empresa, tipo='INFORMACION_RIESGOS', activo=True) \
+            .order_by('id'):
+        docs[d.empleado_id] = d
+    SolicitudFirma.actualizar_estados(SolicitudFirma.objects.filter(documento_laboral__in=docs.values()))
+    filas = [{'id': e.id, 'nombre': _nombre(e), 'correo': bool(e.email), 'estado': _estado_constancia(docs.get(e.id))}
+             for e in Empleado.objects.filter(empresa=empresa, activo=True).order_by('apellido_paterno', 'nombres')]
+    return {
+        'total': len(filas), 'firmados': sum(1 for f in filas if f['estado'] == 'FIRMADO'), 'trabajadores': filas,
+        'rubro': empresa.rubro if empresa.rubro in RUBROS else '',
+        'catalogo': [{'valor': c, 'texto': r} for c, (r, _) in seguridad.riesgos().items()],
+        'por_rubro': {rubro: seguridad.riesgos_del_rubro(rubro) for rubro in RUBROS},
+    }
 
 
 def avisos_reglamento(empresa, hoy, trabajadores, actual):
@@ -149,6 +167,7 @@ class ReglamentoViewSet(viewsets.ViewSet):
             'actual': dato_reglamento(actual, hoy) if actual else None,
             'versiones': [dato_reglamento(r, hoy) for r in ReglamentoInterno.objects.filter(empresa=empresa)],
             'entrega': entrega(actual),
+            'riesgos': informacion_riesgos(empresa),
             'avisos': avisos_reglamento(empresa, hoy, trabajadores, actual),
         })
 
@@ -161,6 +180,9 @@ class ReglamentoViewSet(viewsets.ViewSet):
         rubro = request.query_params.get('rubro')
         if empresa is None or rubro not in RUBROS:
             return Response({'error': 'Elija la empresa y el rubro.'}, status=status.HTTP_400_BAD_REQUEST)
+        if empresa.rubro != rubro:
+            empresa.rubro = rubro
+            empresa.save(update_fields=['rubro'])
         tipo = tipo_segun_dotacion(Empleado.objects.filter(empresa=empresa, activo=True).count())
         contenido = bloques(empresa, rubro, tipo, empresa.get_mutual_display() if empresa.mutual != '00'
                             else 'el Instituto de Seguridad Laboral (ISL)')
@@ -247,6 +269,51 @@ class ReglamentoViewSet(viewsets.ViewSet):
         setattr(r, campo, fecha)
         r.save(update_fields=[campo])
         return Response(dato_reglamento(r, timezone.localdate()))
+
+    @action(detail=False, methods=['post'], url_path='informar_riesgos')
+    def informar_riesgos(self, request):
+        """Información de riesgos (Art. 15 DS 44) a quienes aún no la tienen firmada ni en curso: la
+        misma lista del rubro y la fecha de la capacitación presencial para todos."""
+        from .documentos_laborales import DatoInvalido, _informacion_riesgos
+        from .firmas import SolicitudFirmaViewSet, _ErrorFirma, confirmacion_vigente, datos_emisor, \
+            falta_confirmacion
+        empresa = self._empresa(request, request.data.get('empresa'))
+        if empresa is None:
+            return Response({'error': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+        if not _plan_permite(request.user, NIVEL_REGLAMENTO):
+            return Response({'error': 'Disponible desde el plan Pyme.'}, status=status.HTTP_403_FORBIDDEN)
+        hoy = timezone.localdate()
+        datos = {'rubro': request.data.get('rubro'), 'riesgos': request.data.get('riesgos'), 'motivo': 'INGRESO',
+                 'fecha_capacitacion': request.data.get('fecha_capacitacion')}
+        filas = [f for f in informacion_riesgos(empresa)['trabajadores']
+                 if f['estado'] not in ('FIRMADO', 'PENDIENTE', 'PROCESANDO')]
+        try:
+            if filas:
+                _informacion_riesgos(Empleado.objects.get(pk=filas[0]['id']), None, datos, hoy)   # valida antes
+        except DatoInvalido as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        confirmado_en = confirmacion_vigente(request)
+        if confirmado_en is None:
+            return falta_confirmacion()
+        vista = SolicitudFirmaViewSet()
+        enviadas, omitidas = 0, []
+        for fila in filas:
+            emp = Empleado.objects.select_related('empresa').get(pk=fila['id'])
+            if not emp.email:
+                omitidas.append({'nombre': fila['nombre'], 'motivo': 'No tiene correo registrado.'})
+                continue
+            contrato = Contrato.objects.filter(empleado=emp).first()
+            armado, _ = _informacion_riesgos(emp, contrato, datos, hoy)
+            DocumentoLaboral.objects.filter(empleado=emp, tipo='INFORMACION_RIESGOS', activo=True) \
+                .exclude(solicitudes_firma__estado__in=_VIVAS).update(activo=False)
+            doc = DocumentoLaboral.objects.create(empleado=emp, tipo='INFORMACION_RIESGOS', fecha_emision=hoy, **armado)
+            try:
+                vista._crear_solicitud(request.user, emp, 'INFORMACION_RIESGOS', documento_laboral_id=doc.id,
+                                       emision=datos_emisor(request, confirmado_en))
+                enviadas += 1
+            except _ErrorFirma as e:
+                omitidas.append({'nombre': fila['nombre'], 'motivo': e.mensaje})
+        return Response({'enviadas': enviadas, 'omitidas': omitidas})
 
     @action(detail=True, methods=['post'])
     def entregar(self, request, pk=None):

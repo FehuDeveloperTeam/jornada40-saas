@@ -143,7 +143,26 @@ def _reglamento_y_ley_karin(empresa, desde, hoy):
     return _seccion('Reglamento interno y Ley Karin', lineas, '/app/reglamento', 'Ver reglamento')
 
 
-FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin]
+def _seguridad(empresa, desde, hoy):
+    """Información de riesgos pendiente (Pyme+) y refuerzo anual de la capacitación en EPP (todos)."""
+    from .documentos_laborales import NIVEL_RIESGOS, avisos_seguridad
+    permite = _plan_permite(empresa.owner, NIVEL_RIESGOS)
+    sin_riesgos, refuerzo = [], []
+    for emp in Empleado.objects.filter(empresa=empresa, activo=True).order_by('apellido_paterno', 'nombres'):
+        for aviso in avisos_seguridad(emp, hoy, permite):
+            (refuerzo if 'capacitación en el uso' in aviso else sin_riesgos).append(_nombre(emp))
+    lineas = []
+    if sin_riesgos:
+        lineas.append(f'Falta informar los riesgos de su trabajo (o actualizarlos por cambio de cargo) a: '
+                      f'{", ".join(sin_riesgos[:MAX_LINEAS])}{" y otros" if len(sin_riesgos) > MAX_LINEAS else ""}.')
+    if refuerzo:
+        lineas.append(f'Toca reforzar la capacitación anual en elementos de protección de: '
+                      f'{", ".join(refuerzo[:MAX_LINEAS])}{" y otros" if len(refuerzo) > MAX_LINEAS else ""}.')
+    return _seccion('Seguridad en el trabajo', lineas, '/app/reglamento' if sin_riesgos else '/app/trabajadores',
+                    'Ver seguridad' if sin_riesgos else 'Ver trabajadores')
+
+
+FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin, _seguridad]
 
 
 def contenido(cliente, desde, hoy=None):

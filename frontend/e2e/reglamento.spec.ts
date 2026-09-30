@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { consultar, descargar, entrar, restaurarBase } from './utiles';
+import { MATIAS, consultar, descargar, entrar, restaurarBase } from './utiles';
 
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(() => restaurarBase());
@@ -25,11 +25,11 @@ test('reglamento interno: plantilla por rubro, versión, remisión y entrega', a
   consultar("from core.models import Empresa; Empresa.objects.update(firma_imagen='data:image/png;base64,iVBORw0KGgo='); print('ok')");
   await entrar(page);
   await page.goto('/app/reglamento');
-  await expect(page.getByRole('heading', { name: 'Reglamento y Ley Karin' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Reglamento y seguridad' })).toBeVisible();
 
   const plantilla = page.getByRole('button', { name: 'Descargar en Word para completar' });
   await expect(plantilla).toBeDisabled();
-  await page.getByLabel('Rubro de su empresa').selectOption({ label: 'Construcción' });
+  await page.getByLabel('Rubro de su empresa').first().selectOption({ label: 'Construcción' });
   expect(await descargar(page, () => plantilla.click())).toMatch(/\.docx$/);
 
   await page.getByLabel('Archivo del reglamento (PDF)').setInputFiles({ name: 'reglamento.pdf', mimeType: 'application/pdf', buffer: PDF });
@@ -40,7 +40,8 @@ test('reglamento interno: plantilla por rubro, versión, remisión y entrega', a
   await page.getByRole('listitem').filter({ hasText: 'Dirección del Trabajo (en Mi DT' }).getByRole('button', { name: 'Ya lo envié' }).click();
   await expect(page.getByText(/Mi DT, trámite «Reglamento interno»\) · enviado el/)).toBeVisible();
 
-  await page.getByRole('button', { name: /^Enviar a firma a \d+ trabajador/ }).click();
+  const paso3 = page.locator('section', { has: page.getByRole('heading', { name: 'Entréguelo y envíelo a las autoridades' }) });
+  await paso3.getByRole('button', { name: /^Enviar a firma a \d+ trabajador/ }).click();
   await expect(page.getByText(/Reglamento enviado a firma a \d+/)).toBeVisible();
 });
 
@@ -56,4 +57,24 @@ test('Ley Karin: canal de denuncias y aviso del semestre', async ({ page }) => {
   await enviar.click();
   await expect(page.getByText(/Aviso enviado a firma a \d+/)).toBeVisible();
   await expect(page.getByText(/semestre de \d{4}: informado a [1-9]/)).toBeVisible();
+});
+
+test('entrega de EPP en la carpeta e información de riesgos a todos', async ({ page }) => {
+  await entrar(page);
+  await page.goto(`/app/trabajadores/${MATIAS.id}?tab=documentos`);
+  await page.getByRole('link', { name: /Entrega de EPP/ }).click();
+  const drawer = page.getByRole('dialog', { name: 'Pactos y constancias' });
+  await expect(drawer.getByLabel('Documento')).toHaveValue('ENTREGA_EPP');
+  await drawer.getByText('Casco de seguridad').click();
+  await drawer.getByLabel('Cantidad de Casco de seguridad').selectOption('2');
+  await drawer.getByRole('button', { name: 'Crear documento' }).click();
+  await expect(drawer).toHaveCount(0);
+  await expect(page.getByText(/2 elementos/).first()).toBeVisible();
+
+  await page.goto('/app/reglamento');
+  const seccion = page.locator('section', { has: page.getByRole('heading', { name: 'Información de riesgos del trabajo' }) });
+  await seccion.getByLabel('Rubro de su empresa').selectOption({ label: 'Comercio y ventas' });
+  await expect(seccion.getByText('Emergencias (sismo, incendio y evacuación)')).toBeVisible();
+  await seccion.getByRole('button', { name: /^Enviar a firma a \d+ trabajador/ }).click();
+  await expect(page.getByText(/Información de riesgos enviada a firma a \d+/)).toBeVisible();
 });

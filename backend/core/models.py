@@ -193,6 +193,8 @@ class Empresa(models.Model):
     denuncias_responsable = models.CharField(max_length=120, blank=True, default='',
                                              help_text='Persona o cargo que recibe las denuncias.')
     denuncias_correo = models.EmailField(blank=True, default='')
+    # Rubro de la plantilla del reglamento y de la información de riesgos (reglamento_plantilla.RUBROS).
+    rubro = models.CharField(max_length=20, blank=True, default='')
     # Tasa total de accidentes del trabajo (base + adicional + Ley Sanna) que
     # informa la mutual o el ISL. Vacía = tasa base de los parámetros.
     tasa_accidentes = models.DecimalField(max_digits=6, decimal_places=5, null=True, blank=True)
@@ -897,6 +899,8 @@ class SolicitudFirma(models.Model):
         ('INDEMNIZACION',   'Pacto de indemnización a todo evento'),
         ('REGLAMENTO',      'Constancia de recepción del reglamento interno'),
         ('CANALES_DENUNCIA', 'Constancia de canales de denuncia (Ley Karin)'),
+        ('ENTREGA_EPP',     'Constancia de entrega de EPP'),
+        ('INFORMACION_RIESGOS', 'Constancia de información de riesgos'),
     ]
 
     empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
@@ -1187,7 +1191,9 @@ class DocumentoLaboral(models.Model):
              ('PERMISO_LEGAL', 'Constancia de permiso legal con goce'),
              ('INDEMNIZACION', 'Pacto de indemnización a todo evento'),
              ('REGLAMENTO', 'Constancia de recepción del reglamento interno'),
-             ('CANALES_DENUNCIA', 'Constancia de información de canales de denuncia (Ley Karin)')]
+             ('CANALES_DENUNCIA', 'Constancia de información de canales de denuncia (Ley Karin)'),
+             ('ENTREGA_EPP', 'Constancia de entrega de elementos de protección personal'),
+             ('INFORMACION_RIESGOS', 'Constancia de información de riesgos laborales')]
     empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='documentos_laborales')
     # Solo constancias de recepción del reglamento: qué versión recibió.
     reglamento = models.ForeignKey('ReglamentoInterno', on_delete=models.PROTECT, null=True, blank=True,

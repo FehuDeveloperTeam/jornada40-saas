@@ -9,4 +9,6 @@ export const TITULOS_LABORALES: Record<TipoLaboral, string> = {
   DESCUENTO: 'Autorización de descuento',
   PERMISO_LEGAL: 'Constancia de permiso legal',
   INDEMNIZACION: 'Pacto de indemnización a todo evento',
+  ENTREGA_EPP: 'Entrega de elementos de protección (EPP)',
+  INFORMACION_RIESGOS: 'Información de riesgos del trabajo',
 };
