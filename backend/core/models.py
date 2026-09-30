@@ -145,6 +145,9 @@ class Cliente(models.Model):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     correo=models.EmailField(max_length=255, null=True, blank=True, verbose_name='Correo Electrónico')
+    # Usuarios comprados aparte del cupo del plan (equipo y encargados de la Ley Karin).
+    usuarios_adicionales = models.PositiveIntegerField(default=0)
+    encargados_karin_adicionales = models.PositiveIntegerField(default=0)
     # Resumen por correo de lo pendiente (solicitudes, firmas, plazos). Lo
     # envía el comando diario enviar_resumenes; resumen_hasta marca hasta dónde
     # se revisó, para contar solo lo nuevo en el siguiente.
