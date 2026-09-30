@@ -145,6 +145,12 @@ class Cliente(models.Model):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     correo=models.EmailField(max_length=255, null=True, blank=True, verbose_name='Correo Electrónico')
+    # Resumen por correo de lo pendiente (solicitudes, firmas, plazos). Lo
+    # envía el comando diario enviar_resumenes; resumen_hasta marca hasta dónde
+    # se revisó, para contar solo lo nuevo en el siguiente.
+    FRECUENCIAS_RESUMEN = [('DIARIA', 'Cada día'), ('SEMANAL', 'Cada lunes'), ('NUNCA', 'No enviar')]
+    frecuencia_resumen = models.CharField(max_length=8, choices=FRECUENCIAS_RESUMEN, default='SEMANAL')
+    resumen_hasta = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         if self.tipo_cliente == 'EMPRESA' and self.razon_social:

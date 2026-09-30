@@ -5,6 +5,7 @@ from .views import certificados
 from .views import documentos_laborales
 from .views import inspeccion
 from .views import certificado_sueldos
+from .views import resumen
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -88,6 +89,7 @@ urlpatterns = [
     path('parametros/vigentes/', parametros_vigentes, name='parametros_vigentes'),
     path('clientes/mi_suscripcion/', mi_suscripcion, name='mi_suscripcion'),
     path('clientes/perfil/', perfil_usuario, name='perfil_usuario'),
+    path('clientes/resumen/', resumen.preferencia_resumen, name='preferencia_resumen'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
     # Firma electrónica — endpoints públicos (sin autenticación)
     path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),

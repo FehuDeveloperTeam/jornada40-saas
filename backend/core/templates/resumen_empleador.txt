@@ -1,0 +1,9 @@
+Hola {{ nombre }}, este es su resumen de Jornada40 del {{ fecha }}.
+{% for empresa in empresas %}{% if empresas|length > 1 %}
+== {{ empresa.nombre }} ==
+{% endif %}{% for s in empresa.secciones %}
+{{ s.titulo }}
+{% for l in s.lineas %}- {{ l }}
+{% endfor %}{{ s.boton }}: {{ sitio }}{{ s.ruta }}
+{% endfor %}{% endfor %}
+Recibe este resumen {% if diario %}cada día{% else %}cada lunes{% endif %}. Puede cambiarlo en {{ sitio }}/app/cuenta

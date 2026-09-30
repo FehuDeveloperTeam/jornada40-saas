@@ -174,6 +174,12 @@ test('empresa, plan y cuenta', async ({ page }) => {
   await page.getByLabel('Teléfono').fill('+56 9 7777 8888');
   await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByText('Datos guardados')).toBeVisible();
+  const resumen = page.getByRole('radiogroup', { name: '¿Cada cuánto quiere recibirlo?' });
+  await expect(resumen.getByRole('radio', { name: 'Cada lunes' })).toBeChecked();
+  await resumen.getByText('Cada día').click();
+  await expect(page.getByText('Preferencia guardada')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Cada día' })).toBeChecked();
   const boton = page.getByRole('button', { name: 'Cambiar contraseña' });
   await page.getByLabel('Contraseña actual').fill(USUARIO.clave);
   await page.getByLabel('Nueva contraseña').fill('Nueva-Clave-2027');

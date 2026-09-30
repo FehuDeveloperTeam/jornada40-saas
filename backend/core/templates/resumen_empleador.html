@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;color:#1f2937;">
+  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:26px 32px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Su resumen de Jornada40</h1>
+      <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:15px;">{{ fecha }}</p>
+    </div>
+    <div style="padding:26px 32px;">
+      <p style="font-size:17px;line-height:1.6;margin:0 0 18px;">Hola {{ nombre }}, esto es lo que necesita su atención:</p>
+      {% for empresa in empresas %}
+        {% if empresas|length > 1 %}<h2 style="font-size:19px;margin:26px 0 8px;color:#0c1a35;border-bottom:2px solid #e5e7eb;padding-bottom:6px;">{{ empresa.nombre }}</h2>{% endif %}
+        {% for s in empresa.secciones %}
+          <div style="margin:0 0 22px;">
+            <h3 style="font-size:18px;margin:14px 0 8px;color:#1e3a6e;">{{ s.titulo }}</h3>
+            <ul style="margin:0 0 12px;padding-left:22px;">
+              {% for l in s.lineas %}<li style="font-size:16px;line-height:1.6;margin:0 0 4px;">{{ l }}</li>{% endfor %}
+            </ul>
+            <a href="{{ sitio }}{{ s.ruta }}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-size:16px;font-weight:700;padding:12px 22px;border-radius:8px;">{{ s.boton }}</a>
+          </div>
+        {% endfor %}
+      {% endfor %}
+      <p style="font-size:14px;color:#6b7280;line-height:1.6;margin:26px 0 0;border-top:1px solid #e5e7eb;padding-top:16px;">
+        Recibe este resumen {% if diario %}cada día{% else %}cada lunes{% endif %}. Puede cambiarlo o dejar de recibirlo en
+        <a href="{{ sitio }}/app/cuenta" style="color:#2563eb;">Mi cuenta</a>.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

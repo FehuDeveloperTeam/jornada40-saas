@@ -390,6 +390,12 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Resumen por correo al empleador
+
+- `core/views/resumen.py` + comando `python manage.py enviar_resumenes` (**all plans**). `Cliente.frecuencia_resumen` (DIARIA / SEMANAL = cada lunes, or the next run if a Monday was missed / NUNCA; default SEMANAL), chosen in `/app/cuenta` → "Resumen por correo" (`GET/PATCH /api/clientes/resumen/ {frecuencia}`, closed list). `Cliente.resumen_hasta` marks what was already reviewed ("new" = since then); running the command twice the same day sends nothing new. **No email when there is nothing to report.**
+- Content per active company, one function per topic in `FUENTES` (new modules add theirs): pending worker `SolicitudDocumento` (with how many are new), signatures expiring within 2 days, rejected or expired since the last summary, and Mi DT registrations overdue or within 3 business days (`items_registro`). A failing topic is logged and skipped. Templates `resumen_empleador.html/.txt`: large type and one clear button per topic (many owners are older adults).
+- **Cron (Railway):** there is no scheduler in the web service. Create a second Railway service from the same repo/Dockerfile with *Custom Start Command* `python manage.py enviar_resumenes` and *Cron Schedule* `0 12 * * *` (UTC → 08:00/09:00 in Chile), with the same variables as the web service (`DATABASE_URL`, `RESEND_API_KEY`, `SITIO_URL`…).
+
 ## Subscription & Payments
 
 - **Provider**: Reveniu (Chilean payment gateway) with Stripe as underlying processor.
@@ -449,6 +455,10 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Deuda técnica (en espera)
+
+- **LRE de horas extra compensadas con feriado (Ley 21.561)**: the DT hasn't published codes; tentative 2102 (paid at 6 months) and 2313 (paid at termination). On hold until a DT pronouncement or a newer LRE template confirms them.
+
 ## Deployment
 
 ### Backend (Railway)
@@ -506,7 +516,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`, `test_portal_trabajador`, `test_solicitudes_documento`, `test_certificados`, `test_documentos_laborales`, `test_inspeccion`, `test_certificado_sueldos`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~260 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`, `test_portal_trabajador`, `test_solicitudes_documento`, `test_certificados`, `test_documentos_laborales`, `test_inspeccion`, `test_certificado_sueldos`, `test_resumen`. Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Run with `cd backend && python manage.py test core`.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** Vitest + Testing Library (jsdom, `vitest.config.ts`), tests next to the code as `*.test.ts(x)` under `src/`: `utils/` (RUT, formatos, Ley 40, contraseña, códigos de verificación) and `api/client.test.ts` (401 → renovación única y vuelta al login, 428 → confirmar identidad y repetir una vez; the axios adapter is replaced per test). Run with `npm test`; `npm run build` (type-check) and `npm run lint` must pass too.
 - **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt, portal, pactos, inspeccion). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.

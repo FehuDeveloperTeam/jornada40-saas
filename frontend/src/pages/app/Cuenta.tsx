@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Check, LogOut, Minus } from 'lucide-react';
+import { Check, LogOut, Mail, Minus } from 'lucide-react';
 import { AlertaError, Button, Input, InputContrasena, MedidorContrasena, SegmentedControl, ToggleTema } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
@@ -42,6 +42,7 @@ export default function Cuenta() {
         <p className="text-[13px] text-fg-3 mt-0.5">Datos del titular, contraseña y preferencias</p>
       </div>
       {perfil.data ? <DatosTitular key={JSON.stringify(perfil.data)} guardado={perfil.data} /> : <p className="text-[14px] text-fg-3" role="status">Cargando…</p>}
+      <ResumenCorreo />
       <CambioClave />
       <Preferencias />
     </div>
@@ -109,6 +110,48 @@ function DatosTitular({ guardado }: { guardado: Perfil }) {
           <Button tamano="sm" onClick={guardar} cargando={guardando}>Guardar</Button>
         </div>
       )}
+    </Seccion>
+  );
+}
+
+type Frecuencia = 'DIARIA' | 'SEMANAL' | 'NUNCA';
+interface PreferenciaResumen { frecuencia: Frecuencia; correo: string; opciones: { valor: Frecuencia; texto: string }[] }
+
+/** Resumen por correo de lo pendiente: se guarda al elegir, sin botón extra. */
+function ResumenCorreo() {
+  const { avisar } = usePanelContexto();
+  const queryClient = useQueryClient();
+  const [guardando, setGuardando] = useState(false);
+  const pref = useQuery({ queryKey: ['preferencia-resumen'], queryFn: async () => (await client.get<PreferenciaResumen>('/clientes/resumen/')).data });
+
+  const elegir = async (frecuencia: Frecuencia) => {
+    setGuardando(true);
+    try {
+      const { data } = await client.patch<PreferenciaResumen>('/clientes/resumen/', { frecuencia });
+      queryClient.setQueryData(['preferencia-resumen'], data);
+      avisar(frecuencia === 'NUNCA' ? 'Ya no recibirá el resumen' : 'Preferencia guardada');
+    } catch (err) {
+      avisar(mensaje(err, 'No pudimos guardar la preferencia.'), 'error');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <Seccion titulo="Resumen por correo"
+      nota="Le avisamos lo que necesita su atención: documentos que le pidieron sus trabajadores, firmas por vencer o rechazadas y plazos de la Dirección del Trabajo. Si no hay nada pendiente, no le escribimos.">
+      {pref.data ? (
+        <>
+          <SegmentedControl etiqueta="¿Cada cuánto quiere recibirlo?" valor={pref.data.frecuencia} bloque
+            onChange={(v) => { if (!guardando) void elegir(v); }}
+            opciones={pref.data.opciones.map((o) => ({ valor: o.valor, etiqueta: o.texto }))} />
+          <p className="flex items-center gap-2 text-[14px] text-fg-2">
+            <Mail className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+            {pref.data.correo ? <>Se envía a <b className="font-medium text-fg">{pref.data.correo}</b> (lo cambia arriba, en Correo).</>
+              : 'Agregue su correo arriba para recibirlo.'}
+          </p>
+        </>
+      ) : <p className="text-[14px] text-fg-3" role="status">Cargando…</p>}
     </Seccion>
   );
 }
