@@ -4,6 +4,7 @@ import { CalendarDays, ChevronRight, FileSignature, FileText, Receipt, UserX } f
 import { rutaAccion, rutaLiquidacion } from '../../../hooks/usePanel';
 import type { Empleado } from '../../../types';
 import { ChipFirma, Seccion } from './comun';
+import { PortalTrabajador } from './PortalTrabajador';
 import type { DocumentoReciente } from './documentos';
 
 const ACCIONES: { texto: string; Icono: LucideIcon; nivel: number; ruta: (id: number) => string }[] = [
@@ -15,7 +16,9 @@ const ACCIONES: { texto: string; Icono: LucideIcon; nivel: number; ruta: (id: nu
   { texto: 'Calcular finiquito', Icono: UserX, nivel: 2, ruta: (id) => `/app/trabajadores/${id}/finiquito` },
 ];
 
-export function Lateral({ empleado, documentos, nivel }: { empleado: Empleado; documentos: DocumentoReciente[]; nivel: number }) {
+export function Lateral({ empleado, documentos, nivel, avisar }: {
+  empleado: Empleado; documentos: DocumentoReciente[]; nivel: number; avisar: (texto: string, tipo?: 'ok' | 'error') => void;
+}) {
   const avisos = empleado.contrato_activo?.avisos_jornada ?? [];
   const pendientes: { texto: string; detalle: string; a: string; alta?: boolean }[] = [];
   const base = `/app/trabajadores/${empleado.id}`;
@@ -45,6 +48,8 @@ export function Lateral({ empleado, documentos, nivel }: { empleado: Empleado; d
           ))}
         </div>
       </Seccion>
+
+      <PortalTrabajador empleado={empleado} avisar={avisar} />
 
       <Seccion titulo="Pendientes" accion={pendientes.length > 0 && <span className="text-[12.5px] text-fg-3">{pendientes.length}</span>}>
         {pendientes.length === 0 && <p className="px-[18px] py-4 text-[13px] text-fg-3">Nada pendiente con este trabajador.</p>}

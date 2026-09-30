@@ -1,0 +1,10 @@
+Hola {{ nombre }}:
+
+{{ empresa }} te invita a tu portal del trabajador en Jornada40, donde puedes ver tus liquidaciones firmadas, tu contrato, tus documentos y tus vacaciones, pedir documentos y sacar certificados.
+
+Para entrar:
+1. Abre {{ enlace }}
+2. Escribe tu RUT.
+3. Te enviaremos un código a este correo ({{ correo }}). Escríbelo y listo.
+
+No necesitas contraseña. Si no trabajas en {{ empresa }}, ignora este mensaje.

@@ -227,7 +227,7 @@ export default function Carpeta() {
           )}
           {pestana === 'documentos' && <DocumentosTab empleado={empleado} documentos={documentos} nivel={nivel} cargandoPlan={cargandoPlan} avisar={avisar} />}
         </div>
-        <Lateral empleado={empleado} documentos={documentos} nivel={nivel} />
+        <Lateral empleado={empleado} documentos={documentos} nivel={nivel} avisar={avisar} />
       </div>
 
       {accion === 'anexo' && empleado.contrato_activo && (

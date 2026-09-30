@@ -101,6 +101,67 @@ def fichas_accesibles(cuenta):
     return [e for e in fichas_habilitadas(cuenta.rut) if (e.email or '').strip().lower() in verificados]
 
 
+# ── Estado del portal para el empleador (carpeta del trabajador) ─────────────
+
+HORAS_ENTRE_INVITACIONES = 24
+
+
+def estado_portal(emp):
+    """Si el trabajador puede entrar a su portal y si ya lo usa, en palabras simples.
+
+    "Ya lo usa" = verificó con un código el correo que tiene esta ficha; la
+    fecha de último ingreso es la de su cuenta y se muestra solo en ese caso."""
+    hoy = timezone.localdate()
+    correo = (emp.email or '').strip().lower()
+    hasta = acceso_hasta(emp)
+    cuenta = CuentaTrabajador.objects.filter(rut=limpiar_rut(emp.rut or '')).first()
+    usa = bool(cuenta and correo and cuenta.correos.filter(email__iexact=correo).exists())
+    invitado = timezone.localtime(emp.portal_invitado_en) if emp.portal_invitado_en else None
+    if not _plan_permite(emp.empresa.owner, NIVEL_PLAN_PORTAL):
+        estado, texto = 'SIN_PLAN', 'El portal del trabajador está disponible desde el plan Pyme.'
+    elif not emp.empresa.activo or (hasta and hoy > hasta):
+        estado, texto = 'SIN_ACCESO', (f'Su acceso terminó el {hasta:%d-%m-%Y}.' if hasta else 'No tiene acceso.')
+    elif not correo:
+        estado, texto = 'SIN_CORREO', 'Agregue su correo personal en Datos personales para que pueda entrar.'
+    elif usa:
+        estado, texto = 'ACTIVO', 'Ya usa su portal: ve sus liquidaciones firmadas, documentos y vacaciones.'
+    else:
+        estado, texto = 'NO_INGRESA', 'Todavía no ha entrado a su portal.'
+    espera = invitado and timezone.now() - emp.portal_invitado_en < datetime.timedelta(hours=HORAS_ENTRE_INVITACIONES)
+    return {
+        'estado': estado, 'texto': texto, 'correo': emp.email or '',
+        'acceso_hasta': hasta.isoformat() if hasta else None,
+        'ultimo_ingreso': timezone.localtime(cuenta.ultimo_ingreso).date().isoformat()
+        if usa and cuenta.ultimo_ingreso else None,
+        'invitado_en': invitado.date().isoformat() if invitado else None,
+        'puede_invitar': estado in ('NO_INGRESA', 'ACTIVO') and not espera,
+    }
+
+
+def invitar_al_portal(emp):
+    """Correo al trabajador con los pasos para entrar. Devuelve un error o None."""
+    estado = estado_portal(emp)
+    if estado['estado'] not in ('NO_INGRESA', 'ACTIVO'):
+        return estado['texto']
+    if not estado['puede_invitar']:
+        return 'Ya le enviamos una invitación hoy. Puede enviar otra mañana.'
+    sitio = getattr(settings, 'SITIO_URL', 'https://jornada40.cl').rstrip('/')
+    ctx = {'nombre': emp.nombres, 'empresa': emp.empresa.alias or emp.empresa.nombre_legal,
+           'enlace': f'{sitio}/trabajador', 'correo': emp.email}
+    try:
+        msg = EmailMultiAlternatives(f'{ctx["empresa"]} te invita a tu portal del trabajador',
+                                     render_to_string('portal_invitacion.txt', ctx), settings.DEFAULT_FROM_EMAIL,
+                                     to=[emp.email])
+        msg.attach_alternative(render_to_string('portal_invitacion.html', ctx), 'text/html')
+        msg.send()
+    except Exception:
+        logger.exception('No se pudo enviar la invitación al portal del empleado %s', emp.id)
+        return 'No pudimos enviar el correo. Intente de nuevo en unos minutos.'
+    emp.portal_invitado_en = timezone.now()
+    emp.save(update_fields=['portal_invitado_en'])
+    return None
+
+
 # ── Sesión ───────────────────────────────────────────────────────────────────
 
 def _poner_sesion(response, cuenta, via):

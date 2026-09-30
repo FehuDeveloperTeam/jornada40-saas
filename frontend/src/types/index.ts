@@ -763,6 +763,17 @@ export interface CertificadoEmitido {
 
 export interface OpcionesCertificado { empleo: number; empresa: string; aviso: string; certificados: CertificadoGenerable[] }
 
+/** Estado del portal del trabajador visto desde su carpeta (GET /empleados/<id>/portal/). */
+export interface EstadoPortal {
+  estado: 'SIN_PLAN' | 'SIN_ACCESO' | 'SIN_CORREO' | 'NO_INGRESA' | 'ACTIVO';
+  texto: string;
+  correo: string;
+  acceso_hasta: string | null;
+  ultimo_ingreso: string | null;
+  invitado_en: string | null;
+  puede_invitar: boolean;
+}
+
 export interface CertificadosPortal {
     /** `aviso`: por qué no se puede emitir ninguno en ese empleo (p. ej. sin firma del empleador). */
     opciones: OpcionesCertificado[];

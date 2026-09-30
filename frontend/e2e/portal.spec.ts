@@ -227,3 +227,14 @@ test('el trabajador genera un certificado y un tercero lo verifica', async ({ pa
   await page.goto(`/verificar/${codigo}`);
   await expect(page.getByText('Certificado anulado: no es válido')).toBeVisible();
 });
+
+test('el empleador ve en la carpeta que el trabajador usa su portal y le reenvía las instrucciones', async ({ page }) => {
+  await entrar(page);
+  await page.goto(`/app/trabajadores/${MATIAS.id}`);
+  const bloque = page.locator('section', { has: page.getByRole('heading', { name: 'Portal del trabajador' }) });
+  await expect(bloque.getByText('Ya usa su portal')).toBeVisible();
+  await expect(bloque.getByText(/Último ingreso/)).toBeVisible();
+  await bloque.getByRole('button', { name: 'Reenviar instrucciones' }).click();
+  await expect(page.getByText(/Invitación enviada a/)).toBeVisible();
+  await expect(bloque.getByRole('button', { name: 'Reenviar instrucciones' })).toBeDisabled();
+});

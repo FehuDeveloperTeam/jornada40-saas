@@ -222,6 +222,8 @@ class Empleado(models.Model):
     # La DT exige enviar los documentos al correo PERSONAL (no al corporativo, que
     # se pierde al terminar la relación). El empleador lo confirma; se reinicia al cambiar el correo.
     email_personal_confirmado = models.BooleanField(default=False)
+    # Última invitación al portal enviada por el empleador (una por día).
+    portal_invitado_en = models.DateTimeField(null=True, blank=True)
     departamento = models.CharField(max_length=100, blank=True, null=True)
     cargo = models.CharField(max_length=100)
     sucursal = models.CharField(max_length=100, blank=True, null=True)

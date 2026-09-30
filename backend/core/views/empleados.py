@@ -754,6 +754,17 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         marcar_consentimiento(empleado, 'PAPEL', momento)
         return Response(self.get_serializer(empleado).data)
 
+    @action(detail=True, methods=['get', 'post'])
+    def portal(self, request, pk=None):
+        """GET: estado del portal del trabajador. POST: le envía la invitación por correo."""
+        from .portal_trabajador import estado_portal, invitar_al_portal
+        empleado = self.get_object()
+        if request.method == 'POST':
+            error = invitar_al_portal(empleado)
+            if error:
+                return Response({'error': error}, status=400)
+        return Response(estado_portal(empleado))
+
     @action(detail=True, methods=['post'], url_path='digitalizar_contrato')
     def digitalizar_contrato(self, request, pk=None):
         from ..extractor_contrato import ExtraccionNoDisponible, extraer_campos_contrato
