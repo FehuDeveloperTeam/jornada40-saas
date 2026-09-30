@@ -294,20 +294,28 @@ def bloques(empresa, rubro, tipo, mutual):
         ('h2', 'Canales de denuncia'),
         ('p', 'Las denuncias podrán presentarse por escrito o verbalmente ante [COMPLETAR: cargo o persona '
               'responsable y correo electrónico de denuncias], o directamente ante la Inspección del Trabajo '
-              '(www.dt.gob.cl). Las verbales se dejarán por escrito y serán firmadas por quien denuncia.'),
+              '(www.dt.gob.cl). La denuncia verbal se dejará en un acta que firmará quien denuncia, con copia fechada '
+              'y con hora para esta. La denuncia debe identificar a quien la presenta: no se admiten denuncias '
+              'anónimas, aunque la empresa igualmente adoptará las medidas de protección que correspondan '
+              '(DS 21 de 2024, Arts. 11 y 12; Dictamen 497/21).'),
         ('h2', 'Procedimiento de investigación'),
-        ('p', 'Recibida la denuncia, la empresa adoptará de inmediato medidas de resguardo (por ejemplo, separar los '
-              'espacios físicos o redistribuir la jornada) y ofrecerá atención psicológica temprana a través de '
-              f'{mutual}. Dentro de 3 días hábiles decidirá si investiga internamente o remite la denuncia a la '
-              'Dirección del Trabajo; si la denuncia afecta al empleador o a su representante, se remitirá siempre '
-              'a la Dirección del Trabajo.'),
+        ('p', 'Recibida la denuncia, la empresa adoptará de inmediato y por escrito medidas de resguardo (por '
+              'ejemplo, separar los espacios físicos o redistribuir la jornada), que nunca podrán perjudicar a quien '
+              f'denuncia, y la derivará a la atención psicológica temprana de {mutual}. Dentro de 3 días hábiles '
+              'decidirá si investiga internamente, caso en el cual informará el inicio de la investigación y las '
+              'medidas adoptadas a la Dirección del Trabajo, o si remite la denuncia a ese servicio. La denuncia se '
+              'remitirá siempre a la Dirección del Trabajo si afecta al empleador o a quien ejerza funciones de '
+              'dirección o administración (Art. 4° del Código del Trabajo), o si quien denuncia lo solicita.'),
         ('p', 'La investigación interna será reservada, respetará el derecho de ambas partes a ser oídas y a '
-              'presentar pruebas, estará a cargo de una persona capacitada e imparcial, y concluirá en un plazo '
-              'máximo de 30 días. Sus conclusiones se remitirán a la Dirección del Trabajo, y la empresa aplicará '
-              'las medidas y sanciones que correspondan dentro de 15 días desde que esta se pronuncie (Arts. 211-B '
-              'y siguientes; DS 21 de 2024).'),
+              'presentar antecedentes, se llevará por escrito y estará a cargo de una persona imparcial, '
+              'preferentemente con formación en acoso, género o derechos fundamentales. Concluirá en un plazo máximo '
+              'de 30 días hábiles desde la denuncia, con un informe que se remitirá a la Dirección del Trabajo dentro '
+              'de 2 días. La empresa aplicará las medidas y sanciones que correspondan dentro de 15 días corridos '
+              'desde el pronunciamiento de la Dirección del Trabajo (o, si esta no se pronuncia en 30 días, desde '
+              'ese vencimiento), informándolas a denunciante y denunciado (Arts. 211-B a 211-E; DS 21 de 2024).'),
         ('p', 'Las sanciones podrán ser amonestación, multa conforme a este reglamento o, en los casos graves, el '
-              'término del contrato según el artículo 160 N° 1 letras b) y f) del Código del Trabajo.'),
+              'término del contrato según el artículo 160 N° 1 letras b) y f) del Código del Trabajo. Se prohíbe toda '
+              'represalia contra quien denuncie o declare como testigo (Art. 485).'),
     ]
 
     n = 'XI' if completo else 'III'
