@@ -20,8 +20,13 @@ test('pacto de horas extra y permiso legal desde la carpeta', async ({ page }) =
   await drawer.getByLabel('Duración').selectOption('3');
   await drawer.getByLabel('Máximo de horas extra por día').selectOption('2');
   await drawer.getByLabel('Necesidad temporal que lo justifica').selectOption('INVENTARIO');
+  // Ley 40 horas: las horas extra pueden cambiarse por días libres (plan Pyme).
+  const compensacion = drawer.getByLabel('¿Cómo se compensan las horas extra?');
+  await expect(compensacion).toHaveValue('PAGO');
+  await compensacion.selectOption('FERIADO');
   await drawer.getByRole('button', { name: 'Crear documento' }).click();
   await expect(drawer).toHaveCount(0);
+  await expect(page.getByText(/se cambian por días libres/).first()).toBeVisible();
 
   const fila = page.locator('div', { hasText: /^Pacto de horas extraordinarias/ }).filter({ has: page.getByRole('button', { name: 'Enviar a firma' }) }).last();
   await expect(fila).toBeVisible();

@@ -5,13 +5,14 @@ import { isAxiosError } from 'axios';
 import { Info, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { AlertaError, Button, Casilla, Drawer, Input, SegmentedControl } from '../../j40';
 import client from '../../../api/client';
-import type { Empleado, SaldoVacaciones, SimulacionFiniquito } from '../../../types';
+import type { Empleado, SaldoVacaciones, SimulacionFiniquito, TipoVacacion } from '../../../types';
 import { cn } from '../../../utils/cn';
 import { capitalizar, clp, decimalCL, hoyISO } from '../../../utils/formato';
 import { CAUSALES, CAUSALES_CON_INDEMNIZACION, etiquetaCausal } from '../causales';
 import { TIPO_JORNADA } from '../trabajador';
 import { CAMPOS_ANEXO, errorHorasSemanales, HORAS_SEMANALES_MAXIMAS } from './utiles';
 import type { CampoAnexo } from './utiles';
+import { useBolsaCompensatoria } from './compensatorias';
 
 const CONTROL = 'h-10 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
 
@@ -301,7 +302,9 @@ export function DrawerVacacion({ empleado, saldo, onCerrar, avisar }: {
   empleado: Empleado; saldo: SaldoVacaciones | undefined; onCerrar: () => void; avisar: (t: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [tipo, setTipo] = useState<'VACACION_LEGAL' | 'VACACION_PROGRESIVA' | 'PERMISO_SIN_GOCE'>('VACACION_LEGAL');
+  const [tipo, setTipo] = useState<TipoVacacion>('VACACION_LEGAL');
+  const bolsa = useBolsaCompensatoria(empleado.id).data;
+  const compensatorio = tipo === 'DIA_COMPENSATORIO';
   const [inicio, setInicio] = useState(hoyISO());
   const [fin, setFin] = useState(hoyISO());
   const [estado, setEstado] = useState<'APROBADO' | 'PENDIENTE'>('APROBADO');
@@ -313,17 +316,18 @@ export function DrawerVacacion({ empleado, saldo, onCerrar, avisar }: {
     queryFn: async () => (await client.get<{ dias_habiles: number }>(`/vacaciones/dias_habiles/?inicio=${inicio}&fin=${fin}`)).data.dias_habiles,
     enabled: Boolean(inicio && fin && fin >= inicio),
   });
-  const excede = tipo !== 'PERMISO_SIN_GOCE' && saldo && dias.data != null && dias.data > saldo.dias_disponibles;
+  const excede = !compensatorio && tipo !== 'PERMISO_SIN_GOCE' && saldo && dias.data != null && dias.data > saldo.dias_disponibles;
 
   const guardar = async () => {
     if (!inicio || !fin || fin < inicio) { setError('Revisa las fechas: el término no puede ser anterior al inicio.'); return; }
     setGuardando(true);
     setError('');
     try {
-      await client.post('/vacaciones/', { empleado: empleado.id, empresa: empleado.empresa, tipo, fecha_inicio: inicio, fecha_fin: fin, estado, observaciones });
+      const { data } = await client.post<{ avisos?: string[] }>('/vacaciones/', { empleado: empleado.id, empresa: empleado.empresa, tipo, fecha_inicio: inicio, fecha_fin: fin, estado, observaciones });
       await queryClient.invalidateQueries({ queryKey: ['vacaciones'] });
       await queryClient.invalidateQueries({ queryKey: ['saldo-vacaciones', empleado.id] });
-      avisar('Vacaciones registradas');
+      await queryClient.invalidateQueries({ queryKey: ['compensatorias', empleado.id] });
+      avisar(`${compensatorio ? 'Día libre registrado' : 'Vacaciones registradas'}${data.avisos?.length ? `. Atención: ${data.avisos.join(' ')}` : ''}`);
       onCerrar();
     } catch (err) {
       setError(mensaje(err, 'No pudimos registrar las vacaciones.'));
@@ -339,17 +343,25 @@ export function DrawerVacacion({ empleado, saldo, onCerrar, avisar }: {
         <Campo etiqueta="Tipo">
           <select className={CONTROL} value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)}>
             <option value="VACACION_LEGAL">Feriado legal</option><option value="VACACION_PROGRESIVA">Feriado progresivo</option><option value="PERMISO_SIN_GOCE">Permiso sin goce de sueldo</option>
+            {bolsa?.permitido && <option value="DIA_COMPENSATORIO">Día libre por horas extra</option>}
           </select>
         </Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Desde"><Input type="date" value={inicio} onChange={(e) => { setInicio(e.target.value); if (fin < e.target.value) setFin(e.target.value); }} /></Campo>
           <Campo etiqueta="Hasta"><Input type="date" value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
         </div>
+        {compensatorio ? (
+          <div className="rounded-[10px] bg-sunken px-3.5 py-3 text-[13px] flex flex-col gap-1 j40-num">
+            <span>Tiene <strong className="font-semibold">{decimalCL(bolsa?.horas_disponibles ?? 0, 1)} h</strong> de descanso por horas extra.</span>
+            <span className="text-fg-3">Cada día libre descuenta las horas de su jornada de ese día. Solo días completos; el trabajador avisa con 48 horas (Art. 32).</span>
+          </div>
+        ) : (
         <div className="rounded-[10px] bg-sunken px-3.5 py-3 text-[13px] flex flex-col gap-1 j40-num">
           <span><strong className="font-semibold">{dias.data ?? '—'}</strong> días hábiles <span className="text-fg-3">(sábados, domingos y feriados no cuentan, Art. 69)</span></span>
           {saldo && tipo !== 'PERMISO_SIN_GOCE' && <span className="text-fg-3">Saldo disponible: {decimalCL(saldo.dias_disponibles, 0)} días</span>}
           {excede && <span className="text-warn">Supera el saldo disponible. Puedes registrarlo igual si lo acordaron (feriado anticipado).</span>}
         </div>
+        )}
         <SegmentedControl etiqueta="Estado" valor={estado} bloque onChange={setEstado}
           opciones={[{ valor: 'APROBADO', etiqueta: 'Aprobado' }, { valor: 'PENDIENTE', etiqueta: 'Pendiente' }]} />
         <Campo etiqueta="Observaciones (opcional)">

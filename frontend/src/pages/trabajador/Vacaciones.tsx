@@ -3,7 +3,7 @@ import { Chip } from '../../components/j40';
 import { EstadoLista, Seccion, Titulo } from '../../components/trabajador/comun';
 import { useVacacionesPortal } from '../../hooks/usePortal';
 import type { VacacionesPortal } from '../../types';
-import { fechaCL } from '../../utils/formato';
+import { decimalCL, fechaCL } from '../../utils/formato';
 
 // Mismo formato que la carpeta del empleador (components/app/carpeta/Vacaciones.tsx).
 const dias = (valor: number | string) => {
@@ -43,6 +43,21 @@ function Empleo({ empleo }: { empleo: VacacionesPortal }) {
           </div>
         ) : (
           <p className="text-[13px] text-fg-3">El saldo no está disponible por ahora. Consulta a tu empleador.</p>
+        )}
+        {empleo.horas_descanso && (
+          <div className="rounded-j40-card border border-line bg-surface-2 px-4 py-3.5 flex flex-col gap-1.5 text-[14px] leading-relaxed">
+            <span className="font-semibold">Días libres por horas extra</span>
+            <span>
+              Tienes <b className="font-semibold j40-num">{decimalCL(empleo.horas_descanso.horas_disponibles, 1)} horas</b> de descanso
+              {empleo.horas_descanso.dias_aproximados > 0 ? ` (alcanzan para ${empleo.horas_descanso.dias_aproximados} ${empleo.horas_descanso.dias_aproximados === 1 ? 'día' : 'días'} libres)` : ''}.
+            </span>
+            {empleo.horas_descanso.proximo_vencimiento && (
+              <span className="text-[13px] text-fg-2">
+                {decimalCL(empleo.horas_descanso.horas_por_vencer, 1)} horas vencen el {fechaCL(empleo.horas_descanso.proximo_vencimiento)}: si no las usas, se te pagan en la liquidación de ese mes.
+              </span>
+            )}
+            <span className="text-[12.5px] text-fg-3">Para usar un día libre, avísale a tu empleador con al menos 48 horas de anticipación.</span>
+          </div>
         )}
         {saldo?.aviso_acumulacion && (
           <p className="flex gap-2 rounded-j40-card bg-warn-soft text-warn px-4 py-3 text-[13px]">

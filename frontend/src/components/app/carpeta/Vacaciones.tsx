@@ -1,16 +1,48 @@
-import { Download, Lock, TriangleAlert } from 'lucide-react';
+import { Clock, Download, Lock, TriangleAlert } from 'lucide-react';
 import { Button, Chip } from '../../j40';
 import type { TonoChip } from '../../j40';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
-import type { Empleado, SaldoVacaciones, SolicitudFirma, VacacionEmpleado } from '../../../types';
-import { fechaCL } from '../../../utils/formato';
+import type { BolsaCompensatoria, Empleado, SaldoVacaciones, SolicitudFirma, VacacionEmpleado } from '../../../types';
+import { decimalCL, fechaCL } from '../../../utils/formato';
 import { BotonEnlace, ChipFirma, Seccion } from './comun';
+import { useBolsaCompensatoria } from './compensatorias';
 import { firmaDe } from './utiles';
 
 const TIPO: Record<string, string> = {
   VACACION_LEGAL: 'Feriado legal', VACACION_PROGRESIVA: 'Feriado progresivo', PERMISO_SIN_GOCE: 'Permiso sin goce',
+  DIA_COMPENSATORIO: 'Día libre por horas extra',
 };
+
+const horas = (n: number) => `${decimalCL(n, Number.isInteger(n) ? 0 : 1)} h`;
+
+/** Días libres ganados con horas extra (Ley 40 horas, Art. 32): cuánto tiene y cuándo vence. */
+function DiasLibresHorasExtra({ bolsa }: { bolsa: BolsaCompensatoria }) {
+  const disponibles = bolsa.horas_disponibles ?? 0;
+  const tope = bolsa.tope_horas ?? 0;
+  return (
+    <Seccion titulo="Días libres por horas extra">
+      <div className="px-[18px] py-4 flex flex-col gap-2.5 text-[14px] leading-relaxed">
+        <p className="flex gap-2.5 items-start">
+          <Clock className="size-5 shrink-0 text-brand mt-px" strokeWidth={2} aria-hidden />
+          <span>
+            Tiene <b className="font-semibold j40-num">{horas(disponibles)}</b> de descanso
+            {disponibles > 0 && bolsa.dias_aproximados ? ` (alcanza para ${bolsa.dias_aproximados} ${bolsa.dias_aproximados === 1 ? 'día' : 'días'} de jornada)` : ''}.
+          </span>
+        </p>
+        {bolsa.proximo_vencimiento && (
+          <p className="text-[13.5px] text-fg-2">
+            {horas(bolsa.horas_por_vencer ?? 0)} vencen el {fechaCL(bolsa.proximo_vencimiento)}: si no las usa, se le pagan en la liquidación de ese mes.
+          </p>
+        )}
+        <p className="text-[13px] text-fg-3">
+          Este año de contrato lleva {horas(bolsa.generadas_anualidad ?? 0)} de un máximo de {horas(tope)} (5 días).
+          Para darle un día libre, use «Registrar vacaciones» y elija «Día libre por horas extra».
+        </p>
+      </div>
+    </Seccion>
+  );
+}
 const ESTADO: Record<string, { texto: string; tono: TonoChip }> = {
   APROBADO: { texto: 'Aprobado', tono: 'ok' }, PENDIENTE: { texto: 'Pendiente', tono: 'aviso' },
   RECHAZADO: { texto: 'Rechazado', tono: 'peligro' },
@@ -39,6 +71,16 @@ export function Vacaciones({ empleado, nivel, cargandoPlan, vacaciones, saldo, f
     );
   }
 
+  return <VacacionesContenido empleado={empleado} nivel={nivel} vacaciones={vacaciones} saldo={saldo} firmas={firmas} avisar={avisar} />;
+}
+
+function VacacionesContenido({ empleado, nivel, vacaciones, saldo, firmas, avisar }: {
+  empleado: Empleado; nivel: number; vacaciones: VacacionEmpleado[]; saldo: SaldoVacaciones | undefined;
+  firmas: SolicitudFirma[]; avisar: (t: string) => void;
+}) {
+  const bolsa = useBolsaCompensatoria(empleado.id, nivel >= 3).data;
+  const verBolsa = bolsa?.permitido && ((bolsa.horas_disponibles ?? 0) > 0 || (bolsa.generadas_anualidad ?? 0) > 0
+    || (bolsa.compensacion_vigente && bolsa.compensacion_vigente !== 'PAGO'));
   const ordenadas = [...vacaciones].sort((a, b) => b.fecha_inicio.localeCompare(a.fecha_inicio));
   const pdf = async (v: VacacionEmpleado) => {
     const error = await descargar(`/vacaciones/${v.id}/generar_pdf/`, `Vacaciones_${empleado.rut}_${v.fecha_inicio}.pdf`);
@@ -63,6 +105,8 @@ export function Vacaciones({ empleado, nivel, cargandoPlan, vacaciones, saldo, f
         </p>
       )}
 
+      {verBolsa && bolsa && <DiasLibresHorasExtra bolsa={bolsa} />}
+
       <Seccion titulo="Registro de vacaciones y permisos"
         accion={<BotonEnlace a={rutaAccion(empleado.id, 'vacacion')}>Registrar vacaciones</BotonEnlace>}>
         {ordenadas.length === 0 && <p className="px-[18px] py-5 text-[13px] text-fg-3">Sin vacaciones registradas.</p>}
@@ -73,7 +117,9 @@ export function Vacaciones({ empleado, nivel, cargandoPlan, vacaciones, saldo, f
               <div className="flex-1 min-w-[200px] flex flex-col">
                 <span className="text-[13px] font-medium">{TIPO[v.tipo] ?? v.tipo}</span>
                 <span className="text-[11.5px] text-fg-3 j40-num">
-                  {fechaCL(v.fecha_inicio)} al {fechaCL(v.fecha_fin)} · {dias(v.dias_habiles_calculados ?? v.dias_habiles)} hábiles
+                  {fechaCL(v.fecha_inicio)} al {fechaCL(v.fecha_fin)} · {v.tipo === 'DIA_COMPENSATORIO'
+                    ? `${dias(v.dias_habiles)} · ${horas(Number(v.horas_compensatorias ?? 0))} de la bolsa`
+                    : `${dias(v.dias_habiles_calculados ?? v.dias_habiles)} hábiles`}
                 </span>
               </div>
               <Chip tono={estado.tono}>{estado.texto}</Chip>

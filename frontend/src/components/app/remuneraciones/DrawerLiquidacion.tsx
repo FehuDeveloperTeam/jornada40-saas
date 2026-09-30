@@ -141,7 +141,7 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
   const valorCalculado = (i: number) => sim?.detalle_items?.[i]?.valor;
   const nombre = capitalizar(`${empleado.nombres} ${empleado.apellido_paterno}`);
   const disponibles = (conceptos.data ?? []).filter((c) => c.activo && !(c.es_del_sistema && c.codigo === 'ASIGNACION_FAMILIAR'));
-  const asignacion = sim?.detalle_items?.find((i) => i.calculado);
+  const asignacion = sim?.detalle_items?.find((i) => i.calculado && !i.lotes_compensatorios);
 
   return (
     <Drawer abierto={abierto} onCerrar={onCerrar}
@@ -252,6 +252,11 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
                       <input className={cn(CONTROL, 'pl-6')} inputMode="numeric" value={miles(i.valor)}
                         onChange={(e) => cambiar(i.clave, { valor: soloDigitos(e.target.value) })} />
                     </Campo>
+                  )}
+                  {sim?.detalle_items?.[n]?.nota_compensacion && (
+                    <p className="text-[12.5px] text-fg-2 rounded-[8px] bg-surface-2 px-2.5 py-2">
+                      {sim.detalle_items[n].nota_compensacion}: van a su bolsa de días libres en vez de pagarse.
+                    </p>
                   )}
                 </div>
               );

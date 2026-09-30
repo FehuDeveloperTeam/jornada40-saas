@@ -283,7 +283,7 @@ export interface DocumentoLegal {
     creado_en: string;
 }
 
-export type TipoVacacion = 'VACACION_LEGAL' | 'VACACION_PROGRESIVA' | 'PERMISO_SIN_GOCE';
+export type TipoVacacion = 'VACACION_LEGAL' | 'VACACION_PROGRESIVA' | 'PERMISO_SIN_GOCE' | 'DIA_COMPENSATORIO';
 export type EstadoVacacion = 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
 
 export interface VacacionEmpleado {
@@ -299,6 +299,21 @@ export interface VacacionEmpleado {
     archivo_pdf: string | null;
     creado_en: string;
     dias_habiles_calculados: number;
+    /** Solo días libres por horas extra: horas de la bolsa que descontó. */
+    horas_compensatorias?: string | number;
+}
+
+/** Bolsa de horas de descanso ganadas con horas extra (Art. 32 inc. 4°), GET /vacaciones/compensatorias/. */
+export interface BolsaCompensatoria {
+    permitido: boolean;
+    horas_disponibles?: number;
+    dias_aproximados?: number;
+    horas_por_dia?: number;
+    proximo_vencimiento?: string | null;
+    horas_por_vencer?: number;
+    tope_horas?: number;
+    generadas_anualidad?: number;
+    compensacion_vigente?: 'PAGO' | 'FERIADO' | 'MIXTO';
 }
 
 export interface SaldoVacaciones {
@@ -352,6 +367,12 @@ export interface ItemLiquidacion {
     calculado?: boolean;
     tramo?: string;
     monto_carga?: number;
+    /** Horas extra cambiadas por descanso (Art. 32 inc. 4°): horas trabajadas que no se pagan y horas de descanso que dan. */
+    horas_compensadas?: number;
+    horas_feriado?: number;
+    /** Pago de horas de descanso vencidas sin usar, por mes de origen ("aaaa-mm": horas). */
+    lotes_compensatorios?: Record<string, number>;
+    nota_compensacion?: string;
 }
 
 export interface ComisionItem {
@@ -433,6 +454,9 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
         feriado_dias_proporcionales: number;
         feriado_dias_habiles: number;
         feriado_dias_corridos: number;
+        /** Horas de descanso por horas extra no usadas: se pagan con el feriado (Art. 32 y 73). */
+        horas_compensatorias?: number;
+        monto_horas_compensatorias?: number;
         con_indemnizacion: boolean;
         anios_indemnizacion: number;
         base_indemnizacion: number;
@@ -482,6 +506,7 @@ export interface OpcionesDocumentoLaboral {
     avisos: string[];
     tipos: Record<TipoDocumentoLaboral | 'TELETRABAJO', { disponible: boolean; motivo: string }>;
     motivos_horas_extra: OpcionSimple[];
+    compensaciones_horas_extra: OpcionSimple[];
     conceptos_descuento: OpcionSimple[];
     finalidades_descuento: OpcionSimple[];
     permisos: (OpcionSimple & { desde_el_hecho: boolean })[];
@@ -678,6 +703,9 @@ export interface RegistroVacacionPortal {
 
 export interface VacacionesPortal extends EmpleoPortal {
     saldo: SaldoVacaciones | null;
+    /** Horas de descanso ganadas con horas extra (Art. 32); null si nunca tuvo. */
+    horas_descanso: { horas_disponibles: number; dias_aproximados: number; proximo_vencimiento: string | null;
+        horas_por_vencer: number } | null;
     registros: RegistroVacacionPortal[];
 }
 

@@ -397,9 +397,9 @@ class VacacionSerializer(serializers.ModelSerializer):
             'fecha_inicio', 'fecha_fin', 'dias_habiles',
             'tipo', 'estado', 'observaciones',
             'archivo_pdf', 'creado_en',
-            'dias_habiles_calculados',
+            'dias_habiles_calculados', 'horas_compensatorias',
         ]
-        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'dias_habiles_calculados')
+        read_only_fields = ('id', 'archivo_pdf', 'creado_en', 'dias_habiles_calculados', 'horas_compensatorias')
 
 
 class FiniquitoSerializer(serializers.ModelSerializer):

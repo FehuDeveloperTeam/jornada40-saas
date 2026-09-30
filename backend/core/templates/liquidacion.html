@@ -135,6 +135,11 @@
                             <td>{{ item.glosa|upper|truncatechars:35 }}</td>
                             <td class="right">{{ item.valor|intcomma }}</td>
                         </tr>
+                        {% if item.nota_compensacion %}
+                        <tr class="item-row">
+                            <td colspan="2" style="font-size: 7pt; color: #555;">{{ item.nota_compensacion }}</td>
+                        </tr>
+                        {% endif %}
                         {% endfor %}
 
                         {% for item in liquidacion.items_agrupados.comisiones %}

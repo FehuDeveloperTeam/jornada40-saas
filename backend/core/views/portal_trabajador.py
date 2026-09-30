@@ -612,7 +612,16 @@ def vacaciones(request):
             logger.exception('Saldo de vacaciones del portal, ficha %s', emp.id)
             saldo = None
         registros = VacacionEmpleado.objects.filter(empleado=emp, estado='APROBADO').order_by('-fecha_inicio')
-        salida.append({**_empleo(emp), 'saldo': saldo, 'registros': [
+        # Días libres por horas extra (Art. 32 inc. 4°): solo si alguna vez los tuvo.
+        descanso = None
+        contrato = Contrato.objects.filter(empleado=emp).first()
+        if contrato:
+            from .horas_compensatorias import resumen_empleado
+            r = resumen_empleado(emp, contrato, timezone.localdate())
+            if r['horas_disponibles'] or r['generadas_anualidad'] or r['compensacion_vigente'] != 'PAGO':
+                descanso = {k: r[k] for k in ('horas_disponibles', 'dias_aproximados', 'proximo_vencimiento',
+                                              'horas_por_vencer')}
+        salida.append({**_empleo(emp), 'saldo': saldo, 'horas_descanso': descanso, 'registros': [
             {'id': v.id, 'desde': v.fecha_inicio.isoformat(), 'hasta': v.fecha_fin.isoformat(),
              'dias_habiles': v.dias_habiles, 'tipo': v.get_tipo_display()} for v in registros]})
     return Response(salida)

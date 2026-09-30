@@ -25,12 +25,12 @@ function Campo({ etiqueta, ayuda, children }: { etiqueta: string; ayuda?: string
 }
 
 function Lista({ etiqueta, valor, onChange, opciones, vacia = 'Selecciona…', ayuda }: {
-  etiqueta: string; valor: string; onChange: (v: string) => void; opciones: OpcionSimple[]; vacia?: string; ayuda?: string;
+  etiqueta: string; valor: string; onChange: (v: string) => void; opciones: OpcionSimple[]; vacia?: string | null; ayuda?: string;
 }) {
   return (
     <Campo etiqueta={etiqueta} ayuda={ayuda}>
       <select className={CONTROL} value={valor} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{vacia}</option>
+        {vacia !== null && <option value="">{vacia}</option>}
         {opciones.map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
       </select>
     </Campo>
@@ -115,6 +115,11 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
               opciones={[{ valor: '1', texto: '1 hora' }, { valor: '2', texto: '2 horas (máximo legal)' }]} />
             <Lista etiqueta="Necesidad temporal que lo justifica" valor={texto('motivo')} onChange={(x) => poner('motivo', x)}
               opciones={o.motivos_horas_extra} />
+            <Lista etiqueta="¿Cómo se compensan las horas extra?" valor={texto('compensacion') || 'PAGO'} vacia={null}
+              onChange={(x) => poner('compensacion', x)} opciones={o.compensaciones_horas_extra}
+              ayuda={o.compensaciones_horas_extra.length > 1
+                ? 'Con días libres, cada hora extra da 1,5 horas de descanso, hasta 5 días al año. El trabajador los usa dentro de 6 meses; si no, se le pagan (Ley 40 horas, Art. 32).'
+                : 'Cambiar horas extra por días libres está disponible desde el plan Pyme.'} />
           </>
         )}
 

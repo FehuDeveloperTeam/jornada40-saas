@@ -21,7 +21,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Cliente, Empresa, SolicitudDocumento, SolicitudFirma
+from ..models import Cliente, Contrato, Empresa, SolicitudDocumento, SolicitudFirma
+from . import horas_compensatorias as hc
 from .direccion_trabajo import items_registro
 from .solicitudes_documento import actualizar_solicitudes
 
@@ -99,7 +100,25 @@ def _registro_dt(empresa, desde, hoy):
     return _seccion('Registros pendientes en Mi DT (Dirección del Trabajo)', lineas, '/app/dt', 'Ver registros')
 
 
-FUENTES = [_solicitudes, _firmas, _registro_dt]
+# Horas de descanso por horas extra que vencen dentro de estos días.
+DIAS_AVISO_DESCANSO = 30
+
+
+def _horas_descanso(empresa, desde, hoy):
+    """Horas de descanso (Art. 32 inc. 4°) por vencer: si no se usan, se pagan."""
+    if not hc.permite_compensacion(empresa.owner):
+        return None
+    lineas = []
+    for contrato in Contrato.objects.filter(empleado__empresa=empresa, empleado__activo=True).select_related('empleado'):
+        b = hc.bolsa(contrato.empleado, hasta=hoy)
+        for lote in b['lotes']:
+            if not lote['vencido'] and lote['saldo'] > 0 and (lote['vence'] - hoy).days <= DIAS_AVISO_DESCANSO:
+                lineas.append(f'{_nombre(contrato.empleado)} tiene {hc._horas(lote["saldo"])} h de descanso que vencen '
+                              f'el {_fecha(lote["vence"])}. Si no las usa, se le pagan en la liquidación de ese mes.')
+    return _seccion('Días libres por horas extra por vencer', lineas, '/app/trabajadores', 'Ver trabajadores')
+
+
+FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso]
 
 
 def contenido(cliente, desde, hoy=None):

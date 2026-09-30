@@ -14,6 +14,7 @@ from num2words import num2words
 
 from .base import logger
 from .feriado import _contar_domingos_y_festivos
+from .horas_compensatorias import aplicar_en_liquidacion
 from .parametros import _anios_de_servicio, _parametros_previsionales, asignacion_familiar, _tasas_afc, _tasas_afp, _tope_en_pesos
 
 
@@ -359,6 +360,11 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         item['recargo'] = recargo
         # Redondeo al entero más cercano, igual que la vista previa del panel.
         item['valor'] = math.floor(valor_hora_ordinaria * (1 + recargo / 100) * horas + 0.5)
+
+    # 2c-bis. HORAS EXTRA COMPENSADAS CON DESCANSO (Art. 32 inc. 4°, Ley 21.561):
+    # según el pacto firmado, parte o todas pasan a la bolsa de horas de
+    # descanso en vez de pagarse, y lo que venció sin usarse se paga aquí.
+    aplicar_en_liquidacion(empleado, contrato, mes, anio, items, conceptos, valor_hora_ordinaria)
 
     # 2d. ASIGNACIÓN FAMILIAR (monto legal: no se acepta desde el cliente)
     # Con tabla de tramos para el período, se calcula desde el tramo y las

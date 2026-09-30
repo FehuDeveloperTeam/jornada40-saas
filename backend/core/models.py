@@ -982,6 +982,7 @@ class VacacionEmpleado(models.Model):
         ('VACACION_LEGAL',      'Vacación Legal (Art. 67)'),
         ('VACACION_PROGRESIVA', 'Feriado Progresivo (Art. 68)'),
         ('PERMISO_SIN_GOCE',    'Permiso Sin Goce de Sueldo'),
+        ('DIA_COMPENSATORIO',   'Día compensatorio por horas extra (Art. 32)'),
     ]
     ESTADO_CHOICES = [
         ('PENDIENTE',  'Pendiente de aprobación'),
@@ -994,6 +995,8 @@ class VacacionEmpleado(models.Model):
     fecha_inicio = models.DateField()
     fecha_fin    = models.DateField()
     dias_habiles = models.PositiveIntegerField(default=0)
+    # Solo días compensatorios: horas de la bolsa que descuenta (la jornada de esos días).
+    horas_compensatorias = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     tipo         = models.CharField(max_length=25, choices=TIPO_CHOICES, default='VACACION_LEGAL')
     estado       = models.CharField(max_length=12, choices=ESTADO_CHOICES, default='APROBADO')
     observaciones = models.TextField(blank=True, default='')

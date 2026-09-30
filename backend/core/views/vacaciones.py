@@ -6,11 +6,13 @@ from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 from django.template.loader import get_template
-from ..models import Empleado, VacacionEmpleado
+from django.utils import timezone
+from ..models import Contrato, Empleado, VacacionEmpleado
 import datetime
 
 from .base import error_interno, _MESES, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _calcular_dias_habiles_vacacion, calcular_saldo_vacaciones
+from . import horas_compensatorias as hc
 
 
 # ==========================================
@@ -36,21 +38,71 @@ class VacacionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(empresa_id=empresa_id)
         return qs
 
-    def create(self, request, *args, **kwargs):
-        if not _plan_permite(request.user, 2):
-            return Response(
-                {'error': 'La gestión de vacaciones y permisos está disponible desde el plan Starter. Mejora tu suscripción para acceder.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        return super().create(request, *args, **kwargs)
-
     def _guardar(self, serializer):
         """Los días hábiles siempre los calcula el servidor (Art. 69 y feriados)."""
         inicio = serializer.validated_data.get('fecha_inicio', getattr(serializer.instance, 'fecha_inicio', None))
         fin = serializer.validated_data.get('fecha_fin', getattr(serializer.instance, 'fecha_fin', None))
         if inicio and fin and fin < inicio:
             raise ValidationError({'error': 'La fecha de término es anterior a la de inicio.'})
-        serializer.save(dias_habiles=_calcular_dias_habiles_vacacion(inicio, fin) if inicio and fin else 0)
+        tipo = serializer.validated_data.get('tipo', getattr(serializer.instance, 'tipo', None))
+        if tipo == 'DIA_COMPENSATORIO':
+            self._guardar_compensatorio(serializer, inicio, fin)
+            return
+        serializer.save(dias_habiles=_calcular_dias_habiles_vacacion(inicio, fin) if inicio and fin else 0,
+                        horas_compensatorias=0)
+
+    def _guardar_compensatorio(self, serializer, inicio, fin):
+        """Día(s) libre(s) pagados con la bolsa de horas extra (Art. 32 inc. 4°).
+
+        Descuenta las horas de la jornada de cada día; solo días completos y
+        con saldo vigente ese día. El aviso de 48 horas es un aviso, no un bloqueo."""
+        if not hc.permite_compensacion(self.request.user):
+            raise ValidationError({'error': 'Los días compensatorios están disponibles desde el plan Pyme.'})
+        empleado = serializer.validated_data.get('empleado', getattr(serializer.instance, 'empleado', None))
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+        if not contrato:
+            raise ValidationError({'error': 'El trabajador no tiene contrato registrado.'})
+        horas = hc.horas_de_uso(contrato, inicio, fin)
+        if horas <= 0:
+            raise ValidationError({'error': 'En esas fechas el trabajador no tiene jornada: elija días en que trabaja.'})
+        estado = serializer.validated_data.get('estado', getattr(serializer.instance, 'estado', 'APROBADO'))
+        if estado == 'APROBADO':
+            actual = float(serializer.instance.horas_compensatorias) if serializer.instance and \
+                serializer.instance.estado == 'APROBADO' and serializer.instance.tipo == 'DIA_COMPENSATORIO' else 0
+            disponibles = hc.bolsa(empleado, hasta=inicio)['disponibles'] + actual
+            if horas > disponibles + 0.01:
+                raise ValidationError({'error': f'No le alcanzan las horas: esos días suman {hc._horas(horas)} h de '
+                                                f'jornada y tiene {hc._horas(disponibles)} h de descanso disponibles.'})
+        dias = sum(1 for n in range((fin - inicio).days + 1)
+                   if hc.horas_del_dia(contrato, inicio + datetime.timedelta(days=n)) > 0)
+        serializer.save(dias_habiles=dias, horas_compensatorias=horas)
+        if inicio < timezone.localdate() + datetime.timedelta(days=2):
+            self._avisos = ['El trabajador debe avisar con 48 horas de anticipación (Art. 32). Si lo pidió con '
+                            'menos, déjelo registrado solo si usted estuvo de acuerdo.']
+
+    def create(self, request, *args, **kwargs):
+        if not _plan_permite(request.user, 2):
+            return Response(
+                {'error': 'La gestión de vacaciones y permisos está disponible desde el plan Starter. Mejora tu suscripción para acceder.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        self._avisos = []
+        respuesta = super().create(request, *args, **kwargs)
+        if self._avisos:
+            respuesta.data['avisos'] = self._avisos
+        return respuesta
+
+    @action(detail=False, methods=['get'], url_path='compensatorias')
+    def compensatorias(self, request):
+        """GET /api/vacaciones/compensatorias/?empleado=<id> — bolsa de horas de descanso por horas extra."""
+        empleado = Empleado.objects.filter(pk=request.query_params.get('empleado') or 0,
+                                           empresa__owner=request.user).first()
+        if empleado is None:
+            return Response({'error': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        contrato = Contrato.objects.filter(empleado=empleado).first()
+        hoy = timezone.localdate()
+        datos = hc.resumen_empleado(empleado, contrato, hoy) if contrato else {}
+        return Response({'permitido': hc.permite_compensacion(request.user), **datos})
 
     def perform_create(self, serializer):
         self._guardar(serializer)

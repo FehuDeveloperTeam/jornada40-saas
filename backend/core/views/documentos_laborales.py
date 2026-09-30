@@ -36,6 +36,7 @@ from ..models import AnexoContrato, ConceptoRemuneracion, Contrato, DocumentoLab
 from ..rut import formatear_rut
 from .base import _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import es_feriado_cl
+from .horas_compensatorias import COMPENSACIONES, permite_compensacion
 
 NIVEL_DOCUMENTOS = 2   # Starter en adelante
 _VIVAS = ['PENDIENTE', 'PROCESANDO', 'FIRMADO']
@@ -176,9 +177,14 @@ def conceptos_descuento(user, empresa):
 
 # ── Validación y redacción por tipo ──────────────────────────────────────────
 
-def _horas_extra(emp, contrato, d, hoy):
+def _horas_extra(emp, contrato, d, hoy, user=None):
     if not contrato:
         raise DatoInvalido('El trabajador no tiene contrato registrado.')
+    compensacion = d.get('compensacion') or 'PAGO'
+    if compensacion not in dict(COMPENSACIONES):
+        raise DatoInvalido('Elige cómo se compensan las horas extra.')
+    if compensacion != 'PAGO' and not (user and permite_compensacion(user)):
+        raise DatoInvalido('Cambiar horas extra por días libres está disponible desde el plan Pyme.')
     desde = _fecha_param(d.get('desde'), 'la fecha de inicio')
     meses = _entero(d.get('meses'), 'la duración en meses', 1, 3)
     horas = _entero(d.get('horas_diarias'), 'las horas diarias', 1, 2)
@@ -197,14 +203,45 @@ def _horas_extra(emp, contrato, d, hoy):
         f'Las horas extraordinarias no podrán exceder de {horas} {"hora" if horas == 1 else "horas"} por día, conforme '
         'al artículo 31 del Código del Trabajo, y solo se podrán trabajar en los días en que el trabajador tenga '
         'jornada ordinaria.',
-        'Las horas extraordinarias se pagarán con un recargo del cincuenta por ciento sobre el sueldo convenido para '
-        'la jornada ordinaria, junto con la remuneración del respectivo período (artículo 32).',
+        *_clausulas_compensacion(compensacion),
         'Este pacto tiene la vigencia transitoria indicada, que no excede de tres meses, y podrá renovarse por '
         'acuerdo escrito de las partes (artículo 32).',
     ]
+    if compensacion != 'PAGO' and contrato.tipo_jornada == 'ART_22':
+        avisos.append('Sin límite de jornada (Art. 22) no hay horas extra que cambiar por días libres.')
+    resumen = f'Hasta {horas} h diarias · del {desde:%d-%m-%Y} al {hasta:%d-%m-%Y}'
+    if compensacion != 'PAGO':
+        resumen += ' · ' + dict(COMPENSACIONES)[compensacion].lower()
     return {'vigente_desde': desde, 'vigente_hasta': hasta,
-            'datos': {'meses': meses, 'horas_diarias': horas, 'motivo': motivo, 'clausulas': clausulas,
-                      'resumen': f'Hasta {horas} h diarias · del {desde:%d-%m-%Y} al {hasta:%d-%m-%Y}'}}, avisos
+            'datos': {'meses': meses, 'horas_diarias': horas, 'motivo': motivo, 'compensacion': compensacion,
+                      'clausulas': clausulas, 'resumen': resumen}}, avisos
+
+
+_PAGO_HORAS_EXTRA = ('Las horas extraordinarias se pagarán con un recargo del cincuenta por ciento sobre el sueldo '
+                     'convenido para la jornada ordinaria, junto con la remuneración del respectivo período '
+                     '(artículo 32).')
+
+
+def _clausulas_compensacion(compensacion):
+    """Cláusulas de pago o de compensación con días adicionales de feriado (Art. 32 inc. 4°)."""
+    if compensacion == 'PAGO':
+        return [_PAGO_HORAS_EXTRA]
+    parte = ('La totalidad de las horas extraordinarias' if compensacion == 'FERIADO'
+             else 'La mitad de las horas extraordinarias trabajadas en cada período')
+    clausulas = [] if compensacion == 'FERIADO' else [
+        'La otra mitad se pagará con un recargo del cincuenta por ciento sobre el sueldo convenido para la jornada '
+        'ordinaria, junto con la remuneración del respectivo período (artículo 32).']
+    return [
+        f'{parte} se compensará con días adicionales de feriado, conforme al inciso cuarto del artículo 32 del Código '
+        'del Trabajo: por cada hora extraordinaria corresponderá una hora y media de descanso, hasta un máximo de '
+        'cinco días hábiles de descanso adicional por cada año de contrato. Lo que exceda ese máximo se pagará '
+        'con el recargo legal.',
+        *clausulas,
+        'El trabajador podrá usar esos días, completos, dentro de los seis meses siguientes al mes en que se '
+        'trabajaron las horas, dando aviso al empleador con cuarenta y ocho horas de anticipación. Si no los '
+        'solicita en ese plazo, se pagarán en la remuneración del período respectivo, y los que queden pendientes '
+        'al término de la relación laboral se compensarán conforme al artículo 73.',
+    ]
 
 
 def _descuento(emp, contrato, d, hoy, user):
@@ -449,10 +486,16 @@ def avisos_liquidacion(empleado, mes, anio, items, total_haberes, dias_ausencia=
         except (TypeError, ValueError):
             return 0
 
-    horas_extra = [i for i in items if i.get('naturaleza') == 'HORA_EXTRA' and valor(i) > 0]
+    horas_extra = [i for i in items if i.get('naturaleza') == 'HORA_EXTRA' and not i.get('lotes_compensatorios')
+                   and (valor(i) > 0 or float(i.get('horas') or 0) > 0)]
     if horas_extra and not _vigentes_en(firmados.filter(tipo='HORAS_EXTRA'), desde, hasta).exists():
         avisos.append('Hay horas extra sin un pacto de horas extraordinarias firmado y vigente en el mes (Art. 32). '
                       'Genéralo en la carpeta del trabajador → Documentos.')
+
+    exceso = sum(float(i.get('exceso_tope') or 0) for i in horas_extra)
+    if exceso:
+        avisos.append(f'{f"{exceso:g}".replace(".", ",")} h extra se pagaron en dinero porque se alcanzó el tope de '
+                      '5 días de descanso del año de contrato (Art. 32).')
 
     descuentos = [i for i in items if i.get('naturaleza') == 'DESCUENTO' and valor(i) > 0]
     ids = {i.get('concepto') for i in descuentos if i.get('concepto')}
@@ -532,6 +575,9 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
                                   'motivo': '' if anios >= 6 else 'Desde el séptimo año de servicio (Art. 164).'},
             },
             'motivos_horas_extra': [{'valor': v, 'texto': t} for v, t in MOTIVOS_HORAS_EXTRA],
+            # Cambiar horas extra por días libres (Ley 21.561) es desde Pyme.
+            'compensaciones_horas_extra': [{'valor': v, 'texto': t} for v, t in COMPENSACIONES
+                                           if v == 'PAGO' or permite_compensacion(request.user)],
             'conceptos_descuento': [{'valor': str(c.id), 'texto': c.nombre}
                                     for c in conceptos_descuento(request.user, emp.empresa)],
             'finalidades_descuento': [{'valor': v, 'texto': t} for v, t in FINALIDADES_DESCUENTO],
@@ -569,6 +615,8 @@ class DocumentoLaboralViewSet(viewsets.ViewSet):
                 return Response({'anexo': anexo.id, 'avisos': avisos}, status=status.HTTP_201_CREATED)
             if tipo == 'DESCUENTO':
                 armado, avisos = _descuento(emp, contrato, datos, hoy, request.user)
+            elif tipo == 'HORAS_EXTRA':
+                armado, avisos = _horas_extra(emp, contrato, datos, hoy, request.user)
             elif tipo in _CONSTRUCTORES:
                 armado, avisos = _CONSTRUCTORES[tipo](emp, contrato, datos, hoy)
             else:

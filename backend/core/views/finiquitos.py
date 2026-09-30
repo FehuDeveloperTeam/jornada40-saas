@@ -19,6 +19,7 @@ from ..serializers import FiniquitoSerializer
 
 from .base import error_interno, _MESES, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _dias_progresivos_del_anio, _es_dia_habil_feriado, calcular_saldo_vacaciones
+from .horas_compensatorias import pago_en_finiquito
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tasas_afp, _tope_en_pesos
 
 
@@ -224,6 +225,13 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     dias_habiles_feriado = round(saldo + proporcional, 2)
     dias_corridos_feriado = _dias_corridos_de_feriado(fecha_termino, dias_habiles_feriado)
     feriado = math.floor((sueldo_base / 30) * dias_corridos_feriado)
+    # Horas de descanso ganadas con horas extra y no usadas: se compensan con el
+    # feriado (Art. 32 inc. 4° y Art. 73).
+    horas_compensatorias, monto_compensatorias = 0, 0
+    if contrato and contrato.horas_semanales:
+        horas_compensatorias, monto_compensatorias = pago_en_finiquito(
+            empleado, contrato, fecha_termino, sueldo_base / 30 * 7 / float(contrato.horas_semanales))
+        feriado += monto_compensatorias
 
     # ── Indemnizaciones (Arts. 161, 162, 163, 163 bis y 172) ──────────────
     # Base: última remuneración mensual (Art. 172), con tope de 90 UF.
@@ -295,6 +303,7 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
         'sueldo_proporcional': sueldo_proporcional,
         'feriado_dias_saldo': saldo, 'feriado_dias_proporcionales': proporcional,
         'feriado_dias_habiles': dias_habiles_feriado, 'feriado_dias_corridos': dias_corridos_feriado,
+        'horas_compensatorias': horas_compensatorias, 'monto_horas_compensatorias': monto_compensatorias,
         'con_indemnizacion': con_indemnizacion, 'anios_indemnizacion': anios,
         'base_indemnizacion': base_indemnizacion, 'base_indemnizacion_topada': base_indemnizacion_sin_tope > tope_base,
         'tope_base_indemnizacion': tope_base,

@@ -461,7 +461,8 @@ function Calculo({ s }: { s: SimulacionFiniquito }) {
           <p className="flex gap-1.5 text-[11.5px] text-warn"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{d.aviso_gratificacion}</p>
         )}
         <Linea t="Feriado pendiente y proporcional" v={s.feriado_proporcional}
-          nota={`${decimalCL(d.feriado_dias_habiles, 2)} días hábiles (${decimalCL(d.feriado_dias_saldo, 0)} de saldo + ${decimalCL(d.feriado_dias_proporcionales, 2)} proporcionales) → ${decimalCL(d.feriado_dias_corridos, 2)} corridos`} />
+          nota={`${decimalCL(d.feriado_dias_habiles, 2)} días hábiles (${decimalCL(d.feriado_dias_saldo, 0)} de saldo + ${decimalCL(d.feriado_dias_proporcionales, 2)} proporcionales) → ${decimalCL(d.feriado_dias_corridos, 2)} corridos`
+            + (d.horas_compensatorias ? `. Incluye ${clp(d.monto_horas_compensatorias ?? 0)} por ${decimalCL(d.horas_compensatorias, 1)} h de descanso por horas extra no usadas (Art. 32)` : '')} />
         {d.con_indemnizacion && (
           <>
             <Linea t="Indemnización por años de servicio" v={s.indemnizacion_anos_servicio}
