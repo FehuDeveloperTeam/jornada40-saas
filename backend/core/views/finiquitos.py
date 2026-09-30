@@ -20,6 +20,7 @@ from ..serializers import FiniquitoSerializer
 from .base import error_interno, _MESES, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _dias_progresivos_del_anio, _es_dia_habil_feriado, calcular_saldo_vacaciones
 from .horas_compensatorias import pago_en_finiquito
+from .indemnizacion import anios_antes_del_pacto
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tasas_afp, _tope_en_pesos
 
 
@@ -240,7 +241,9 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
     tope_base = _tope_en_pesos(_TOPE_BASE_INDEMNIZACION_UF, valor_uf)
     base_indemnizacion = min(base_indemnizacion_sin_tope, tope_base)
     con_indemnizacion = causal_articulo in _CAUSALES_CON_INDEMNIZACION
-    anios = _anios_indemnizacion(empleado.fecha_ingreso, fecha_termino) if con_indemnizacion else 0
+    # Con pacto de indemnización a todo evento (Art. 164), el lapso cubierto por el aporte ya no se indemniza.
+    hasta_pacto, pacto_164 = anios_antes_del_pacto(empleado, fecha_termino)
+    anios = _anios_indemnizacion(empleado.fecha_ingreso, hasta_pacto) if con_indemnizacion else 0
     indemnizacion_anos = base_indemnizacion * anios
     sustitutiva = base_indemnizacion if (con_indemnizacion and not aviso_previo_dado) else 0
 
@@ -305,6 +308,8 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
         'feriado_dias_habiles': dias_habiles_feriado, 'feriado_dias_corridos': dias_corridos_feriado,
         'horas_compensatorias': horas_compensatorias, 'monto_horas_compensatorias': monto_compensatorias,
         'con_indemnizacion': con_indemnizacion, 'anios_indemnizacion': anios,
+        'pacto_todo_evento': ({'desde': pacto_164.vigente_desde.isoformat(),
+                               'porcentaje': pacto_164.datos.get('porcentaje')} if pacto_164 else None),
         'base_indemnizacion': base_indemnizacion, 'base_indemnizacion_topada': base_indemnizacion_sin_tope > tope_base,
         'tope_base_indemnizacion': tope_base,
         'base_indemnizacion_detalle': base_lineas, 'base_indemnizacion_meses': base_meses,

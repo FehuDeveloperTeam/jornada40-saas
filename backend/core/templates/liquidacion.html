@@ -258,6 +258,13 @@
         </tr>
     </table>
 
+    {% if liquidacion.aporte_indemnizacion %}
+    <p style="margin-top: 6px; font-size: 8pt;">
+        Aporte del empleador a la indemnización a todo evento (Art. 164 del Código del Trabajo): ${{ liquidacion.aporte_indemnizacion|intcomma }}
+        ({{ liquidacion.tasa_indemnizacion }} % de la remuneración imponible), depositado en la cuenta de indemnización de la AFP. No se descuenta al trabajador.
+    </p>
+    {% endif %}
+
     <p style="margin-top: 10px; text-align: justify; font-size: 8pt;">
         Certifico que he recibido de <span class="bold">{{ empresa.nombre_legal|upper }}</span>, a mi entera satisfacción el saldo indicado en la presente liquidación y no tengo cargo ni cobro posterior que hacer.
     </p>

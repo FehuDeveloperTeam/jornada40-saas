@@ -122,7 +122,10 @@ def fila_lre(liq, conceptos):
     v[1118] = 0
     v[1155] = 0
     v[1157] = 0
-    v[1131] = 0
+    # Indemnización a todo evento (Art. 164): marca, tasa y aporte del empleador.
+    v[1131] = 1 if liq.aporte_indemnizacion else 0
+    if liq.aporte_indemnizacion:
+        v[1132] = f'{liq.tasa_indemnizacion:.2f}'.replace('.', ',')
 
     # ── Haberes ─────────────────────────────────────────────────────────────
     montos = {}
@@ -167,6 +170,7 @@ def fila_lre(liq, conceptos):
     montos[4155] = (math.floor(renta * par['tasa_sis']) + math.floor(renta * par['tasa_expectativa_vida'])
                     + math.floor(renta * par['tasa_rentabilidad_protegida']))
     sumar(4157, math.floor(renta * par['tasa_afp_empleador']))
+    sumar(4131, liq.aporte_indemnizacion)
 
     # ── Totales, desde las mismas columnas (el archivo cuadra consigo mismo) ─
     haberes = {k: m for k, m in montos.items() if 2000 <= k < 3000}

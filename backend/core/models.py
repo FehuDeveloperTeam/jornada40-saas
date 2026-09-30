@@ -674,6 +674,9 @@ class Liquidacion(models.Model):
     total_haberes = models.IntegerField(default=0)
     total_descuentos = models.IntegerField(default=0)
     sueldo_liquido = models.IntegerField(default=0)
+    # Aporte del empleador a la indemnización a todo evento (Art. 164): no se descuenta al trabajador.
+    tasa_indemnizacion = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    aporte_indemnizacion = models.IntegerField(default=0)
     
     archivo_pdf = models.FileField(upload_to='liquidaciones/', null=True, blank=True)
 

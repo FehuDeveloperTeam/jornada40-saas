@@ -413,6 +413,9 @@ export interface Liquidacion {
     total_haberes: number;
     total_descuentos: number;
     sueldo_liquido: number;
+    /** Aporte del empleador a la indemnización a todo evento (Art. 164): no se descuenta. */
+    tasa_indemnizacion?: string | number;
+    aporte_indemnizacion?: number;
     archivo_pdf: string | null;
     fecha_emision: string;
 }
@@ -468,6 +471,8 @@ export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' |
         aviso_base_indemnizacion?: string;
         /** Contrato anterior al 14-08-1981: sin tope de 11 años. */
         aviso_anios_indemnizacion?: string;
+        /** Pacto de indemnización a todo evento firmado: los años desde su inicio no se indemnizan aquí. */
+        pacto_todo_evento?: { desde: string; porcentaje: string } | null;
         afp_nombre: string;
         afp: number;
         salud_nombre: string;

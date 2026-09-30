@@ -165,6 +165,11 @@ def _linea_previred(liq):
     for n in (30, 31, 33, 34, 39):
         poner(n, 0)
     poner(32, '00,00'); poner(38, '00,00')             # 35, 36 y 37 quedan vacíos
+    if liq.aporte_indemnizacion:
+        # Indemnización a todo evento (Art. 164): renta, tasa y aporte "sustitutivos", un período.
+        poner(31, min(int(liq.total_imponible or 0), math.floor(90 * float(liq.valor_uf or 0))))
+        poner(32, f'{liq.tasa_indemnizacion:05.2f}'.replace('.', ','))
+        poner(33, int(liq.aporte_indemnizacion)); poner(34, 1); poner(35, periodo); poner(36, periodo)
     # APVI, APVC y afiliado voluntario: no se informan.
     poner(40, '000'); poner(42, 0); poner(43, 0); poner(44, 0)
     poner(45, '000'); poner(47, 0); poner(48, 0); poner(49, 0)

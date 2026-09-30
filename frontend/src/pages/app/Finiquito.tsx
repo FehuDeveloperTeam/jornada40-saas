@@ -481,6 +481,12 @@ function Calculo({ s }: { s: SimulacionFiniquito }) {
                 <p className="pt-1.5">Incluye lo que se paga cada mes, también colación y movilización; lo variable se promedia. Excluye horas extra, asignación familiar, aguinaldos y bonos esporádicos.</p>
               </details>
             )}
+            {d.pacto_todo_evento && (
+              <p className="flex gap-1.5 text-[12.5px] text-fg-2"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+                Tiene pacto de indemnización a todo evento desde el {fechaCL(d.pacto_todo_evento.desde)}: los años desde esa fecha no se
+                indemnizan aquí; el trabajador retira lo aportado ({d.pacto_todo_evento.porcentaje.replace('.', ',')} % mensual) en su AFP (Art. 164).
+              </p>
+            )}
             {d.aviso_anios_indemnizacion && (
               <p className="flex gap-1.5 text-[11.5px] text-fg-3"><Info className="size-3.5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />{d.aviso_anios_indemnizacion}</p>
             )}

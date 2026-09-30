@@ -15,6 +15,7 @@ from num2words import num2words
 from .base import logger
 from .feriado import _contar_domingos_y_festivos
 from .horas_compensatorias import aplicar_en_liquidacion
+from .indemnizacion import aporte_del_mes
 from .parametros import _anios_de_servicio, _parametros_previsionales, asignacion_familiar, _tasas_afc, _tasas_afp, _tope_en_pesos
 
 
@@ -483,6 +484,9 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
     # 5. SUELDO LÍQUIDO FINAL
     sueldo_liquido = total_haberes - total_descuentos
 
+    # 6. APORTE DEL EMPLEADOR A LA INDEMNIZACIÓN A TODO EVENTO (Art. 164): no afecta el líquido.
+    tasa_indemnizacion, aporte_indemnizacion = aporte_del_mes(empleado, mes, anio, total_imponible, valor_uf)
+
     return {
         'dias_trabajados': dias_trabajados, 'dias_licencia': dias_licencia,
         'dias_ausencia': dias_ausencia, 'dias_no_contratados': dias_no_contratados,
@@ -498,6 +502,7 @@ def _calcular_liquidacion(contrato, empleado, data, terminos=None):
         'valor_uf': round(valor_uf, 2),
         'total_imponible': total_imponible, 'total_haberes': total_haberes,
         'total_descuentos': total_descuentos, 'sueldo_liquido': sueldo_liquido,
+        'tasa_indemnizacion': tasa_indemnizacion, 'aporte_indemnizacion': aporte_indemnizacion,
     }
 
 

@@ -259,6 +259,7 @@ class LiquidacionSerializer(serializers.ModelSerializer):
             'anticipo_quincena',
             'sueldo_base_contrato', 'horas_semanales_contrato', 'gratificacion_legal', 'tipo_contrato', 'valor_uf',
             'total_imponible', 'total_haberes', 'total_descuentos', 'sueldo_liquido',
+            'tasa_indemnizacion', 'aporte_indemnizacion',
             'archivo_pdf', 'fecha_emision',
         ]
         read_only_fields = (

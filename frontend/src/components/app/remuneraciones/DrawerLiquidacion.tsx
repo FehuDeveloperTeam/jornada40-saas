@@ -300,6 +300,12 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
                 <span className="text-[13px] font-medium">Líquido a pagar</span>
                 <span className="text-[24px] font-semibold tracking-[-0.01em]">{clp(sim.sueldo_liquido)}</span>
               </div>
+              {(sim.aporte_indemnizacion ?? 0) > 0 && (
+                <p className="text-[12.5px] text-fg-2 pt-1">
+                  Además, el empleador aporta {clp(sim.aporte_indemnizacion)} ({String(sim.tasa_indemnizacion).replace('.', ',')} %) a la
+                  indemnización a todo evento en la AFP del trabajador (Art. 164). No se le descuenta.
+                </p>
+              )}
             </>
           )}
         </section>

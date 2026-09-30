@@ -181,7 +181,7 @@ export function DrawerDocumentoLaboral({ empleado, tipoInicial, onCerrar, avisar
             <Campo etiqueta="Primer mes del aporte">
               <Input type="month" value={texto('desde').slice(0, 7)} onChange={(e) => poner('desde', e.target.value ? `${e.target.value}-01` : '')} />
             </Campo>
-            <p className="text-[12px] text-fg-3">Por ahora solo se genera el pacto; el aporte en la liquidación y Previred se agrega más adelante.</p>
+            <p className="text-[12px] text-fg-3">Firmado, el aporte se calcula solo en cada liquidación (tope 90 UF) y se informa en Previred y el libro electrónico; en el finiquito ya no se indemnizan los años cubiertos.</p>
           </>
         )}
 

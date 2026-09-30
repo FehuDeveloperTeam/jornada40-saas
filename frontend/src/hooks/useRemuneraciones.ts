@@ -68,6 +68,9 @@ export interface Simulacion {
   sueldo_base: number;
   gratificacion: number;
   semana_corrida: number;
+  /** Aporte del empleador a la indemnización a todo evento (Art. 164); no afecta el líquido. */
+  tasa_indemnizacion?: number;
+  aporte_indemnizacion?: number;
   detalle_items: ItemLiquidacion[];
   afp_nombre: string | null;
   afp_monto: number;
