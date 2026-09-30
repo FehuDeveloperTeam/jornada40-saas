@@ -16,7 +16,7 @@ from ..rut import es_rut_de_persona, formatear_rut, normalizar_rut_usuario, vali
 from decouple import config
 from dj_rest_auth.views import LoginView as DjRestLoginView
 
-from .base import error_interno, LoginAccountRateThrottle, LoginRateThrottle, PasswordResetAccountRateThrottle, PasswordResetRateThrottle, RegisterAccountRateThrottle, RegisterRateThrottle, _plan_activo
+from .base import logger, error_interno, LoginAccountRateThrottle, LoginRateThrottle, PasswordResetAccountRateThrottle, PasswordResetRateThrottle, RegisterAccountRateThrottle, RegisterRateThrottle, _plan_activo
 
 
 # ==========================================
@@ -25,6 +25,29 @@ from .base import error_interno, LoginAccountRateThrottle, LoginRateThrottle, Pa
 
 class ThrottledLoginView(DjRestLoginView):
     throttle_classes = [LoginRateThrottle, LoginAccountRateThrottle]
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        # Aquí y no en post(): las credenciales inválidas salen como excepción de post().
+        respuesta = super().finalize_response(request, response, *args, **kwargs)
+        if request.method != 'POST':
+            return respuesta
+        # Ingresos e intentos fallidos quedan en la bitácora de la cuenta del RUT usado.
+        try:
+            from ..bitacora import registrar
+            from ..rut import normalizar_rut_usuario
+            ip = request.META.get('REMOTE_ADDR', '')
+            if respuesta.status_code == 200 and getattr(self, 'user', None) is not None:
+                registrar(self.user, 'INGRESO', 'Inició sesión', actor=self.user, actor_tipo='TITULAR',
+                          metodo='POST', ruta=request.path, estado_http=200, ip=ip)
+            elif respuesta.status_code == 400:
+                cuenta = User.objects.filter(username=normalizar_rut_usuario(request.data.get('username') or '')) \
+                    .filter(perfil_cliente__isnull=False).first()
+                if cuenta is not None:
+                    registrar(cuenta, 'INGRESO_FALLIDO', 'Intento de ingreso con clave incorrecta', metodo='POST',
+                              ruta=request.path, estado_http=400, ip=ip)
+        except Exception:
+            logger.exception('No se pudo registrar el ingreso en la bitácora')
+        return respuesta
 
 
 @api_view(['GET'])

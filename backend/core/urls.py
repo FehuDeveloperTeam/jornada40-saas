@@ -8,6 +8,7 @@ from .views import certificado_sueldos
 from .views import resumen
 from .views import reglamento
 from .views import ley_karin
+from .views import bitacora as vista_bitacora
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -94,6 +95,8 @@ urlpatterns = [
     path('clientes/mi_suscripcion/', mi_suscripcion, name='mi_suscripcion'),
     path('clientes/perfil/', perfil_usuario, name='perfil_usuario'),
     path('clientes/resumen/', resumen.preferencia_resumen, name='preferencia_resumen'),
+    path('bitacora/', vista_bitacora.bitacora, name='bitacora'),
+    path('bitacora/verificar/', vista_bitacora.verificar_bitacora, name='verificar_bitacora'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
     # Firma electrónica — endpoints públicos (sin autenticación)
     path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),

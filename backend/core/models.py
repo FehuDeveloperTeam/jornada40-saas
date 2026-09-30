@@ -1358,3 +1358,54 @@ class ReglamentoInterno(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} v{self.version} · {self.empresa}'
+
+
+class _BitacoraQuerySet(models.QuerySet):
+    """La bitácora no se edita ni se borra, tampoco en bloque."""
+
+    def update(self, **kwargs):
+        raise PermissionError('La bitácora es de solo lectura.')
+
+    def delete(self):
+        raise PermissionError('La bitácora es de solo lectura.')
+
+
+class RegistroBitacora(models.Model):
+    """Acción hecha en el panel de una cuenta, para presentar ante una fiscalización.
+
+    Solo se agregan registros: no se editan ni se borran (ni desde el sistema ni
+    en bloque). Cada uno guarda la huella SHA-256 de su contenido junto con la del
+    registro anterior de la misma cuenta, así que cambiar o quitar una línea
+    rompe la cadena y se detecta al verificarla. Se conserva al menos 5 años;
+    los datos de quién actuó se copian por si su usuario deja de existir.
+    Las denuncias de la Ley Karin llevan su propio registro confidencial."""
+    TIPOS_ACTOR = [('TITULAR', 'Titular de la cuenta'), ('EQUIPO', 'Usuario del equipo'), ('SISTEMA', 'Sistema')]
+    cuenta = models.ForeignKey(User, on_delete=models.PROTECT, related_name='bitacora')
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='acciones_bitacora')
+    actor_tipo = models.CharField(max_length=8, choices=TIPOS_ACTOR)
+    actor_nombre = models.CharField(max_length=150)
+    actor_rut = models.CharField(max_length=15, blank=True, default='')
+    empresa = models.ForeignKey('Empresa', on_delete=models.SET_NULL, null=True, blank=True)
+    accion = models.CharField(max_length=40)
+    descripcion = models.CharField(max_length=300)
+    metodo = models.CharField(max_length=8, blank=True, default='')
+    ruta = models.CharField(max_length=200, blank=True, default='')
+    estado_http = models.PositiveSmallIntegerField(null=True, blank=True)
+    ip = models.CharField(max_length=64, blank=True, default='')
+    creado_en = models.DateTimeField()
+    hash_anterior = models.CharField(max_length=64, blank=True, default='')
+    hash = models.CharField(max_length=64, unique=True)
+
+    objects = _BitacoraQuerySet.as_manager()
+
+    class Meta:
+        ordering = ['id']
+        indexes = [models.Index(fields=['cuenta', 'creado_en'])]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise PermissionError('La bitácora es de solo lectura.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionError('La bitácora es de solo lectura.')
