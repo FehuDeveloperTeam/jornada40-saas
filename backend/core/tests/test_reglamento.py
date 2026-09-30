@@ -14,7 +14,7 @@ from django.utils import timezone
 from pypdf import PdfReader
 from rest_framework.test import APITestCase
 
-from ..models import DocumentoLaboral, Empleado, Empresa, ReglamentoInterno, SolicitudFirma
+from ..models import Contrato, DocumentoLaboral, Empleado, Empresa, ReglamentoInterno, SolicitudFirma
 from ..reglamento_plantilla import RUBROS
 from ..views.base import _html_a_pdf_bytes
 from .utiles import confirmar_identidad, crear_empleado, crear_usuario_completo
@@ -142,3 +142,23 @@ class ReglamentoTests(APITestCase):
         self.assertEqual(fila['id'], reg['id'])
         pdf = self.client.get('/api/trabajador/descargar/', {'tipo': 'reglamento', 'id': reg['id']})
         self.assertTrue(pdf.content.startswith(b'%PDF'))
+
+    @patch('core.b2_client.subir_documento')
+    def test_se_envia_junto_con_el_contrato(self, _):
+        Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
+        Contrato.objects.create(empleado=self.ana, tipo_contrato='INDEFINIDO', cargo='Vendedora',
+                                fecha_inicio='2026-09-01', sueldo_base=600_000, horas_semanales=42)
+        confirmar_identidad(self.client, self.user)
+        datos = {'empleado_id': self.ana.id, 'tipo_documento': 'CONTRATO'}
+        # Sin reglamento subido, solo va el contrato.
+        r = self.client.post('/api/firmas/solicitar/', datos, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(SolicitudFirma.objects.filter(tipo_documento='REGLAMENTO').count(), 0)
+        SolicitudFirma.objects.filter(tipo_documento='CONTRATO').update(estado='CANCELADO')
+        self._subir()
+        self.assertEqual(self.client.post('/api/firmas/solicitar/', datos, format='json').status_code, 201)
+        self.assertEqual(SolicitudFirma.objects.filter(tipo_documento='REGLAMENTO', empleado=self.ana).count(), 1)
+        # Reenviar el contrato no duplica la constancia del reglamento.
+        SolicitudFirma.objects.filter(tipo_documento='CONTRATO').update(estado='CANCELADO')
+        self.client.post('/api/firmas/solicitar/', datos, format='json')
+        self.assertEqual(SolicitudFirma.objects.filter(tipo_documento='REGLAMENTO', empleado=self.ana).count(), 1)

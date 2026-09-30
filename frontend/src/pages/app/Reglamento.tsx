@@ -277,7 +277,7 @@ function PasoVigente({ estado }: { estado: EstadoReglamento }) {
           Entrega a sus trabajadores: {estado.entrega.firmados} de {estado.entrega.total} firmaron la recepción
         </h3>
         <p className="text-[13.5px] text-fg-2">
-          Cada trabajador recibe por correo el reglamento completo y firma una constancia de recepción (Art. 156).
+          Cada trabajador recibe por correo el reglamento completo y firma una constancia de recepción (Art. 156). A los trabajadores nuevos se les envía solo, junto con su contrato.
         </p>
         {faltan.length > 0 && (
           <Button tamano="lg" className="self-start" cargando={ocupado === 'entregar'} onClick={() => void entregar()}

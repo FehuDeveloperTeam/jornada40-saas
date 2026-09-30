@@ -247,6 +247,10 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             self._enviar_email_firma(solicitud, empleado, empresa)
         except Exception:
             logger.exception('No se pudo enviar el correo de firma de la solicitud %s', solicitud.pk)
+        if tipo_doc == 'CONTRATO':
+            # El reglamento interno se entrega al suscribir el contrato (Art. 154 bis).
+            from .reglamento import entregar_con_contrato
+            entregar_con_contrato(self, user, empleado, emision)
         return solicitud
 
     @action(detail=False, methods=['post'], throttle_classes=[ConfirmarIdentidadThrottle])

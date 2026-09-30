@@ -128,6 +128,32 @@ def anexar_reglamento(pdf_constancia, reglamento):
     return salida.getvalue()
 
 
+def entregar_con_contrato(vista, user, empleado, emision):
+    """Al enviar el contrato a firma, envía también la constancia de recepción del reglamento vigente
+    (Art. 154 bis: se da a conocer al suscribir el contrato), si aún no tiene una en curso o firmada.
+    Nunca impide el envío del contrato: un problema aquí solo se registra."""
+    from .firmas import _ErrorFirma
+    try:
+        if not _plan_permite(user, NIVEL_REGLAMENTO):
+            return None
+        r = vigente(empleado.empresa)
+        if r is None:
+            return None
+        previas = DocumentoLaboral.objects.filter(empleado=empleado, reglamento=r, activo=True)
+        if SolicitudFirma.objects.filter(documento_laboral__in=previas, estado__in=_VIVAS).exists():
+            return None
+        doc = previas.filter(solicitudes_firma__isnull=True).first() or DocumentoLaboral.objects.create(
+            empleado=empleado, tipo='REGLAMENTO', reglamento=r, fecha_emision=timezone.localdate(),
+            vigente_desde=r.vigente_desde,
+            datos={'clausulas': clausulas_constancia(r), 'resumen': f'{r.get_tipo_display()} · versión {r.version}'})
+        return vista._crear_solicitud(user, empleado, 'REGLAMENTO', documento_laboral_id=doc.id, emision=emision)
+    except _ErrorFirma as e:
+        logger.warning('No se envió el reglamento junto al contrato del empleado %s: %s', empleado.id, e.mensaje)
+    except Exception:
+        logger.exception('No se envió el reglamento junto al contrato del empleado %s', empleado.id)
+    return None
+
+
 def clausulas_constancia(reglamento):
     empresa = reglamento.empresa
     return [
