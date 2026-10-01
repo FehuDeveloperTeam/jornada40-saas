@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, ChevronRight, PenLine } from 'lucide-react';
+import { Building2, ChevronRight, PenLine, Scale } from 'lucide-react';
 import { AlertaError, Button, CampoCodigo, Modal } from '../../components/j40';
 import { usePortal } from '../../components/trabajador/PortalShell';
 import { EstadoLista, Seccion } from '../../components/trabajador/comun';
@@ -47,6 +47,14 @@ export default function Inicio() {
               : `Tus documentos de ${cuenta.empleos.length} empresas`}
         </p>
       </div>
+      {cuenta.tiene_karin && (
+        <Link to="/trabajador/portal/ley-karin"
+          className="flex items-center gap-3 px-4 py-3.5 rounded-j40-card border border-line bg-surface text-fg no-underline hover:no-underline hover:border-brand">
+          <Scale className="size-6 text-brand shrink-0" strokeWidth={2} aria-hidden />
+          <span className="flex-1 text-[15px]"><b>Ley Karin:</b> tienes información sobre una denuncia en la que participas.</span>
+          <span className="text-[14px] font-medium text-brand-text">Ver</span>
+        </Link>
+      )}
 
       {(firmas.data?.length ?? 0) > 0 && (
         <Seccion titulo="Documentos por firmar" subtitulo="Fírmalos para tenerlos disponibles en Liquidaciones y Documentos.">

@@ -2,7 +2,7 @@ import { isAxiosError } from 'axios';
 import client from './client';
 import { descargar } from './descargas';
 import type {
-  CertificadoEmitido, CertificadosPortal, CuentaTrabajador, DocumentoPortal, FirmaPendientePortal, LiquidacionPortal,
+  CasoKarinPortal, CertificadoEmitido, CertificadosPortal, CuentaTrabajador, DocumentoPortal, FirmaPendientePortal, LiquidacionPortal,
   OpcionesSolicitudPortal, RespuestaIngresoPortal, SolicitudDocumentoPortal, TipoCertificado, TipoDocumentoPortal,
   TipoSolicitudDocumento, VacacionesPortal,
 } from '../types';
@@ -59,6 +59,9 @@ export const portal = {
   certificados: () => obtener<CertificadosPortal>('/certificados/'),
   emitirCertificado: (datos: { empleo: number; tipo: TipoCertificado; opcion?: string }) =>
     enviar<CertificadoEmitido>('/certificados/', datos),
+  karin: () => obtener<{ casos: CasoKarinPortal[] }>('/karin/'),
+  descargarKarin: (denuncia: number, tipo: string, participante: string, nombre: string) =>
+    descargar(`${BASE}/karin/documento/?denuncia=${denuncia}&tipo=${tipo}&participante=${participante}`, nombre),
   /** Descarga el PDF (firmado si lo está). Devuelve el error a mostrar o null. */
   descargar: (tipo: TipoDocumentoPortal, id: number, nombre: string) =>
     descargar(`${BASE}/descargar/?tipo=${tipo}&id=${id}`, nombre),

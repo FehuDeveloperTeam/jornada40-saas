@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowLeft, CalendarClock, Download, FileText, Gavel, Landmark, ListChecks, Paperclip, Pencil, Search, Shield, Upload, Users,
+  ArrowLeft, CalendarClock, Download, FileText, Gavel, Landmark, ListChecks, Paperclip, Pencil, Search, Shield, ShieldAlert, Upload, Users,
 } from 'lucide-react';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
@@ -66,6 +66,23 @@ export default function Expediente() {
       {error && <AlertaError>{error}</AlertaError>}
       {aviso && <p role="status" className="px-4 py-3 rounded-[10px] bg-ok-soft text-ok text-[14.5px]">{aviso}</p>}
       {d.avisos.map((a) => <Aviso key={a}>{a}</Aviso>)}
+      {d.posibles_represalias.length > 0 && (
+        <Seccion titulo="Posibles represalias por revisar" icono={<ShieldAlert className="size-6 text-danger" strokeWidth={2} aria-hidden />}>
+          <p className="text-[14.5px] text-fg-2">
+            Desde la denuncia, la empresa emitió estas medidas a quien denunció o declaró. La ley prohíbe las represalias:
+            revise si tienen relación con el caso y, si corresponde, adopte medidas. Es un aviso: no bloquea nada, y el titular no lo ve.
+          </p>
+          <ul className="flex flex-col">
+            {d.posibles_represalias.map((e, i) => (
+              <li key={i} className="flex flex-wrap gap-x-4 py-2 border-b border-line last:border-b-0 text-[15px]">
+                <span className="j40-num text-fg-3 w-[96px]">{fechaCL(e.fecha)}</span>
+                <span className="font-medium">{e.texto}</span>
+                <span className="text-fg-2">{e.persona}</span>
+              </li>
+            ))}
+          </ul>
+        </Seccion>
+      )}
 
       <Plazos d={d} />
 

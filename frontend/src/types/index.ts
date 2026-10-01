@@ -684,6 +684,26 @@ export interface CuentaTrabajador {
     ingreso_con: 'codigo' | 'clave';
     empleos: EmpleoPortal[];
     por_vincular: EmpleoPorVincular[];
+    /** Participa en un caso Ley Karin (el menú muestra la sección). */
+    tiene_karin: boolean;
+}
+
+/** Caso Ley Karin visto desde el portal: cada rol ve solo su parte (core/denuncias_karin.vista_portal). */
+export interface CasoKarinPortal {
+    id: number;
+    folio: string;
+    empresa: string;
+    rol: 'PARTE' | 'DENUNCIADA' | 'TESTIGO';
+    citaciones: { participante: string; fecha: string; hora: string; lugar: string }[];
+    documentos: { tipo: string; participante: string }[];
+    materia?: string;
+    recibida_en?: string;
+    estado?: string;
+    decision?: string;
+    decision_en?: string;
+    resguardo?: string[];
+    conclusion?: string;
+    medidas_en?: string;
 }
 
 export type RespuestaIngresoPortal =
@@ -1075,6 +1095,8 @@ export interface DenunciaKarinFila {
     estado_texto: string;
     recibida_en: string;
     siguiente: PlazoKarin | null;
+    /** Posibles represalias detectadas (solo el encargado las ve). */
+    represalias: number;
 }
 
 export interface ParticipanteKarin {
@@ -1112,6 +1134,7 @@ export interface DenunciaKarinDetalle extends Omit<DenunciaKarinFila, 'empresa'>
     derivacion_obligatoria: string;
     avisos: string[];
     archivos: ArchivoKarin[];
+    posibles_represalias: { fecha: string; persona: string; texto: string }[];
 }
 
 export interface OpcionKarin { valor: string; texto: string }

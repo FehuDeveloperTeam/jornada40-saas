@@ -55,6 +55,7 @@ const PortalLiquidaciones = lazy(() => import('./pages/trabajador/Liquidaciones'
 const PortalDocumentos = lazy(() => import('./pages/trabajador/Documentos'));
 const PortalVacaciones = lazy(() => import('./pages/trabajador/Vacaciones'));
 const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
+const PortalLeyKarin = lazy(() => import('./pages/trabajador/LeyKarin'));
 const PortalSolicitudes = lazy(() => import('./pages/trabajador/Solicitudes'));
 const PortalCertificados = lazy(() => import('./pages/trabajador/Certificados'));
 const VerificarCertificado = lazy(() => import('./pages/sitio/Verificar'));
@@ -177,6 +178,7 @@ export default function App() {
           <Route path="certificados" element={<PortalCertificados />} />
           <Route path="solicitudes" element={<PortalSolicitudes />} />
           <Route path="seguridad" element={<PortalSeguridad />} />
+          <Route path="ley-karin" element={<PortalLeyKarin />} />
           <Route path="*" element={<Navigate to="/trabajador/portal" replace />} />
         </Route>
 

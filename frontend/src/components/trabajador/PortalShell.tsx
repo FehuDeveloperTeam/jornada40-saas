@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { BadgeCheck, Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, ShieldCheck, X } from 'lucide-react';
+import { BadgeCheck, Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, Scale, ShieldCheck, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, J40Root, Logo, Modal, ToggleTema } from '../j40';
 import { portal, sinSesion } from '../../api/portal';
@@ -36,7 +36,7 @@ export function usePortal(): PortalContexto {
 
 // ── Navegación ───────────────────────────────────────────────────────────────
 
-interface ItemNav { a: string; etiqueta: string; corta: string; Icono: LucideIcon; fin?: boolean; soloLateral?: boolean }
+interface ItemNav { a: string; etiqueta: string; corta: string; Icono: LucideIcon; fin?: boolean; soloLateral?: boolean; karin?: boolean }
 
 const RAIZ = '/trabajador/portal';
 const NAV: ItemNav[] = [
@@ -47,6 +47,8 @@ const NAV: ItemNav[] = [
   { a: `${RAIZ}/vacaciones`, etiqueta: 'Vacaciones', corta: 'Vacaciones', Icono: CalendarDays },
   { a: `${RAIZ}/solicitudes`, etiqueta: 'Solicitudes', corta: 'Pedir', Icono: FilePlus2 },
   { a: `${RAIZ}/seguridad`, etiqueta: 'Seguridad', corta: 'Seguridad', Icono: ShieldCheck, soloLateral: true },
+  // Solo para quien participa en un caso; en móvil se entra desde Inicio.
+  { a: `${RAIZ}/ley-karin`, etiqueta: 'Ley Karin', corta: 'Ley Karin', Icono: Scale, soloLateral: true, karin: true },
 ];
 
 // ── Shell ────────────────────────────────────────────────────────────────────
@@ -207,7 +209,7 @@ function Lateral({ cuenta, salir }: { cuenta: CuentaTrabajador; salir: () => voi
         <span className="hidden min-[1080px]:inline text-[16px] font-semibold tracking-[-0.01em] text-fg">Jornada<span className="text-brand">40</span></span>
       </Link>
       <nav aria-label="Portal" className="flex flex-col gap-1">
-        {NAV.map(({ a, etiqueta, Icono, fin }) => (
+        {NAV.filter((n) => !n.karin || cuenta.tiene_karin).map(({ a, etiqueta, Icono, fin }) => (
           <NavLink key={a} to={a} end={fin} title={etiqueta}
             className={({ isActive }) => cn(
               'flex items-center gap-3 w-full h-10 px-[11px] rounded-[8px] text-[13.5px] no-underline hover:no-underline justify-center min-[1080px]:justify-start',

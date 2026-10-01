@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { consultar, descargar, entrar, restaurarBase } from './utiles';
+import { MATIAS, consultar, descargar, entrar, restaurarBase, ultimoCodigoPortal } from './utiles';
 
 /**
  * Acceso Ley Karin: el titular designa al encargado, este crea su clave, entra
@@ -59,9 +59,10 @@ test('el encargado registra una denuncia y avanza el expediente', async ({ page 
   await page.getByLabel('Empresa').selectOption({ index: 1 });
   await page.getByLabel('Materia').selectOption('ACOSO_LABORAL');
   await page.getByLabel('Cómo se recibió').selectOption('VERBAL');
-  await page.locator('#dk-afectada-nombre').fill('Marta Pérez');
-  await page.locator('section').filter({ has: page.locator('#dk-afectada-nombre') }).getByLabel('RUT', { exact: true }).fill('9.876.543-3');
-  await page.locator('#dk-afectada-correo').fill('marta@example.com');
+  // La persona afectada es un trabajador de la empresa: luego verá su caso en su portal.
+  await page.locator('#dk-afectada-nombre').fill('Matías Soto');
+  await page.locator('section').filter({ has: page.locator('#dk-afectada-nombre') }).getByLabel('RUT', { exact: true }).fill(MATIAS.rut);
+  await page.locator('#dk-afectada-correo').fill(MATIAS.correo);
   await page.locator('#dk-denunciado-0-nombre').fill('Jorge Díaz');
   await page.locator('#dk-vinculo-0').selectOption('JEFATURA');
   await page.locator('#dk-relato').fill('Me grita delante de los clientes desde agosto.');
@@ -84,7 +85,23 @@ test('el titular ve la cifra de denuncias sin contenido', async ({ page }) => {
   await entrar(page);
   await page.goto('/app/reglamento');
   await expect(page.getByText(/1 abierta/)).toBeVisible();
-  await expect(page.getByText('Marta Pérez')).toHaveCount(0);
+  await expect(page.getByText(/Me grita delante de los clientes/)).toHaveCount(0);
+});
+
+test('la persona afectada ve el estado de su denuncia en su portal', async ({ page }) => {
+  await page.goto('/trabajador');
+  await page.getByLabel('Tu RUT').fill(MATIAS.rut);
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect.poll(() => ultimoCodigoPortal(MATIAS.correo)).toMatch(/^\d{6}$/);
+  await page.getByLabel('Código de 6 dígitos').fill(ultimoCodigoPortal(MATIAS.correo));
+  await page.getByRole('dialog', { name: 'Crea tu clave de acceso' }).getByRole('button', { name: 'Omitir' }).click();
+  await page.getByRole('link', { name: /Ley Karin: tienes información/ }).click();
+  await expect(page.getByText(/Tu denuncia · LK-\d{4}-001/)).toBeVisible();
+  await expect(page.getByText(/La investiga la empresa/)).toBeVisible();
+  await expect(page.getByText('Separación de los espacios físicos')).toBeVisible();
+  await expect(page.getByText(/Me grita delante de los clientes/)).toHaveCount(0);   // el relato no se repite en el portal
+  const nombre = await descargar(page, () => page.getByRole('button', { name: 'Comprobante de recepción' }).click());
+  expect(nombre).toMatch(/LK-\d{4}-001_recepcion\.pdf/);
 });
 
 test('el titular solo ve que hubo actividad, sin detalle', async ({ page }) => {

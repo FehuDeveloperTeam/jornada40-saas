@@ -73,6 +73,11 @@ function ListaDenuncias() {
         <span className="flex-[1_1_220px] min-w-0 flex flex-col">
           <span className="text-[15px] font-medium">{d.tipo_texto} · {d.empresa}</span>
           <span className="text-[13px] text-fg-3">Recibida el {fechaCL(d.recibida_en)} · {d.estado_texto}</span>
+          {d.represalias > 0 && (
+            <span className="text-[13px] font-semibold text-danger">
+              {d.represalias} {d.represalias === 1 ? 'posible represalia' : 'posibles represalias'} por revisar
+            </span>
+          )}
         </span>
         {d.siguiente && (
           <span className={cn('text-[13.5px] font-medium flex-[1_1_220px]', TONO_PLAZO[d.siguiente.estado])}>
