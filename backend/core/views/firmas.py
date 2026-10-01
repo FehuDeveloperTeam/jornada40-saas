@@ -451,7 +451,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             **dict(DocumentoLaboral.TIPOS),
         }
         tipo_label       = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
-        firma_url        = f"https://jornada40.cl/firma/{solicitud.token}"
+        firma_url        = f"{getattr(settings, 'SITIO_URL', 'https://jornada40.cl').rstrip('/')}/firma/{solicitud.token}"
         nombre_trabajador = f"{empleado.nombres} {empleado.apellido_paterno}"
         expira_fecha     = timezone.localtime(solicitud.expira_en).strftime('%d/%m/%Y')
 

@@ -511,6 +511,11 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 - **IP del visitante**: `api.jornada40.cl` pasa por Cloudflare (nube naranja) y luego por Railway. `REMOTE_ADDR` es interna (100.64.x) y `X-Forwarded-For` trae la IP de Cloudflare; Railway escribe `X-Real-IP` con la IP real y descarta la que mande el cliente. `core.middleware.IpRealMiddleware` la copia a `REMOTE_ADDR` y DRF usa `NUM_PROXIES = 0`: el límite de intentos y la auditoría de firma usan esa IP. `GET /api/diagnostico/red/` (solo con `DIAGNOSTICO_RED=1`) muestra los encabezados si hay que revisarlo.
 - **Internal domain**: `https://jornada40-saas-production.up.railway.app` (Railway, no expuesto al público)
 
+### Staging (rama `staging`)
+
+- Guía completa en `docs/STAGING.md`. Railway environment `staging` (servicio con *Source branch* = `staging`, Postgres propio) → `RAILWAY_ENVIRONMENT_NAME=staging` activa `IS_STAGING`; orígenes por variables `STAGING_FRONTEND_URLS` / `STAGING_API_HOSTS` (recomendado `staging.jornada40.cl` + `api-staging.jornada40.cl`, mismo sitio para las cookies), además de las previews `VERCEL_PROJECT_NAME-*.vercel.app`. Vercel: dominio `staging.jornada40.cl` asignado a la rama `staging`, con `VITE_API_URL` y `VITE_ENTORNO=staging` (franja "Entorno de pruebas" + `noindex`, en `main.tsx`). Reveniu en sandbox, `SITIO_URL` de staging (todos los enlaces de correos —firma, recuperación, equipo, portal— salen de `SITIO_URL`).
+- Actualizar: `git checkout staging && git merge --ff-only <rama> && git push origin staging`.
+
 ### Frontend (Vercel)
 
 - **`vercel.json`**: solo headers de seguridad y el rewrite SPA (todo → `index.html`). **No hay proxy `/api`**: `jornada40.cl/api/...` devuelve la app de React.

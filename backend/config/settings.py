@@ -218,22 +218,25 @@ if IS_PRODUCTION:
     SECURE_HSTS_PRELOAD = True
 
 elif IS_STAGING:
-
-    ALLOWED_HOSTS = [
-        config('RAILWAY_PUBLIC_DOMAIN', default=''),
-        '.railway.app',
-    ]
-    # Solo acepta previews del proyecto propio en Vercel (no cualquier *.vercel.app)
+    # Entorno de pruebas (Railway environment "staging", rama `staging`).
+    # Lo recomendado es servirlo en subdominios propios (staging.jornada40.cl y
+    # api-staging.jornada40.cl): así las cookies de sesión son del mismo sitio,
+    # como en producción, y Safari no las bloquea.
+    #   STAGING_FRONTEND_URLS = "https://staging.jornada40.cl"     (orígenes del frontend, separados por coma)
+    #   STAGING_API_HOSTS     = "api-staging.jornada40.cl"         (dominios propios del backend, separados por coma)
+    _lista = lambda nombre: [x.strip().rstrip('/') for x in config(nombre, default='').split(',') if x.strip()]
+    _frontends = _lista('STAGING_FRONTEND_URLS')
+    _api_hosts = _lista('STAGING_API_HOSTS')
+    _railway = config('RAILWAY_PUBLIC_DOMAIN', default='')
+    ALLOWED_HOSTS = [h for h in [_railway, '.railway.app', *_api_hosts] if h]
+    # Además de los dominios propios, las previews del proyecto en Vercel (no cualquier *.vercel.app).
     _vercel_project = config('VERCEL_PROJECT_NAME', default='jornada40-saas')
     CORS_ALLOWED_ORIGIN_REGEXES = [
-        rf'^https://{re.escape(_vercel_project)}(-[a-z0-9]+)*\.vercel\.app$',
+        rf'^https://{re.escape(_vercel_project)}(-[a-z0-9-]+)*\.vercel\.app$',
     ]
-    CORS_ALLOWED_ORIGINS = []
+    CORS_ALLOWED_ORIGINS = _frontends
     CORS_ALLOW_CREDENTIALS = True
-    CSRF_TRUSTED_ORIGINS = [
-        f'https://{_vercel_project}*.vercel.app',
-        f"https://{config('RAILWAY_PUBLIC_DOMAIN', default='')}",
-    ]
+    CSRF_TRUSTED_ORIGINS = [*_frontends, *(f'https://{h}' for h in [_railway, *_api_hosts] if h)]
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = 'None'
@@ -299,7 +302,7 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jo
 DOMINIOS_CORREO_INSPECCION = [d.strip() for d in config('DOMINIOS_CORREO_INSPECCION', default='dt.gob.cl').split(',') if d.strip()]
 # Sitio público (enlaces impresos en PDFs, p. ej. la verificación de certificados).
 SITIO_URL = config('SITIO_URL', default='https://jornada40.cl')
-PASSWORD_RESET_CONFIRM_URL = 'https://jornada40.cl/reset-password/{uid}/{token}'
+PASSWORD_RESET_CONFIRM_URL = SITIO_URL.rstrip('/') + '/reset-password/{uid}/{token}'
 # El enlace de recuperación vence en 24 horas (el default de Django son 3 días).
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
 # ==========================================
