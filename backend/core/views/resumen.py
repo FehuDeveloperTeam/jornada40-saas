@@ -318,13 +318,19 @@ def enviar_encargado_karin(enc, hoy=None):
     hoy = hoy or timezone.localdate()
     if enc.aviso_plazos_en == hoy or not enc.correo:
         return False
-    r = resumen(DenunciaKarin.objects.filter(cuenta=enc.cuenta, empresa__in=enc.empresas.filter(activo=True)), hoy)
-    if not (r['vencidas'] or r['por_vencer']):
+    from ..denuncias_karin import posibles_represalias
+    denuncias = list(DenunciaKarin.objects.filter(cuenta=enc.cuenta, empresa__in=enc.empresas.filter(activo=True)))
+    r = resumen(denuncias, hoy)
+    # Posibles represalias registradas desde ayer (el aviso diario no las repite cada día).
+    desde = (hoy - timedelta(days=1)).isoformat()
+    represalias = sum(1 for d in denuncias for e in posibles_represalias(d, hoy) if e['fecha'] >= desde)
+    if not (r['vencidas'] or r['por_vencer'] or represalias):
         return False
     sitio = getattr(settings, 'SITIO_URL', 'https://jornada40.cl').rstrip('/')
-    ctx = {'nombre': enc.nombres, 'vencidas': r['vencidas'], 'por_vencer': r['por_vencer'], 'sitio': sitio,
+    ctx = {'nombre': enc.nombres, 'vencidas': r['vencidas'], 'por_vencer': r['por_vencer'], 'represalias': represalias,
+           'sitio': sitio,
            'fecha': _fecha(hoy)}
-    msg = EmailMultiAlternatives('Jornada40: plazos de denuncias Ley Karin', render_to_string('karin_plazos.txt', ctx),
+    msg = EmailMultiAlternatives('Jornada40: avisos de denuncias Ley Karin', render_to_string('karin_plazos.txt', ctx),
                                  settings.DEFAULT_FROM_EMAIL, to=[enc.correo])
     msg.attach_alternative(render_to_string('karin_plazos.html', ctx), 'text/html')
     msg.send()

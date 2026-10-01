@@ -393,7 +393,14 @@ def _datos_cuenta(cuenta, via):
         'empleos': [_empleo(e) for e in accesibles],
         'por_vincular': [{'id': e.id, 'empresa': e.empresa.nombre_legal.title(), 'correo': _enmascarar(e.email)}
                          for e in por_vincular],
+        # Solo si participa en un caso Ley Karin: el menú del portal muestra la sección.
+        'tiene_karin': _tiene_karin(cuenta),
     }
+
+
+def _tiene_karin(cuenta):
+    from .karin_portal import casos
+    return bool(casos(cuenta))
 
 
 @api_view(['GET'])

@@ -12,6 +12,7 @@ from .views import bitacora as vista_bitacora
 from .views import equipo
 from .views import acceso_karin
 from .views import denuncias_karin
+from .views import karin_portal
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -84,6 +85,8 @@ urlpatterns = [
     path('inspeccion/ratificar/', inspeccion.ratificar, name='inspeccion_ratificar'),
     path('inspeccion/bitacora/', inspeccion.bitacora_empleador, name='inspeccion_bitacora'),
     path('trabajador/certificados/', certificados.certificados_trabajador, name='portal_certificados'),
+    path('trabajador/karin/', karin_portal.casos_trabajador, name='portal_karin'),
+    path('trabajador/karin/documento/', karin_portal.documento_trabajador, name='portal_karin_documento'),
     path('certificados/verificar/<str:codigo>/', certificados.verificar_certificado, name='verificar_certificado'),
     path('empleados/<int:empleado_id>/certificados/', certificados.certificados_empleado, name='certificados_empleado'),
     path('certificados/<int:certificado_id>/pdf/', certificados.descargar_certificado_empleador,

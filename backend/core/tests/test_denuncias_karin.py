@@ -280,3 +280,98 @@ class ContadorYAvisosTests(APITestCase):
         cuerpo = mail.outbox[-1].body
         self.assertIn('Ley Karin: plazos de denuncias', cuerpo)
         self.assertNotIn('Ana', cuerpo)
+
+
+class PortalYRepresaliasTests(APITestCase):
+    """Etapa 3: cada persona ve su parte en el portal y el encargado recibe avisos de posibles represalias."""
+
+    def setUp(self):
+        import re
+        from django.core import mail
+        from ..models import Contrato
+        cache.clear()
+        self.re, self.mail = re, mail
+        self.user, _, _, self.empresa = crear_usuario_completo('dkp', '21.000.000-3', '76.000.555-K')
+        self.ana = crear_empleado(self.empresa, '9.876.543-3', nombres='Ana', apellido='Rojas')
+        self.luis = crear_empleado(self.empresa, '11.111.111-1', nombres='Luis', apellido='Soto')
+        self.tere = crear_empleado(self.empresa, '15.555.550-5', nombres='Teresa', apellido='Vidal')
+        from ..models import Empleado
+        for e, correo in ((self.ana, 'ana@x.cl'), (self.luis, 'luis@x.cl'), (self.tere, 'tere@x.cl')):
+            Empleado.objects.filter(pk=e.pk).update(email=correo)
+            Contrato.objects.create(empleado=e, tipo_contrato='INDEFINIDO', fecha_inicio='2024-01-01', sueldo_base=600_000)
+        _encargado(self.user, [self.empresa], rut='12.345.678-5')
+        self.k = _sesion('12.345.678-5')
+        r = self.k.post('/api/karin/denuncias/', {
+            **DENUNCIA, 'empresa': self.empresa.id,
+            'recibida_en': (timezone.localtime() - datetime.timedelta(days=1)).replace(tzinfo=None).isoformat(),
+            'afectada': {**DENUNCIA['afectada'], 'empleado_id': self.ana.id},
+            'denunciados': [{'nombre': 'Luis Soto', 'rut': '11.111.111-1', 'vinculo': 'JEFATURA'}]}, format='json')
+        self.pk = r.data['id']
+        hoy = timezone.localdate().isoformat()
+        self.k.post(f'/api/karin/denuncias/{self.pk}/decidir/', {'decision': 'INTERNA', 'fecha': hoy}, format='json')
+
+    def _portal(self, rut):
+        c = APIClient()
+        c.post('/api/trabajador/ingreso/', {'rut': rut}, format='json')
+        codigo = self.re.search(r'\b(\d{6})\b', self.mail.outbox[-1].body).group(1)
+        r = c.post('/api/trabajador/codigo/verificar/', {'rut': rut, 'codigo': codigo}, format='json')
+        assert r.status_code == 200, r.data
+        return c
+
+    def test_la_afectada_ve_su_caso(self):
+        c = self._portal('9.876.543-3')
+        self.assertTrue(c.get('/api/trabajador/yo/').data['tiene_karin'])
+        caso = c.get('/api/trabajador/karin/').data['casos'][0]
+        self.assertEqual(caso['rol'], 'PARTE')
+        self.assertEqual(caso['decision'], 'La investiga la empresa')
+        self.assertNotIn('relato', str(caso))
+        self.assertNotIn('Luis', str(caso))                                  # no repite datos del denunciado
+        r = c.get(f'/api/trabajador/karin/documento/?denuncia={self.pk}&tipo=RECEPCION&participante=')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(c.get(f'/api/trabajador/karin/documento/?denuncia={self.pk}&tipo=INFORME&participante=')
+                         .status_code, 404)                                    # el informe no se entrega por el portal
+        self.assertTrue(RegistroKarin.objects.filter(accion='PORTAL').exists())
+
+    def test_el_denunciado_solo_desde_que_lo_citan_y_el_testigo_solo_su_citacion(self):
+        c = self._portal('11.111.111-1')
+        self.assertEqual(c.get('/api/trabajador/karin/').data['casos'], [])  # aún no lo citan
+        self.assertFalse(c.get('/api/trabajador/yo/').data['tiene_karin'])
+        url = f'/api/karin/denuncias/{self.pk}/participantes/'
+        manana = (timezone.localdate() + datetime.timedelta(days=1)).isoformat()
+        for nombre, rut, rol in (('Luis Soto', '11.111.111-1', 'DENUNCIADA'), ('Teresa Vidal', '15.555.550-5', 'TESTIGO')):
+            pid = self.k.post(url, {'nombre': nombre, 'rut': rut, 'rol': rol}, format='json').data['investigacion']['participantes'][-1]['id']
+            self.k.post(url, {'id': pid, 'citacion': {'fecha': manana, 'hora': '10:00', 'lugar': 'Sala 2'}}, format='json')
+        caso = c.get('/api/trabajador/karin/').data['casos'][0]
+        self.assertEqual(caso['rol'], 'DENUNCIADA')
+        self.assertEqual(caso['citaciones'][0]['lugar'], 'Sala 2')
+        self.assertNotIn('decision', caso)
+        self.assertNotIn('Ana', str(caso))
+        t = self._portal('15.555.550-5')
+        caso = t.get('/api/trabajador/karin/').data['casos'][0]
+        self.assertEqual(caso['rol'], 'TESTIGO')
+        self.assertNotIn('materia', caso)                                     # el testigo solo ve su citación
+        self.assertEqual([d['tipo'] for d in caso['documentos']], ['CITACION'])
+        r = t.get(f"/api/trabajador/karin/documento/?denuncia={self.pk}&tipo=CITACION&participante={caso['documentos'][0]['participante']}")
+        self.assertEqual(r.status_code, 200)
+        # La citación de otra persona no.
+        luis_pid = c.get('/api/trabajador/karin/').data['casos'][0]['citaciones'][0]['participante']
+        self.assertEqual(t.get(f'/api/trabajador/karin/documento/?denuncia={self.pk}&tipo=CITACION&participante={luis_pid}')
+                         .status_code, 404)
+
+    def test_posibles_represalias_solo_para_el_encargado(self):
+        from ..models import DocumentoLegal
+        DocumentoLegal.objects.create(empleado=self.ana, tipo='AMONESTACION', fecha_emision=timezone.localdate())
+        DocumentoLegal.objects.create(empleado=self.luis, tipo='AMONESTACION', fecha_emision=timezone.localdate())
+        r = self.k.get(f'/api/karin/denuncias/{self.pk}/')
+        eventos = r.data['posibles_represalias']
+        self.assertEqual(len(eventos), 1)                                     # la del denunciado no es represalia
+        self.assertIn('Ana Rojas', eventos[0]['persona'])
+        self.assertEqual(self.k.get('/api/karin/denuncias/').data[0]['represalias'], 1)
+        # El titular no recibe nada que revele quién participa.
+        self.client.force_authenticate(self.user)
+        self.assertNotIn('represalia', str(self.client.get('/api/encargados-karin/resumen/').data).lower())
+        from ..views.resumen import enviar_encargado_karin
+        enc = EncargadoKarin.objects.get()
+        self.assertTrue(enviar_encargado_karin(enc))
+        self.assertIn('1 posible represalia', self.mail.outbox[-1].body)
+        self.assertNotIn('Ana', self.mail.outbox[-1].body)

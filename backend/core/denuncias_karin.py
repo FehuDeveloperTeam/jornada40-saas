@@ -29,7 +29,7 @@ import uuid
 from django.utils import timezone
 
 from .registro_dt import dias_habiles_entre, sumar_dias_habiles
-from .rut import formatear_rut, validar_rut
+from .rut import formatear_rut, limpiar_rut, validar_rut
 from .views.feriado import es_feriado_cl
 
 PLAZO_DECISION = 3
@@ -376,3 +376,155 @@ def resumen(denuncias, hoy=None):
         if sig and sig['vence'] and (proximo is None or sig['vence'] < proximo):
             proximo = sig['vence']
     return {'abiertas': abiertas, 'vencidas': vencidas, 'por_vencer': por_vencer, 'proximo_vence': proximo}
+
+
+# ── Personas del caso (portal del trabajador y represalias) ─────────────────
+
+# Quienes la ley protege de represalias: quien denuncia (o es afectada) y quien declara como testigo.
+ROLES_PROTEGIDOS = ('AFECTADA', 'DENUNCIANTE', 'TESTIGO')
+DIAS_PROTECCION_TRAS_CIERRE = 90
+
+
+def personas(d):
+    """[(rol, rut limpio, nombre, empleado_id, participante_id)] de todas las personas del caso."""
+    datos = d.datos or {}
+    lista = []
+    if datos.get('afectada'):
+        a = datos['afectada']
+        lista.append(('AFECTADA', limpiar_rut(a.get('rut', '')), a.get('nombre', ''), a.get('empleado_id'), ''))
+    if datos.get('denunciante'):
+        a = datos['denunciante']
+        lista.append(('DENUNCIANTE', limpiar_rut(a.get('rut', '')), a.get('nombre', ''), a.get('empleado_id'), ''))
+    for p in datos.get('denunciados', []):
+        lista.append(('DENUNCIADA', limpiar_rut(p.get('rut', '')), p.get('nombre', ''), p.get('empleado_id'), ''))
+    for p in (d.investigacion or {}).get('participantes', []):
+        lista.append((p['rol'], limpiar_rut(p.get('rut', '')), p.get('nombre', ''), None, p['id']))
+    return lista
+
+
+def roles_de(d, rut):
+    """Roles de un RUT en el caso (puede tener más de uno, p. ej. afectada que además declara)."""
+    rut = limpiar_rut(rut)
+    return {rol for rol, r, *_ in personas(d) if r and r == rut}
+
+
+def _protegido_vigente(d, hoy):
+    cierre = _f((d.hitos or {}).get('cerrada_en'))
+    return not cierre or (hoy - cierre).days <= DIAS_PROTECCION_TRAS_CIERRE
+
+
+def posibles_represalias(d, hoy=None):
+    """Medidas del panel que afectan a quien denunció o declaró desde la denuncia (aviso, nunca bloqueo).
+
+    Amonestaciones, cartas de término, finiquitos, desvinculaciones y anexos de contrato
+    a la persona afectada, denunciante o testigos, emitidos desde la recepción (y hasta 90
+    días después del cierre). La ley prohíbe las represalias: el encargado revisa si la
+    medida tiene relación con el caso. El titular no recibe este aviso (revelaría quién
+    participa en una denuncia)."""
+    from .models import AnexoContrato, DocumentoLegal, Empleado, Finiquito
+    hoy = hoy or timezone.localdate()
+    if not _protegido_vigente(d, hoy):
+        return []
+    desde = timezone.localtime(d.recibida_en).date()
+    protegidos = {}
+    empleados = {limpiar_rut(e.rut): e for e in Empleado.objects.filter(empresa_id=d.empresa_id)}
+    por_id = {e.id: e for e in empleados.values()}
+    for rol, rut, nombre, empleado_id, _ in personas(d):
+        if rol not in ROLES_PROTEGIDOS:
+            continue
+        emp = por_id.get(empleado_id) or empleados.get(rut) if (rut or empleado_id) else None
+        if emp is not None:
+            protegidos.setdefault(emp.id, (emp, rol, nombre))
+    eventos = []
+    roles = dict(ROLES)
+    for emp, rol, nombre in protegidos.values():
+        quien = f'{nombre} ({roles.get(rol, rol).lower()})'
+        for doc in DocumentoLegal.objects.filter(empleado=emp, fecha_emision__gte=desde,
+                                                 tipo__in=('AMONESTACION', 'DESPIDO', 'MUTUO_ACUERDO')):
+            eventos.append({'fecha': doc.fecha_emision.isoformat(), 'persona': quien,
+                            'texto': doc.get_tipo_display()})
+        for f in Finiquito.objects.filter(empleado=emp, fecha_emision__gte=desde):
+            eventos.append({'fecha': f.fecha_emision.isoformat(), 'persona': quien, 'texto': 'Finiquito'})
+        for a in AnexoContrato.objects.filter(contrato__empleado=emp, fecha_emision__gte=desde) \
+                .exclude(tipo='CONSENTIMIENTO_ELECTRONICO'):
+            eventos.append({'fecha': a.fecha_emision.isoformat(), 'persona': quien,
+                            'texto': f'Anexo de contrato: {a.get_tipo_display().lower()}'})
+        if not emp.activo and emp.fecha_desvinculacion and emp.fecha_desvinculacion >= desde:
+            eventos.append({'fecha': emp.fecha_desvinculacion.isoformat(), 'persona': quien,
+                            'texto': 'Desvinculación en el panel'})
+    return sorted(eventos, key=lambda e: e['fecha'], reverse=True)
+
+
+# ── Lo que ve cada persona en su portal ──────────────────────────────────────
+
+ESTADO_PUBLICO = {
+    'RECIBIDA': 'Recibida. Dentro de 3 días hábiles la empresa decide si la investiga o la deriva a la Dirección del Trabajo.',
+    'INVESTIGACION': 'En investigación por la empresa.',
+    'DERIVADA_DT': 'Derivada a la Dirección del Trabajo, que la investiga.',
+    'INFORME': 'La investigación terminó. El informe se envía a la Dirección del Trabajo.',
+    'REVISION_DT': 'La investigación terminó. El informe está en revisión de la Dirección del Trabajo.',
+    'MEDIDAS': 'Concluida. La empresa está aplicando las medidas.',
+    'CERRADA': 'Cerrada.',
+}
+
+
+def documentos_portal(d, roles, participante_ids):
+    """Documentos que cada persona puede descargar: [(tipo, participante)]."""
+    h = d.hitos or {}
+    docs = []
+    parte = roles & {'AFECTADA', 'DENUNCIANTE'}
+    if parte:
+        docs.append(('RECEPCION', ''))
+        if h.get('decision'):
+            docs.append(('DECISION', ''))
+    for pid in participante_ids:
+        p = next((x for x in (d.investigacion or {}).get('participantes', []) if x['id'] == pid), None)
+        if p and p.get('citacion'):
+            docs.append(('CITACION', pid))
+    if roles & {'AFECTADA', 'DENUNCIANTE', 'DENUNCIADA'}:
+        if h.get('resultado_dt') == 'SIN_PRONUNCIAMIENTO' and h.get('partes_notificadas_en'):
+            docs.append(('NOTIFICACION', ''))
+        if h.get('medidas_aplicadas_en'):
+            docs.append(('MEDIDAS', ''))
+    return docs
+
+
+def vista_portal(d, rut):
+    """Lo que la persona ve de su caso, según su rol, o None si no debe verlo aún.
+
+    - Afectada o denunciante: estado, decisión, medidas de resguardo, sus citaciones,
+      resultado y medidas cuando se notifican.
+    - Persona denunciada: solo desde que es citada (o cuando se le notifica el
+      resultado): sus citaciones y el resultado. Nunca el relato ni quién denunció.
+    - Testigo: solo su citación.
+    """
+    roles = roles_de(d, rut)
+    if not roles:
+        return None
+    rut = limpiar_rut(rut)
+    h = d.hitos or {}
+    mias = [p for p in (d.investigacion or {}).get('participantes', []) if limpiar_rut(p.get('rut', '')) == rut]
+    citaciones = [{'participante': p['id'], **p['citacion']} for p in mias if p.get('citacion')]
+    notificado = bool(h.get('pronunciamiento_en') or h.get('partes_notificadas_en') or h.get('medidas_aplicadas_en')
+                      or h.get('cerrada_en'))
+    es_parte = bool(roles & {'AFECTADA', 'DENUNCIANTE'})
+    es_denunciado = 'DENUNCIADA' in roles
+    if not es_parte and not citaciones and not (es_denunciado and notificado):
+        return None
+    vista = {'id': d.id, 'folio': d.folio, 'empresa': d.empresa.alias or d.empresa.nombre_legal,
+             'rol': 'PARTE' if es_parte else 'DENUNCIADA' if es_denunciado else 'TESTIGO',
+             'citaciones': citaciones,
+             'documentos': [{'tipo': t, 'participante': p} for t, p in documentos_portal(d, roles, [x['id'] for x in mias])]}
+    if es_parte or es_denunciado:
+        vista.update({'materia': d.get_tipo_display(), 'recibida_en': timezone.localtime(d.recibida_en).date().isoformat(),
+                      'estado': ESTADO_PUBLICO[d.estado]})
+    if es_parte:
+        vista['decision'] = {'INTERNA': 'La investiga la empresa', 'DT': 'Derivada a la Dirección del Trabajo'}.get(
+            h.get('decision'), '')
+        vista['decision_en'] = h.get('decision_en')
+        vista['resguardo'] = [dict(RESGUARDOS).get(m['tipo'], m['tipo']) for m in d.resguardo or []]
+    if (es_parte or es_denunciado) and notificado and d.informe and h.get('decision') == 'INTERNA':
+        vista['conclusion'] = dict(CONCLUSIONES).get(d.informe.get('conclusion'), '')
+    if (es_parte or es_denunciado) and h.get('medidas_aplicadas_en'):
+        vista['medidas_en'] = h['medidas_aplicadas_en']
+    return vista

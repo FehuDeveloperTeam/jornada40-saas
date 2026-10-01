@@ -69,7 +69,8 @@ def _fila(d, hoy):
     sig = dk.siguiente_plazo(dk.plazos(d, hoy))
     return {'id': d.id, 'folio': d.folio, 'empresa': d.empresa.alias or d.empresa.nombre_legal, 'tipo': d.tipo,
             'tipo_texto': d.get_tipo_display(), 'estado': d.estado, 'estado_texto': d.get_estado_display(),
-            'recibida_en': timezone.localtime(d.recibida_en).isoformat(), 'siguiente': sig}
+            'recibida_en': timezone.localtime(d.recibida_en).isoformat(), 'siguiente': sig,
+            'represalias': len(dk.posibles_represalias(d, hoy))}
 
 
 def _detalle(d, enc):
@@ -80,6 +81,7 @@ def _detalle(d, enc):
             'datos': d.datos, 'resguardo': d.resguardo or [], 'investigacion': d.investigacion or {},
             'informe': d.informe, 'medidas': d.medidas, 'hitos': d.hitos, 'plazos': items,
             'derivacion_obligatoria': dk.derivacion_obligatoria(d), 'avisos': dk.avisos(d, enc),
+            'posibles_represalias': dk.posibles_represalias(d, hoy),
             'archivos': [_archivo(a) for a in d.archivos.filter(activo=True)]}
 
 
