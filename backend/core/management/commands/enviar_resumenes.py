@@ -8,8 +8,8 @@ import logging
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.models import Cliente, UsuarioEquipo
-from core.views.resumen import corresponde, enviar, enviar_equipo
+from core.models import Cliente, EncargadoKarin, UsuarioEquipo
+from core.views.resumen import corresponde, enviar, enviar_encargado_karin, enviar_equipo
 
 logger = logging.getLogger(__name__)
 
@@ -42,4 +42,11 @@ class Command(BaseCommand):
                 errores += 1
                 logger.exception('Resumen: falló el envío al usuario del equipo %s', ue.id)
                 self.stderr.write(f'No se pudo enviar el resumen al usuario del equipo {ue.id}')
+        # Encargados Ley Karin: aviso diario solo si hay plazos vencidos o por vencer (sin detalles).
+        for enc in EncargadoKarin.objects.filter(estado='ACTIVO', usuario__is_active=True).select_related('cuenta'):
+            try:
+                enviados += enviar_encargado_karin(enc, hoy)
+            except Exception:
+                errores += 1
+                logger.exception('Resumen: falló el aviso al encargado Ley Karin %s', enc.id)
         self.stdout.write(f'Resumen: {revisados} revisados, {enviados} enviados, {errores} con error.')

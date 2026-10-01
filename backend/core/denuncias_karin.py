@@ -358,3 +358,21 @@ def validar_informe(entrada):
                                   'los indicios o razonamientos en que se funda la conclusión'),
             'conclusion': entrada['conclusion'], 'medidas_correctivas': correctivas, 'sanciones': sanciones,
             'imparcialidad': _texto(entrada.get('imparcialidad'), 2000)}
+
+
+def resumen(denuncias, hoy=None):
+    """Solo cifras, sin contenido: lo que puede ver el titular y lo que va en los correos."""
+    hoy = hoy or timezone.localdate()
+    abiertas = vencidas = por_vencer = 0
+    proximo = None
+    for d in denuncias:
+        if (d.hitos or {}).get('cerrada_en'):
+            continue
+        abiertas += 1
+        estados = {i['estado'] for i in plazos(d, hoy)}
+        vencidas += 'VENCIDO' in estados
+        por_vencer += 'VENCIDO' not in estados and 'POR_VENCER' in estados
+        sig = siguiente_plazo(plazos(d, hoy))
+        if sig and sig['vence'] and (proximo is None or sig['vence'] < proximo):
+            proximo = sig['vence']
+    return {'abiertas': abiertas, 'vencidas': vencidas, 'por_vencer': por_vencer, 'proximo_vence': proximo}

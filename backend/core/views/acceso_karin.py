@@ -197,6 +197,19 @@ class EncargadoKarinViewSet(viewsets.ViewSet):
                         ip=_ip(request))
         return Response(_dato(enc))
 
+    @action(detail=False, methods=['get'])
+    def resumen(self, request):
+        """Contador del titular: denuncias abiertas y plazos por empresa, sin ningún contenido."""
+        from ..denuncias_karin import resumen
+        from ..models import DenunciaKarin
+        cuenta, error = self._cuenta(request)
+        if error:
+            return error
+        empresas = Empresa.objects.filter(owner=cuenta, activo=True).order_by('nombre_legal')
+        return Response({'empresas': [
+            {'id': e.id, 'nombre': e.alias or e.nombre_legal,
+             **resumen(DenunciaKarin.objects.filter(cuenta=cuenta, empresa=e))} for e in empresas]})
+
     @action(detail=True, methods=['post'])
     def eliminar(self, request, pk=None):
         """Quita el acceso para siempre (cierra sus sesiones) y libera el cupo."""

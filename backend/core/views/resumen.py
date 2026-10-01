@@ -169,11 +169,30 @@ def _seguridad(empresa, desde, hoy):
                     'Ver seguridad' if sin_riesgos else 'Ver trabajadores')
 
 
-FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin, _seguridad]
+def _denuncias_karin(empresa, desde, hoy):
+    """Solo cifras: el contenido de las denuncias es reservado del encargado (Art. 211-C)."""
+    from ..denuncias_karin import resumen
+    from ..models import DenunciaKarin
+    r = resumen(DenunciaKarin.objects.filter(empresa=empresa), hoy)
+    if not (r['vencidas'] or r['por_vencer']):
+        return None
+    lineas = []
+    if r['vencidas']:
+        lineas.append(f"{r['vencidas']} {'denuncia tiene' if r['vencidas'] == 1 else 'denuncias tienen'} un plazo vencido.")
+    if r['por_vencer']:
+        lineas.append(f"{r['por_vencer']} {'denuncia tiene' if r['por_vencer'] == 1 else 'denuncias tienen'} un plazo "
+                      'por vencer en los próximos días.')
+    lineas.append('Su encargado de denuncias las gestiona en su acceso reservado: consulte con él sin pedir detalles.')
+    return _seccion('Ley Karin: plazos de denuncias', lineas, '/app/reglamento', 'Ver Ley Karin')
+
+
+FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin, _seguridad, _denuncias_karin]
 # Módulos que dan acceso a cada tema a un usuario del equipo (basta uno).
 MODULOS_FUENTE = {
     _solicitudes: ('SOLICITUDES',), _firmas: MODULOS_DOCUMENTOS, _registro_dt: ('DIRECCION_TRABAJO',),
     _horas_descanso: ('VACACIONES',), _reglamento_y_ley_karin: ('SEGURIDAD',), _seguridad: ('SEGURIDAD',),
+    # Las cifras de denuncias son solo para el titular: ningún módulo del equipo las abre.
+    _denuncias_karin: ('SOLO_TITULAR',),
 }
 
 
@@ -287,3 +306,28 @@ def preferencia_resumen(request):
         cliente.save(update_fields=['frecuencia_resumen'])
     return Response({'frecuencia': cliente.frecuencia_resumen, 'correo': ue.correo if ue else _correo(cliente),
                      'opciones': [{'valor': v, 'texto': t} for v, t in Cliente.FRECUENCIAS_RESUMEN]})
+
+
+def enviar_encargado_karin(enc, hoy=None):
+    """Recordatorio diario al encargado Ley Karin cuando tiene plazos vencidos o por vencer.
+
+    Solo cifras: el correo no lleva nombres, folios ni hechos (puede leerlo otra
+    persona). Una vez por día como máximo. Devuelve True si se envió."""
+    from ..denuncias_karin import resumen
+    from ..models import DenunciaKarin
+    hoy = hoy or timezone.localdate()
+    if enc.aviso_plazos_en == hoy or not enc.correo:
+        return False
+    r = resumen(DenunciaKarin.objects.filter(cuenta=enc.cuenta, empresa__in=enc.empresas.filter(activo=True)), hoy)
+    if not (r['vencidas'] or r['por_vencer']):
+        return False
+    sitio = getattr(settings, 'SITIO_URL', 'https://jornada40.cl').rstrip('/')
+    ctx = {'nombre': enc.nombres, 'vencidas': r['vencidas'], 'por_vencer': r['por_vencer'], 'sitio': sitio,
+           'fecha': _fecha(hoy)}
+    msg = EmailMultiAlternatives('Jornada40: plazos de denuncias Ley Karin', render_to_string('karin_plazos.txt', ctx),
+                                 settings.DEFAULT_FROM_EMAIL, to=[enc.correo])
+    msg.attach_alternative(render_to_string('karin_plazos.html', ctx), 'text/html')
+    msg.send()
+    enc.aviso_plazos_en = hoy
+    enc.save(update_fields=['aviso_plazos_en'])
+    return True

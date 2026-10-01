@@ -1,0 +1,7 @@
+Hola {{ nombre }}:
+
+Al {{ fecha }}, en tu acceso Ley Karin:
+{% if vencidas %}- {{ vencidas }} {% if vencidas == 1 %}denuncia tiene{% else %}denuncias tienen{% endif %} un plazo vencido.
+{% endif %}{% if por_vencer %}- {{ por_vencer }} {% if por_vencer == 1 %}denuncia tiene{% else %}denuncias tienen{% endif %} un plazo por vencer.
+{% endif %}
+Revísalas en {{ sitio }}/karin (botón «Encargado Ley Karin»). Por reserva, este correo no incluye detalles.

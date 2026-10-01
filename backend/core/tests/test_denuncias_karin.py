@@ -239,3 +239,44 @@ class DenunciasKarinTests(APITestCase):
         r = self.c.get(f'{url}/documento/?tipo=INFORME')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(RegistroKarin.objects.filter(accion='DESCARGA').count(), 8)
+
+
+class ContadorYAvisosTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user, self.cliente, _, self.empresa = crear_usuario_completo('dka', '21.000.000-3', '76.000.555-K')
+        self.enc = _encargado(self.user, [self.empresa])
+        c = _sesion()
+        # Recibida hace 10 días sin decisión: plazos vencidos.
+        hace = (timezone.localtime() - datetime.timedelta(days=10)).replace(tzinfo=None).isoformat()
+        c.post('/api/karin/denuncias/', {**DENUNCIA, 'empresa': self.empresa.id, 'recibida_en': hace}, format='json')
+
+    def test_contador_del_titular_sin_contenido(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.get('/api/encargados-karin/resumen/')
+        fila = r.data['empresas'][0]
+        self.assertEqual((fila['abiertas'], fila['vencidas']), (1, 1))
+        self.assertNotIn('Ana', str(r.data))
+        # Un usuario del equipo no ve ni las cifras.
+        from ..models import UsuarioEquipo
+        persona = User.objects.create(username='equipo:x:1')
+        ue = UsuarioEquipo.objects.create(cuenta=self.user, usuario=persona, rut='11.111.111-1', nombres='Eva',
+                                          correo='eva@x.cl', estado='ACTIVO', permisos={'SEGURIDAD': 'GESTIONAR'})
+        ue.empresas.set([self.empresa])
+        c = APIClient()
+        c.force_authenticate(persona)
+        self.assertEqual(c.get('/api/encargados-karin/resumen/').status_code, 403)
+
+    def test_correos_solo_con_cifras(self):
+        from django.core import mail
+        from ..views.resumen import enviar, enviar_encargado_karin
+        self.assertTrue(enviar_encargado_karin(self.enc))
+        self.assertFalse(enviar_encargado_karin(self.enc))                       # una vez por día
+        cuerpo = mail.outbox[-1].body
+        self.assertIn('1 denuncia tiene un plazo vencido', cuerpo)
+        self.assertNotIn('Ana', cuerpo)
+        self.assertNotIn('LK-', cuerpo)
+        self.assertTrue(enviar(self.cliente))
+        cuerpo = mail.outbox[-1].body
+        self.assertIn('Ley Karin: plazos de denuncias', cuerpo)
+        self.assertNotIn('Ana', cuerpo)
