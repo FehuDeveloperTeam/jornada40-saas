@@ -86,6 +86,7 @@ urlpatterns = [
     path('inspeccion/bitacora/', inspeccion.bitacora_empleador, name='inspeccion_bitacora'),
     path('trabajador/certificados/', certificados.certificados_trabajador, name='portal_certificados'),
     path('trabajador/karin/', karin_portal.casos_trabajador, name='portal_karin'),
+    path('trabajador/karin/denunciar/', karin_portal.denunciar, name='portal_karin_denunciar'),
     path('trabajador/karin/documento/', karin_portal.documento_trabajador, name='portal_karin_documento'),
     path('certificados/verificar/<str:codigo>/', certificados.verificar_certificado, name='verificar_certificado'),
     path('empleados/<int:empleado_id>/certificados/', certificados.certificados_empleado, name='certificados_empleado'),

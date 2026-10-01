@@ -157,7 +157,7 @@ function Datos({ d, catalogos }: { d: DenunciaKarinDetalle; catalogos: Catalogos
     [x.nombre, x.rut && `RUT ${x.rut}`, x.cargo, x.correo].filter(Boolean).join(' · ');
   return (
     <div className="flex flex-col">
-      <Fila k="Forma">{d.canal_texto}</Fila>
+      <Fila k="Forma">{d.canal_texto}{d.origen === 'PORTAL' ? ' · ingresada por el trabajador en su portal' : ''}</Fila>
       <Fila k="Persona afectada">{p(d.datos.afectada)}</Fila>
       {d.datos.denunciante && <Fila k="Denuncia en su nombre">{p(d.datos.denunciante)} ({texto(catalogos.representaciones, d.datos.representacion)})</Fila>}
       {d.datos.denunciados.map((x, i) => (

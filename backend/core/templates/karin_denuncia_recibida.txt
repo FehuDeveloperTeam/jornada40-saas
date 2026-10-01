@@ -1,0 +1,9 @@
+Hola {{ nombre }}:
+
+Tu denuncia ante {{ empresa }} quedó recibida el {{ fecha }} a las {{ hora }} con el folio {{ folio }}. Este correo es tu comprobante.
+
+Dentro de 3 días hábiles la empresa decidirá si la investiga o la deriva a la Dirección del Trabajo, y te lo informará. Mientras tanto debe adoptar medidas de resguardo, y puedes pedir atención psicológica a su mutualidad.
+
+Ve el estado en tu portal: {{ sitio }}/trabajador
+
+La investigación es reservada y la ley prohíbe cualquier represalia. También puedes acudir directamente a la Dirección del Trabajo (www.dt.gob.cl).

@@ -688,6 +688,13 @@ export interface CuentaTrabajador {
     tiene_karin: boolean;
 }
 
+/** Respuesta de GET /trabajador/karin/: casos, empresas donde se puede denunciar y listas cerradas. */
+export interface KarinPortal {
+    casos: CasoKarinPortal[];
+    canales: { empleo: number; empresa: string; disponible: boolean }[];
+    catalogos: { tipos: OpcionKarin[]; vinculos: OpcionKarin[]; representaciones: OpcionKarin[] };
+}
+
 /** Caso Ley Karin visto desde el portal: cada rol ve solo su parte (core/denuncias_karin.vista_portal). */
 export interface CasoKarinPortal {
     id: number;
@@ -1123,6 +1130,8 @@ export interface DenunciaKarinDetalle extends Omit<DenunciaKarinFila, 'empresa'>
     empresa: { id: number; nombre: string; rut: string };
     canal: string;
     canal_texto: string;
+    origen: 'ENCARGADO' | 'PORTAL';
+    origen_texto: string;
     pide_derivar_dt: boolean;
     datos: { afectada: PersonaKarin; denunciante: PersonaKarin | null; representacion: string; denunciados: PersonaKarin[]; relato: string };
     resguardo: { tipo: string; aplica_a: string; fecha: string }[];

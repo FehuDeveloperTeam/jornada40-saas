@@ -375,3 +375,60 @@ class PortalYRepresaliasTests(APITestCase):
         self.assertTrue(enviar_encargado_karin(enc))
         self.assertIn('1 posible represalia', self.mail.outbox[-1].body)
         self.assertNotIn('Ana', self.mail.outbox[-1].body)
+
+
+class DenunciaDesdeElPortalTests(PortalYRepresaliasTests):
+    """El trabajador denuncia en su portal: identificado, con comprobante y aviso sin contenido al encargado."""
+
+    def _denunciar(self, c, **extra):
+        datos = {'empleo': self.luis.id, 'tipo': 'ACOSO_LABORAL', 'soy_afectada': True,
+                 'denunciados': [{'nombre': 'Pedro Paz', 'cargo': 'Jefe', 'vinculo': 'JEFATURA'}],
+                 'relato': 'Me humilla frente al equipo.', **extra}
+        return c.post('/api/trabajador/karin/denunciar/', datos, format='json')
+
+    def test_denuncia_propia_con_comprobante(self):
+        c = self._portal('11.111.111-1')
+        canales = c.get('/api/trabajador/karin/').data['canales']
+        self.assertTrue(canales[0]['disponible'])
+        n = len(self.mail.outbox)
+        r = self._denunciar(c)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(r.data['rol'], 'PARTE')
+        d = DenunciaKarin.objects.get(pk=r.data['id'])
+        self.assertEqual((d.origen, d.canal), ('PORTAL', 'ELECTRONICA'))
+        self.assertEqual(d.datos['afectada']['rut'], '11.111.111-1')            # identificado por su sesión
+        self.assertEqual(d.datos['afectada']['correo'], 'luis@x.cl')
+        correos = self.mail.outbox[n:]
+        comprobante = next(m for m in correos if m.to == ['luis@x.cl'])
+        self.assertIn(d.folio, comprobante.body)
+        aviso = next(m for m in correos if m.to == ['rosa@x.cl'])
+        self.assertNotIn('Pedro', aviso.body)
+        self.assertNotIn('Luis', aviso.body)
+        self.assertNotIn(d.folio, aviso.body)
+        # Comprobante descargable y el encargado la ve con su origen.
+        self.assertEqual(c.get(f'/api/trabajador/karin/documento/?denuncia={d.id}&tipo=RECEPCION&participante=')
+                         .status_code, 200)
+        self.assertEqual(self.k.get(f'/api/karin/denuncias/{d.id}/').data['origen'], 'PORTAL')
+
+    def test_por_otra_persona_y_validaciones(self):
+        c = self._portal('11.111.111-1')
+        otra = {'nombre': 'Rita Gómez', 'rut': '9.876.543-3'}
+        self.assertEqual(self._denunciar(c, soy_afectada=False, afectada=otra).status_code, 400)  # falta calidad
+        r = self._denunciar(c, soy_afectada=False, afectada=otra, representacion='COMPANERO')
+        self.assertEqual(r.status_code, 201, r.data)
+        d = DenunciaKarin.objects.get(pk=r.data['id'])
+        self.assertEqual(d.datos['denunciante']['rut'], '11.111.111-1')
+        self.assertEqual(self._denunciar(c, relato='').status_code, 400)
+        self.assertEqual(self._denunciar(c, empleo=self.ana.id).status_code, 400)   # ficha ajena
+        self.assertEqual(APIClient().post('/api/trabajador/karin/denunciar/', {}, format='json').status_code, 403)
+
+    def test_sin_encargado_y_tope_diario(self):
+        c = self._portal('11.111.111-1')
+        for _ in range(2):
+            self.assertEqual(self._denunciar(c).status_code, 201)
+        self.assertEqual(self._denunciar(c).status_code, 201)
+        self.assertEqual(self._denunciar(c).status_code, 429)
+        EncargadoKarin.objects.update(estado='ELIMINADO')
+        c2 = self._portal('15.555.550-5')
+        self.assertFalse(c2.get('/api/trabajador/karin/').data['canales'][0]['disponible'])
+        self.assertEqual(self._denunciar(c2, empleo=self.tere.id).status_code, 400)

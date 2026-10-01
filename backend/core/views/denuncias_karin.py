@@ -78,6 +78,7 @@ def _detalle(d, enc):
     items = dk.plazos(d, hoy)
     return {**_fila(d, hoy), 'empresa': {'id': d.empresa_id, 'nombre': d.empresa.nombre_legal, 'rut': d.empresa.rut},
             'canal': d.canal, 'canal_texto': d.get_canal_display(), 'pide_derivar_dt': d.pide_derivar_dt,
+            'origen': d.origen, 'origen_texto': d.get_origen_display(),
             'datos': d.datos, 'resguardo': d.resguardo or [], 'investigacion': d.investigacion or {},
             'informe': d.informe, 'medidas': d.medidas, 'hitos': d.hitos, 'plazos': items,
             'derivacion_obligatoria': dk.derivacion_obligatoria(d), 'avisos': dk.avisos(d, enc),

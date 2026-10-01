@@ -1611,6 +1611,9 @@ class DenunciaKarin(models.Model):
                                        related_name='denuncias_registradas')
     estado = models.CharField(max_length=15, choices=ESTADOS, default='RECIBIDA')
     pide_derivar_dt = models.BooleanField(default=False)
+    # Quién la ingresó: el encargado (recibida por escrito o verbalmente) o el propio trabajador en su portal.
+    ORIGENES = [('ENCARGADO', 'Registrada por el encargado'), ('PORTAL', 'Ingresada por el trabajador en su portal')]
+    origen = models.CharField(max_length=10, choices=ORIGENES, default='ENCARGADO')
     # Persona afectada, denunciante (si es otra), denunciados y relato (Art. 11 DS 21).
     datos = JSONCifrado()
     # Medidas de resguardo (Art. 13): [{tipo, aplica_a, fecha}].

@@ -47,14 +47,16 @@ export default function Inicio() {
               : `Tus documentos de ${cuenta.empleos.length} empresas`}
         </p>
       </div>
-      {cuenta.tiene_karin && (
-        <Link to="/trabajador/portal/ley-karin"
-          className="flex items-center gap-3 px-4 py-3.5 rounded-j40-card border border-line bg-surface text-fg no-underline hover:no-underline hover:border-brand">
-          <Scale className="size-6 text-brand shrink-0" strokeWidth={2} aria-hidden />
-          <span className="flex-1 text-[15px]"><b>Ley Karin:</b> tienes información sobre una denuncia en la que participas.</span>
-          <span className="text-[14px] font-medium text-brand-text">Ver</span>
-        </Link>
-      )}
+      <Link to="/trabajador/portal/ley-karin"
+        className="flex items-center gap-3 px-4 py-3.5 rounded-j40-card border border-line bg-surface text-fg no-underline hover:no-underline hover:border-brand">
+        <Scale className="size-6 text-brand shrink-0" strokeWidth={2} aria-hidden />
+        <span className="flex-1 text-[15px]">
+          {cuenta.tiene_karin
+            ? <><b>Ley Karin:</b> tienes información sobre una denuncia en la que participas.</>
+            : <><b>Ley Karin:</b> si sufres acoso o violencia en el trabajo, puedes denunciarlo aquí de forma reservada.</>}
+        </span>
+        <span className="text-[14px] font-medium text-brand-text">{cuenta.tiene_karin ? 'Ver' : 'Ir'}</span>
+      </Link>
 
       {(firmas.data?.length ?? 0) > 0 && (
         <Seccion titulo="Documentos por firmar" subtitulo="Fírmalos para tenerlos disponibles en Liquidaciones y Documentos.">

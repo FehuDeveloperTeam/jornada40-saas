@@ -102,6 +102,26 @@ test('la persona afectada ve el estado de su denuncia en su portal', async ({ pa
   await expect(page.getByText(/Me grita delante de los clientes/)).toHaveCount(0);   // el relato no se repite en el portal
   const nombre = await descargar(page, () => page.getByRole('button', { name: 'Comprobante de recepción' }).click());
   expect(nombre).toMatch(/LK-\d{4}-001_recepcion\.pdf/);
+
+  // Y puede presentar una denuncia nueva desde el mismo portal.
+  await page.getByRole('button', { name: 'Hacer una denuncia' }).click();
+  await page.getByLabel('¿Qué quieres denunciar?').selectOption('ACOSO_SEXUAL');
+  await page.locator('#pk-denunciado-0').fill('Carlos Ruiz');
+  await page.locator('#pk-vinculo-0').selectOption('PAR');
+  await page.locator('#pk-relato').fill('Comentarios sexuales reiterados en la bodega.');
+  await page.getByRole('button', { name: 'Enviar denuncia' }).click();
+  await expect(page.getByText(/Tu denuncia quedó recibida con el folio LK-\d{4}-002/)).toBeVisible();
+  await expect(page.getByText(/Tu denuncia · LK-\d{4}-002/)).toBeVisible();
+});
+
+test('la denuncia del portal llega al encargado con su origen', async ({ page }) => {
+  await page.goto('/karin');
+  await page.getByLabel('Tu RUT').fill(ROSA.rut);
+  await page.getByLabel('Clave', { exact: true }).fill(ROSA.clave);
+  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await page.getByRole('link', { name: /LK-\d{4}-002/ }).click();
+  await expect(page.getByText(/ingresada por el trabajador en su portal/)).toBeVisible();
+  await expect(page.getByText('Comentarios sexuales reiterados en la bodega.')).toBeVisible();
 });
 
 test('el titular solo ve que hubo actividad, sin detalle', async ({ page }) => {

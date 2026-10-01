@@ -1,0 +1,5 @@
+Hola {{ nombre }}:
+
+Un trabajador ingresó una denuncia por el portal. Los plazos ya corren: adopta medidas de resguardo de inmediato y decide en 3 días hábiles si la empresa investiga o la deriva a la Dirección del Trabajo.
+
+Revísala en {{ sitio }}/karin (botón «Encargado Ley Karin»). Por reserva, este correo no incluye nombres ni detalles.

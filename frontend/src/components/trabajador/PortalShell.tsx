@@ -47,8 +47,8 @@ const NAV: ItemNav[] = [
   { a: `${RAIZ}/vacaciones`, etiqueta: 'Vacaciones', corta: 'Vacaciones', Icono: CalendarDays },
   { a: `${RAIZ}/solicitudes`, etiqueta: 'Solicitudes', corta: 'Pedir', Icono: FilePlus2 },
   { a: `${RAIZ}/seguridad`, etiqueta: 'Seguridad', corta: 'Seguridad', Icono: ShieldCheck, soloLateral: true },
-  // Solo para quien participa en un caso; en móvil se entra desde Inicio.
-  { a: `${RAIZ}/ley-karin`, etiqueta: 'Ley Karin', corta: 'Ley Karin', Icono: Scale, soloLateral: true, karin: true },
+  // Canal de denuncias y casos en que participa; en móvil se entra desde Inicio.
+  { a: `${RAIZ}/ley-karin`, etiqueta: 'Ley Karin', corta: 'Ley Karin', Icono: Scale, soloLateral: true },
 ];
 
 // ── Shell ────────────────────────────────────────────────────────────────────

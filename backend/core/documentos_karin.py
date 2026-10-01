@@ -97,7 +97,11 @@ def armar(d, tipo, participante='', encargado=None):
     quien = datos.get('denunciante') or afectada
     secciones, firmas = [], []
     if tipo in ('RECEPCION', 'ACTA_VERBAL'):
-        secciones.append({'filas': _datos_basicos(d) + (_denunciados(d) if tipo == 'ACTA_VERBAL' else [])})
+        filas = _datos_basicos(d) + (_denunciados(d) if tipo == 'ACTA_VERBAL' else [])
+        if d.origen == 'PORTAL':
+            filas.append(['Ingreso', 'Por la persona denunciante en su portal de Jornada40 (identificada con su RUT '
+                                     'y su correo verificado). Fecha y hora registradas por el sistema.'])
+        secciones.append({'filas': filas})
         if tipo == 'ACTA_VERBAL':
             secciones.append({'titulo': 'Relación de los hechos', 'parrafos': [datos.get('relato', '')]})
             secciones.append({'parrafos': ['Esta acta deja por escrito la denuncia hecha en forma verbal. Se entrega '
@@ -111,7 +115,7 @@ def armar(d, tipo, participante='', encargado=None):
             'Trabajo. Se le informará por escrito la decisión (Art. 12 DS 21).',
             'La investigación se hará con reserva, de forma imparcial y oyendo a todas las partes, y concluirá dentro '
             'de 30 días hábiles (Arts. 15 y 17 DS 21).']})
-        firmas = [{'nombre': _persona(quien, False), 'detalle': 'Recibí copia'}, receptor]
+        firmas = [] if d.origen == 'PORTAL' else [{'nombre': _persona(quien, False), 'detalle': 'Recibí copia'}, receptor]
     elif tipo == 'RESGUARDO':
         secciones = [{'filas': [['Expediente', d.folio], ['Persona afectada', _persona(afectada, False)]]},
                      {'titulo': 'Medidas adoptadas', 'filas': _resguardo(d)},
