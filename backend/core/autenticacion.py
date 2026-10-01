@@ -116,6 +116,9 @@ class CookieConCerco(JWTCookieAuthentication):
         if resultado is None:
             return None
         user, token = resultado
+        # Los usuarios internos del acceso Ley Karin nunca entran al panel (sesión aparte).
+        if hasattr(user, 'encargado_karin'):
+            raise exceptions.AuthenticationFailed('Este usuario no tiene acceso al panel.')
         ue = usuario_equipo_de(user)
         if ue is None:
             return user, token

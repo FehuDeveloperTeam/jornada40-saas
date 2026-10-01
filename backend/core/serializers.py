@@ -467,6 +467,6 @@ class LoginPorRutSerializer(LoginSerializer):
         attrs['username'] = normalizar_rut_usuario(attrs['username'])
         attrs = super().validate(attrs)
         # Los usuarios del equipo entran solo por su propia puerta (/api/auth/equipo/ingresar/).
-        if hasattr(attrs.get('user'), 'usuario_equipo'):
+        if hasattr(attrs.get('user'), 'usuario_equipo') or hasattr(attrs.get('user'), 'encargado_karin'):
             raise serializers.ValidationError({'non_field_errors': ['No se puede iniciar sesión con las credenciales proporcionadas.']})
         return attrs

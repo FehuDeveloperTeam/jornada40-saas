@@ -16,6 +16,8 @@ const Recuperar = lazy(() => import('./pages/sitio/Recuperar'));
 const NuevaContrasena = lazy(() => import('./pages/sitio/NuevaContrasena'));
 const IngresoEquipo = lazy(() => import('./pages/sitio/IngresoEquipo'));
 const ClaveEquipo = lazy(() => import('./pages/sitio/ClaveEquipo'));
+const IngresoKarin = lazy(() => import('./pages/sitio/IngresoKarin'));
+const PanelKarin = lazy(() => import('./pages/karin/Panel'));
 const Bienvenida = lazy(() => import('./pages/sitio/Bienvenida'));
 
 // Panel rediseñado (paso A): shell, inicio, trabajadores y carpeta.
@@ -150,6 +152,10 @@ export default function App() {
         <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />
         <Route path="/equipo" element={<IngresoEquipo />} />
         <Route path="/equipo/clave/:uid/:token" element={<ClaveEquipo />} />
+        {/* Acceso Ley Karin: puerta y sesión propias, fuera del panel. */}
+        <Route path="/karin" element={<IngresoKarin />} />
+        <Route path="/karin/clave/:uid/:token" element={<ClaveEquipo acceso="karin" />} />
+        <Route path="/karin/panel" element={<PanelKarin />} />
         <Route path="/firma/:token" element={<FirmaPublica />} />
         <Route path="/inspeccion" element={<InspeccionDT />} />
         <Route path="/verificar" element={<VerificarCertificado />} />

@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // de firma y el portal del trabajador no la necesitan (tienen su propia sesión).
     useEffect(() => {
         const ruta = window.location.pathname;
-        if (ruta.startsWith('/firma/') || ruta === '/trabajador' || ruta.startsWith('/trabajador/')) { setLoading(false); return; }
+        if (ruta.startsWith('/firma/') || ruta === '/trabajador' || ruta.startsWith('/trabajador/') || ruta === '/karin' || ruta.startsWith('/karin/')) { setLoading(false); return; }
         client.get<User>('/auth/user/')
             .then((res) => setUser(res.data), () => setUser(null))
             .finally(() => setLoading(false));

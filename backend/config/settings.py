@@ -150,6 +150,8 @@ REST_FRAMEWORK = {
         'register': '3/minute',
         'password_reset': '2/hour',
         'equipo_clave': '10/hour',
+        'karin': '30/hour',
+        'karin_sesion': '5000/day',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 200,
@@ -302,6 +304,8 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Jornada40 <noreply@jo
 DOMINIOS_CORREO_INSPECCION = [d.strip() for d in config('DOMINIOS_CORREO_INSPECCION', default='dt.gob.cl').split(',') if d.strip()]
 # Sitio público (enlaces impresos en PDFs, p. ej. la verificación de certificados).
 SITIO_URL = config('SITIO_URL', default='https://jornada40.cl')
+# Ley Karin: claves Fernet (separadas por coma, la primera cifra) de los datos reservados (core/cifrado.py).
+KARIN_CLAVES_CIFRADO = config('KARIN_CLAVES_CIFRADO', default='')
 PASSWORD_RESET_CONFIRM_URL = SITIO_URL.rstrip('/') + '/reset-password/{uid}/{token}'
 # El enlace de recuperación vence en 24 horas (el default de Django son 3 días).
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24

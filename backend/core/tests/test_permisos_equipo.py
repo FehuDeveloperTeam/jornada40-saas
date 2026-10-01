@@ -18,7 +18,7 @@ from .utiles import crear_empleado, crear_usuario_completo
 
 CLAVE = 'Clave-Equipo-2026'
 # Rutas que nunca abre un usuario del equipo, aunque tenga todos los módulos.
-SOLO_TITULAR = ['/api/equipo/', '/api/bitacora/', '/api/bitacora/verificar/', '/api/clientes/perfil/',
+SOLO_TITULAR = ['/api/equipo/', '/api/encargados-karin/', '/api/bitacora/', '/api/bitacora/verificar/', '/api/clientes/perfil/',
                 '/api/pagos/bajar-plan/', '/api/pagos/crear-checkout/',
                 '/api/pagos/cancelar-cambio/', '/api/pagos/reanudar/']
 

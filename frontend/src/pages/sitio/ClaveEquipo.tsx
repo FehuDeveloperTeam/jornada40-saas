@@ -9,11 +9,27 @@ import { AuthLayout, EncabezadoForm } from '../../components/sitio/AuthLayout';
 import { cn } from '../../utils/cn';
 import { contrasenaAceptable } from '../../utils/contrasena';
 
+// Cada acceso con clave propia: el equipo del panel y el encargado Ley Karin.
+const ACCESOS = {
+  equipo: {
+    api: '/auth/equipo/clave/', ingreso: '/equipo', boton: 'Ir al ingreso del equipo',
+    descripcion: 'Con tu RUT y esta clave entrarás a la cuenta que te invitó. Úsala solo en Jornada40.',
+    olvido: 'Pide uno nuevo desde el ingreso del equipo, en “¿La olvidaste?”, o pídele al titular que te reenvíe la invitación.',
+  },
+  karin: {
+    api: '/karin/clave/', ingreso: '/karin', boton: 'Ir al ingreso Ley Karin',
+    descripcion: 'Es la clave de tu acceso reservado de encargado Ley Karin: distinta de cualquier otra que tengas en Jornada40.',
+    olvido: 'Pide uno nuevo desde el ingreso Ley Karin, en “¿La olvidaste?”, o pídele al titular que te reenvíe la invitación.',
+  },
+} as const;
+
 /**
- * Destino del enlace de invitación (o de recuperación) de un usuario del equipo:
- * /equipo/clave/:uid/:token. El enlace sirve una sola vez.
+ * Destino del enlace de invitación (o de recuperación) de un usuario del equipo
+ * (/equipo/clave/:uid/:token) o del encargado Ley Karin (/karin/clave/:uid/:token).
+ * El enlace sirve una sola vez.
  */
-export default function ClaveEquipo() {
+export default function ClaveEquipo({ acceso = 'equipo' }: { acceso?: keyof typeof ACCESOS }) {
+  const conf = ACCESOS[acceso];
   const { uid, token } = useParams();
   const navigate = useNavigate();
   const [clave, setClave] = useState('');
@@ -32,7 +48,7 @@ export default function ClaveEquipo() {
     setError('');
     setEnviando(true);
     try {
-      await client.post('/auth/equipo/clave/', { uid, token, clave });
+      await client.post(conf.api, { uid, token, clave });
       setLista(true);
     } catch (err) {
       const mensaje = isAxiosError(err) ? (err.response?.data as { error?: string } | undefined)?.error : undefined;
@@ -45,7 +61,7 @@ export default function ClaveEquipo() {
 
   const lateral = {
     titulo: 'Crea tu clave de ingreso.',
-    descripcion: 'Con tu RUT y esta clave entrarás a la cuenta que te invitó. Úsala solo en Jornada40.',
+    descripcion: conf.descripcion,
   };
 
   if (lista) {
@@ -55,7 +71,7 @@ export default function ClaveEquipo() {
           <CircleCheck className="size-7" strokeWidth={2} aria-hidden />
         </span>
         <EncabezadoForm titulo="Tu clave quedó guardada">Ya puedes entrar con tu RUT y tu clave.</EncabezadoForm>
-        <Button tamano="lg" onClick={() => navigate('/equipo')} className="rounded-[10px]">Ir al ingreso del equipo</Button>
+        <Button tamano="lg" onClick={() => navigate(conf.ingreso)} className="rounded-[10px]">{conf.boton}</Button>
       </AuthLayout>
     );
   }
@@ -64,10 +80,9 @@ export default function ClaveEquipo() {
     return (
       <AuthLayout {...lateral}>
         <EncabezadoForm titulo="El enlace ya no sirve">
-          Puede que haya vencido o que ya se haya usado. Pide uno nuevo desde el ingreso del equipo, en “¿La olvidaste?”,
-          o pídele al titular que te reenvíe la invitación.
+          Puede que haya vencido o que ya se haya usado. {conf.olvido}
         </EncabezadoForm>
-        <Button tamano="lg" onClick={() => navigate('/equipo')} className="rounded-[10px]">Ir al ingreso del equipo</Button>
+        <Button tamano="lg" onClick={() => navigate(conf.ingreso)} className="rounded-[10px]">{conf.boton}</Button>
       </AuthLayout>
     );
   }
@@ -97,7 +112,7 @@ export default function ClaveEquipo() {
           {enviando ? 'Guardando…' : 'Guardar clave'}
         </Button>
       </form>
-      <Link to="/equipo" className="self-center text-[13.5px] font-medium">Ir al ingreso del equipo</Link>
+      <Link to={conf.ingreso} className="self-center text-[13.5px] font-medium">{conf.boton}</Link>
     </AuthLayout>
   );
 }

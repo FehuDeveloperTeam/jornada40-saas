@@ -22,7 +22,7 @@ from .models import Empresa, RegistroBitacora
 logger = logging.getLogger(__name__)
 
 _EXCLUIDAS = ('/api/trabajador/', '/api/inspeccion/', '/api/firma-publica/', '/api/auth/token/refresh/',
-              '/api/auth/login/', '/api/auth/equipo/', '/api/ley-karin/denuncias/')
+              '/api/auth/login/', '/api/auth/equipo/', '/api/ley-karin/denuncias/', '/api/karin/')
 # POST que solo calculan una vista previa: no son acciones.
 _SOLO_CALCULO = re.compile(r'/(simular|evaluar-jornada|evaluar_jornada|dias_habiles)/?$')
 _DESCARGA = re.compile(r'(pdf|descargar|exportar|zip|plantilla|resumen-dj1887|csv)', re.IGNORECASE)
@@ -36,6 +36,7 @@ _ENTIDADES = {
     'reglamento': 'reglamento interno', 'ley_karin': 'aviso Ley Karin', 'registro_dt': 'registro en Mi DT',
     'solicitud_documento': 'solicitud de documento', 'certificado': 'certificado',
     'equipo': 'usuario del equipo',
+    'encargado_karin': 'encargado de denuncias Ley Karin',
 }
 _VERBOS = {'POST': 'Creó', 'PUT': 'Modificó', 'PATCH': 'Modificó', 'DELETE': 'Eliminó'}
 # Rutas con un texto propio.

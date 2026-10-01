@@ -31,7 +31,7 @@ class ResumenTests(APITestCase):
         c = self.cliente
         self.assertTrue(corresponde(c, LUNES))
         self.assertFalse(corresponde(c, MARTES))                    # semanal: solo lunes
-        c.resumen_hasta = timezone.now() - timedelta(days=9)
+        c.resumen_hasta = timezone.make_aware(timezone.datetime(2026, 9, 20, 12))   # 9 días antes del martes
         self.assertTrue(corresponde(c, MARTES))                     # se saltó un lunes
         c.frecuencia_resumen = 'DIARIA'
         self.assertTrue(corresponde(c, MARTES))

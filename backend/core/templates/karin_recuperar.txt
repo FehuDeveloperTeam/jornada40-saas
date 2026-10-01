@@ -1,0 +1,6 @@
+Hola {{ nombre }}:
+
+Pediste crear una clave nueva para el acceso Ley Karin de {{ cuenta }} en Jornada40. Usa este enlace (sirve una sola vez):
+{{ enlace }}
+
+Si no lo pediste, ignora este correo: tu clave actual sigue igual.

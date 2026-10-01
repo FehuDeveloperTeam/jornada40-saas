@@ -1030,3 +1030,30 @@ export interface BitacoraPagina {
 }
 
 export interface VerificacionBitacora { ok: boolean; registros: number; roto_en: number | null }
+
+/** Encargado de denuncias Ley Karin, como lo administra el titular (GET /encargados-karin/). */
+export interface EncargadoKarin {
+    id: number;
+    rut: string;
+    nombres: string;
+    apellidos: string;
+    correo: string;
+    empresas: number[];
+    estado: 'INVITADO' | 'ACTIVO' | 'ELIMINADO';
+    invitado_en: string | null;
+    activado_en: string | null;
+}
+
+export interface EncargadosKarinCuenta { cupo: number; usados: number; encargados: EncargadoKarin[] }
+
+/** Sesión del acceso Ley Karin (GET /karin/yo/). */
+export interface SesionKarin {
+    nombre: string;
+    rut: string;
+    correo: string;
+    cuenta: string;
+    empresas: { id: number; nombre: string; rut: string }[];
+}
+
+export interface RegistroKarin { id: number; fecha: string; actor: string; accion: string; descripcion: string; ip: string }
+export interface BitacoraKarinPagina { total: number; pagina: number; por_pagina: number; registros: RegistroKarin[] }

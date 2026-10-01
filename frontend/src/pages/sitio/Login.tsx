@@ -96,10 +96,14 @@ export default function Login() {
         </Button>
       </form>
       <div className="flex flex-col gap-2 pt-4 border-t border-line">
-        <span className="text-[13px] text-fg-3">¿Te invitaron al equipo de una empresa?</span>
+        <span className="text-[13px] text-fg-3">¿Te invitaron al equipo de una empresa o te designaron encargado de denuncias?</span>
         <Link to="/equipo"
           className="flex items-center justify-center h-12 rounded-[10px] border border-line text-fg text-[15px] font-medium no-underline hover:no-underline hover:border-line-strong">
           Ingreso del equipo
+        </Link>
+        <Link to="/karin"
+          className="flex items-center justify-center h-12 rounded-[10px] border border-line text-fg text-[15px] font-medium no-underline hover:no-underline hover:border-line-strong">
+          Encargado Ley Karin
         </Link>
       </div>
     </AuthLayout>

@@ -54,6 +54,7 @@ git push origin staging                                    # Railway y Vercel de
 | `DEFAULT_FROM_EMAIL` | p. ej. `Jornada40 Pruebas <noreply@jornada40.cl>` |
 | `ALERTAS_PAGOS_EMAIL` | correo del equipo |
 | `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` | admin de staging (lo crea el arranque) |
+| `KARIN_CLAVES_CIFRADO` | una clave **propia de staging** (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`); obligatoria en Railway |
 | `GEMINI_API_KEY` | opcional (digitalización de contratos) |
 
 6. En el sandbox de Reveniu, webhook → `https://api-staging.jornada40.cl/api/pagos/webhook/reveniu/`.

@@ -31,8 +31,8 @@ const client = axios.create({
  * Si la renovación falla, la sesión terminó: se vuelve al login recordando la
  * página, salvo en las rutas públicas.
  */
-// '/trabajador/': el portal del trabajador tiene su propia sesión (responde 403 sin ella).
-const SIN_RENOVAR = ['/auth/login/', '/auth/equipo/', '/auth/token/refresh/', '/auth/logout/', '/firma-publica/', '/trabajador/',
+// '/trabajador/' y '/karin/': el portal del trabajador y el acceso Ley Karin tienen su propia sesión (responden 403 sin ella).
+const SIN_RENOVAR = ['/auth/login/', '/auth/equipo/', '/karin/', '/auth/token/refresh/', '/auth/logout/', '/firma-publica/', '/trabajador/',
     '/inspeccion/ingreso/', '/inspeccion/verificar/', '/inspeccion/yo/', '/inspeccion/salir/', '/inspeccion/trabajadores/',
     '/inspeccion/documentos/', '/inspeccion/descargar/', '/inspeccion/ratificar/'];
 let renovando: Promise<boolean> | null = null;

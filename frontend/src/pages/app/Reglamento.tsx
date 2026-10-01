@@ -7,6 +7,7 @@ import { AlertaError, Button, Casilla, Chip, Field, Input } from '../../componen
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { BotonEnlace } from '../../components/app/carpeta/comun';
+import { SeccionEncargadoKarin } from '../../components/app/EncargadoKarin';
 import client from '../../api/client';
 import { descargar } from '../../api/descargas';
 import { usePermisos } from '../../hooks/usePermisos';
@@ -71,7 +72,8 @@ function ListaEntrega({ filas }: { filas: EntregaTrabajador[] }) {
 export default function Reglamento() {
   const { empresa, nivel, cargandoPlan } = usePanelContexto();
   // Solo lectura en Seguridad: se ve el estado y se descargan plantilla y reglamento, sin subir ni enviar.
-  const gestionar = usePermisos().puede('SEGURIDAD', true);
+  const { puede, esTitular } = usePermisos();
+  const gestionar = puede('SEGURIDAD', true);
   const reglamento = useQuery({
     queryKey: ['reglamento', empresa.id],
     queryFn: async () => (await client.get<EstadoReglamento>(`/reglamentos/?empresa=${empresa.id}`)).data,
@@ -105,6 +107,8 @@ export default function Reglamento() {
               {reglamento.data.actual && <PasoVigente estado={reglamento.data} />}
               <SeccionRiesgos estado={reglamento.data} />
               {karin.data && <SeccionLeyKarin estado={karin.data} />}
+              {/* Solo el titular designa al encargado: las denuncias no son un módulo del panel. */}
+              {esTitular && <SeccionEncargadoKarin />}
             </>
           )}
     </div>

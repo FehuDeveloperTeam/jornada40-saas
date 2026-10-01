@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 
+from .cifrado import TextoCifrado
 from .contexto import EnEmpresas
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -1506,3 +1507,77 @@ class UsuarioEquipo(models.Model):
     @property
     def ocupa_cupo(self):
         return self.estado in ('INVITADO', 'ACTIVO')
+
+
+class EncargadoKarin(models.Model):
+    """Encargado de recibir y gestionar las denuncias de la Ley Karin (Ley 21.643).
+
+    Lo designa el titular (él mismo, alguien del equipo o un asesor externo) y
+    entra por su propia puerta ("Encargado Ley Karin") con su RUT y una clave
+    propia, con una sesión aparte (cookie `jornada40-karin`): esa sesión no abre
+    el panel y la del panel no abre las denuncias, aunque sea la misma persona.
+    Usa un `User` propio de Django (usuario interno `karin:<cuenta>:<rut>`).
+    Uno por cuenta desde Pyme, fuera del cupo del equipo, más los adicionales.
+    Eliminarlo quita el acceso para siempre; el registro queda por la bitácora."""
+    ESTADOS = [('INVITADO', 'Invitado (aún no crea su clave)'), ('ACTIVO', 'Activo'), ('ELIMINADO', 'Eliminado')]
+    cuenta = models.ForeignKey(User, on_delete=models.PROTECT, related_name='encargados_karin')
+    usuario = models.OneToOneField(User, on_delete=models.PROTECT, related_name='encargado_karin')
+    rut = models.CharField(max_length=12, db_index=True, help_text='Formato 12.345.678-5.')
+    nombres = models.CharField(max_length=100)
+    apellidos = models.CharField(max_length=150, blank=True, default='')
+    correo = models.EmailField()
+    empresas = models.ManyToManyField('Empresa', related_name='encargados_karin', blank=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='INVITADO')
+    # Sube al cambiar la clave o al eliminarlo: invalida las sesiones abiertas.
+    version_sesion = models.PositiveIntegerField(default=1)
+    invitado_en = models.DateTimeField(null=True, blank=True)
+    activado_en = models.DateTimeField(null=True, blank=True)
+    eliminado_en = models.DateTimeField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombres', 'apellidos']
+
+    def __str__(self):
+        return f'{self.nombre_completo} ({self.rut}) · Ley Karin de {self.cuenta.username}'
+
+    # La sesión del encargado usa esta fila como request.user.
+    is_authenticated = True
+    is_anonymous = False
+
+    @property
+    def nombre_completo(self):
+        return f'{self.nombres} {self.apellidos}'.strip()
+
+
+class RegistroKarin(models.Model):
+    """Bitácora reservada del acceso Ley Karin, aparte de la del panel.
+
+    Solo la ven los encargados de la cuenta (y se entrega a la DT si la pide);
+    el titular ve en su bitácora únicamente que hubo actividad, sin detalle.
+    Igual que la bitácora del panel: solo se agregan registros, encadenados con
+    SHA-256 (cambiar o quitar uno se detecta). La descripción va cifrada."""
+    cuenta = models.ForeignKey(User, on_delete=models.PROTECT, related_name='bitacora_karin')
+    encargado = models.ForeignKey(EncargadoKarin, on_delete=models.SET_NULL, null=True, blank=True)
+    actor_nombre = models.CharField(max_length=150)
+    actor_rut = models.CharField(max_length=15, blank=True, default='')
+    accion = models.CharField(max_length=40)
+    descripcion = TextoCifrado()
+    ip = models.CharField(max_length=64, blank=True, default='')
+    creado_en = models.DateTimeField()
+    hash_anterior = models.CharField(max_length=64, blank=True, default='')
+    hash = models.CharField(max_length=64, unique=True)
+
+    objects = _BitacoraQuerySet.as_manager()
+
+    class Meta:
+        ordering = ['id']
+        indexes = [models.Index(fields=['cuenta', 'creado_en'])]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise PermissionError('La bitácora es de solo lectura.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionError('La bitácora es de solo lectura.')

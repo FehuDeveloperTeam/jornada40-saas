@@ -1,0 +1,6 @@
+Hola {{ nombre }}:
+
+{{ cuenta }} te designó encargado de recibir y gestionar las denuncias de la Ley Karin en Jornada40. Es un acceso aparte y reservado: solo tú ves las denuncias. Crea tu clave en este enlace (sirve una sola vez):
+{{ enlace }}
+
+Después entra en {{ ingreso }} con el botón «Encargado Ley Karin», tu RUT y esta clave (distinta de cualquier otra que tengas en Jornada40).

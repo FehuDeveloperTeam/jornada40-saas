@@ -10,6 +10,7 @@ from .views import reglamento
 from .views import ley_karin
 from .views import bitacora as vista_bitacora
 from .views import equipo
+from .views import acceso_karin
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -37,6 +38,7 @@ router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
 router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
 router.register(r'registro-dt', RegistroDTViewSet, basename='registro_dt')
 router.register(r'equipo', equipo.EquipoViewSet, basename='equipo')
+router.register(r'encargados-karin', acceso_karin.EncargadoKarinViewSet, basename='encargado_karin')
 router.register(r'ley-karin', ley_karin.LeyKarinViewSet, basename='ley_karin')
 router.register(r'reglamentos', reglamento.ReglamentoViewSet, basename='reglamento')
 router.register(r'documentos-laborales', documentos_laborales.DocumentoLaboralViewSet, basename='documento_laboral')
@@ -102,6 +104,15 @@ urlpatterns = [
     path('auth/equipo/recuperar/', equipo.recuperar_equipo, name='recuperar_equipo'),
     path('auth/equipo/clave/', equipo.clave_equipo, name='clave_equipo'),
     path('auth/sesion/', equipo.sesion, name='sesion'),
+    # Acceso Ley Karin: puerta y sesión propias (cookie jornada40-karin), nunca el JWT del panel.
+    path('karin/ingresar/', acceso_karin.ingresar, name='karin_ingresar'),
+    path('karin/recuperar/', acceso_karin.recuperar, name='karin_recuperar'),
+    path('karin/clave/', acceso_karin.crear_clave, name='karin_clave'),
+    path('karin/yo/', acceso_karin.yo, name='karin_yo'),
+    path('karin/salir/', acceso_karin.salir, name='karin_salir'),
+    path('karin/cambiar-clave/', acceso_karin.cambiar_clave, name='karin_cambiar_clave'),
+    path('karin/bitacora/', acceso_karin.bitacora, name='karin_bitacora'),
+    path('karin/bitacora/verificar/', acceso_karin.verificar_bitacora, name='karin_bitacora_verificar'),
     path('bitacora/verificar/', vista_bitacora.verificar_bitacora, name='verificar_bitacora'),
     path('bitacora/exportar/', vista_bitacora.exportar_bitacora, name='exportar_bitacora'),
     path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
