@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Banknote, CircleAlert, Clock, FileSignature, FileWarning, Inbox, Landmark, Lock, Signature, TriangleAlert, Users,
+  Banknote, CircleAlert, Clock, FileSignature, FileWarning, Inbox, Landmark, Lock, ShieldAlert, Signature, TriangleAlert, Users,
 } from 'lucide-react';
 import client from '../../api/client';
 import { lista } from '../../api/lista';
@@ -15,7 +15,7 @@ import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
 import {
   rutaAccion, useFirmas, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useVacacionesEmpresa,
 } from '../../hooks/usePanel';
-import type { Empleado, Liquidacion, ModuloPanel, SolicitudFirma } from '../../types';
+import type { Empleado, Liquidacion, ModuloPanel, ResumenKarinEmpresa, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes } from '../../utils/formato';
 // Solo el calendario de la ley, para mostrarlo; el máximo vigente lo informa el backend.
@@ -59,7 +59,13 @@ export default function Inicio() {
   const { user } = useAuth();
   const navigate = useNavigate();
   // Un usuario del equipo solo ve (y consulta) lo de sus módulos.
-  const { puede } = usePermisos();
+  const { puede, esTitular } = usePermisos();
+  // Ley Karin: el titular ve solo cuántas denuncias tienen plazos vencidos (nunca su contenido).
+  const karin = useQuery({
+    queryKey: ['encargados-karin', 'resumen'],
+    queryFn: async () => (await client.get<{ empresas: ResumenKarinEmpresa[] }>('/encargados-karin/resumen/')).data,
+    enabled: esTitular && nivel >= 3,
+  });
   const verRemuneraciones = puede('REMUNERACIONES');
   const verVacaciones = puede('VACACIONES');
   const firmas = useFirmas(puede(MODULOS_DOCUMENTOS));
@@ -130,6 +136,13 @@ export default function Inicio() {
         titulo: `${n} ${n === 1 ? 'registro en la DT vencido' : 'registros en la DT vencidos'}`,
         detalle: 'Contratos, anexos o términos que debían registrarse en Mi DT y siguen pendientes.',
         accion: 'Revisar', a: '/app/dt' });
+    }
+    const karinVencidas = (karin.data?.empresas ?? []).find((x) => x.id === empresa.id)?.vencidas ?? 0;
+    if (karinVencidas) {
+      t.push({ clave: 'karin-vencidas', Icono: ShieldAlert, tono: 'peligro',
+        titulo: `Ley Karin: ${karinVencidas} ${karinVencidas === 1 ? 'denuncia tiene' : 'denuncias tienen'} un plazo vencido`,
+        detalle: 'Consulte al encargado de denuncias, sin pedirle detalles: el contenido es reservado.',
+        accion: 'Ver', a: '/app/reglamento' });
     }
     const pedidas = (solicitudesDoc.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
     if (pedidas) {

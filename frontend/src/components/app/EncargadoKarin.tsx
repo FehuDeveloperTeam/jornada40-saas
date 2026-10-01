@@ -7,7 +7,7 @@ import client from '../../api/client';
 import { AlertaError, Button, CampoRut, Casilla, Chip, Drawer, Field, Input, Modal } from '../j40';
 import { usePanelContexto } from './AppShell';
 import { useEmpresaActiva } from '../../hooks/usePanel';
-import type { EncargadoKarin, EncargadosKarinCuenta } from '../../types';
+import type { EncargadoKarin, EncargadosKarinCuenta, ResumenKarinEmpresa } from '../../types';
 import { capitalizar, fechaCL } from '../../utils/formato';
 import { validateRut } from '../../utils/rutUtils';
 
@@ -26,6 +26,11 @@ export function SeccionEncargadoKarin() {
   const datos = useQuery({
     queryKey: ['encargados-karin'],
     queryFn: async () => (await client.get<EncargadosKarinCuenta>('/encargados-karin/')).data,
+  });
+  // Solo cifras: el contenido de las denuncias es reservado del encargado.
+  const resumen = useQuery({
+    queryKey: ['encargados-karin', 'resumen'],
+    queryFn: async () => (await client.get<{ empresas: ResumenKarinEmpresa[] }>('/encargados-karin/resumen/')).data,
   });
   const [designando, setDesignando] = useState(false);
   const [apertura, setApertura] = useState(0);
@@ -108,6 +113,19 @@ export function SeccionEncargadoKarin() {
           </div>
         </div>
       ))}
+      {(resumen.data?.empresas ?? []).some((e) => e.abiertas > 0) && (
+        <div className="flex flex-col gap-2 p-4 rounded-[10px] bg-sunken">
+          <h3 className="text-[15.5px] font-semibold">Denuncias en curso</h3>
+          {resumen.data!.empresas.filter((e) => e.abiertas > 0).map((e) => (
+            <p key={e.id} className="text-[15px]">
+              {capitalizar(e.nombre)}: {e.abiertas} {e.abiertas === 1 ? 'abierta' : 'abiertas'}
+              {e.vencidas > 0 && <span className="text-danger font-semibold"> · {e.vencidas} con plazo vencido</span>}
+              {e.por_vencer > 0 && <span className="text-warn font-semibold"> · {e.por_vencer} por vencer</span>}
+            </p>
+          ))}
+          <p className="text-[13px] text-fg-3">Usted ve solo cifras. Si hay plazos vencidos, consulte al encargado sin pedirle detalles: la empresa pierde la protección legal si no cumple el procedimiento.</p>
+        </div>
+      )}
       <p className="text-[13px] text-fg-3">
         Su plan incluye {cupo === 1 ? 'un encargado' : `${cupo} encargados`}, aparte de los usuarios del equipo. El encargado entra en
         jornada40.cl/karin con su RUT y su propia clave.

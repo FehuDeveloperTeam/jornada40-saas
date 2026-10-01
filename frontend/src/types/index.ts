@@ -1057,3 +1057,70 @@ export interface SesionKarin {
 
 export interface RegistroKarin { id: number; fecha: string; actor: string; accion: string; descripcion: string; ip: string }
 export interface BitacoraKarinPagina { total: number; pagina: number; por_pagina: number; registros: RegistroKarin[] }
+
+// ── Denuncias Ley Karin (acceso del encargado) ──
+
+export type EstadoPlazoKarin = 'CUMPLIDO' | 'VENCIDO' | 'POR_VENCER' | 'PENDIENTE' | 'ESPERA';
+export interface PlazoKarin { clave: string; texto: string; norma: string; vence: string | null; cumplido: string | null; estado: EstadoPlazoKarin }
+
+export interface PersonaKarin { nombre: string; rut: string; cargo: string; correo?: string; vinculo?: string; empleado_id?: number }
+
+export interface DenunciaKarinFila {
+    id: number;
+    folio: string;
+    empresa: string;
+    tipo: string;
+    tipo_texto: string;
+    estado: string;
+    estado_texto: string;
+    recibida_en: string;
+    siguiente: PlazoKarin | null;
+}
+
+export interface ParticipanteKarin {
+    id: string;
+    nombre: string;
+    rut: string;
+    rol: string;
+    citacion: { fecha: string; hora: string; lugar: string } | null;
+    declaro_en: string | null;
+}
+
+export interface InformeKarin {
+    hechos: string;
+    fundamentos: string;
+    conclusion: string;
+    medidas_correctivas: string[];
+    sanciones: { persona: number; sancion: string }[];
+    imparcialidad: string;
+}
+
+export interface ArchivoKarin { id: number; tipo: string; tipo_texto: string; participante: string; nombre: string; tamano: number; subido_en: string }
+
+export interface DenunciaKarinDetalle extends Omit<DenunciaKarinFila, 'empresa'> {
+    empresa: { id: number; nombre: string; rut: string };
+    canal: string;
+    canal_texto: string;
+    pide_derivar_dt: boolean;
+    datos: { afectada: PersonaKarin; denunciante: PersonaKarin | null; representacion: string; denunciados: PersonaKarin[]; relato: string };
+    resguardo: { tipo: string; aplica_a: string; fecha: string }[];
+    investigacion: { investigador?: PersonaKarin & { externo?: boolean }; participantes?: ParticipanteKarin[]; antecedentes?: string[] };
+    informe: InformeKarin | null;
+    medidas: { sanciones: { persona: number; sancion: string }[]; correctivas: string[] } | null;
+    hitos: Record<string, string>;
+    plazos: PlazoKarin[];
+    derivacion_obligatoria: string;
+    avisos: string[];
+    archivos: ArchivoKarin[];
+}
+
+export interface OpcionKarin { valor: string; texto: string }
+export interface CatalogosKarin {
+    tipos: OpcionKarin[]; canales: OpcionKarin[]; vinculos: OpcionKarin[]; representaciones: OpcionKarin[];
+    resguardos: OpcionKarin[]; aplica_a: OpcionKarin[]; roles: OpcionKarin[]; antecedentes: OpcionKarin[];
+    conclusiones: OpcionKarin[]; medidas_correctivas: OpcionKarin[]; sanciones: OpcionKarin[]; resultados_dt: OpcionKarin[];
+    archivos: OpcionKarin[]; documentos: (OpcionKarin & { participante: boolean })[];
+    empresas: { id: number; nombre: string }[];
+}
+
+export interface ResumenKarinEmpresa { id: number; nombre: string; abiertas: number; vencidas: number; por_vencer: number; proximo_vence: string | null }

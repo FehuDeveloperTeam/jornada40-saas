@@ -1,98 +1,101 @@
 import { useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import type { FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Building2, Inbox, KeyRound, LogOut, ScrollText, ShieldCheck, ShieldX } from 'lucide-react';
+import { Building2, Inbox, KeyRound, Plus, ScrollText, ShieldCheck, ShieldX } from 'lucide-react';
 import client from '../../api/client';
-import { AlertaError, Button, InputContrasena, J40Root, Logo, MedidorContrasena, ToggleTema } from '../../components/j40';
-import type { BitacoraKarinPagina, SesionKarin } from '../../types';
+import { AlertaError, Button, InputContrasena, MedidorContrasena } from '../../components/j40';
+import { useKarin } from '../../components/karin/KarinShell';
+import { Seccion } from '../../components/karin/comun';
+import type { BitacoraKarinPagina, DenunciaKarinFila, EstadoPlazoKarin } from '../../types';
+import { cn } from '../../utils/cn';
+import { fechaCL } from '../../utils/formato';
 import { contrasenaAceptable } from '../../utils/contrasena';
 
 const mensaje = (err: unknown, porDefecto: string) =>
   (isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || porDefecto;
 
-function Seccion({ titulo, icono, children }: { titulo: string; icono: ReactNode; children: ReactNode }) {
+
+/**
+ * Panel del encargado de denuncias Ley Karin (dentro de KarinShell). No ve
+ * nada más del sistema, y desde el panel de la empresa no se ve esto.
+ */
+export default function PanelKarin() {
+  const { yo } = useKarin();
   return (
-    <section className="bg-surface border border-line rounded-j40-card shadow-card p-5 flex flex-col gap-4">
-      <h2 className="flex items-center gap-3 text-[18px] font-semibold">{icono}{titulo}</h2>
-      {children}
-    </section>
+    <>
+      <div>
+        <h1 className="text-[clamp(22px,2.6vw,28px)] font-semibold tracking-[-0.015em]">Hola, {yo.nombre.split(' ')[0]}</h1>
+        <p className="text-[15px] text-fg-3 mt-1">Encargado de denuncias Ley Karin de {yo.cuenta}.</p>
+      </div>
+      <p className="flex gap-2.5 items-start rounded-[10px] bg-brand-soft text-brand-text px-4 py-3 text-[14.5px] leading-relaxed">
+        <ShieldCheck className="size-5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+        Este acceso es reservado (Art. 211-C del Código del Trabajo): lo que registres aquí no lo ven el titular ni su
+        equipo. El titular solo sabe cuántas denuncias hay y si sus plazos vencen, sin detalle.
+      </p>
+
+      <ListaDenuncias />
+
+      <Seccion titulo="Empresas a tu cargo" icono={<Building2 className="size-6 text-brand" strokeWidth={2} aria-hidden />}>
+        <ul className="flex flex-col">
+          {yo.empresas.map((e) => (
+            <li key={e.id} className="flex justify-between gap-3 py-2.5 border-b border-line last:border-b-0 text-[15px]">
+              <span>{e.nombre}</span><span className="text-fg-3 j40-mono text-[13.5px]">{e.rut}</span>
+            </li>
+          ))}
+        </ul>
+      </Seccion>
+
+      <BitacoraReservada />
+      <CambiarClave />
+    </>
   );
 }
 
-/**
- * Panel del encargado de denuncias Ley Karin. Usa solo la sesión del acceso
- * Ley Karin (`/api/karin/…`): no ve nada más del sistema, y desde el panel de
- * la empresa no se ve esto.
- */
-export default function PanelKarin() {
+const TONO_PLAZO: Record<EstadoPlazoKarin, string> = {
+  VENCIDO: 'text-danger', POR_VENCER: 'text-warn', PENDIENTE: 'text-fg-2', ESPERA: 'text-fg-3', CUMPLIDO: 'text-ok',
+};
+
+function ListaDenuncias() {
   const navigate = useNavigate();
-  const sesion = useQuery({
-    queryKey: ['karin', 'yo'],
-    queryFn: async () => (await client.get<SesionKarin>('/karin/yo/')).data,
-    retry: false,
+  const lista = useQuery({
+    queryKey: ['karin', 'denuncias'],
+    queryFn: async () => (await client.get<DenunciaKarinFila[]>('/karin/denuncias/')).data,
   });
-
-  if (sesion.isLoading) {
-    return <J40Root className="min-h-dvh grid place-items-center bg-canvas"><p className="text-[15px] text-fg-3" role="status">Cargando…</p></J40Root>;
-  }
-  if (sesion.isError || !sesion.data) {
-    const sinSesion = isAxiosError(sesion.error) && [401, 403].includes(sesion.error.response?.status ?? 0);
-    if (sinSesion) return <Navigate to="/karin" replace />;
-    return (
-      <J40Root className="min-h-dvh grid place-items-center bg-canvas px-4">
-        <AlertaError>No pudimos conectar con Jornada40. Recarga la página en un momento.</AlertaError>
-      </J40Root>
-    );
-  }
-  const yo = sesion.data;
-
-  const salir = async () => {
-    try { await client.post('/karin/salir/', {}); } catch { /* la cookie vence sola */ }
-    navigate('/karin', { replace: true });
-  };
-
+  const abiertas = (lista.data ?? []).filter((d) => d.estado !== 'CERRADA');
+  const cerradas = (lista.data ?? []).filter((d) => d.estado === 'CERRADA');
+  const fila = (d: DenunciaKarinFila) => (
+    <li key={d.id}>
+      <Link to={`/karin/denuncias/${d.id}`}
+        className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3.5 px-1 border-b border-line text-fg no-underline hover:no-underline hover:bg-surface-2">
+        <span className="j40-mono text-[14px] font-semibold w-[118px]">{d.folio}</span>
+        <span className="flex-[1_1_220px] min-w-0 flex flex-col">
+          <span className="text-[15px] font-medium">{d.tipo_texto} · {d.empresa}</span>
+          <span className="text-[13px] text-fg-3">Recibida el {fechaCL(d.recibida_en)} · {d.estado_texto}</span>
+        </span>
+        {d.siguiente && (
+          <span className={cn('text-[13.5px] font-medium flex-[1_1_220px]', TONO_PLAZO[d.siguiente.estado])}>
+            {d.siguiente.estado === 'VENCIDO' ? 'Vencido: ' : ''}{d.siguiente.texto}{d.siguiente.vence ? ` · ${fechaCL(d.siguiente.vence)}` : ''}
+          </span>
+        )}
+      </Link>
+    </li>
+  );
   return (
-    <J40Root className="min-h-dvh bg-canvas">
-      <header className="border-b border-line bg-surface">
-        <div className="max-w-[900px] mx-auto px-4 h-16 flex items-center gap-3">
-          <Logo tamano={28} />
-          <span className="text-[15px] font-semibold text-fg-2 hidden min-[520px]:inline">Acceso Ley Karin</span>
-          <span className="flex-1" />
-          <ToggleTema />
-          <Button variante="secundario" onClick={() => void salir()} iconoInicio={<LogOut className="size-4" strokeWidth={2} />}>Salir</Button>
-        </div>
-      </header>
-      <main className="max-w-[900px] mx-auto px-4 py-8 flex flex-col gap-5 pb-20">
-        <div>
-          <h1 className="text-[clamp(22px,2.6vw,28px)] font-semibold tracking-[-0.015em]">Hola, {yo.nombre.split(' ')[0]}</h1>
-          <p className="text-[15px] text-fg-3 mt-1">Encargado de denuncias Ley Karin de {yo.cuenta}.</p>
-        </div>
-        <p className="flex gap-2.5 items-start rounded-[10px] bg-brand-soft text-brand-text px-4 py-3 text-[14.5px] leading-relaxed">
-          <ShieldCheck className="size-5 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
-          Este acceso es reservado (Art. 211-C del Código del Trabajo): lo que registres aquí no lo ven el titular ni su
-          equipo. El titular solo sabe que hubo actividad, sin detalle.
-        </p>
-
-        <Seccion titulo="Denuncias" icono={<Inbox className="size-6 text-brand" strokeWidth={2} aria-hidden />}>
-          <p className="text-[15px] text-fg-2">No hay denuncias registradas.</p>
-        </Seccion>
-
-        <Seccion titulo="Empresas a tu cargo" icono={<Building2 className="size-6 text-brand" strokeWidth={2} aria-hidden />}>
-          <ul className="flex flex-col">
-            {yo.empresas.map((e) => (
-              <li key={e.id} className="flex justify-between gap-3 py-2.5 border-b border-line last:border-b-0 text-[15px]">
-                <span>{e.nombre}</span><span className="text-fg-3 j40-mono text-[13.5px]">{e.rut}</span>
-              </li>
-            ))}
-          </ul>
-        </Seccion>
-
-        <BitacoraReservada />
-        <CambiarClave />
-      </main>
-    </J40Root>
+    <Seccion titulo="Denuncias" icono={<Inbox className="size-6 text-brand" strokeWidth={2} aria-hidden />}>
+      <Button tamano="lg" className="self-start" onClick={() => navigate('/karin/denuncias/nueva')}
+        iconoInicio={<Plus className="size-5" strokeWidth={2} />}>Registrar denuncia</Button>
+      {lista.isLoading && <p className="text-[15px] text-fg-3" role="status">Cargando…</p>}
+      {lista.data && lista.data.length === 0 && <p className="text-[15px] text-fg-2">No hay denuncias registradas.</p>}
+      {abiertas.length > 0 && <ul className="flex flex-col">{abiertas.map(fila)}</ul>}
+      {cerradas.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-[14.5px] text-fg-2">Cerradas ({cerradas.length})</summary>
+          <ul className="flex flex-col mt-2">{cerradas.map(fila)}</ul>
+        </details>
+      )}
+    </Seccion>
   );
 }
 
