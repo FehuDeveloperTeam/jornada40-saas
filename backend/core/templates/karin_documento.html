@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ titulo }}</title>
+    <style>
+        @page {
+            size: letter; margin: 2.2cm 2cm 2.4cm 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: pie;
+                bottom: 0.9cm; margin-left: 2cm; margin-right: 2cm; height: 1.1cm;
+            }
+        }
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 10.5pt; line-height: 1.5; color: #222; }
+        .cab { width: 100%; margin-bottom: 10px; }
+        .cab td { vertical-align: top; font-size: 9.5pt; }
+        h1 { text-align: center; font-size: 13pt; margin: 6px 0 2px 0; text-transform: uppercase; }
+        .sub { text-align: center; font-size: 9pt; color: #555; margin-bottom: 14px; }
+        h2 { font-size: 11pt; margin: 14px 0 4px 0; border-bottom: 0.6px solid #999; }
+        p { margin: 0 0 7px 0; text-align: justify; }
+        table.datos { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+        table.datos td { border: 0.6px solid #aaa; padding: 3px 5px; vertical-align: top; font-size: 9.5pt; }
+        table.datos td.k { width: 32%; background: #f2f4f7; font-weight: bold; }
+        .reserva { font-size: 8.5pt; color: #555; border: 0.6px solid #bbb; padding: 5px 7px; margin-top: 10px; }
+        .linea { border-bottom: 0.6px solid #888; height: 22px; }
+        .firmas { width: 100%; margin-top: 60px; }
+        .firmas td { width: 50%; text-align: center; font-size: 9.5pt; padding: 0 10px; }
+        .firma { border-top: 1px solid #000; padding-top: 4px; }
+        #pie { font-size: 7.5pt; color: #777; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="pie">{{ folio }} · Documento reservado (Art. 211-C del Código del Trabajo) · Generado con Jornada40 el {{ generado }} · Página <pdf:pagenumber/> de <pdf:pagecount/></div>
+    <table class="cab">
+        <tr>
+            <td style="width:60%;"><b>{{ empresa.nombre_legal }}</b><br>RUT {{ empresa.rut }}{% if empresa_correo %} · {{ empresa_correo }}{% endif %}<br>{{ empresa_direccion }}</td>
+            <td style="width:40%; text-align:right;">Expediente <b>{{ folio }}</b><br>{{ ciudad }}, {{ fecha }}</td>
+        </tr>
+    </table>
+    <h1>{{ titulo }}</h1>
+    {% if subtitulo %}<div class="sub">{{ subtitulo }}</div>{% endif %}
+    {% for s in secciones %}
+        {% if s.titulo %}<h2>{{ s.titulo }}</h2>{% endif %}
+        {% for p in s.parrafos %}<p>{{ p|linebreaksbr }}</p>{% endfor %}
+        {% if s.filas %}
+        <table class="datos">{% for k, v in s.filas %}<tr><td class="k">{{ k }}</td><td>{{ v|linebreaksbr }}</td></tr>{% endfor %}</table>
+        {% endif %}
+        {% if s.lineas %}{% for x in s.lineas %}<div class="linea"></div>{% endfor %}{% endif %}
+    {% endfor %}
+    {% if firmas %}
+    <table class="firmas"><tr>{% for f in firmas %}<td><div class="firma">{{ f.nombre }}<br>{{ f.detalle }}</div></td>{% endfor %}</tr></table>
+    {% endif %}
+    <div class="reserva">{{ nota }}</div>
+</body>
+</html>

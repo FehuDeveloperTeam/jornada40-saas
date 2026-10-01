@@ -213,3 +213,29 @@ class DenunciasKarinTests(APITestCase):
         ajeno = crear_empleado(self.otra, '9.876.543-3')
         afectada = {**DENUNCIA['afectada'], 'empleado_id': ajeno.id}
         self.assertEqual(self._crear(afectada=afectada).status_code, 400)
+
+    def test_documentos(self):
+        pk = self._crear(canal='VERBAL').data['id']
+        url = f'/api/karin/denuncias/{pk}'
+        for tipo in ('RECEPCION', 'ACTA_VERBAL', 'RESGUARDO', 'ANTECEDENTES_DT'):
+            r = self.c.get(f'{url}/documento/?tipo={tipo}')
+            self.assertEqual(r.status_code, 200, tipo)
+            self.assertTrue(r.content.startswith(b'%PDF'))
+        self.assertEqual(self.c.get(f'{url}/documento/?tipo=INFORME').status_code, 400)       # aún no corresponde
+        self.assertEqual(self.c.get(f'{url}/documento/?tipo=OTRO').status_code, 400)
+        hoy = timezone.localdate().isoformat()
+        self.c.post(f'{url}/decidir/', {'decision': 'INTERNA', 'fecha': hoy}, format='json')
+        self.c.post(f'{url}/investigador/', {'nombre': 'Pedro Lagos', 'rut': '11.111.111-1', 'correo': 'p@x.cl'},
+                    format='json')
+        pid = self.c.post(f'{url}/participantes/', {'nombre': 'Testigo Uno', 'rol': 'TESTIGO'},
+                          format='json').data['investigacion']['participantes'][0]['id']
+        self.assertEqual(self.c.get(f'{url}/documento/?tipo=CITACION&participante={pid}').status_code, 400)
+        manana = (timezone.localdate() + datetime.timedelta(days=1)).isoformat()
+        self.c.post(f'{url}/participantes/', {'id': pid, 'citacion': {'fecha': manana, 'hora': '09:00', 'lugar': 'Sala'}},
+                    format='json')
+        for tipo in ('DECISION', 'CITACION', 'ACTA_DECLARACION'):
+            self.assertEqual(self.c.get(f'{url}/documento/?tipo={tipo}&participante={pid}').status_code, 200, tipo)
+        self.c.post(f'{url}/informe/', {'hechos': 'H', 'fundamentos': 'F', 'conclusion': 'NO_ACREDITADO'}, format='json')
+        r = self.c.get(f'{url}/documento/?tipo=INFORME')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(RegistroKarin.objects.filter(accion='DESCARGA').count(), 8)

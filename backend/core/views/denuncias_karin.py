@@ -20,6 +20,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from .. import denuncias_karin as dk
+from .. import documentos_karin
 from ..cifrado import cifrar_bytes, descifrar_bytes
 from ..karin import registrar_karin
 from ..models import ArchivoKarin, DenunciaKarin, Empresa
@@ -134,6 +135,8 @@ class DenunciaKarinViewSet(viewsets.ViewSet):
             'antecedentes': _catalogo(dk.ANTECEDENTES), 'conclusiones': _catalogo(dk.CONCLUSIONES),
             'medidas_correctivas': _catalogo(dk.MEDIDAS_CORRECTIVAS), 'sanciones': _catalogo(dk.SANCIONES),
             'resultados_dt': _catalogo(dk.RESULTADOS_DT), 'archivos': _catalogo(ArchivoKarin.TIPOS),
+            'documentos': [{'valor': v, 'texto': t, 'participante': v in documentos_karin.CON_PARTICIPANTE}
+                           for v, t in documentos_karin.TIPOS.items()],
             'empresas': [{'id': e.id, 'nombre': e.alias or e.nombre_legal}
                          for e in request.user.empresas.filter(activo=True).order_by('nombre_legal')],
         })
@@ -409,6 +412,23 @@ class DenunciaKarinViewSet(viewsets.ViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         d.hitos = {**d.hitos, 'cerrada_en': fecha.isoformat()}
         return self._guardar(request, d, 'Cerró el expediente', ['hitos'])
+
+    # ── documentos (PDF al vuelo, no se guardan) ──
+    @action(detail=True, methods=['get'])
+    def documento(self, request, pk=None):
+        d, error = self._obtener(request, pk)
+        if error:
+            return error
+        tipo = request.query_params.get('tipo', '')
+        try:
+            titulo, contenido = documentos_karin.pdf(d, tipo, request.query_params.get('participante', ''),
+                                                     request.user)
+        except documentos_karin.DocumentoNoDisponible as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        self._registrar(request, d, f'Descargó: {titulo.lower()}', accion='DESCARGA')
+        respuesta = HttpResponse(contenido, content_type='application/pdf')
+        respuesta['Content-Disposition'] = f'attachment; filename="{d.folio}_{tipo.lower()}.pdf"'
+        return respuesta
 
     # ── archivos (cifrados) ──
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
