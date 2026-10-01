@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 
-from .cifrado import TextoCifrado
+from .cifrado import JSONCifrado, TextoCifrado
 from .contexto import EnEmpresas
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -1533,6 +1533,8 @@ class EncargadoKarin(models.Model):
     invitado_en = models.DateTimeField(null=True, blank=True)
     activado_en = models.DateTimeField(null=True, blank=True)
     eliminado_en = models.DateTimeField(null=True, blank=True)
+    # Último recordatorio diario de plazos enviado (no repetir el mismo día).
+    aviso_plazos_en = models.DateField(null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1581,3 +1583,78 @@ class RegistroKarin(models.Model):
 
     def delete(self, *args, **kwargs):
         raise PermissionError('La bitácora es de solo lectura.')
+
+
+class DenunciaKarin(models.Model):
+    """Denuncia de acoso sexual, acoso laboral o violencia en el trabajo (Ley 21.643, DS 21 de 2024).
+
+    Solo la ven los encargados Ley Karin de la empresa (estricta reserva, Art.
+    211-C). Todo lo que identifica a personas o relata hechos va cifrado
+    (`datos`, `resguardo`, `investigacion`, `informe`, `medidas`); `hitos` guarda
+    solo fechas y decisiones, con las que el backend calcula los plazos. El
+    titular ve únicamente cuántas hay y sus plazos (sin contenido)."""
+    TIPOS = [('ACOSO_SEXUAL', 'Acoso sexual'), ('ACOSO_LABORAL', 'Acoso laboral'),
+             ('VIOLENCIA', 'Violencia en el trabajo ejercida por terceros')]
+    CANALES = [('ESCRITA', 'Por escrito'), ('VERBAL', 'Verbal (se levanta acta)'),
+               ('ELECTRONICA', 'Por correo u otro medio electrónico')]
+    ESTADOS = [('RECIBIDA', 'Recibida'), ('INVESTIGACION', 'En investigación interna'),
+               ('DERIVADA_DT', 'Derivada a la Dirección del Trabajo'), ('INFORME', 'Informe emitido'),
+               ('REVISION_DT', 'Informe en revisión de la DT'), ('MEDIDAS', 'Aplicar medidas'),
+               ('CERRADA', 'Cerrada')]
+    cuenta = models.ForeignKey(User, on_delete=models.PROTECT, related_name='denuncias_karin')
+    empresa = models.ForeignKey('Empresa', on_delete=models.PROTECT, related_name='denuncias_karin')
+    numero = models.PositiveIntegerField(help_text='Correlativo por empresa.')
+    tipo = models.CharField(max_length=15, choices=TIPOS)
+    canal = models.CharField(max_length=12, choices=CANALES)
+    recibida_en = models.DateTimeField()
+    registrada_por = models.ForeignKey(EncargadoKarin, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='denuncias_registradas')
+    estado = models.CharField(max_length=15, choices=ESTADOS, default='RECIBIDA')
+    pide_derivar_dt = models.BooleanField(default=False)
+    # Persona afectada, denunciante (si es otra), denunciados y relato (Art. 11 DS 21).
+    datos = JSONCifrado()
+    # Medidas de resguardo (Art. 13): [{tipo, aplica_a, fecha}].
+    resguardo = JSONCifrado(null=True, blank=True)
+    # Investigador, participantes con citaciones y antecedentes revisados (Arts. 14 y 15).
+    investigacion = JSONCifrado(null=True, blank=True)
+    # Contenido del informe que no sale de otros datos (Art. 16 f a i).
+    informe = JSONCifrado(null=True, blank=True)
+    # Medidas y sanciones aplicadas (Arts. 19 a 22).
+    medidas = JSONCifrado(null=True, blank=True)
+    # Solo fechas y decisiones (sin contenido): alimentan los plazos y el contador del titular.
+    hitos = models.JSONField(default=dict, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-recibida_en']
+        constraints = [models.UniqueConstraint(fields=['empresa', 'numero'], name='denuncia_karin_numero_unico')]
+
+    @property
+    def folio(self):
+        return f'LK-{timezone.localtime(self.recibida_en).year}-{self.numero:03d}'
+
+    def __str__(self):
+        return f'{self.folio} · {self.empresa}'
+
+
+class ArchivoKarin(models.Model):
+    """Archivo de un expediente Ley Karin (escaneo de un acta firmada, denuncia escrita…).
+    Se guarda cifrado en B2; aquí quedan su nombre (cifrado), tamaño y huella."""
+    TIPOS = [('DENUNCIA_ESCRITA', 'Denuncia escrita'), ('ACTA_VERBAL', 'Acta de denuncia verbal firmada'),
+             ('ACTA_DECLARACION', 'Acta de declaración firmada'), ('ANTECEDENTE', 'Antecedente de la investigación'),
+             ('COMPROBANTE_DT', 'Comprobante o certificado de la DT'), ('PRONUNCIAMIENTO_DT', 'Pronunciamiento de la DT'),
+             ('NOTIFICACION', 'Comunicación o notificación firmada')]
+    denuncia = models.ForeignKey(DenunciaKarin, on_delete=models.PROTECT, related_name='archivos')
+    tipo = models.CharField(max_length=20, choices=TIPOS)
+    participante = models.CharField(max_length=12, blank=True, default='')
+    nombre = TextoCifrado()
+    clave = models.CharField(max_length=200)
+    tamano = models.PositiveIntegerField()
+    huella = models.CharField(max_length=64, help_text='SHA-256 del archivo original.')
+    subido_por = models.ForeignKey(EncargadoKarin, on_delete=models.SET_NULL, null=True, blank=True)
+    subido_en = models.DateTimeField(auto_now_add=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['subido_en']

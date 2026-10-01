@@ -103,3 +103,15 @@ class JSONCifrado(models.TextField):
         if value is None:
             return None
         return cifrar(json.dumps(value, ensure_ascii=False, sort_keys=True))
+
+
+def cifrar_bytes(datos: bytes) -> bytes:
+    """Archivos (p. ej. actas escaneadas) antes de subirlos al almacenamiento."""
+    return _fernet().encrypt(datos)
+
+
+def descifrar_bytes(datos: bytes) -> bytes:
+    try:
+        return _fernet().decrypt(datos)
+    except InvalidToken as e:
+        raise ImproperlyConfigured('No se pudo descifrar un archivo: la clave no corresponde (KARIN_CLAVES_CIFRADO).') from e

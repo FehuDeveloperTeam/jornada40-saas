@@ -11,6 +11,7 @@ from .views import ley_karin
 from .views import bitacora as vista_bitacora
 from .views import equipo
 from .views import acceso_karin
+from .views import denuncias_karin
 from rest_framework.routers import DefaultRouter
 from django.views.generic import TemplateView
 from .views import (
@@ -39,6 +40,7 @@ router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
 router.register(r'registro-dt', RegistroDTViewSet, basename='registro_dt')
 router.register(r'equipo', equipo.EquipoViewSet, basename='equipo')
 router.register(r'encargados-karin', acceso_karin.EncargadoKarinViewSet, basename='encargado_karin')
+router.register(r'karin/denuncias', denuncias_karin.DenunciaKarinViewSet, basename='denuncia_karin')
 router.register(r'ley-karin', ley_karin.LeyKarinViewSet, basename='ley_karin')
 router.register(r'reglamentos', reglamento.ReglamentoViewSet, basename='reglamento')
 router.register(r'documentos-laborales', documentos_laborales.DocumentoLaboralViewSet, basename='documento_laboral')
