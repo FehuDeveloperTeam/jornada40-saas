@@ -14,7 +14,7 @@ import { usePanelContexto } from '../../components/app/AppShell';
 import { useAuth } from '../../context/AuthContext';
 import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
 import {
-  rutaAccion, useFirmas, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useVacacionesEmpresa,
+  rutaAccion, useFirmas, useIndicadores, usePeticionesPanel, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useVacacionesEmpresa,
 } from '../../hooks/usePanel';
 import type { Empleado, Liquidacion, ModuloPanel, ResumenKarinEmpresa, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
@@ -74,6 +74,7 @@ export default function Inicio() {
   // Plazos de registro en Mi DT y consentimientos: si falla, Inicio se ve igual sin esos avisos.
   const registroDT = useRegistroDT(empresa.id, puede('DIRECCION_TRABAJO'));
   const solicitudesDoc = useSolicitudesDocumento(empresa.id, puede('SOLICITUDES'));
+  const peticiones = usePeticionesPanel(empresa.id, puede(['VACACIONES', 'TRABAJADORES']));
   const hoy = new Date();
   const mes = hoy.getMonth() + 1;
   const anio = hoy.getFullYear();
@@ -144,6 +145,14 @@ export default function Inicio() {
         titulo: `Ley Karin: ${karinVencidas} ${karinVencidas === 1 ? 'denuncia tiene' : 'denuncias tienen'} un plazo vencido`,
         detalle: 'Consulte al encargado de denuncias, sin pedirle detalles: el contenido es reservado.',
         accion: 'Ver', a: '/app/reglamento' });
+    }
+    const pt = peticiones.data;
+    const porResponder = pt ? pt.vacaciones.length + pt.permisos.length + pt.conciliacion.length : 0;
+    if (porResponder) {
+      t.push({ clave: 'peticiones-portal', Icono: Inbox, tono: 'aviso',
+        titulo: `${porResponder} ${porResponder === 1 ? 'solicitud' : 'solicitudes'} de vacaciones, permisos o conciliación por responder`,
+        detalle: 'Las pidieron desde su portal. Al responder, el trabajador recibe un correo.',
+        accion: 'Responder', a: '/app/solicitudes' });
     }
     const pedidas = (solicitudesDoc.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
     if (pedidas) {

@@ -14,6 +14,7 @@ import { cn } from '../../utils/cn';
 import { moduloDeTipo } from '../../utils/moduloDocumento';
 import { capitalizar, fechaCL } from '../../utils/formato';
 import { CORREO_NO_ENVIADO, correoFallo } from '../../utils/correo';
+import { PeticionesPortal } from '../../components/app/PeticionesPortal';
 
 const ESTADO: Record<EstadoSolicitudDocumento, { texto: string; tono: TonoChip }> = {
   PENDIENTE: { texto: 'Por atender', tono: 'aviso' },
@@ -56,7 +57,8 @@ export default function Solicitudes() {
   // Atender una solicitud es gestionarla; crear o enviar el documento pide además su módulo.
   const { puede } = usePermisos();
   const gestionar = puede('SOLICITUDES', true);
-  const solicitudes = useSolicitudesDocumento(empresa.id);
+  const verDocumentos = puede('SOLICITUDES');
+  const solicitudes = useSolicitudesDocumento(empresa.id, verDocumentos);
   const [filtro, setFiltro] = useState<EstadoSolicitudDocumento | 'todas'>('PENDIENTE');
   const [ocupada, setOcupada] = useState<number | null>(null);
   const [descartar, setDescartar] = useState<SolicitudDocumentoPanel | null>(null);
@@ -87,9 +89,14 @@ export default function Solicitudes() {
       <div>
         <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">Solicitudes</h1>
         <p className="text-[13px] text-fg-3 mt-0.5">
-          Documentos que tus trabajadores pidieron desde su portal. Al enviarlos a firma se resuelven solos y el trabajador recibe el correo.
+          Lo que tus trabajadores pidieron desde su portal: vacaciones, permisos, conciliación familiar y documentos.
         </p>
       </div>
+
+      <PeticionesPortal empresaId={empresa.id} avisar={avisar} />
+      {verDocumentos && (<>
+      <h2 className="text-[15px] font-semibold -mb-1">Documentos pedidos</h2>
+      <p className="text-[12.5px] text-fg-3 -mt-2">Al enviarlos a firma se resuelven solos y el trabajador recibe el correo.</p>
 
       <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filtrar por estado">
         {FILTROS.map(([f, t]) => (
@@ -156,6 +163,7 @@ export default function Solicitudes() {
           );
         })}
       </section>
+      </>)}
 
       {descartar && (
         <ModalDescartar solicitud={descartar} onCerrar={() => setDescartar(null)}

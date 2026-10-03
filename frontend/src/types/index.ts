@@ -1209,3 +1209,39 @@ export interface OpcionesConciliacion {
     tipos: { valor: SolicitudConciliacion['tipo']; texto: string; plazo_dias: number }[];
     motivos: OpcionCatalogo[];
 }
+
+/** Peticiones del portal (core/views/peticiones_portal.py). */
+export interface VacacionPedida {
+    id: number; tipo: string; tipo_texto: string; desde: string; hasta: string; dias: number;
+    estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'; estado_texto: string; motivo: string; pedida_en: string;
+}
+export interface PermisoPedido {
+    id: number; permiso: string; permiso_texto: string; fecha_hecho: string; inicio: string | null;
+    estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA'; estado_texto: string; motivo: string; pedida_en: string;
+}
+export interface ConciliacionPedida {
+    id: number; tipo: 'TELETRABAJO' | 'CAMBIO_JORNADA'; tipo_texto: string; presentada_el: string;
+    desde: string | null; hasta: string | null; estado: 'PENDIENTE' | 'ACEPTADA' | 'ALTERNATIVA' | 'RECHAZADA';
+    estado_texto: string; motivo: string; fundamento: string; vence_el: string; respondida_el: string | null;
+}
+export interface PeticionesPortal {
+    id: number; empresa: string; cargo: string; activo: boolean; acceso_hasta: string | null; cuida: string;
+    opciones: {
+        tipos_vacacion: OpcionCatalogo[];
+        permisos: { valor: string; texto: string; dias: number; tipo_dias: string; desde_el_hecho: boolean }[];
+        conciliacion: { valor: ConciliacionPedida['tipo']; texto: string; plazo_dias: number }[];
+        cuidados: OpcionCatalogo[];
+    };
+    vacaciones: VacacionPedida[];
+    permisos: PermisoPedido[];
+    conciliacion: ConciliacionPedida[];
+}
+export interface CalculoPeticion { dias: number; horas: number; saldo: number | null; avisos: string[] }
+/** GET /peticiones-portal/ (panel). */
+export interface PeticionesPanel {
+    vacaciones: (VacacionPedida & { empleado: { id: number; nombre: string; rut: string } })[];
+    permisos: (PermisoPedido & { empleado: { id: number; nombre: string; rut: string } })[];
+    conciliacion: (ConciliacionPedida & { empleado: { id: number; nombre: string; rut: string }; cuidado_declarado: string })[];
+    motivos_vacacion: OpcionCatalogo[];
+    motivos_permiso: OpcionCatalogo[];
+}

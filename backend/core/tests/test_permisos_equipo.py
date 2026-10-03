@@ -164,7 +164,9 @@ class PermisosEquipoTests(APITestCase):
         identidad = ('/api/firmas/confirmar_identidad/', '/api/clientes/resumen/')
         permitidas = identidad + ('/api/solicitudes-documento/', '/api/empleados/', '/api/certificados/', '/api/empresas/',
                       '/api/clientes/mi_suscripcion/', '/api/indicadores/', '/api/parametros/vigentes/', '/api/planes/',
-                      '/api/catalogos/', '/api/solicitudes-conciliacion/')
+                      '/api/catalogos/', '/api/solicitudes-conciliacion/',
+                      # Abre con cualquier módulo (fichas), pero filtra dentro: sin Vacaciones/Trabajadores, vacía.
+                      '/api/peticiones-portal/')
         self.assertEqual({r for r in abiertas if not r.startswith(permitidas)}, set())
         escritura = {r for r in rutas if self._cerco(solo, r, 'POST') and r not in identidad}
         self.assertEqual(escritura, set(), f'Rutas que un usuario "solo ver" puede modificar: {escritura}')

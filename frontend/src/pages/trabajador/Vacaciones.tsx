@@ -1,8 +1,9 @@
 import { TriangleAlert } from 'lucide-react';
 import { Chip } from '../../components/j40';
 import { EstadoLista, Seccion, Titulo } from '../../components/trabajador/comun';
-import { useVacacionesPortal } from '../../hooks/usePortal';
-import type { VacacionesPortal } from '../../types';
+import { PeticionesVacaciones } from '../../components/trabajador/Peticiones';
+import { usePeticionesPortal, useVacacionesPortal } from '../../hooks/usePortal';
+import type { PeticionesPortal, VacacionesPortal } from '../../types';
 import { decimalCL, fechaCL } from '../../utils/formato';
 
 // Mismo formato que la carpeta del empleador (components/app/carpeta/Vacaciones.tsx).
@@ -13,20 +14,21 @@ const dias = (valor: number | string) => {
 
 export default function Vacaciones() {
   const { data = [], isLoading, isError } = useVacacionesPortal();
+  const peticiones = usePeticionesPortal();
   return (
     <>
-      <Titulo titulo="Vacaciones">Tu saldo de feriado legal y progresivo, y las vacaciones que tu empleador registró.</Titulo>
+      <Titulo titulo="Vacaciones">Tu saldo de feriado, tus vacaciones y lo que has pedido. Aquí puedes pedir vacaciones o un permiso.</Titulo>
       {(isLoading || isError || !data.length) && (
         <Seccion titulo="Saldo">
           <EstadoLista cargando={isLoading} error={isError} vacia={!data.length} textoVacio="Aún no hay información de vacaciones." />
         </Seccion>
       )}
-      {data.map((e) => <Empleo key={e.id} empleo={e} />)}
+      {data.map((e) => <Empleo key={e.id} empleo={e} peticiones={peticiones.data?.find((p) => p.id === e.id)} />)}
     </>
   );
 }
 
-function Empleo({ empleo }: { empleo: VacacionesPortal }) {
+function Empleo({ empleo, peticiones }: { empleo: VacacionesPortal; peticiones?: PeticionesPortal }) {
   const { saldo } = empleo;
   return (
     <Seccion titulo={empleo.empresa} subtitulo={empleo.cargo || undefined}
@@ -56,7 +58,7 @@ function Empleo({ empleo }: { empleo: VacacionesPortal }) {
                 {decimalCL(empleo.horas_descanso.horas_por_vencer, 1)} horas vencen el {fechaCL(empleo.horas_descanso.proximo_vencimiento)}: si no las usas, se te pagan en la liquidación de ese mes.
               </span>
             )}
-            <span className="text-[12.5px] text-fg-3">Para usar un día libre, avísale a tu empleador con al menos 48 horas de anticipación.</span>
+            <span className="text-[12.5px] text-fg-3">Para usar un día libre, pídelo con "Pedir vacaciones" con al menos 48 horas de anticipación.</span>
           </div>
         )}
         {saldo?.aviso_acumulacion && (
@@ -65,8 +67,9 @@ function Empleo({ empleo }: { empleo: VacacionesPortal }) {
           </p>
         )}
       </div>
+      {peticiones && <PeticionesVacaciones empleo={peticiones} />}
       <div className="border-t border-line">
-        <h3 className="px-[18px] pt-3 pb-1 text-[12.5px] font-semibold text-fg-2">Vacaciones registradas</h3>
+        <h3 className="px-[18px] pt-3 pb-1 text-[12.5px] font-semibold text-fg-2">Vacaciones aprobadas</h3>
         {empleo.registros.length === 0 && <p className="px-[18px] pb-4 text-[13px] text-fg-3">Sin vacaciones registradas.</p>}
         <ul className="flex flex-col">
           {empleo.registros.map((r) => (

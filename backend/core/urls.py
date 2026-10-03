@@ -4,6 +4,7 @@ from .views import solicitudes_documento
 from .views import certificados
 from .views import catalogos
 from .views import conciliacion
+from .views import peticiones_portal
 from .views import documentos_laborales
 from .views import inspeccion
 from .views import certificado_sueldos
@@ -49,6 +50,7 @@ router.register(r'reglamentos', reglamento.ReglamentoViewSet, basename='reglamen
 router.register(r'documentos-laborales', documentos_laborales.DocumentoLaboralViewSet, basename='documento_laboral')
 router.register(r'solicitudes-documento', solicitudes_documento.SolicitudDocumentoViewSet, basename='solicitud_documento')
 router.register(r'solicitudes-conciliacion', conciliacion.SolicitudConciliacionViewSet, basename='solicitud_conciliacion')
+router.register(r'solicitudes-permiso', peticiones_portal.SolicitudPermisoViewSet, basename='solicitud_permiso')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -88,6 +90,12 @@ urlpatterns = [
     path('inspeccion/ratificar/', inspeccion.ratificar, name='inspeccion_ratificar'),
     path('inspeccion/bitacora/', inspeccion.bitacora_empleador, name='inspeccion_bitacora'),
     path('trabajador/certificados/', certificados.certificados_trabajador, name='portal_certificados'),
+    path('trabajador/peticiones/', peticiones_portal.peticiones, name='portal_peticiones'),
+    path('trabajador/peticiones/calcular/', peticiones_portal.calcular, name='portal_peticiones_calcular'),
+    path('trabajador/peticiones/vacaciones/', peticiones_portal.pedir_vacaciones, name='portal_pedir_vacaciones'),
+    path('trabajador/peticiones/permisos/', peticiones_portal.pedir_permiso, name='portal_pedir_permiso'),
+    path('trabajador/peticiones/conciliacion/', peticiones_portal.pedir_conciliacion, name='portal_pedir_conciliacion'),
+    path('peticiones-portal/', peticiones_portal.peticiones_empleador, name='peticiones_portal'),
     path('trabajador/karin/', karin_portal.casos_trabajador, name='portal_karin'),
     path('trabajador/karin/denunciar/', karin_portal.denunciar, name='portal_karin_denunciar'),
     path('trabajador/karin/documento/', karin_portal.documento_trabajador, name='portal_karin_documento'),

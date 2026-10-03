@@ -77,6 +77,8 @@ class SolicitudConciliacionViewSet(mixins.ListModelMixin, mixins.CreateModelMixi
         s.estado, s.respondida_el = estado, respondida
         s.motivo, s.fundamento = ('', '') if estado == 'ACEPTADA' else (motivo, fundamento)
         s.save(update_fields=['estado', 'respondida_el', 'motivo', 'fundamento'])
+        from .peticiones_portal import responder_conciliacion_portal
+        responder_conciliacion_portal(s)
         return Response(self.get_serializer(s).data)
 
     @action(detail=True, methods=['post'])

@@ -238,3 +238,45 @@ test('el empleador ve en la carpeta que el trabajador usa su portal y le reenví
   await expect(page.getByText(/Invitación enviada a/)).toBeVisible();
   await expect(bloque.getByRole('button', { name: 'Reenviar instrucciones' })).toBeDisabled();
 });
+
+/** Un lunes a `semanas` semanas de hoy (aaaa-mm-dd, hora de Chile). */
+function lunes(semanas: number): string {
+  const d = new Date(Date.now() + semanas * 7 * 86_400_000);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' });
+}
+
+test('el trabajador pide vacaciones y teletrabajo; el empleador responde', async ({ page }) => {
+  await entrarConClave(page);
+  await page.goto('/trabajador/portal/vacaciones');
+  await page.getByRole('button', { name: 'Pedir vacaciones' }).click();
+  const pedir = page.getByRole('dialog', { name: 'Pedir vacaciones' });
+  await pedir.getByLabel('Desde').fill(lunes(5));
+  await pedir.getByLabel('Hasta').fill(lunes(5));
+  await expect(pedir.getByText(/1 día\s+hábiles/)).toBeVisible();
+  await pedir.getByRole('button', { name: 'Enviar solicitud' }).click();
+  await expect(page.getByText(/tu empleador recibió tu solicitud/)).toBeVisible();
+  await expect(page.getByText('Esperando respuesta')).toBeVisible();
+
+  await page.goto('/trabajador/portal/conciliacion');
+  await page.getByRole('button', { name: 'Pedir teletrabajo' }).click();
+  const tele = page.getByRole('dialog', { name: 'Teletrabajo o trabajo a distancia' });
+  await tele.getByLabel('¿A quién cuidas?').selectOption('MENOR_14');
+  await tele.getByRole('button', { name: 'Enviar solicitud' }).click();
+  await expect(page.getByText(/debe responderte a más tardar el/)).toBeVisible();
+
+  // El empleador ve ambas en Solicitudes: aprueba las vacaciones y la conciliación se responde en la ficha.
+  await entrar(page);
+  await page.goto('/app/solicitudes');
+  const bloque = page.getByRole('region', { name: 'Vacaciones, permisos y conciliación' });
+  await expect(bloque.getByText('Feriado legal (vacaciones)')).toBeVisible();
+  await expect(bloque.getByText('Teletrabajo o trabajo a distancia (Ley 21.645)')).toBeVisible();
+  await bloque.getByRole('button', { name: 'Aprobar' }).click();
+  await expect(page.getByText(/Aprobada\. El trabajador recibió la respuesta/)).toBeVisible();
+  await bloque.getByRole('link', { name: 'Responder en su ficha' }).click();
+  await expect(page.getByRole('heading', { name: /Solicitudes por responsabilidades de cuidado/ })).toBeVisible();
+
+  // Su sesión del portal sigue abierta en este navegador: ve la respuesta.
+  await page.goto('/trabajador/portal/vacaciones');
+  await expect(page.getByText('Aprobada', { exact: true })).toBeVisible();
+});

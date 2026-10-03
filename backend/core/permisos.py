@@ -118,6 +118,8 @@ RUTAS_MODULO = [
     ('/api/solicitudes-documento/', ('SOLICITUDES',)),
     ('/api/certificados/', ('TRABAJADORES',)),
     ('/api/solicitudes-conciliacion/', ('TRABAJADORES',)),
+    ('/api/solicitudes-permiso/', ('VACACIONES',)),
+    ('/api/peticiones-portal/', ('VACACIONES', 'TRABAJADORES')),
 ]
 
 # Documentos que se firman o se crean por tipo: el módulo sale del tipo.

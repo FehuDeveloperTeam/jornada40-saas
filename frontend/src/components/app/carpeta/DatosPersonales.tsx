@@ -148,7 +148,7 @@ export function DatosPersonales({ empleado, avisar }: { empleado: Empleado; avis
   return (
     <div className="flex flex-col gap-5">
       {secciones.map((s) => <SeccionEditable key={s.clave} seccion={s} empleado={empleado} avisar={avisar} />)}
-      {empleado.cuidado_de && <Conciliacion empleado={empleado} avisar={avisar} />}
+      <Conciliacion empleado={empleado} avisar={avisar} />
       <DocumentosElectronicos empleado={empleado} avisar={avisar} />
     </div>
   );

@@ -4,7 +4,8 @@ import { descargar } from './descargas';
 import type {
   CasoKarinPortal, CertificadoEmitido, CertificadosPortal, KarinPortal, CuentaTrabajador, DocumentoPortal, FirmaPendientePortal, LiquidacionPortal,
   OpcionesSolicitudPortal, RespuestaIngresoPortal, SolicitudDocumentoPortal, TipoCertificado, TipoDocumentoPortal,
-  TipoSolicitudDocumento, VacacionesPortal,
+  TipoSolicitudDocumento, VacacionesPortal, PeticionesPortal, CalculoPeticion, VacacionPedida, PermisoPedido,
+  ConciliacionPedida,
 } from '../types';
 
 /**
@@ -56,6 +57,15 @@ export const portal = {
   solicitudes: () => obtener<{ opciones: OpcionesSolicitudPortal[]; solicitudes: SolicitudDocumentoPortal[] }>('/solicitudes/'),
   solicitar: (datos: { empleo: number; tipo: TipoSolicitudDocumento; opcion?: string }) =>
     enviar<SolicitudDocumentoPortal>('/solicitudes/', datos),
+  peticiones: () => obtener<PeticionesPortal[]>('/peticiones/'),
+  calcularPeticion: (datos: { empleo: number; tipo: string; desde: string; hasta: string }) =>
+    enviar<CalculoPeticion>('/peticiones/calcular/', datos),
+  pedirVacaciones: (datos: { empleo: number; tipo: string; desde: string; hasta: string }) =>
+    enviar<VacacionPedida & { avisos: string[] }>('/peticiones/vacaciones/', datos),
+  pedirPermiso: (datos: { empleo: number; permiso: string; fecha_hecho: string; inicio?: string }) =>
+    enviar<PermisoPedido & { resumen: string }>('/peticiones/permisos/', datos),
+  pedirConciliacion: (datos: { empleo: number; tipo: string; desde?: string; hasta?: string; cuidado?: string }) =>
+    enviar<ConciliacionPedida & { avisos: string[] }>('/peticiones/conciliacion/', datos),
   certificados: () => obtener<CertificadosPortal>('/certificados/'),
   emitirCertificado: (datos: { empleo: number; tipo: TipoCertificado; opcion?: string }) =>
     enviar<CertificadoEmitido>('/certificados/', datos),

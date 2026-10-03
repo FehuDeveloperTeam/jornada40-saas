@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, ChevronRight, PenLine, Scale } from 'lucide-react';
+import { Building2, CalendarPlus, ChevronRight, HeartHandshake, PenLine, Scale } from 'lucide-react';
 import { AlertaError, Button, CampoCodigo, Modal } from '../../components/j40';
 import { usePortal } from '../../components/trabajador/PortalShell';
 import { EstadoLista, Seccion } from '../../components/trabajador/comun';
@@ -57,6 +57,18 @@ export default function Inicio() {
         </span>
         <span className="text-[14px] font-medium text-brand-text">{cuenta.tiene_karin ? 'Ver' : 'Ir'}</span>
       </Link>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-3">
+        <Link to="/trabajador/portal/vacaciones"
+          className="flex items-center gap-3 px-4 py-3.5 rounded-j40-card border border-line bg-surface text-fg no-underline hover:no-underline hover:border-brand">
+          <CalendarPlus className="size-6 text-brand shrink-0" strokeWidth={2} aria-hidden />
+          <span className="flex-1 text-[15px]"><b>Vacaciones y permisos:</b> pídelos aquí y recibe la respuesta por correo.</span>
+        </Link>
+        <Link to="/trabajador/portal/conciliacion"
+          className="flex items-center gap-3 px-4 py-3.5 rounded-j40-card border border-line bg-surface text-fg no-underline hover:no-underline hover:border-brand">
+          <HeartHandshake className="size-6 text-brand shrink-0" strokeWidth={2} aria-hidden />
+          <span className="flex-1 text-[15px]"><b>¿Cuidas a alguien?</b> Pide teletrabajo o un cambio de jornada (Ley 21.645).</span>
+        </Link>
+      </div>
 
       {(firmas.data?.length ?? 0) > 0 && (
         <Seccion titulo="Documentos por firmar" subtitulo="Fírmalos para tenerlos disponibles en Liquidaciones y Documentos.">

@@ -44,6 +44,8 @@ export function Conciliacion({ empleado, avisar }: { empleado: Empleado; avisar:
   const [nueva, setNueva] = useState(false);
   const [responder, setResponder] = useState<SolicitudConciliacion | null>(null);
   const solicitudes = lista.data ?? [];
+  // Se muestra a quien cuida o a quien pidió algo desde su portal (declarando a quién cuida).
+  if (!empleado.cuidado_de && solicitudes.length === 0) return null;
 
   return (
     <Seccion titulo="Solicitudes por responsabilidades de cuidado (Ley 21.645)"
@@ -54,6 +56,12 @@ export function Conciliacion({ empleado, avisar }: { empleado: Empleado; avisar:
         jornada en vacaciones escolares (respondes en 10). Si rechazas u ofreces otra fórmula, debes explicar por qué.
       </p>
       {solicitudes.length === 0 && <p className="px-[18px] py-4 text-[13px] text-fg-3">No hay solicitudes registradas.</p>}
+      {!empleado.cuidado_de && (
+        <p className="px-[18px] pt-2 text-[12.5px] text-warn">
+          Su ficha aún no indica responsabilidades de cuidado: lo declaró al pedir desde su portal. Al responder, queda en
+          su ficha (salvo que rechaces porque no las acreditó).
+        </p>
+      )}
       {solicitudes.map((s) => (
         <div key={s.id} className="flex flex-col gap-1.5 px-[18px] py-3 border-t border-line first-of-type:border-t-0">
           <div className="flex items-center gap-2.5 flex-wrap">

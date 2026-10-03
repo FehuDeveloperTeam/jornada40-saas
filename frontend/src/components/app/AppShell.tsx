@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import client, { rutaIngreso } from '../../api/client';
 import { borrarTodosLosBorradores } from '../../utils/borradores';
 import {
-  useEmpresaActiva, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
+  useEmpresaActiva, useIndicadores, usePeticionesPanel, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
 } from '../../hooks/usePanel';
 import type { Suscripcion } from '../../hooks/usePanel';
 import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
@@ -84,7 +84,7 @@ const NAV: ItemNav[] = [
   { a: '/app/firmas', etiqueta: 'Firma electrónica', corta: 'Firmas', Icono: Signature, modulos: MODULOS_DOCUMENTOS },
   { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark, modulos: ['DIRECCION_TRABAJO'] },
   { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', corta: 'Seguridad', Icono: ScrollText, modulos: ['SEGURIDAD'] },
-  { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES'] },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES', 'VACACIONES'] },
   { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn, modulos: ['REPORTES'] },
   { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, hijas: ['/app/plan', '/app/empresas'], titular: true },
   { a: '/app/equipo', etiqueta: 'Usuarios y bitácora', corta: 'Usuarios', Icono: UserCog, titular: true },
@@ -269,7 +269,9 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
   const urgentesDT = registroDT.data ? registroDT.data.resumen.VENCIDO + registroDT.data.resumen.por_vencer : 0;
   // Documentos pedidos desde el portal del trabajador que esperan respuesta.
   const solicitudes = useSolicitudesDocumento(empresa.id, permisos.puede('SOLICITUDES'));
-  const porAtender = (solicitudes.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
+  const peticiones = usePeticionesPanel(empresa.id, permisos.puede(['VACACIONES', 'TRABAJADORES']));
+  const porAtender = (solicitudes.data ?? []).filter((s) => s.estado === 'PENDIENTE').length
+    + (peticiones.data ? peticiones.data.vacaciones.length + peticiones.data.permisos.length + peticiones.data.conciliacion.length : 0);
 
   const salir = async () => { borrarTodosLosBorradores(); await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
   const equipo = permisos.esTitular ? undefined : permisos.sesion;
@@ -563,7 +565,7 @@ const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firm
 const MAS: { a: string; etiqueta: string; Icono: LucideIcon; modulos?: ModuloPanel[]; titular?: boolean }[] = [
   { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark, modulos: ['DIRECCION_TRABAJO'] },
   { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', Icono: ScrollText, modulos: ['SEGURIDAD'] },
-  { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES'] },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES', 'VACACIONES'] },
   { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2, titular: true },
   { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn, modulos: ['REPORTES'] },
   { a: '/app/equipo', etiqueta: 'Usuarios y bitácora', Icono: UserCog, titular: true },

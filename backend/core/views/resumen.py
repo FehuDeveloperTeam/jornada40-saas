@@ -112,6 +112,25 @@ def _registro_dt(empresa, desde, hoy):
 DIAS_AVISO_DESCANSO = 30
 
 
+def _peticiones_portal(empresa, desde, hoy, modulos=None):
+    """Vacaciones, permisos y solicitudes de conciliación pedidas desde el portal, sin responder."""
+    from ..models import SolicitudConciliacion, SolicitudPermiso, VacacionEmpleado
+    lineas = []
+    if modulos is None or 'VACACIONES' in modulos:
+        for v in VacacionEmpleado.objects.filter(empresa=empresa, origen='PORTAL', estado='PENDIENTE').select_related('empleado'):
+            lineas.append(f'{_nombre(v.empleado)} pidió vacaciones o permiso del {_fecha(v.fecha_inicio)} al {_fecha(v.fecha_fin)}.')
+        for s in SolicitudPermiso.objects.filter(empleado__empresa=empresa, estado='PENDIENTE').select_related('empleado'):
+            lineas.append(f'{_nombre(s.empleado)} pidió un permiso legal.')
+    if modulos is None or 'TRABAJADORES' in modulos:
+        for s in SolicitudConciliacion.objects.filter(empleado__empresa=empresa, activo=True, estado='PENDIENTE') \
+                .select_related('empleado'):
+            lineas.append(f'{_nombre(s.empleado)}: {s.get_tipo_display().lower()} (responder a más tardar el '
+                          f'{_fecha(s.vence_el)}).')
+    n = len(lineas)
+    return _seccion(f'{n} {"solicitud" if n == 1 else "solicitudes"} de sus trabajadores por responder', lineas,
+                    '/app/solicitudes', 'Responder')
+
+
 def _horas_descanso(empresa, desde, hoy):
     """Horas de descanso (Art. 32 inc. 4°) por vencer: si no se usan, se pagan."""
     if not hc.permite_compensacion(empresa.owner):
@@ -186,10 +205,10 @@ def _denuncias_karin(empresa, desde, hoy):
     return _seccion('Ley Karin: plazos de denuncias', lineas, '/app/reglamento', 'Ver Ley Karin')
 
 
-FUENTES = [_solicitudes, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin, _seguridad, _denuncias_karin]
+FUENTES = [_solicitudes, _peticiones_portal, _firmas, _registro_dt, _horas_descanso, _reglamento_y_ley_karin, _seguridad, _denuncias_karin]
 # Módulos que dan acceso a cada tema a un usuario del equipo (basta uno).
 MODULOS_FUENTE = {
-    _solicitudes: ('SOLICITUDES',), _firmas: MODULOS_DOCUMENTOS, _registro_dt: ('DIRECCION_TRABAJO',),
+    _solicitudes: ('SOLICITUDES',), _peticiones_portal: ('VACACIONES', 'TRABAJADORES'), _firmas: MODULOS_DOCUMENTOS, _registro_dt: ('DIRECCION_TRABAJO',),
     _horas_descanso: ('VACACIONES',), _reglamento_y_ley_karin: ('SEGURIDAD',), _seguridad: ('SEGURIDAD',),
     # Las cifras de denuncias son solo para el titular: ningún módulo del equipo las abre.
     _denuncias_karin: ('SOLO_TITULAR',),
@@ -205,7 +224,11 @@ def _fuentes(permisos):
     for fuente in FUENTES:
         if any(permisos.get(m) for m in MODULOS_FUENTE[fuente]):
             # Las firmas se limitan a los tipos de documento de sus módulos.
-            elegidas.append(partial(_firmas, tipos=tipos) if fuente is _firmas else fuente)
+            if fuente is _firmas:
+                fuente = partial(_firmas, tipos=tipos)
+            elif fuente is _peticiones_portal:
+                fuente = partial(_peticiones_portal, modulos={m for m in ('VACACIONES', 'TRABAJADORES') if permisos.get(m)})
+            elegidas.append(fuente)
     return elegidas
 
 

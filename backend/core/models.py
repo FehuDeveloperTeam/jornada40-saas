@@ -1071,6 +1071,18 @@ class VacacionEmpleado(models.Model):
     observaciones = models.TextField(blank=True, default='')
     archivo_pdf  = models.FileField(upload_to='vacaciones/', null=True, blank=True)
     creado_en    = models.DateTimeField(auto_now_add=True)
+    # Pedidas por el trabajador desde su portal (views/peticiones_portal.py): quedan
+    # PENDIENTE hasta que el empleador las aprueba o las rechaza con un motivo.
+    ORIGENES = [('PANEL', 'Registrada por el empleador'), ('PORTAL', 'Pedida desde el portal')]
+    MOTIVOS_RECHAZO = [
+        ('NECESIDADES_EMPRESA', 'Las necesidades de la empresa no lo permiten en esas fechas'),
+        ('COINCIDE_OTRO', 'Coincide con las vacaciones de otro trabajador del área'),
+        ('SIN_SALDO', 'No tiene días suficientes'),
+        ('OTRAS_FECHAS', 'Conversemos otras fechas'),
+    ]
+    origen = models.CharField(max_length=8, choices=ORIGENES, default='PANEL')
+    motivo_rechazo = models.CharField(max_length=24, choices=MOTIVOS_RECHAZO, blank=True, default='')
+    respondida_en = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-fecha_inicio']
@@ -1718,7 +1730,8 @@ class SolicitudConciliacion(models.Model):
     MOTIVOS = [('CARGO_NO_PERMITE', 'La naturaleza del cargo no permite hacerlo a distancia'),
                ('FUNCIONAMIENTO', 'Afecta el funcionamiento de la empresa en ese período'),
                ('TURNOS', 'No es posible reorganizar los turnos sin afectar a otros trabajadores'),
-               ('SEGURIDAD', 'Razones de seguridad o salud en el trabajo')]
+               ('SEGURIDAD', 'Razones de seguridad o salud en el trabajo'),
+               ('NO_ACREDITA_CUIDADO', 'No se acreditaron las responsabilidades de cuidado')]
     empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='solicitudes_conciliacion')
     tipo = models.CharField(max_length=16, choices=TIPOS)
     presentada_el = models.DateField()
@@ -1731,6 +1744,11 @@ class SolicitudConciliacion(models.Model):
     respondida_el = models.DateField(null=True, blank=True)
     activo = models.BooleanField(default=True)
     creada_en = models.DateTimeField(auto_now_add=True)
+    # Desde el portal: el trabajador declara a quién cuida si su ficha aún no lo dice;
+    # al responder, el empleador lo deja en la ficha.
+    ORIGENES = [('PANEL', 'Registrada por el empleador'), ('PORTAL', 'Pedida desde el portal')]
+    origen = models.CharField(max_length=8, choices=ORIGENES, default='PANEL')
+    cuidado_declarado = models.CharField(max_length=24, choices=CUIDADOS_LEY_21645, blank=True, default='')
 
     class Meta:
         ordering = ['-presentada_el', '-id']
@@ -1742,6 +1760,34 @@ class SolicitudConciliacion(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} · {self.empleado} [{self.estado}]'
+
+
+class SolicitudPermiso(models.Model):
+    """Permiso legal con goce (Art. 66, 195, 207 bis) pedido desde el portal. Al
+    aprobarlo se crea la constancia PERMISO_LEGAL (DocumentoLaboral), que se envía a firma."""
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
+    ESTADOS = [('PENDIENTE', 'Pendiente'), ('APROBADA', 'Aprobada'), ('RECHAZADA', 'Rechazada')]
+    MOTIVOS_RECHAZO = [
+        ('FALTA_CERTIFICADO', 'Falta el certificado que acredita el hecho'),
+        ('YA_USADO', 'Ya usó este permiso por el mismo hecho'),
+        ('NO_CORRESPONDE', 'El permiso no corresponde a la situación informada'),
+    ]
+    empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='solicitudes_permiso')
+    permiso = models.CharField(max_length=30)   # clave de documentos_laborales.PERMISOS
+    fecha_hecho = models.DateField()
+    inicio = models.DateField(null=True, blank=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='PENDIENTE')
+    motivo_rechazo = models.CharField(max_length=20, choices=MOTIVOS_RECHAZO, blank=True, default='')
+    documento = models.ForeignKey('DocumentoLaboral', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='solicitudes_permiso')
+    creada_en = models.DateTimeField(auto_now_add=True)
+    respondida_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-creada_en']
+
+    def __str__(self):
+        return f'Permiso {self.permiso} · {self.empleado} [{self.estado}]'
 
 
 class PeriodoVacacionesEscolares(models.Model):

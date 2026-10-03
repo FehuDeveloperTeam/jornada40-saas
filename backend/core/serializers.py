@@ -520,5 +520,6 @@ class SolicitudConciliacionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SolicitudConciliacion
         fields = ['id', 'empleado', 'tipo', 'tipo_texto', 'presentada_el', 'desde', 'hasta', 'estado', 'estado_texto',
-                  'motivo', 'motivo_texto', 'fundamento', 'respondida_el', 'vence_el', 'avisos', 'creada_en']
-        read_only_fields = ('estado', 'motivo', 'fundamento', 'respondida_el', 'creada_en')
+                  'motivo', 'motivo_texto', 'fundamento', 'respondida_el', 'vence_el', 'avisos', 'creada_en',
+                  'origen', 'cuidado_declarado']
+        read_only_fields = ('estado', 'motivo', 'fundamento', 'respondida_el', 'creada_en', 'origen', 'cuidado_declarado')

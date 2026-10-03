@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { BadgeCheck, Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, Scale, ShieldCheck, X } from 'lucide-react';
+import { BadgeCheck, HeartHandshake, Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, Scale, ShieldCheck, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, CierreInactividad, J40Root, Logo, Modal, ToggleTema } from '../j40';
 import { portal, sinSesion } from '../../api/portal';
@@ -46,6 +46,8 @@ const NAV: ItemNav[] = [
   { a: `${RAIZ}/certificados`, etiqueta: 'Certificados', corta: 'Certificados', Icono: BadgeCheck },
   { a: `${RAIZ}/vacaciones`, etiqueta: 'Vacaciones', corta: 'Vacaciones', Icono: CalendarDays },
   { a: `${RAIZ}/solicitudes`, etiqueta: 'Solicitudes', corta: 'Pedir', Icono: FilePlus2 },
+  // Ley 21.645: teletrabajo y cambio de jornada para quien cuida; en móvil se entra desde Inicio.
+  { a: `${RAIZ}/conciliacion`, etiqueta: 'Conciliación familiar', corta: 'Familia', Icono: HeartHandshake, soloLateral: true },
   { a: `${RAIZ}/seguridad`, etiqueta: 'Seguridad', corta: 'Seguridad', Icono: ShieldCheck, soloLateral: true },
   // Canal de denuncias y casos en que participa; en móvil se entra desde Inicio.
   { a: `${RAIZ}/ley-karin`, etiqueta: 'Ley Karin', corta: 'Ley Karin', Icono: Scale, soloLateral: true },

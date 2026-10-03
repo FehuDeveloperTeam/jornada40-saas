@@ -4,8 +4,7 @@ import client from '../api/client';
 import { obtenerTodo } from '../api/lista';
 import type {
   AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudDocumentoPanel,
-  SolicitudFirma, VacacionEmpleado,
-} from '../types';
+  SolicitudFirma, VacacionEmpleado, PeticionesPanel } from '../types';
 import { MODULOS_DOCUMENTOS, usePermisos } from './usePermisos';
 import { usePlanes } from './usePlanes';
 
@@ -129,6 +128,15 @@ export function useSolicitudesDocumento(empresaId: number | undefined, habilitad
   return useQuery({
     queryKey: ['solicitudes-documento', empresaId],
     queryFn: async () => (await client.get<SolicitudDocumentoPanel[]>(`/solicitudes-documento/?empresa=${empresaId}`)).data,
+    enabled: Boolean(empresaId) && habilitado,
+  });
+}
+
+/** Vacaciones, permisos y conciliación pedidos desde el portal, sin responder (GET /peticiones-portal/). */
+export function usePeticionesPanel(empresaId: number | undefined, habilitado = true) {
+  return useQuery({
+    queryKey: ['peticiones-portal', empresaId],
+    queryFn: async () => (await client.get<PeticionesPanel>(`/peticiones-portal/?empresa=${empresaId}`)).data,
     enabled: Boolean(empresaId) && habilitado,
   });
 }

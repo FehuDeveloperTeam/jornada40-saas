@@ -92,6 +92,16 @@ class VacacionViewSet(viewsets.ModelViewSet):
             respuesta.data['avisos'] = self._avisos
         return respuesta
 
+    @action(detail=True, methods=['post'])
+    def responder(self, request, pk=None):
+        """POST /api/vacaciones/<id>/responder/ {aprobar, motivo?} — vacaciones pedidas desde el portal."""
+        from .peticiones_portal import PeticionInvalida, responder_vacacion
+        try:
+            v = responder_vacacion(self.get_object(), bool(request.data.get('aprobar')), request.data.get('motivo'))
+        except PeticionInvalida as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(v).data)
+
     @action(detail=False, methods=['get'], url_path='compensatorias')
     def compensatorias(self, request):
         """GET /api/vacaciones/compensatorias/?empleado=<id> — bolsa de horas de descanso por horas extra."""

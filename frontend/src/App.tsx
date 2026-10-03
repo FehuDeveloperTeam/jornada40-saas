@@ -56,6 +56,7 @@ const PortalDocumentos = lazy(() => import('./pages/trabajador/Documentos'));
 const PortalVacaciones = lazy(() => import('./pages/trabajador/Vacaciones'));
 const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
 const PortalLeyKarin = lazy(() => import('./pages/trabajador/LeyKarin'));
+const PortalConciliacion = lazy(() => import('./pages/trabajador/Conciliacion'));
 const PortalSolicitudes = lazy(() => import('./pages/trabajador/Solicitudes'));
 const PortalCertificados = lazy(() => import('./pages/trabajador/Certificados'));
 const VerificarCertificado = lazy(() => import('./pages/sitio/Verificar'));
@@ -179,6 +180,7 @@ export default function App() {
           <Route path="solicitudes" element={<PortalSolicitudes />} />
           <Route path="seguridad" element={<PortalSeguridad />} />
           <Route path="ley-karin" element={<PortalLeyKarin />} />
+          <Route path="conciliacion" element={<PortalConciliacion />} />
           <Route path="*" element={<Navigate to="/trabajador/portal" replace />} />
         </Route>
 
@@ -211,7 +213,7 @@ export default function App() {
           <Route path="remuneraciones" element={<ConPermiso modulos={['REMUNERACIONES']}><RemuneracionesPanel /></ConPermiso>} />
           <Route path="remuneraciones/conceptos" element={<ConPermiso modulos={['REMUNERACIONES']}><Conceptos /></ConPermiso>} />
           <Route path="firmas" element={<ConPermiso modulos={MODULOS_DOCUMENTOS} avisoLectura={false}><FirmasPanel /></ConPermiso>} />
-          <Route path="solicitudes" element={<ConPermiso modulos={['SOLICITUDES']}><SolicitudesPanel /></ConPermiso>} />
+          <Route path="solicitudes" element={<ConPermiso modulos={['SOLICITUDES', 'VACACIONES']}><SolicitudesPanel /></ConPermiso>} />
           <Route path="reportes" element={<ConPermiso modulos={['REPORTES']}><ReportesPanel /></ConPermiso>} />
           <Route path="dt" element={<ConPermiso modulos={['DIRECCION_TRABAJO']}><DireccionTrabajoPanel /></ConPermiso>} />
           <Route path="reglamento" element={<ConPermiso modulos={['SEGURIDAD']}><ReglamentoPanel /></ConPermiso>} />
