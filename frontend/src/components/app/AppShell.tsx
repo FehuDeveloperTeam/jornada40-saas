@@ -292,7 +292,8 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
         <kbd className="hidden min-[1080px]:inline shrink-0 whitespace-nowrap text-[11px] px-1.5 py-0.5 border border-line rounded-[5px] j40-mono">{esMac ? '⌘K' : 'Ctrl K'}</kbd>
       </button>
 
-      <nav aria-label="Principal" className="flex flex-col gap-1">
+      {/* El menú se desplaza solo: el plan, el nombre y "Cerrar sesión" quedan siempre a la vista abajo. */}
+      <nav aria-label="Principal" className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1 -mx-1 px-1">
         {NAV.filter((item) => visible(item, permisos)).map((item) => (
           <ItemLateral key={item.etiqueta} item={item}
             badge={item.a === '/app/trabajadores' ? totalTrabajadores
@@ -304,16 +305,14 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
         ))}
       </nav>
 
-      <div className="flex-1" />
-
       {equipo ? (
-        <div className="hidden min-[1080px]:flex flex-col gap-1 p-3 mb-2 rounded-[10px] border border-line bg-surface-2">
+        <div className="hidden min-[1080px]:flex shrink-0 flex-col gap-1 p-3 mt-2 mb-2 rounded-[10px] border border-line bg-surface-2">
           <span className="text-[12.5px] font-semibold">Usuario del equipo</span>
           <span className="text-[12px] text-fg-3">Cuenta de {equipo.cuenta}. Ves solo las secciones que te asignó el titular.</span>
         </div>
       ) : (
       <Link to="/app/plan" title="Plan y facturación"
-        className="hidden min-[1080px]:flex flex-col gap-2 p-3 mb-2 rounded-[10px] border border-line bg-surface text-fg no-underline hover:no-underline hover:border-line-strong">
+        className="hidden min-[1080px]:flex shrink-0 flex-col gap-2 p-3 mt-2 mb-2 rounded-[10px] border border-line bg-surface text-fg no-underline hover:no-underline hover:border-line-strong">
         <span className="flex items-center justify-between w-full">
           <span className="text-[12.5px] font-semibold">Plan {suscripcion?.plan.nombre ?? '…'}</span>
           {estado && <Chip tono={estado.tono}>{estado.texto}</Chip>}
@@ -328,7 +327,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
       </Link>
       )}
 
-      <div className="flex items-center gap-2.5 px-1 py-1.5">
+      <div className="shrink-0 flex items-center gap-2.5 px-1 py-1.5">
         <Link to="/app/cuenta" title="Mi cuenta" className="flex flex-1 min-w-0 items-center gap-2.5 rounded-[8px] no-underline hover:no-underline text-fg hover:bg-sunken">
           <span className="grid place-items-center size-8 shrink-0 rounded-full bg-sunken text-fg-2 text-[12px] font-semibold">
             {iniciales(user?.first_name, user?.last_name) || '·'}

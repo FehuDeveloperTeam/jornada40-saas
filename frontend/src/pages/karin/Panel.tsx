@@ -62,6 +62,8 @@ function ListaDenuncias() {
   const lista = useQuery({
     queryKey: ['karin', 'denuncias'],
     queryFn: async () => (await client.get<DenunciaKarinFila[]>('/karin/denuncias/')).data,
+    // Las denuncias del portal llegan en cualquier momento.
+    refetchOnMount: 'always', refetchInterval: 60_000,
   });
   const abiertas = (lista.data ?? []).filter((d) => d.estado !== 'CERRADA');
   const cerradas = (lista.data ?? []).filter((d) => d.estado === 'CERRADA');

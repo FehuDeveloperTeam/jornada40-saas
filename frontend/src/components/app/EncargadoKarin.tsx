@@ -31,6 +31,8 @@ export function SeccionEncargadoKarin() {
   const resumen = useQuery({
     queryKey: ['encargados-karin', 'resumen'],
     queryFn: async () => (await client.get<{ empresas: ResumenKarinEmpresa[] }>('/encargados-karin/resumen/')).data,
+    // Una denuncia puede llegar en cualquier momento (desde el portal o el encargado): se consulta al volver.
+    refetchOnMount: 'always', refetchInterval: 60_000,
   });
   const [designando, setDesignando] = useState(false);
   const [apertura, setApertura] = useState(0);

@@ -65,6 +65,8 @@ export default function Inicio() {
   const karin = useQuery({
     queryKey: ['encargados-karin', 'resumen'],
     queryFn: async () => (await client.get<{ empresas: ResumenKarinEmpresa[] }>('/encargados-karin/resumen/')).data,
+    // Una denuncia puede llegar en cualquier momento (desde el portal o el encargado): se consulta al volver.
+    refetchOnMount: 'always', refetchInterval: 60_000,
     enabled: esTitular && nivel >= 3,
   });
   const verRemuneraciones = puede('REMUNERACIONES');
@@ -139,7 +141,15 @@ export default function Inicio() {
         detalle: 'Contratos, anexos o términos que debían registrarse en Mi DT y siguen pendientes.',
         accion: 'Revisar', a: '/app/dt' });
     }
-    const karinVencidas = (karin.data?.empresas ?? []).find((x) => x.id === empresa.id)?.vencidas ?? 0;
+    const karinEmpresa = (karin.data?.empresas ?? []).find((x) => x.id === empresa.id);
+    const karinVencidas = karinEmpresa?.vencidas ?? 0;
+    if (!karinVencidas && karinEmpresa?.abiertas) {
+      // Solo la cifra: el contenido es reservado del encargado (Art. 211-C).
+      t.push({ clave: 'karin-abiertas', Icono: ShieldAlert, tono: 'neutro',
+        titulo: `Ley Karin: ${karinEmpresa.abiertas} ${karinEmpresa.abiertas === 1 ? 'denuncia en curso' : 'denuncias en curso'}`,
+        detalle: 'La lleva el encargado de denuncias. Usted ve solo la cifra y los plazos; el contenido es reservado.',
+        accion: 'Ver', a: '/app/reglamento' });
+    }
     if (karinVencidas) {
       t.push({ clave: 'karin-vencidas', Icono: ShieldAlert, tono: 'peligro',
         titulo: `Ley Karin: ${karinVencidas} ${karinVencidas === 1 ? 'denuncia tiene' : 'denuncias tienen'} un plazo vencido`,
