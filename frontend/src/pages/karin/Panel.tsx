@@ -121,14 +121,14 @@ function BitacoraReservada() {
         Todo lo que se hace en este acceso queda anotado y no se puede editar ni borrar. Si la Dirección del Trabajo lo pide, se le entrega.
       </p>
       <Button variante="secundario" className="self-start" onClick={() => void verificar()}
-        iconoInicio={<ShieldCheck className="size-5" strokeWidth={2} />}>Comprobar que nadie lo alteró</Button>
+        iconoInicio={<ShieldCheck className="size-5" strokeWidth={2} />}>Verificar integridad</Button>
       {verificacion && (verificacion.ok ? (
         <p role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-j40-card bg-ok-soft text-ok text-[14.5px]">
-          <ShieldCheck className="size-5 shrink-0" strokeWidth={2} aria-hidden />Íntegro: los {verificacion.registros} registros están tal como se anotaron.
+          <ShieldCheck className="size-5 shrink-0" strokeWidth={2} aria-hidden />Integridad verificada: los {verificacion.registros} registros conservan su contenido original y su secuencia criptográfica (SHA-256) está completa. No se detectaron modificaciones ni eliminaciones.
         </p>
       ) : (
         <p role="alert" className="flex items-center gap-2.5 px-4 py-3 rounded-j40-card bg-danger-soft text-danger text-[14.5px]">
-          <ShieldX className="size-5 shrink-0" strokeWidth={2} aria-hidden />Alguien alteró o quitó registros desde el N° {verificacion.roto_en}.
+          <ShieldX className="size-5 shrink-0" strokeWidth={2} aria-hidden />Se detectó una inconsistencia a partir del registro N° {verificacion.roto_en}: uno o más registros fueron modificados o eliminados. Contacta a soporte en contacto.jornada40@gmail.com.
         </p>
       ))}
       {datos.data && datos.data.registros.length > 0 && (

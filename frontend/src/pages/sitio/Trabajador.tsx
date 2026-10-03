@@ -9,6 +9,7 @@ import { esperaDeCodigo, mensajeError, portal } from '../../api/portal';
 import { CLAVE_CUENTA, useCuentaTrabajador } from '../../hooks/usePortal';
 import type { CuentaTrabajador } from '../../types';
 import { validateRut } from '../../utils/rutUtils';
+import { marcarActividad } from '../../utils/actividad';
 
 type Paso = 'rut' | 'clave' | 'codigo';
 interface EnvioCodigo { mensaje: string; destinos: string[] }
@@ -32,6 +33,7 @@ export default function Trabajador() {
 
   const entrar = useCallback((cuenta: CuentaTrabajador) => {
     queryClient.setQueryData(CLAVE_CUENTA, cuenta);
+    marcarActividad('portal');
     navigate('/trabajador/portal', { replace: true });
   }, [queryClient, navigate]);
 

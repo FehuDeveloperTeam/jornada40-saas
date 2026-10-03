@@ -59,6 +59,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'core.contexto.ContextoMiddleware',   # empresas visibles del usuario del equipo (se limpian siempre)
     'core.bitacora.BitacoraMiddleware',   # escrituras y descargas del panel (solo lectura, 5 años)
+    'core.sesion_inactividad.RenovarSesionMiddleware',   # Karin, portal e inspector: vencen por inactividad
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -267,8 +268,11 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 from datetime import timedelta
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(hours=2),
+    # Panel: 5 minutos sin uso cierran la sesión. El panel avisa al minuto 4 y,
+    # mientras haya actividad, renueva en segundo plano; la renovación (que rota)
+    # vence a los 15 minutos sin uso aunque se cierre la pestaña.
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(minutes=15),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
 }

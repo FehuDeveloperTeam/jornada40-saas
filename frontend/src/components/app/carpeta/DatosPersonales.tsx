@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
-import { Briefcase, CircleCheck, FileSignature, IdCard, Landmark, Mail, Pencil, PenLine } from 'lucide-react';
+import { Briefcase, CircleCheck, FileSignature, HeartHandshake, IdCard, Landmark, Mail, Pencil, PenLine } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import client from '../../../api/client';
@@ -11,13 +11,16 @@ import { ModalConsentimientoPapel } from '../ModalConsentimientoPapel';
 import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, ViaConsentimiento } from '../../../types';
 import { capitalizar, fechaCL } from '../../../utils/formato';
+import { BANCOS } from '../trabajador';
 import { AFPS, mensajeErrorCampos } from './utiles';
 
 type Tipo = 'texto' | 'fecha' | 'select' | 'numero' | 'correo' | 'sino';
 type Campo = keyof Empleado;
 interface DefCampo {
   campo: Campo; etiqueta: string; tipo?: Tipo; opciones?: [string, string][]; mono?: boolean;
-  soloLectura?: boolean; mostrar?: (b: Partial<Empleado>) => boolean; nombre?: boolean;
+  soloLectura?: boolean; mostrar?: (b: Partial<Empleado>, editando: boolean) => boolean; nombre?: boolean;
+  /** Etiqueta que cambia según lo elegido (p. ej. "Número" → "Altura o kilómetro"). */
+  etiquetaSegun?: (b: Partial<Empleado>, editando: boolean) => string;
 }
 interface DefSeccion { clave: string; titulo: string; Icono: LucideIcon; campos: DefCampo[] }
 
@@ -44,7 +47,15 @@ const SECCIONES: DefSeccion[] = [
   { clave: 'contacto', titulo: 'Contacto', Icono: Mail, campos: [
     { campo: 'email', etiqueta: 'Correo', tipo: 'correo' },
     { campo: 'numero_telefono', etiqueta: 'Teléfono' },
-    { campo: 'direccion', etiqueta: 'Dirección', nombre: true },
+    // Se ve la dirección completa; al editar, por partes (el backend la arma).
+    { campo: 'direccion', etiqueta: 'Dirección', nombre: true, soloLectura: true,
+      mostrar: (b, editando) => !editando || (!b.calle && Boolean(b.direccion)),
+      etiquetaSegun: (_, editando) => editando ? 'Dirección registrada (complétala por partes)' : 'Dirección' },
+    { campo: 'calle', etiqueta: 'Calle, pasaje o camino', nombre: true, mostrar: (_, editando) => editando },
+    { campo: 'sin_numero', etiqueta: 'Sin número (S/N)', tipo: 'sino', mostrar: (_, editando) => editando },
+    { campo: 'numero', etiqueta: 'Número', mostrar: (_, editando) => editando,
+      etiquetaSegun: (b) => b.sin_numero ? 'Altura o kilómetro (opcional)' : 'Número' },
+    { campo: 'depto', etiqueta: 'Depto, oficina o casa (opcional)', mostrar: (_, editando) => editando },
     { campo: 'comuna', etiqueta: 'Comuna', nombre: true },
   ] },
   { clave: 'laboral', titulo: 'Datos laborales', Icono: Briefcase, campos: [
@@ -56,6 +67,20 @@ const SECCIONES: DefSeccion[] = [
     { campo: 'modalidad', etiqueta: 'Modalidad', tipo: 'select', opciones: [['PRESENCIAL', 'Presencial'], ['REMOTO', 'Remoto'], ['HIBRIDO', 'Híbrido']] },
     { campo: 'fecha_ingreso', etiqueta: 'Fecha de ingreso', tipo: 'fecha' },
     { campo: 'anios_previos_feriado', etiqueta: 'Años con otros empleadores (feriado progresivo, con certificado, máx. 10)', tipo: 'numero' },
+  ] },
+  // Solo generan avisos (fuero en el término, cuidado en vacaciones y teletrabajo): core/proteccion.py.
+  { clave: 'proteccion', titulo: 'Protecciones especiales', Icono: HeartHandshake, campos: [
+    { campo: 'cuidado_de', etiqueta: 'Responsabilidades de cuidado (Ley 21.645)', tipo: 'select', opciones: [
+      ['', 'No tiene'], ['MENOR_14', 'Cuida a un niño o niña menor de 14 años'],
+      ['MENOR_18_DISCAPACIDAD', 'Cuida a un adolescente menor de 18 con discapacidad o dependencia'],
+      ['DISCAPACIDAD', 'Cuida a una persona con discapacidad'], ['DEPENDENCIA', 'Cuida a una persona con dependencia severa o moderada']] },
+    { campo: 'hijo_enfermedad_grave', etiqueta: 'Hijo o hija menor de 18 con enfermedad grave (Ley SANNA)', tipo: 'sino' },
+    { campo: 'fuero', etiqueta: 'Fuero laboral', tipo: 'select', opciones: [
+      ['', 'No tiene'], ['MATERNIDAD', 'Maternidad (embarazo y hasta 1 año después del postnatal)'],
+      ['POSTNATAL_PARENTAL', 'Padre con postnatal parental'], ['SINDICAL', 'Dirigente o candidato sindical'],
+      ['DELEGADO', 'Delegado del personal o sindical'], ['COMITE_PARITARIO', 'Representante del Comité Paritario'],
+      ['NEGOCIACION', 'Negociación colectiva en curso']] },
+    { campo: 'fuero_hasta', etiqueta: 'Fuero hasta (vacío si aún no se sabe)', tipo: 'fecha', mostrar: (b) => Boolean(b.fuero) },
   ] },
   { clave: 'prevision', titulo: 'Previsión y pago', Icono: Landmark, campos: [
     { campo: 'afp', etiqueta: 'AFP', tipo: 'select', opciones: [['', 'Sin AFP'], ...AFPS.map((a): [string, string] => [a, capitalizar(a)])] },
@@ -80,7 +105,8 @@ const SECCIONES: DefSeccion[] = [
     { campo: 'tipo_impuesto_renta', etiqueta: 'Impuesto a la renta', tipo: 'select',
       opciones: [['1', 'Segunda categoría'], ['2', 'Único obrero agrícola'], ['3', 'Adicional (no residente)']] },
     { campo: 'forma_pago', etiqueta: 'Forma de pago', tipo: 'select', opciones: [['TRANSFERENCIA', 'Transferencia'], ['DEPOSITO', 'Depósito'], ['CHEQUE', 'Cheque'], ['EFECTIVO', 'Efectivo']] },
-    { campo: 'banco', etiqueta: 'Banco', mostrar: conCuenta },
+    { campo: 'banco', etiqueta: 'Banco', tipo: 'select', mostrar: conCuenta,
+      opciones: [['', 'Sin especificar'], ...BANCOS.map((b): [string, string] => [b.toUpperCase(), b])] },
     // El backend guarda los textos en mayúsculas: los valores van igual.
     { campo: 'tipo_cuenta', etiqueta: 'Tipo de cuenta', tipo: 'select', mostrar: conCuenta,
       opciones: [['', 'Sin especificar'], ['CUENTA CORRIENTE', 'Cuenta corriente'], ['CUENTA VISTA / RUT', 'Cuenta vista / RUT'], ['CUENTA DE AHORRO', 'Cuenta de ahorro']] },
@@ -95,6 +121,7 @@ const ETIQUETAS: Record<string, string> = Object.fromEntries(
 
 // Campos que el backend guarda sin null: vacío es '' (texto) o 0 (cantidad).
 const VACIO_NO_NULO: Partial<Record<Campo, string | number>> = {
+  calle: '', numero: '', depto: '', cuidado_de: '', fuero: '',
   isapre: '', numero_fun: '', cargas_simples: 0, cargas_maternales: 0, cargas_invalidas: 0, anios_previos_feriado: 0,
 };
 
@@ -295,7 +322,7 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
   };
 
   const fuente = editando ? { ...empleado, ...borrador } : empleado;
-  const campos = seccion.campos.filter((c) => !c.mostrar || c.mostrar(fuente));
+  const campos = seccion.campos.filter((c) => !c.mostrar || c.mostrar(fuente, editando));
 
   return (
     <section className="bg-surface border border-line rounded-j40-card shadow-card">
@@ -318,7 +345,7 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
           const valor = fuente[c.campo];
           return (
             <div key={String(c.campo)} className="flex flex-col gap-[5px] min-w-0">
-              <label htmlFor={id} className="text-[12px] text-fg-3">{c.etiqueta}</label>
+              <label htmlFor={id} className="text-[12px] text-fg-3">{c.etiquetaSegun ? c.etiquetaSegun(fuente, editando) : c.etiqueta}</label>
               {!editando || c.soloLectura ? (
                 <span id={id} className={c.mono ? 'text-[14px] font-medium min-h-[22px] break-words j40-mono' : 'text-[14px] font-medium min-h-[22px] break-words'}>
                   {valorVisible(c, valor)}
@@ -334,7 +361,7 @@ function SeccionEditable({ seccion, empleado, avisar }: { seccion: DefSeccion; e
                   onChange={(e) => setBorrador((b) => ({ ...b, [c.campo]: e.target.value }))}>
                   {c.opciones!.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                   {/* Un valor guardado que no está entre las opciones se conserva tal cual. */}
-                  {!c.opciones!.some(([v]) => v === String(valor ?? '')) && <option value={String(valor ?? '')}>{capitalizar(String(valor ?? '')) || 'Sin especificar'}</option>}
+                  {!c.opciones!.some(([v]) => v === String(valor ?? '')) && <option value={String(valor ?? '')}>{valor ? `${capitalizar(String(valor))} (elige de la lista)` : 'Sin especificar'}</option>}
                 </select>
               ) : (
                 <Input id={id} mono={c.mono} value={String(valor ?? '')}

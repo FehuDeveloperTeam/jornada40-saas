@@ -7,6 +7,7 @@ import client from '../../api/client';
 import { AlertaError, Button, CampoRut, InputContrasena } from '../../components/j40';
 import { AuthLayout, EncabezadoForm } from '../../components/sitio/AuthLayout';
 import { validateRut } from '../../utils/rutUtils';
+import { marcarActividad } from '../../utils/actividad';
 
 interface CuentaParaElegir { cuenta: number; nombre: string }
 
@@ -30,6 +31,7 @@ export default function IngresoKarin() {
     try {
       const { data } = await client.post<{ elegir_cuenta?: CuentaParaElegir[] }>('/karin/ingresar/', { rut, clave, cuenta });
       if (data.elegir_cuenta) { setCuentas(data.elegir_cuenta); setEnviando(false); return; }
+      marcarActividad('karin');
       navigate('/karin/panel', { replace: true });
     } catch (err) {
       const estado = isAxiosError(err) ? err.response?.status : undefined;

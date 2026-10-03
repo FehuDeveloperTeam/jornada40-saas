@@ -12,6 +12,8 @@ import { NOMBRES_MODULOS, usePermisos } from '../../hooks/usePermisos';
 import type { ModuloPanel } from '../../types';
 import { contrasenaAceptable } from '../../utils/contrasena';
 import { cn } from '../../utils/cn';
+import { CamposDireccion } from '../../components/app/CamposDireccion';
+import { partesDe } from '../../utils/direccion';
 
 interface Perfil {
   rut: string;
@@ -23,6 +25,10 @@ interface Perfil {
   email: string;
   telefono: string;
   direccion: string;
+  calle: string;
+  numero: string;
+  sin_numero: boolean;
+  depto: string;
 }
 
 /** Primer mensaje de error de una respuesta de DRF / dj-rest-auth. */
@@ -138,7 +144,7 @@ function DatosTitular({ guardado }: { guardado: Perfil }) {
         <Campo etiqueta="Apellido materno"><Input value={borrador.apellido_materno} onChange={poner('apellido_materno')} /></Campo>
         <Campo etiqueta="Correo"><Input type="email" value={borrador.email} onChange={poner('email')} /></Campo>
         <Campo etiqueta="Teléfono"><Input type="tel" value={borrador.telefono} onChange={poner('telefono')} placeholder="+56 9 1234 5678" /></Campo>
-        <Campo etiqueta="Dirección"><Input value={borrador.direccion} onChange={poner('direccion')} /></Campo>
+        <CamposDireccion valor={partesDe(borrador)} onChange={(d) => setBorrador((b) => ({ ...b, ...d }))} anterior={guardado.direccion} />
       </div>
       {cambios && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-[84px] min-[720px]:bottom-6 z-[60] flex items-center gap-3 px-4 py-2.5 rounded-[12px] bg-surface border border-line-strong shadow-pop w-[min(560px,calc(100vw-24px))]">

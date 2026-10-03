@@ -35,11 +35,13 @@ from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 
 from ..models import (CodigoTrabajador, Contrato, CorreoTrabajador, CuentaTrabajador,
                       Empleado, Liquidacion, SolicitudFirma, VacacionEmpleado)
+from .. import sesion_inactividad
 from ..rut import formatear_rut, limpiar_rut, validar_rut
 from .base import _ctx_contrato, _html_a_pdf_bytes, _plan_permite, logger, pdf_firmado, respuesta_pdf
 
 COOKIE = 'jornada40-trabajador'
-DURACION_SESION = 8 * 60 * 60          # segundos
+DURACION_SESION = 8 * 60 * 60          # segundos: tope aunque haya actividad
+INACTIVIDAD_SESION = 15 * 60           # sin uso, se cierra
 MESES_ACCESO_DESVINCULADO = 3
 NIVEL_PLAN_PORTAL = 3                  # Pyme
 MINUTOS_CODIGO = 10
@@ -165,10 +167,8 @@ def invitar_al_portal(emp):
 # ── Sesión ───────────────────────────────────────────────────────────────────
 
 def _poner_sesion(response, cuenta, via):
-    valor = signing.dumps({'c': cuenta.pk, 'v': cuenta.version_sesion, 'via': via}, salt=_SAL)
-    desplegado = bool(getattr(settings, 'IS_DEPLOYED', False))
-    response.set_cookie(COOKIE, valor, max_age=DURACION_SESION, httponly=True, secure=desplegado,
-                        samesite='None' if desplegado else 'Lax', path='/')
+    valor = sesion_inactividad.firmar({'c': cuenta.pk, 'v': cuenta.version_sesion, 'via': via}, _SAL)
+    sesion_inactividad.poner_cookie(response, COOKIE, valor, INACTIVIDAD_SESION)
     cuenta.ultimo_ingreso = timezone.now()
     cuenta.save(update_fields=['ultimo_ingreso'])
     return response
@@ -180,12 +180,13 @@ class SesionTrabajador(BaseAuthentication):
         if not valor:
             return None
         try:
-            datos = signing.loads(valor, salt=_SAL, max_age=DURACION_SESION)
+            datos = sesion_inactividad.leer(valor, _SAL, INACTIVIDAD_SESION, DURACION_SESION)
             cuenta = CuentaTrabajador.objects.get(pk=datos['c'])
         except (signing.BadSignature, CuentaTrabajador.DoesNotExist, KeyError, TypeError):
             return None
         if cuenta.version_sesion != datos.get('v'):
             return None
+        sesion_inactividad.renovar(request, COOKIE, datos, _SAL, INACTIVIDAD_SESION)
         return cuenta, datos
 
 

@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios';
 import { Link } from 'react-router-dom';
 import { LogOut } from 'lucide-react';
 import client from '../../api/client';
-import { AlertaError, Button, J40Root, Logo, ToggleTema } from '../j40';
+import { AlertaError, Button, CierreInactividad, J40Root, Logo, ToggleTema } from '../j40';
 import type { CatalogosKarin, SesionKarin } from '../../types';
 
 interface ContextoKarin { yo: SesionKarin; catalogos: CatalogosKarin | undefined }
@@ -61,6 +61,7 @@ export default function KarinShell() {
           <Button variante="secundario" onClick={() => void salir()} iconoInicio={<LogOut className="size-4" strokeWidth={2} />}>Salir</Button>
         </div>
       </header>
+      <CierreInactividad acceso="karin" minutos={5} alVencer={() => void salir()} latido={() => client.get('/karin/yo/')} />
       <main className="max-w-[980px] mx-auto px-4 py-8 flex flex-col gap-5 pb-20">
         <Outlet context={{ yo: sesion.data, catalogos: catalogos.data } satisfies ContextoKarin} />
       </main>

@@ -18,3 +18,4 @@ export { ToggleTema, TarjetaOpcion, AlertaError, Casilla } from './Varios';
 export { FirmaPad } from './FirmaPad';
 export { Drawer } from './Drawer';
 export { CampoCodigo } from './CampoCodigo';
+export { CierreInactividad } from './CierreInactividad';

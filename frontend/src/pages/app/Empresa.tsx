@@ -11,6 +11,8 @@ import client from '../../api/client';
 import type { Empresa as TEmpresa } from '../../types';
 import { capitalizar, clp, decimalCL, fechaCL } from '../../utils/formato';
 import { validateRut } from '../../utils/rutUtils';
+import { CamposDireccion } from '../../components/app/CamposDireccion';
+import { partesDe, type DireccionPartes } from '../../utils/direccion';
 
 interface Parametros {
   periodo: string;
@@ -64,7 +66,7 @@ type Avisar = (texto: string, tipo?: 'ok' | 'error') => void;
 function ponerEnCache(queryClient: ReturnType<typeof useQueryClient>, empresa: TEmpresa) {
   queryClient.setQueryData<TEmpresa[]>(['empresas'], (lista) => lista?.map((e) => (e.id === empresa.id ? { ...e, ...empresa } : e)));
 }
-type Editables = Pick<TEmpresa, 'nombre_legal' | 'alias' | 'giro' | 'direccion' | 'comuna' | 'ciudad' | 'sucursal' | 'representante_legal' | 'rut_representante'>;
+type Editables = Pick<TEmpresa, 'nombre_legal' | 'alias' | 'giro' | 'comuna' | 'ciudad' | 'sucursal' | 'representante_legal' | 'rut_representante'> & DireccionPartes;
 
 export default function Empresa() {
   const { empresa, suscripcion, avisar } = usePanelContexto();
@@ -159,7 +161,7 @@ function Dato({ t, v }: { t: string; v: string }) {
 }
 
 const editablesDe = (empresa: TEmpresa): Editables => ({
-  nombre_legal: empresa.nombre_legal, alias: empresa.alias ?? '', giro: empresa.giro ?? '', direccion: empresa.direccion ?? '',
+  nombre_legal: empresa.nombre_legal, alias: empresa.alias ?? '', giro: empresa.giro ?? '', ...partesDe(empresa),
   comuna: empresa.comuna ?? '', ciudad: empresa.ciudad ?? '', sucursal: empresa.sucursal ?? '', representante_legal: empresa.representante_legal ?? '',
   rut_representante: empresa.rut_representante ?? '',
 });
@@ -211,7 +213,7 @@ function DatosLegales({ empresa: empresaProp, avisar }: { empresa: TEmpresa; avi
           title="Los documentos ya emitidos llevan este RUT. Si es otra persona jurídica, crea una empresa nueva." /></Campo>
         <Campo etiqueta="Nombre de fantasía"><Input value={b.alias ?? ''} onChange={poner('alias')} /></Campo>
         <Campo etiqueta="Giro"><Input value={b.giro ?? ''} onChange={poner('giro')} /></Campo>
-        <Campo etiqueta="Dirección"><Input value={b.direccion ?? ''} onChange={poner('direccion')} /></Campo>
+        <CamposDireccion valor={partesDe(b)} onChange={(d) => setB((x) => ({ ...x, ...d }))} anterior={empresa.direccion} />
         <Campo etiqueta="Comuna"><Input value={b.comuna ?? ''} onChange={poner('comuna')} /></Campo>
         <Campo etiqueta="Ciudad"><Input value={b.ciudad ?? ''} onChange={poner('ciudad')} /></Campo>
         <Campo etiqueta="Sucursal"><Input value={b.sucursal ?? ''} onChange={poner('sucursal')} /></Campo>

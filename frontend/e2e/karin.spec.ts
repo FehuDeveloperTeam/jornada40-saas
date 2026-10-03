@@ -42,8 +42,8 @@ test('el titular designa al encargado y este entra por su acceso reservado', asy
   await expect(page).toHaveURL(/\/karin\/panel$/);
   await expect(page.getByRole('heading', { name: 'Hola, Rosa' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Inició sesión' })).toBeVisible();
-  await page.getByRole('button', { name: 'Comprobar que nadie lo alteró' }).click();
-  await expect(page.getByText(/Íntegro: los \d+ registros/)).toBeVisible();
+  await page.getByRole('button', { name: 'Verificar integridad' }).click();
+  await expect(page.getByText(/Integridad verificada: los \d+ registros/)).toBeVisible();
 
   // La sesión Ley Karin no abre el panel de la empresa.
   await page.goto('/app');

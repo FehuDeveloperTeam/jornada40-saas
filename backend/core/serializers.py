@@ -52,7 +52,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
         model = Empresa
         fields = [
             'id', 'owner', 'nombre_legal', 'rut', 'alias', 'giro',
-            'direccion', 'comuna', 'ciudad', 'sucursal',
+            'direccion', 'calle', 'numero', 'sin_numero', 'depto', 'comuna', 'ciudad', 'sucursal',
             'representante_legal', 'rut_representante',
             'activo', 'created_at',
             'firma_firmante_nombre', 'firma_firmante_cargo', 'firma_configurada_en',
@@ -150,6 +150,12 @@ class EmpleadoSerializer(serializers.ModelSerializer):
     tiene_rechazos_pendientes = serializers.BooleanField(read_only=True, default=False)
     correo_parece_corporativo = serializers.SerializerMethodField()
 
+    avisos_proteccion = serializers.SerializerMethodField()
+
+    def get_avisos_proteccion(self, obj):
+        from .proteccion import avisos
+        return avisos(obj)
+
     def get_correo_parece_corporativo(self, obj):
         from .models import correo_parece_corporativo
         return correo_parece_corporativo(obj.email)
@@ -163,6 +169,17 @@ class EmpleadoSerializer(serializers.ModelSerializer):
 
     def validate_empresa(self, empresa):
         return _exigir_propia(self, empresa)
+
+    def validate_banco(self, valor):
+        # Lista cerrada (core/bancos.py). Un valor antiguo escrito a mano se
+        # acepta mientras no cambie, para no impedir guardar otros datos.
+        from .bancos import normalizar_banco
+        banco = normalizar_banco(valor)
+        if banco is None:
+            if self.instance is not None and (valor or '') == (self.instance.banco or ''):
+                return valor
+            raise serializers.ValidationError('Elige el banco de la lista.')
+        return banco or None
 
     def validate(self, attrs):
         # El N° de ficha se puede corregir, pero no repetir dentro de la empresa.
@@ -182,7 +199,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'empresa', 'rut', 'nombres', 'apellido_paterno', 'apellido_materno',
             'sexo', 'fecha_nacimiento', 'nacionalidad', 'estado_civil',
-            'direccion', 'comuna', 'numero_telefono', 'email', 'email_personal_confirmado', 'correo_parece_corporativo',
+            'direccion', 'calle', 'numero', 'sin_numero', 'depto', 'comuna', 'numero_telefono', 'email', 'email_personal_confirmado', 'correo_parece_corporativo',
             'departamento', 'cargo', 'sucursal',
             'horas_laborales', 'modalidad', 'sueldo_base', 'fecha_ingreso',
             'afp', 'sistema_salud', 'plan_isapre_uf', 'isapre', 'numero_fun',
@@ -190,13 +207,14 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'anios_previos_feriado', 'fecha_desvinculacion',
             'discapacidad', 'pension_invalidez', 'consentimiento_electronico_en', 'consentimiento_electronico_via',
             'pensionado_vejez', 'tecnico_extranjero_exento', 'tipo_impuesto_renta',
+            'cuidado_de', 'hijo_enfermedad_grave', 'fuero', 'fuero_hasta', 'avisos_proteccion',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
             'contrato_activo',
             'tiene_rechazos_pendientes',
         ]
-        read_only_fields = ('id', 'creado_en', 'contrato_activo', 'fecha_desvinculacion',
+        read_only_fields = ('id', 'creado_en', 'contrato_activo', 'fecha_desvinculacion', 'avisos_proteccion',
                             'tiene_rechazos_pendientes', 'consentimiento_electronico_en',
                             'consentimiento_electronico_via')
 

@@ -5,9 +5,10 @@ import {
   Ellipsis, FileUp, Inbox, Info, Landmark, LayoutDashboard, LogOut, Plus, ScrollText, Search, Shapes, Signature, TriangleAlert, UserCog, UserPlus, UserRound, Users, X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Button, Chip, J40Root, Logo, ToggleTema } from '../j40';
+import { Button, Chip, CierreInactividad, J40Root, Logo, ToggleTema } from '../j40';
 import { ConfirmarIdentidad } from './ConfirmarIdentidad';
 import { useAuth } from '../../context/AuthContext';
+import client, { rutaIngreso } from '../../api/client';
 import {
   useEmpresaActiva, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
 } from '../../hooks/usePanel';
@@ -109,6 +110,15 @@ const AVISO_SUSCRIPCION: Record<string, { titulo: string; detalle: string; clase
 
 export default function AppShell() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+  // 5 minutos sin actividad: se cierra la sesión y se vuelve al ingreso (con aviso y a la misma página después).
+  const cerrarPorInactividad = useCallback(async () => {
+    const { pathname, search } = window.location;
+    await logout();
+    const ruta = rutaIngreso(pathname + search);
+    navigate(`${ruta}${ruta.includes('?') ? '&' : '?'}inactividad=1`, { replace: true });
+  }, [logout, navigate]);
+  const latidoPanel = useCallback(() => client.post('/auth/token/refresh/', {}, { _sinRenovar: true }), []);
   const { empresa, empresas, cambiar, cargando, error } = useEmpresaActiva();
   const { suscripcion, nivel, maxEmpresas, cargando: cargandoPlan, error: errorSuscripcion, reintentar } = useSuscripcion();
   const reintentarSuscripcion = useCallback(() => { void reintentar(); }, [reintentar]);
@@ -217,6 +227,7 @@ export default function AppShell() {
         </div>
         <BarraInferior />
         <ConfirmarIdentidad />
+        <CierreInactividad acceso="panel" minutos={5} alVencer={() => void cerrarPorInactividad()} latido={latidoPanel} />
         <Paleta key={String(paletaAbierta)} abierta={paletaAbierta} onCerrar={() => setPaletaAbierta(false)} trabajadores={contexto.trabajadores}
           agregarTrabajador={contexto.agregarTrabajador} permisos={permisos} />
         <DrawerTrabajador key={aperturaDrawer} abierto={drawerTrabajador} onCerrar={() => setDrawerTrabajador(false)} />

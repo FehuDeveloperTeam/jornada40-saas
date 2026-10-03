@@ -11,6 +11,7 @@ import { cn } from '../../../utils/cn';
 import { capitalizar, clp, decimalCL, hoyISO } from '../../../utils/formato';
 import { CAUSALES, CAUSALES_CON_INDEMNIZACION, etiquetaCausal } from '../causales';
 import { TIPO_JORNADA } from '../trabajador';
+import { ListaAvisos } from '../Avisos';
 import { CAMPOS_ANEXO, errorHorasSemanales, HORAS_SEMANALES_MAXIMAS } from './utiles';
 import type { CampoAnexo } from './utiles';
 import { useBolsaCompensatoria } from './compensatorias';
@@ -253,6 +254,7 @@ export function DrawerDocumento({ empleado, tipoInicial, nivel, onCerrar, avisar
         <Campo etiqueta="Fecha de emisión"><Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></Campo>
         {despido && (
           <>
+            <ListaAvisos avisos={empleado.avisos_proteccion?.filter((x) => x.codigo === 'FUERO')} />
             <Campo etiqueta="Causal de término">
               <select className={CONTROL} value={causal} onChange={(e) => setCausal(e.target.value)}>
                 <option value="">Selecciona la causal…</option>
@@ -351,6 +353,7 @@ export function DrawerVacacion({ empleado, saldo, onCerrar, avisar }: {
             {bolsa?.permitido && <option value="DIA_COMPENSATORIO">Día libre por horas extra</option>}
           </select>
         </Campo>
+        <ListaAvisos compacto avisos={empleado.avisos_proteccion?.filter((x) => x.codigo === 'CUIDADO')} />
         <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Desde"><Input type="date" value={inicio} onChange={(e) => { setInicio(e.target.value); if (fin < e.target.value) setFin(e.target.value); }} /></Campo>
           <Campo etiqueta="Hasta"><Input type="date" value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>

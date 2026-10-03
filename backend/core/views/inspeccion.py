@@ -39,12 +39,14 @@ from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 from ..models import (AnexoContrato, CodigoInspeccion, Contrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa,
                       Finiquito, Liquidacion, RatificacionInspeccion, RegistroInspeccion, SolicitudFirma,
                       VacacionEmpleado)
+from .. import sesion_inactividad
 from ..rut import formatear_rut, limpiar_rut, validar_rut
 from .base import _ctx_contrato, _html_a_pdf_bytes, logger, pdf_firmado, respuesta_pdf
 from .portal_trabajador import _anotar_para_pruebas
 
 COOKIE = 'jornada40-inspeccion'
-DURACION_SESION = 8 * 60 * 60
+DURACION_SESION = 8 * 60 * 60     # tope aunque haya actividad
+INACTIVIDAD_SESION = 15 * 60      # sin uso, se cierra
 MINUTOS_CODIGO = 10
 INTENTOS_POR_CODIGO = 3
 _SAL = 'portal-inspeccion'
@@ -91,10 +93,11 @@ class SesionInspeccion(BaseAuthentication):
         if not valor:
             return None
         try:
-            d = signing.loads(valor, salt=_SAL, max_age=DURACION_SESION)
+            d = sesion_inactividad.leer(valor, _SAL, INACTIVIDAD_SESION, DURACION_SESION)
             empresa = Empresa.objects.get(pk=d['e'], activo=True)
         except (signing.BadSignature, Empresa.DoesNotExist, KeyError, TypeError):
             return None
+        sesion_inactividad.renovar(request, COOKIE, d, _SAL, INACTIVIDAD_SESION)
         return Inspector(empresa, d['c'], d['n'], d['r']), d
 
 
@@ -206,12 +209,8 @@ def verificar(request):
     vigente.save(update_fields=['usado'])
     _registrar(empresa, correo, vigente.nombre, vigente.rut_inspector, 'INGRESO', request)
     respuesta = Response(_datos_sesion(Inspector(empresa, correo, vigente.nombre, vigente.rut_inspector)))
-    desplegado = bool(getattr(settings, 'IS_DEPLOYED', False))
-    respuesta.set_cookie(COOKIE, signing.dumps({'e': empresa.pk, 'c': correo, 'n': vigente.nombre,
-                                                'r': vigente.rut_inspector}, salt=_SAL),
-                         max_age=DURACION_SESION, httponly=True, secure=desplegado,
-                         samesite='None' if desplegado else 'Lax')
-    return respuesta
+    return sesion_inactividad.poner_cookie(respuesta, COOKIE, sesion_inactividad.firmar(
+        {'e': empresa.pk, 'c': correo, 'n': vigente.nombre, 'r': vigente.rut_inspector}, _SAL), INACTIVIDAD_SESION)
 
 
 def _datos_sesion(i):

@@ -27,9 +27,9 @@
                 <b>{{ nombre }}</b> · RUT {{ rut }}<br>
                 Período: {{ periodo }}{% if e.persona %} · Persona: {{ filas.0.actor }}{% endif %}<br>
                 Registros: {{ e.registros }} · Descargada el {{ generado }} por {{ e.generado_por_nombre }}<br>
-                Cadena de la cuenta:
-                {% if cadena.ok %}<span class="ok">íntegra ({{ cadena.registros }} registros verificados)</span>
-                {% else %}<span class="alerta">alterada desde el registro N° {{ cadena.roto_en }}</span>{% endif %}
+                Integridad de la cadena:
+                {% if cadena.ok %}<span class="ok">verificada ({{ cadena.registros }} registros, sin modificaciones ni eliminaciones)</span>
+                {% else %}<span class="alerta">inconsistencia detectada a partir del registro N° {{ cadena.roto_en }}</span>{% endif %}
             </td>
             <td style="width: 2.4cm;"><img src="{{ qr }}" width="66" height="66"></td>
             <td style="text-align: right;">

@@ -17,9 +17,10 @@ import { descargar } from '../../api/descargas';
 import { rutaAccion, useFirmas } from '../../hooks/usePanel';
 import { usePermisos } from '../../hooks/usePermisos';
 import { useAvisosPeriodo, useLiquidacionesPeriodo } from '../../hooks/useRemuneraciones';
-import type { Empleado, Liquidacion, SolicitudFirma } from '../../types';
+import type { Empleado, EnvioMasivo, Liquidacion, SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, clp, fechaCL, iniciales, nombreMes, periodo } from '../../utils/formato';
+import { avisoCorreosFallidos } from '../../utils/correo';
 
 const COLUMNAS = 'grid-cols-[minmax(220px,2fr)_60px_repeat(4,minmax(100px,1fr))_130px_104px]';
 
@@ -101,13 +102,13 @@ export default function Remuneraciones() {
   const enviarAFirma = async () => {
     setEnviandoFirma(true);
     try {
-      const { data } = await client.post<{ enviadas: number; omitidas: { nombre: string; motivo: string }[] }>(
-        '/firmas/solicitar_liquidaciones/', { empresa: empresa.id, mes, anio });
+      const { data } = await client.post<EnvioMasivo>('/firmas/solicitar_liquidaciones/', { empresa: empresa.id, mes, anio });
       await queryClient.invalidateQueries({ queryKey: ['firmas'] });
       const omitidas = data.omitidas.length
         ? ` · ${data.omitidas.length} sin enviar (${capitalizar(data.omitidas[0].nombre)}: ${data.omitidas[0].motivo})` : '';
-      avisar(`${data.enviadas} ${data.enviadas === 1 ? 'liquidación enviada' : 'liquidaciones enviadas'} a firma${omitidas}`,
-        data.omitidas.length ? 'error' : 'ok');
+      const sinCorreo = avisoCorreosFallidos(data.correo_fallido);
+      avisar(`${data.enviadas} ${data.enviadas === 1 ? 'liquidación enviada' : 'liquidaciones enviadas'} a firma${omitidas}${sinCorreo ? `. ${sinCorreo}` : ''}`,
+        data.omitidas.length || sinCorreo ? 'error' : 'ok');
       setConfirmarFirma(false);
     } catch (err) {
       avisar((isAxiosError(err) && (err.response?.data as { error?: string } | undefined)?.error) || 'No pudimos enviar a firma.', 'error');

@@ -13,6 +13,8 @@ import { useSuscripcion } from '../../hooks/usePanel';
 import type { Empresa } from '../../types';
 import { capitalizar, iniciales } from '../../utils/formato';
 import { validateRut } from '../../utils/rutUtils';
+import { CamposDireccion } from '../../components/app/CamposDireccion';
+import { partesDe } from '../../utils/direccion';
 
 function mensaje(err: unknown, porDefecto: string): string {
   if (!isAxiosError(err)) return porDefecto;
@@ -134,10 +136,11 @@ function Fila({ empresa, activa, acciones }: { empresa: Empresa; activa: boolean
 }
 
 function NuevaEmpresa({ onCerrar, onCreada }: { onCerrar: () => void; onCreada: (id: number) => void }) {
-  const [d, setD] = useState({ nombre_legal: '', rut: '', giro: '', direccion: '', comuna: '', ciudad: '', sucursal: '', representante_legal: '', rut_representante: '' });
+  const [d, setD] = useState({ nombre_legal: '', rut: '', giro: '', ...partesDe(null), comuna: '', ciudad: '', sucursal: '', representante_legal: '', rut_representante: '' });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const poner = (k: keyof typeof d) => (e: { target: { value: string } }) => setD((x) => ({ ...x, [k]: e.target.value }));
+  const poner = (k: 'nombre_legal' | 'giro' | 'comuna' | 'ciudad' | 'sucursal' | 'representante_legal') =>
+    (e: { target: { value: string } }) => setD((x) => ({ ...x, [k]: e.target.value }));
 
   const crear = async () => {
     if (!d.nombre_legal.trim()) { setError('Ingresa la razón social.'); return; }
@@ -163,7 +166,7 @@ function NuevaEmpresa({ onCerrar, onCreada }: { onCerrar: () => void; onCreada: 
         <Campo etiqueta="Razón social"><Input value={d.nombre_legal} onChange={poner('nombre_legal')} /></Campo>
         <CampoRut etiqueta="RUT de la empresa" valor={d.rut} compacto onChange={(v) => setD((x) => ({ ...x, rut: v }))} />
         <Campo etiqueta="Giro"><Input value={d.giro} onChange={poner('giro')} /></Campo>
-        <Campo etiqueta="Dirección"><Input value={d.direccion} onChange={poner('direccion')} /></Campo>
+        <CamposDireccion valor={partesDe(d)} onChange={(v) => setD((x) => ({ ...x, ...v }))} />
         <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Comuna"><Input value={d.comuna} onChange={poner('comuna')} /></Campo>
           <Campo etiqueta="Ciudad"><Input value={d.ciudad} onChange={poner('ciudad')} /></Campo>

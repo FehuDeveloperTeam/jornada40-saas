@@ -378,17 +378,17 @@ function Bitacora() {
           <Button tamano="lg" variante="secundario" onClick={() => void bajar('xlsx')} cargando={descargando === 'xlsx'}
             iconoInicio={<FileSpreadsheet className="size-5" strokeWidth={2} />}>Descargar Excel</Button>
           <Button tamano="lg" variante="secundario" onClick={() => void verificar()} cargando={verificando}
-            iconoInicio={<ShieldCheck className="size-5" strokeWidth={2} />}>Comprobar que nadie la alteró</Button>
+            iconoInicio={<ShieldCheck className="size-5" strokeWidth={2} />}>Verificar integridad</Button>
         </div>
         {verificacion && (verificacion.ok ? (
           <div role="status" className="flex items-center gap-2.5 px-4 py-3 rounded-j40-card bg-ok-soft text-ok text-[14.5px]">
             <ShieldCheck className="size-5 shrink-0" strokeWidth={2} aria-hidden />
-            Íntegra: los {verificacion.registros} registros están tal como se anotaron.
+            Integridad verificada: los {verificacion.registros} registros conservan su contenido original y su secuencia criptográfica (SHA-256) está completa. No se detectaron modificaciones ni eliminaciones.
           </div>
         ) : (
           <div role="alert" className="flex items-center gap-2.5 px-4 py-3 rounded-j40-card bg-danger-soft text-danger text-[14.5px]">
             <ShieldX className="size-5 shrink-0" strokeWidth={2} aria-hidden />
-            Alguien alteró o quitó registros desde el N° {verificacion.roto_en}. Escríbenos a contacto.jornada40@gmail.com.
+            Se detectó una inconsistencia a partir del registro N° {verificacion.roto_en}: uno o más registros fueron modificados o eliminados. Contacta a soporte en contacto.jornada40@gmail.com.
           </div>
         ))}
         <p className="text-[12.5px] text-fg-3">La descarga usa los filtros de abajo. PDF hasta 3.000 registros; para más, usa Excel o acota las fechas.</p>

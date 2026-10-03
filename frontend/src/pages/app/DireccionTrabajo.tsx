@@ -19,6 +19,7 @@ import type {
 } from '../../types';
 import { cn } from '../../utils/cn';
 import { capitalizar, fechaCL, hoyISO } from '../../utils/formato';
+import { avisoCorreosFallidos } from '../../utils/correo';
 
 type FiltroEstado = 'por_registrar' | 'registrados' | 'todos';
 type FiltroTipo = 'todos' | TipoRegistroDT;
@@ -428,6 +429,9 @@ function Consentimiento({ empresaId, datos, pct, avisar, refrescar }: {
                 <li><strong className="text-fg j40-num">{resultado.datos.enviados}</strong> {resultado.datos.enviados === 1 ? 'enviado' : 'enviados'} a firma por correo</li>
               )}
             </ul>
+            {resultado.enviar && Boolean(resultado.datos.correo_fallido?.length) && (
+              <p role="alert" className="text-[12.5px] text-danger">{avisoCorreosFallidos(resultado.datos.correo_fallido)}</p>
+            )}
             {!resultado.enviar && resultado.datos.creados > 0 && (
               <p className="text-[12.5px] text-fg-3">Los encuentras en la carpeta de cada trabajador, en Documentos, para descargarlos o enviarlos a firma.</p>
             )}

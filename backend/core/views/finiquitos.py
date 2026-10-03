@@ -398,8 +398,11 @@ class FiniquitoViewSet(viewsets.ModelViewSet):
             return Response({'error': self._ERROR_PLAN}, status=status.HTTP_403_FORBIDDEN)
         empleado, fecha_termino, entrada = self._entrada(request)
         montos, detalle = self._calcular(empleado, fecha_termino, entrada)
+        from ..proteccion import avisos as avisos_proteccion
+        fuero = [a for a in avisos_proteccion(empleado, fecha_termino) if a['codigo'] == 'FUERO']
         return Response({**montos, 'detalle': detalle, 'aviso_previo_dado': entrada['aviso_previo_dado'],
-                         'causal_articulo': entrada['causal_articulo'], 'fecha_termino': fecha_termino.isoformat()})
+                         'causal_articulo': entrada['causal_articulo'], 'fecha_termino': fecha_termino.isoformat(),
+                         'avisos': fuero})
 
     def create(self, request, *args, **kwargs):
         if not _plan_permite(request.user, 2):

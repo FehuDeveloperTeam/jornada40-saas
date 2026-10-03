@@ -47,6 +47,11 @@ export interface Empresa {
     alias: string | null;
     giro: string | null;
     direccion: string | null;
+    /** Dirección por partes; `direccion` la arma el backend. */
+    calle?: string;
+    numero?: string;
+    sin_numero?: boolean;
+    depto?: string;
     comuna: string | null;
     ciudad: string | null;
     sucursal: string | null;
@@ -144,7 +149,9 @@ export interface Contrato {
 /** Aviso de incumplimiento de jornada. Informa, no bloquea. */
 export interface AvisoJornada {
     codigo: 'EXCEDE_MAXIMO' | 'HORARIO_SUPERA_PACTADO' | 'ART22_CON_HORARIO' | 'ART22_CON_HORAS'
-        | 'DIA_SUPERA_10H' | 'PARCIAL_SOBRE_TOPE' | 'PROXIMA_REDUCCION';
+        | 'DIA_SUPERA_10H' | 'PARCIAL_SOBRE_TOPE' | 'PROXIMA_REDUCCION'
+        // Protecciones del trabajador (core/proteccion.py), mismo formato.
+        | 'FUERO' | 'CUIDADO' | 'SANNA';
     /** alta: incumple hoy · media: conviene revisar. */
     gravedad: 'alta' | 'media';
     titulo: string;
@@ -164,7 +171,18 @@ export interface Empleado {
     fecha_nacimiento: string | null;
     nacionalidad: string;
     estado_civil: string | null;
+    /** Responsabilidades de cuidado (Ley 21.645), hijo con enfermedad grave (SANNA) y fuero: solo avisan. */
+    cuidado_de?: '' | 'MENOR_14' | 'MENOR_18_DISCAPACIDAD' | 'DISCAPACIDAD' | 'DEPENDENCIA';
+    hijo_enfermedad_grave?: boolean;
+    fuero?: '' | 'MATERNIDAD' | 'POSTNATAL_PARENTAL' | 'SINDICAL' | 'DELEGADO' | 'COMITE_PARITARIO' | 'NEGOCIACION';
+    fuero_hasta?: string | null;
+    avisos_proteccion?: AvisoJornada[];
     direccion: string | null;
+    /** Dirección por partes; `direccion` la arma el backend. */
+    calle?: string;
+    numero?: string;
+    sin_numero?: boolean;
+    depto?: string;
     comuna: string | null;
     numero_telefono: string | null;
     email: string | null;
@@ -451,6 +469,8 @@ export interface Finiquito {
 
 /** Respuesta de /finiquitos/simular/: montos calculados por el backend y su detalle. */
 export interface SimulacionFiniquito extends Omit<Finiquito, 'id' | 'empleado' | 'documento_legal' | 'causal_articulo_label' | 'fecha_emision' | 'modalidad' | 'archivo_pdf' | 'creado_en' | 'ratificado_en' | 'ratificado_via' | 'ratificado_via_label'> {
+    /** Fuero vigente a la fecha de término: aviso fuerte, no bloquea (core/proteccion.py). */
+    avisos?: AvisoJornada[];
     detalle: {
         sueldo_proporcional: number;
         feriado_dias_saldo: number;
@@ -632,6 +652,7 @@ export interface ResultadoAnexosConsentimiento {
     creados: number;
     enviados: number;
     omitidos: { nombre: string; motivo: string }[];
+    correo_fallido?: string[];
 }
 
 /** Ficha para el registro individual en Mi DT (GET /registro-dt/ficha/). */
@@ -996,7 +1017,8 @@ export interface EstadoLeyKarin {
 }
 
 /** Resultado de un envío masivo a firma. */
-export interface EnvioMasivo { enviadas: number; omitidas: { nombre: string; motivo: string }[] }
+/** Envío masivo a firma. `correo_fallido`: nombres cuyo documento quedó en firma sin que saliera el correo. */
+export interface EnvioMasivo { enviadas: number; omitidas: { nombre: string; motivo: string }[]; correo_fallido?: string[] }
 
 /** Módulos del panel que el titular asigna a los usuarios del equipo (core/permisos.py). */
 export type ModuloPanel = 'TRABAJADORES' | 'CONTRATOS' | 'REMUNERACIONES' | 'VACACIONES' | 'DOCUMENTOS' | 'TERMINO'

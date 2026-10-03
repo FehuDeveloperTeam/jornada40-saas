@@ -25,8 +25,9 @@ const client = axios.create({
 });
 
 /**
- * Sesión: el token de acceso dura 30 minutos y el de renovación 2 horas (se
- * renueva en cada uso). Ante un 401 se renueva una sola vez —las peticiones
+ * Sesión: el token de acceso dura 5 minutos y el de renovación 15 (se renueva
+ * en cada uso; CierreInactividad la mantiene viva mientras hay actividad y la
+ * cierra a los 5 minutos sin uso). Ante un 401 se renueva una sola vez —las peticiones
  * que fallen a la vez esperan la misma renovación— y se repite la petición.
  * Si la renovación falla, la sesión terminó: se vuelve al login recordando la
  * página, salvo en las rutas públicas.

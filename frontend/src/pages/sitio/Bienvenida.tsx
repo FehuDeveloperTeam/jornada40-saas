@@ -17,6 +17,8 @@ import { cn } from '../../utils/cn';
 import { jornadaMaximaVigente } from '../../utils/ley40';
 import { validateRut } from '../../utils/rutUtils';
 import type { DatosDesdeRegistro } from './Registro';
+import { CamposDireccion } from '../../components/app/CamposDireccion';
+import { partesDe } from '../../utils/direccion';
 
 // La carga masiva desde Excel es del plan Pyme en adelante (backend: nivel 3).
 const NIVEL_CARGA_MASIVA = 3;
@@ -27,7 +29,7 @@ const PASOS = [
   { titulo: 'Tu equipo', detalle: 'Importa o agrega trabajadores' },
 ];
 
-type DatosEmpresa = { rut: string; nombreLegal: string; alias: string; giro: string; direccion: string; comuna: string; ciudad: string };
+type DatosEmpresa = { rut: string; nombreLegal: string; alias: string; giro: string; comuna: string; ciudad: string };
 type DatosRepresentante = { nombre: string; rut: string; cargo: string; firma: string | null };
 
 function mensajeServidor(error: unknown, porDefecto: string): string {
@@ -59,8 +61,9 @@ export default function Bienvenida() {
   // Nada se prellena desde el registro: la cuenta es del titular y su RUT no
   // es el de ninguna empresa.
   const [empresa, setEmpresa] = useState<DatosEmpresa>({
-    rut: '', nombreLegal: '', alias: '', giro: '', direccion: '', comuna: '', ciudad: '',
+    rut: '', nombreLegal: '', alias: '', giro: '', comuna: '', ciudad: '',
   });
+  const [direccion, setDireccion] = useState(partesDe(null));
   const [rep, setRep] = useState<DatosRepresentante>({ nombre: '', rut: '', cargo: '', firma: null });
   const [intentoPaso, setIntentoPaso] = useState(false);
 
@@ -103,7 +106,7 @@ export default function Bienvenida() {
         nombre_legal: empresa.nombreLegal.trim(),
         alias: empresa.alias.trim(),
         giro: empresa.giro.trim(),
-        direccion: empresa.direccion.trim(),
+        ...direccion,
         comuna: empresa.comuna.trim(),
         ciudad: empresa.ciudad.trim(),
       });
@@ -246,9 +249,7 @@ export default function Bienvenida() {
                   <Field etiqueta="Giro">
                     {(p) => <Input {...p} tamano="lg" className="h-11" {...campoEmpresa('giro')} />}
                   </Field>
-                  <Field etiqueta="Dirección" anchoCompleto>
-                    {(p) => <Input {...p} tamano="lg" className="h-11" autoComplete="street-address" {...campoEmpresa('direccion')} />}
-                  </Field>
+                  <CamposDireccion valor={direccion} onChange={setDireccion} alto="h-11" />
                   <Field etiqueta="Comuna">
                     {(p) => <Input {...p} tamano="lg" className="h-11" {...campoEmpresa('comuna')} />}
                   </Field>

@@ -126,7 +126,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
                                               emision=datos_emisor(request, confirmado_en))
         except _ErrorFirma as e:
             return Response({'error': e.mensaje}, status=e.estado)
-        return Response(SolicitudFirmaSerializer(solicitud).data, status=201)
+        return Response({**SolicitudFirmaSerializer(solicitud).data, 'correo_enviado': solicitud.correo_enviado},
+                        status=201)
 
     @action(detail=False, methods=['post'], url_path='solicitar_liquidaciones')
     def solicitar_liquidaciones(self, request):
@@ -153,17 +154,19 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         liquidaciones = (Liquidacion.objects.filter(empleado__empresa=empresa, mes=mes, anio=anio)
                          .annotate(con_firma=Exists(vigentes)).filter(con_firma=False)
                          .select_related('empleado').order_by('empleado__apellido_paterno'))
-        enviadas, omitidas = 0, []
+        enviadas, omitidas, sin_correo = 0, [], []
         for liq in liquidaciones:
             emp = liq.empleado
+            nombre = f'{emp.nombres} {emp.apellido_paterno}'.strip()
             try:
-                self._crear_solicitud(request.user, emp, 'LIQUIDACION', liquidacion_id=liq.id,
-                                      emision=datos_emisor(request, confirmado_en))
+                s = self._crear_solicitud(request.user, emp, 'LIQUIDACION', liquidacion_id=liq.id,
+                                          emision=datos_emisor(request, confirmado_en))
                 enviadas += 1
+                if not s.correo_enviado:
+                    sin_correo.append(nombre)
             except _ErrorFirma as e:
-                omitidas.append({'empleado': emp.id, 'nombre': f'{emp.nombres} {emp.apellido_paterno}'.strip(),
-                                 'motivo': e.mensaje})
-        return Response({'enviadas': enviadas, 'omitidas': omitidas})
+                omitidas.append({'empleado': emp.id, 'nombre': nombre, 'motivo': e.mensaje})
+        return Response({'enviadas': enviadas, 'omitidas': omitidas, 'correo_fallido': sin_correo})
 
     def _crear_solicitud(self, user, empleado, tipo_doc, contrato_id=None, doc_legal_id=None, anexo_id=None,
                          liquidacion_id=None, vacacion_id=None, finiquito_id=None, avisar_por_correo=True,
@@ -245,10 +248,14 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             b2_client.eliminar_documento(key)
             raise _ErrorFirma('No se pudo registrar la solicitud. Intenta de nuevo.', 500)
 
+        # Quien llama informa al usuario si el correo no salió: la solicitud ya
+        # existe y se puede reenviar o compartir el enlace.
+        solicitud.correo_enviado = False
         if not avisar_por_correo:
             return solicitud   # la pidió el propio trabajador desde el portal
         try:
             self._enviar_email_firma(solicitud, empleado, empresa)
+            solicitud.correo_enviado = True
         except Exception:
             logger.exception('No se pudo enviar el correo de firma de la solicitud %s', solicitud.pk)
         if tipo_doc == 'CONTRATO':

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import client, { recordarIngreso } from '../api/client';
 import type { User } from '../types';
+import { marcarActividad } from '../utils/actividad';
 
 // 1. Creamos una interfaz estricta para los datos del login
 export interface LoginData {
@@ -54,6 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // 1. Enviar credenciales (Django responde con Set-Cookie)
         await client.post('/auth/login/', data);
         recordarIngreso('titular');
+        marcarActividad('panel');
         // 2. Confirmar que la cookie quedó: si el navegador la bloqueó, el
         // login "funciona" pero la sesión no existe; mejor decirlo aquí.
         queryClient.clear();
@@ -65,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const res = await client.post<{ elegir_cuenta?: CuentaParaElegir[] }>('/auth/equipo/ingresar/', { rut, clave, cuenta });
         if (res.data.elegir_cuenta) return res.data.elegir_cuenta;
         recordarIngreso('equipo');
+        marcarActividad('panel');
         queryClient.clear();
         const usuario = await client.get<User>('/auth/user/');
         setUser(usuario.data);

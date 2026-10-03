@@ -3,7 +3,7 @@ import { Link, Navigate, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Banknote, CalendarDays, Check, CircleAlert, Clock, FilePlus2, FileText, Info, LayoutDashboard, LogOut, Scale, ShieldCheck, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Button, J40Root, Logo, Modal, ToggleTema } from '../j40';
+import { Button, CierreInactividad, J40Root, Logo, Modal, ToggleTema } from '../j40';
 import { portal, sinSesion } from '../../api/portal';
 import { CLAVE_CUENTA, CLAVE_PORTAL, useCuentaTrabajador } from '../../hooks/usePortal';
 import type { CuentaTrabajador } from '../../types';
@@ -122,6 +122,7 @@ export default function PortalShell() {
     <Contexto.Provider value={contexto}>
       <J40Root className="flex leading-[1.45]">
         <Lateral cuenta={cuenta} salir={salir} />
+        <CierreInactividad acceso="portal" minutos={15} alVencer={() => void salir()} latido={portal.yo} />
         <div className="flex-1 min-w-0 flex flex-col">
           <header className="sticky top-0 z-20 flex items-center gap-2.5 h-[60px] px-[clamp(12px,2.4vw,32px)] bg-canvas-blur backdrop-blur-md border-b border-line">
             <Link to={RAIZ} className="min-[720px]:hidden flex items-center gap-2 min-w-0 no-underline hover:no-underline text-fg" aria-label="Inicio del portal">

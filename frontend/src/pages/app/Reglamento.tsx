@@ -13,6 +13,7 @@ import { descargar } from '../../api/descargas';
 import { usePermisos } from '../../hooks/usePermisos';
 import type { EntregaTrabajador, EnvioMasivo, EstadoLeyKarin, EstadoReglamento } from '../../types';
 import { fechaCL, hoyISO } from '../../utils/formato';
+import { avisoCorreosFallidos } from '../../utils/correo';
 
 const CONTROL = 'h-11 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[15px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
 const TIPO_TEXTO = { RIOHS: 'Reglamento Interno de Orden, Higiene y Seguridad', RIHS: 'Reglamento Interno de Higiene y Seguridad' };
@@ -241,7 +242,8 @@ function PasoVigente({ estado }: { estado: EstadoReglamento }) {
       const { data } = await client.post<EnvioMasivo>(`/reglamentos/${r.id}/entregar/`, {});
       setOmitidas(data.omitidas);
       await refrescar();
-      avisar(data.enviadas ? `Reglamento enviado a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
+      if (data.correo_fallido?.length) avisar(avisoCorreosFallidos(data.correo_fallido), 'error');
+      else avisar(data.enviadas ? `Reglamento enviado a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
     } catch (err) {
       avisar(mensaje(err, 'No pudimos enviar el reglamento.'), 'error');
     } finally {
@@ -336,7 +338,8 @@ function SeccionLeyKarin({ estado }: { estado: EstadoLeyKarin }) {
       const { data } = await client.post<EnvioMasivo>('/ley-karin/informar/', { empresa: empresa.id });
       setOmitidas(data.omitidas);
       await refrescar();
-      avisar(data.enviadas ? `Aviso enviado a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
+      if (data.correo_fallido?.length) avisar(avisoCorreosFallidos(data.correo_fallido), 'error');
+      else avisar(data.enviadas ? `Aviso enviado a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
     } catch (err) {
       avisar(mensaje(err, 'No pudimos enviar el aviso.'), 'error');
     } finally {
@@ -406,7 +409,8 @@ function SeccionRiesgos({ estado }: { estado: EstadoReglamento }) {
         empresa: empresa.id, rubro, riesgos: marcados, fecha_capacitacion: fecha });
       setOmitidas(data.omitidas);
       await queryClient.invalidateQueries({ queryKey: ['reglamento', empresa.id] });
-      avisar(data.enviadas ? `Información de riesgos enviada a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
+      if (data.correo_fallido?.length) avisar(avisoCorreosFallidos(data.correo_fallido), 'error');
+      else avisar(data.enviadas ? `Información de riesgos enviada a firma a ${data.enviadas} ${data.enviadas === 1 ? 'trabajador' : 'trabajadores'}` : 'No había a quién enviar');
     } catch (err) {
       setError(mensaje(err, 'No pudimos enviar la información de riesgos.'));
     } finally {

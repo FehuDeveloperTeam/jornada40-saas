@@ -280,7 +280,7 @@ class RegistroDTViewSet(viewsets.ViewSet):
                 return falta_confirmacion()
         elegidos = {int(i) for i in (request.data.get('empleados') or [])}
         pendientes = resumen_consentimiento(empresa)['sin']
-        creados, enviados, omitidos = 0, 0, []
+        creados, enviados, omitidos, sin_correo = 0, 0, [], []
         vista = SolicitudFirmaViewSet()
         for p in pendientes:
             if elegidos and p['id'] not in elegidos:
@@ -304,12 +304,14 @@ class RegistroDTViewSet(viewsets.ViewSet):
                 continue
             try:
                 from .firmas import datos_emisor
-                vista._crear_solicitud(request.user, empleado, 'ANEXO_CONTRATO', anexo_id=anexo.id,
-                                       emision=datos_emisor(request, confirmado_en))
+                s = vista._crear_solicitud(request.user, empleado, 'ANEXO_CONTRATO', anexo_id=anexo.id,
+                                           emision=datos_emisor(request, confirmado_en))
                 enviados += 1
+                if not s.correo_enviado:
+                    sin_correo.append(p['nombre'])
             except _ErrorFirma as e:
                 omitidos.append({'nombre': p['nombre'], 'motivo': e.mensaje})
-        return Response({'creados': creados, 'enviados': enviados, 'omitidos': omitidos})
+        return Response({'creados': creados, 'enviados': enviados, 'omitidos': omitidos, 'correo_fallido': sin_correo})
 
 
 def _leeme(empresa, por_cargo, avisos):
@@ -392,7 +394,8 @@ def _clausulas_del_contrato(contrato):
 
 def ficha_contrato(contrato, fecha_suscripcion):
     emp, empresa = contrato.empleado, contrato.empleado.empresa
-    calle, numero, dpto = dt.separar_direccion(emp.direccion)
+    from ..direcciones import partes
+    calle, numero, dpto = partes(emp)
     clausulas = _clausulas_del_contrato(contrato)
     horario = contrato.distribucion_horario or {}
     dias = [d for d in dt.DIAS if (horario.get(d) or {}).get('activo')]

@@ -3,6 +3,8 @@ from django.db import models
 
 from .cifrado import JSONCifrado, TextoCifrado
 from .contexto import EnEmpresas
+from .direcciones import completar as completar_direccion
+from .proteccion import CUIDADOS as CUIDADOS_LEY_21645, FUEROS
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Max
@@ -145,6 +147,11 @@ class Cliente(models.Model):
     apellido_materno = models.CharField(max_length=100, blank=True, null=True)
     razon_social = models.CharField(max_length=255, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
+    # Dirección por partes (core/direcciones.py); `direccion` se arma al guardar.
+    calle = models.CharField(max_length=200, blank=True, default='')
+    numero = models.CharField(max_length=30, blank=True, default='', help_text='Número, o altura/kilómetro si no tiene número.')
+    sin_numero = models.BooleanField(default=False)
+    depto = models.CharField(max_length=30, blank=True, default='', help_text='Depto, oficina, casa o block.')
     telefono = models.CharField(max_length=20, blank=True, null=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     correo=models.EmailField(max_length=255, null=True, blank=True, verbose_name='Correo Electrónico')
@@ -157,6 +164,10 @@ class Cliente(models.Model):
     FRECUENCIAS_RESUMEN = [('DIARIA', 'Cada día'), ('SEMANAL', 'Cada lunes'), ('NUNCA', 'No enviar')]
     frecuencia_resumen = models.CharField(max_length=8, choices=FRECUENCIAS_RESUMEN, default='SEMANAL')
     resumen_hasta = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        completar_direccion(self)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         if self.tipo_cliente == 'EMPRESA' and self.razon_social:
@@ -173,6 +184,11 @@ class Empresa(models.Model):
     alias = models.CharField(max_length=100, blank=True, null=True) 
     giro = models.CharField(max_length=200, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
+    # Dirección por partes (core/direcciones.py); `direccion` se arma al guardar.
+    calle = models.CharField(max_length=200, blank=True, default='')
+    numero = models.CharField(max_length=30, blank=True, default='', help_text='Número, o altura/kilómetro si no tiene número.')
+    sin_numero = models.BooleanField(default=False)
+    depto = models.CharField(max_length=30, blank=True, default='', help_text='Depto, oficina, casa o block.')
     comuna = models.CharField(max_length=100, blank=True, null=True)
     ciudad = models.CharField(max_length=100, blank=True, null=True)
     sucursal = models.CharField(max_length=100, blank=True, null=True)
@@ -214,6 +230,12 @@ class Empresa(models.Model):
     firma_firmante_cargo  = models.CharField(max_length=200, blank=True, default='')
     firma_configurada_en  = models.DateTimeField(null=True, blank=True)
 
+    def save(self, *args, **kwargs):
+        completar_direccion(self)
+        if kwargs.get('update_fields') is not None and set(kwargs['update_fields']) & {'calle', 'numero', 'sin_numero', 'depto'}:
+            kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'direccion'})
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.nombre_legal} ({self.rut})"
 
@@ -230,6 +252,11 @@ class Empleado(models.Model):
     nacionalidad = models.CharField(max_length=50, default="Chilena")
     estado_civil = models.CharField(max_length=50, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True) 
+    # Dirección por partes (core/direcciones.py); `direccion` se arma al guardar.
+    calle = models.CharField(max_length=200, blank=True, default='')
+    numero = models.CharField(max_length=30, blank=True, default='', help_text='Número, o altura/kilómetro si no tiene número.')
+    sin_numero = models.BooleanField(default=False)
+    depto = models.CharField(max_length=30, blank=True, default='', help_text='Depto, oficina, casa o block.')
     comuna = models.CharField(max_length=100, blank=True, null=True) 
     numero_telefono = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
@@ -298,6 +325,12 @@ class Empleado(models.Model):
                            ('PAPEL', 'Firmado en papel')]
     consentimiento_electronico_en = models.DateTimeField(null=True, blank=True)
     consentimiento_electronico_via = models.CharField(max_length=10, choices=VIAS_CONSENTIMIENTO, blank=True, default='')
+    # Protecciones especiales (core/proteccion.py): solo generan avisos.
+    cuidado_de = models.CharField(max_length=24, choices=CUIDADOS_LEY_21645, blank=True, default='',
+                                  help_text='Responsabilidades de cuidado no remuneradas (Ley 21.645).')
+    hijo_enfermedad_grave = models.BooleanField(default=False, help_text='Hijo/a menor de 18 con enfermedad grave (Ley SANNA).')
+    fuero = models.CharField(max_length=20, choices=FUEROS, blank=True, default='')
+    fuero_hasta = models.DateField(null=True, blank=True, help_text='Vacío: vigente sin fecha de término conocida.')
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     
@@ -322,6 +355,9 @@ class Empleado(models.Model):
             self.fecha_desvinculacion = None
         if kwargs.get('update_fields') is not None and 'activo' in kwargs['update_fields']:
             kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'fecha_desvinculacion'})
+        completar_direccion(self)
+        if kwargs.get('update_fields') is not None and set(kwargs['update_fields']) & {'calle', 'numero', 'sin_numero', 'depto'}:
+            kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'direccion'})
 
         # Finalmente, ejecutamos el guardado normal de Django
         super(Empleado, self).save(*args, **kwargs)

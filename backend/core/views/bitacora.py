@@ -228,7 +228,8 @@ def _xlsx(e, registros, cadena):
         ('Descargada', f'{timezone.localtime(e.creado_en):%d-%m-%Y %H:%M} por {e.generado_por_nombre}'),
         ('Código de verificación', e.codigo), ('Verificar en', url_verificacion(e.codigo)),
         ('Huella SHA-256', e.huella),
-        ('Cadena de la cuenta', 'Íntegra' if cadena['ok'] else f'Alterada desde el registro {cadena["roto_en"]}'),
+        ('Integridad de la cadena', 'Verificada: sin modificaciones ni eliminaciones' if cadena['ok']
+         else f'Inconsistencia detectada a partir del registro N° {cadena["roto_en"]}'),
     ]
     for fila in cabecera:
         hoja.append(list(fila))

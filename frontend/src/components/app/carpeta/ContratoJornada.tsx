@@ -1,11 +1,15 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { Link } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, Mail, Send } from 'lucide-react';
 import { Button } from '../../j40';
+import client from '../../../api/client';
 import { descargar } from '../../../api/descargas';
 import { rutaAccion } from '../../../hooks/usePanel';
 import { usePermisos } from '../../../hooks/usePermisos';
 import type { Empleado, SolicitudFirma } from '../../../types';
+import { CORREO_NO_ENVIADO, correoFallo } from '../../../utils/correo';
 import { capitalizar, clp, fechaCL } from '../../../utils/formato';
 import { ListaAvisos } from '../Avisos';
 import { TIPO_CONTRATO, TIPO_JORNADA } from '../trabajador';
@@ -32,6 +36,8 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
 }) {
   const contrato = empleado.contrato_activo;
   const gestionar = usePermisos().puede('CONTRATOS', true);
+  const queryClient = useQueryClient();
+  const [enviando, setEnviando] = useState(false);
   if (!contrato) {
     return (
       <Seccion titulo="Contrato">
@@ -56,6 +62,27 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
   // Firmado o en firma: las condiciones solo cambian con un anexo (Art. 11).
   const condicionesFijas = ['FIRMADO', 'PENDIENTE', 'PROCESANDO'].includes(firmaContrato?.estado ?? '');
 
+  // Enviar el contrato a firma desde aquí, igual que en Documentos: es donde el
+  // usuario lo busca. Con una firma pendiente, el botón reenvía el correo.
+  const puedeEnviar = gestionar && (!firmaContrato || ['RECHAZADO', 'EXPIRADO', 'CANCELADO'].includes(firmaContrato.estado));
+  const puedeReenviar = gestionar && firmaContrato?.estado === 'PENDIENTE';
+  const enviarAFirma = async () => {
+    setEnviando(true);
+    try {
+      const { data } = puedeReenviar && firmaContrato
+        ? await client.post(`/firmas/${firmaContrato.id}/reenviar/`)
+        : await client.post('/firmas/solicitar/', { empleado_id: empleado.id, tipo_documento: 'CONTRATO', contrato_id: contrato.id });
+      await queryClient.invalidateQueries({ queryKey: ['firmas'] });
+      avisar(correoFallo(data) ? CORREO_NO_ENVIADO
+        : puedeReenviar ? 'Correo de firma reenviado al trabajador.' : 'Contrato enviado a firma. El trabajador recibirá un correo.');
+    } catch (err) {
+      const datos = isAxiosError(err) ? (err.response?.data as { error?: string } | undefined) : undefined;
+      avisar(datos?.error ?? 'No pudimos enviar el contrato a firma.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   const pdf = async () => {
     const error = await descargar(`/contratos/${contrato.id}/descargar_contrato/`, `Contrato_${empleado.rut}.pdf`);
     if (error) avisar(error);
@@ -76,6 +103,18 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
           <Dato t="Anticipo" v={contrato.tiene_quincena ? `${clp(contrato.monto_quincena)} el día ${contrato.dia_quincena}` : 'Sin anticipo'} />
         </dl>
         <div className="flex flex-wrap gap-2 px-[18px] pb-4 mt-auto">
+          {puedeEnviar && (
+            <Button className="h-9" onClick={() => void enviarAFirma()} cargando={enviando}
+              iconoInicio={<Send className="size-4" strokeWidth={2} />}>
+              {firmaContrato ? 'Enviar de nuevo a firma' : 'Enviar a firma'}
+            </Button>
+          )}
+          {puedeReenviar && (
+            <Button variante="secundario" className="h-9" onClick={() => void enviarAFirma()} cargando={enviando}
+              iconoInicio={<Mail className="size-4" strokeWidth={2} />}>
+              Reenviar correo de firma
+            </Button>
+          )}
           <Button variante="secundario" className="h-9" onClick={pdf} iconoInicio={<Download className="size-4" strokeWidth={2} />}>
             Descargar contrato
           </Button>

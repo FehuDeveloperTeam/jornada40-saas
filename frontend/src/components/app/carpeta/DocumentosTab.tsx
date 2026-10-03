@@ -14,6 +14,7 @@ import { moduloDeTipo } from '../../../utils/moduloDocumento';
 import { ChipFirma, Seccion } from './comun';
 import { fechaCL, hoyISO } from '../../../utils/formato';
 import type { DocumentoReciente } from './documentos';
+import { CORREO_NO_ENVIADO, correoFallo } from '../../../utils/correo';
 
 interface Plantilla {
   titulo: string; detalle: string; Icono: LucideIcon; nivel: number; ruta: (id: number) => string; requiereContrato?: boolean;
@@ -63,9 +64,9 @@ export function DocumentosTab({ empleado, documentos, nivel, cargandoPlan, avisa
     if (!d.envio) return;
     setEnviando(d.clave);
     try {
-      await client.post('/firmas/solicitar/', { empleado_id: empleado.id, ...d.envio });
+      const { data } = await client.post('/firmas/solicitar/', { empleado_id: empleado.id, ...d.envio });
       await queryClient.invalidateQueries({ queryKey: ['firmas'] });
-      avisar('Documento enviado a firma. El trabajador recibirá un correo.');
+      avisar(correoFallo(data) ? CORREO_NO_ENVIADO : 'Documento enviado a firma. El trabajador recibirá un correo.');
     } catch (err) {
       const datos = isAxiosError(err) ? (err.response?.data as { error?: string } | undefined) : undefined;
       avisar(datos?.error ?? 'No pudimos enviar el documento a firma.');

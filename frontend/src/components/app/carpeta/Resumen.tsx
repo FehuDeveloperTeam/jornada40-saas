@@ -59,6 +59,12 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
         )}
       </Seccion>
 
+      {Boolean(empleado.avisos_proteccion?.length) && (
+        <Seccion titulo="Protecciones especiales" accion={<EnlaceAccion a={`${base}?tab=personal`}>Ver ficha</EnlaceAccion>}>
+          <div className="p-[18px]"><ListaAvisos avisos={empleado.avisos_proteccion} /></div>
+        </Seccion>
+      )}
+
       <Seccion titulo="Jornada y Ley 40 horas" accion={<EnlaceAccion a={`${base}?tab=contrato`}>Ver horario</EnlaceAccion>}>
         <div className="p-[18px] flex flex-col gap-4">
           {!contrato ? (

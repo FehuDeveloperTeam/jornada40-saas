@@ -18,6 +18,8 @@ import type { Finiquito as TFiniquito, SimulacionFiniquito, SolicitudFirma } fro
 import { cn } from '../../utils/cn';
 import { CAUSALES } from '../../components/app/causales';
 import { antiguedad, capitalizar, clp, decimalCL, fechaCL, hoyISO, iniciales } from '../../utils/formato';
+import { CORREO_NO_ENVIADO, correoFallo } from '../../utils/correo';
+import { ListaAvisos } from '../../components/app/Avisos';
 
 function notaLegal(causal: string): string {
   if (causal.startsWith('161') || causal === '163bis') {
@@ -191,9 +193,10 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
     setGuardando('firma');
     setError('');
     try {
-      await client.post('/firmas/solicitar/', { empleado_id: empleado.id, tipo_documento: 'FINIQUITO', finiquito_id: existente.id });
+      const { data } = await client.post('/firmas/solicitar/', { empleado_id: empleado.id, tipo_documento: 'FINIQUITO', finiquito_id: existente.id });
       await queryClient.invalidateQueries({ queryKey: ['firmas'] });
-      avisar('Copia enviada al trabajador para su firma de recepción');
+      if (correoFallo(data)) setError(CORREO_NO_ENVIADO);
+      else avisar('Copia enviada al trabajador para su firma de recepción');
     } catch (err) {
       setError(mensaje(err, 'No pudimos enviar el finiquito a firma.'));
     } finally {
@@ -321,7 +324,10 @@ function Editor({ empleadoId, existente, firmas, avisar }: {
           {!f.causal_articulo ? <p className="text-[13px] text-fg-3 py-4">Elige la causal para calcular.</p>
             : errorSim ? <AlertaError>{errorSim}</AlertaError>
               : !sim.data ? <p className="text-[13px] text-fg-3 py-4">Calculando…</p> : (
-                <Calculo s={sim.data} />
+                <>
+                  <ListaAvisos avisos={sim.data.avisos} />
+                  <Calculo s={sim.data} />
+                </>
               )}
           <div className="flex flex-col gap-2 pt-3 mt-1 border-t border-line">
             {!bloqueado && gestionar && (

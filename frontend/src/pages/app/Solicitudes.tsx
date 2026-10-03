@@ -13,6 +13,7 @@ import type { EstadoSolicitudDocumento, SolicitudDocumentoPanel } from '../../ty
 import { cn } from '../../utils/cn';
 import { moduloDeTipo } from '../../utils/moduloDocumento';
 import { capitalizar, fechaCL } from '../../utils/formato';
+import { CORREO_NO_ENVIADO, correoFallo } from '../../utils/correo';
 
 const ESTADO: Record<EstadoSolicitudDocumento, { texto: string; tono: TonoChip }> = {
   PENDIENTE: { texto: 'Por atender', tono: 'aviso' },
@@ -67,12 +68,13 @@ export default function Solicitudes() {
   const accion = async (s: SolicitudDocumentoPanel, fn: () => Promise<unknown>, ok: string) => {
     setOcupada(s.id);
     try {
-      await fn();
+      const r = await fn();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['solicitudes-documento'] }),
         queryClient.invalidateQueries({ queryKey: ['firmas'] }),
       ]);
-      avisar(ok);
+      if (correoFallo((r as { data?: unknown } | undefined)?.data)) avisar(CORREO_NO_ENVIADO, 'error');
+      else avisar(ok);
     } catch (err) {
       avisar(mensaje(err, 'No pudimos completar la acción.'), 'error');
     } finally {

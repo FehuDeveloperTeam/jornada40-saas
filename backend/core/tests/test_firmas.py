@@ -222,6 +222,29 @@ class EnvioMasivoLiquidacionesTests(APITestCase):
         self.assertEqual(r.data['enviadas'], 0)
         self.assertEqual(SolicitudFirma.objects.filter(tipo_documento='LIQUIDACION').count(), 1)
 
+    @patch('core.b2_client.subir_documento')
+    @patch('core.views.firmas.SolicitudFirmaViewSet._enviar_email_firma', side_effect=RuntimeError('Resend 403'))
+    def test_informa_cuando_el_correo_no_sale(self, *_):
+        """La solicitud queda creada (se puede reenviar), pero el panel sabe que el correo falló."""
+        r = self.client.post('/api/firmas/solicitar_liquidaciones/',
+                             {'empresa': self.empresa.id, 'mes': 8, 'anio': 2026}, format='json')
+        self.assertEqual(r.data['enviadas'], 1)
+        self.assertEqual(len(r.data['correo_fallido']), 1)
+        self.assertEqual(SolicitudFirma.objects.get().estado, 'PENDIENTE')
+
+    @patch('core.b2_client.subir_documento')
+    @patch('core.views.firmas.SolicitudFirmaViewSet._enviar_email_firma')
+    def test_envio_individual_informa_si_salio_el_correo(self, enviar, _subir):
+        from ..models import Liquidacion
+        liq = Liquidacion.objects.get(empleado=self.con_correo)
+        datos = {'empleado_id': self.con_correo.id, 'tipo_documento': 'LIQUIDACION', 'liquidacion_id': liq.id}
+        r = self.client.post('/api/firmas/solicitar/', datos, format='json')
+        self.assertEqual((r.status_code, r.data['correo_enviado']), (201, True))
+        SolicitudFirma.objects.all().update(estado='CANCELADO')
+        enviar.side_effect = RuntimeError('Resend 403')
+        r = self.client.post('/api/firmas/solicitar/', datos, format='json')
+        self.assertEqual((r.status_code, r.data['correo_enviado']), (201, False))
+
 
 class FirmaDelEmpleadorTests(APITestCase):
     """Cada envío a firma queda vinculado al empleador que confirmó su identidad con su clave."""

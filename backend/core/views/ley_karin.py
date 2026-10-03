@@ -129,7 +129,7 @@ class LeyKarinViewSet(viewsets.ViewSet):
         hoy = timezone.localdate()
         clave, texto, inicio, fin = semestre(hoy)
         vista = SolicitudFirmaViewSet()
-        enviadas, omitidas = 0, []
+        enviadas, omitidas, sin_correo = 0, [], []
         for fila in avance_semestre(empresa, clave)['trabajadores']:
             if fila['estado'] in ('FIRMADO', 'PENDIENTE', 'PROCESANDO'):
                 continue
@@ -144,9 +144,11 @@ class LeyKarinViewSet(viewsets.ViewSet):
                 datos={'semestre': clave, 'clausulas': clausulas_canales(empresa, texto),
                        'resumen': f'Canales de denuncia · {texto}'})
             try:
-                vista._crear_solicitud(request.user, emp, 'CANALES_DENUNCIA', documento_laboral_id=doc.id,
-                                       emision=datos_emisor(request, confirmado_en))
+                s = vista._crear_solicitud(request.user, emp, 'CANALES_DENUNCIA', documento_laboral_id=doc.id,
+                                           emision=datos_emisor(request, confirmado_en))
                 enviadas += 1
+                if not s.correo_enviado:
+                    sin_correo.append(fila['nombre'])
             except _ErrorFirma as e:
                 omitidas.append({'nombre': fila['nombre'], 'motivo': e.mensaje})
-        return Response({'enviadas': enviadas, 'omitidas': omitidas})
+        return Response({'enviadas': enviadas, 'omitidas': omitidas, 'correo_fallido': sin_correo})

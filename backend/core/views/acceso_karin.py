@@ -35,6 +35,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 
 from ..bitacora import cuenta_de
+from .. import sesion_inactividad
 from ..karin import registrar_karin, verificar_karin
 from ..models import EncargadoKarin, Empresa, RegistroKarin
 from ..permisos import cupo_ley_karin
@@ -42,7 +43,8 @@ from ..rut import formatear_rut, limpiar_rut, validar_rut
 from .base import _plan_activo, logger
 
 COOKIE = 'jornada40-karin'
-DURACION_SESION = 4 * 60 * 60     # más corta que la del panel: es información reservada
+DURACION_SESION = 4 * 60 * 60     # tope aunque haya actividad: es información reservada
+INACTIVIDAD_SESION = 5 * 60       # sin uso, se cierra (igual que el panel)
 _SAL = 'acceso-ley-karin'
 POR_PAGINA = 100
 _ERROR_INGRESO = 'RUT o clave incorrectos.'
@@ -259,12 +261,13 @@ class SesionKarin(BaseAuthentication):
         if not valor:
             return None
         try:
-            d = signing.loads(valor, salt=_SAL, max_age=DURACION_SESION)
+            d = sesion_inactividad.leer(valor, _SAL, INACTIVIDAD_SESION, DURACION_SESION)
             enc = EncargadoKarin.objects.select_related('cuenta__perfil_cliente', 'usuario').get(pk=d['e'])
         except (signing.BadSignature, EncargadoKarin.DoesNotExist, KeyError, TypeError):
             return None
         if enc.estado != 'ACTIVO' or not enc.usuario.is_active or enc.version_sesion != d.get('v'):
             return None
+        sesion_inactividad.renovar(request, COOKIE, d, _SAL, INACTIVIDAD_SESION)
         return enc, d
 
 
@@ -311,11 +314,8 @@ def _con_sesion(vista):
 
 
 def _abrir_sesion(respuesta, enc):
-    desplegado = bool(getattr(settings, 'IS_DEPLOYED', False))
-    respuesta.set_cookie(COOKIE, signing.dumps({'e': enc.pk, 'v': enc.version_sesion}, salt=_SAL),
-                         max_age=DURACION_SESION, httponly=True, secure=desplegado,
-                         samesite='None' if desplegado else 'Lax')
-    return respuesta
+    return sesion_inactividad.poner_cookie(
+        respuesta, COOKIE, sesion_inactividad.firmar({'e': enc.pk, 'v': enc.version_sesion}, _SAL), INACTIVIDAD_SESION)
 
 
 def _activos_del_rut(rut):

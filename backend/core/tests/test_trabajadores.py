@@ -159,6 +159,15 @@ class CargaMasivaRevisionTests(APITestCase):
         self.assertTrue(r.data['limite_alcanzado'])
         self.assertEqual(r.data['agregados'], 2)
 
+    def test_banco_de_la_planilla_se_normaliza_o_se_rechaza(self):
+        r = self._subir([self._nuevo('11.111.111-1', banco='banco estado'),
+                         self._nuevo('9.876.543-3', banco='Banco Inventado')])
+        filas = {f['rut']: f for f in r.data['filas']}
+        self.assertEqual(filas['11.111.111-1']['resultado'], 'nuevo')
+        self.assertEqual(Empleado.objects.get(rut='11.111.111-1').banco, 'BANCOESTADO')
+        self.assertEqual(filas['9.876.543-3']['resultado'], 'error')
+        self.assertIn('Banco no reconocido', filas['9.876.543-3']['mensaje'])
+
 
 class CorreoPersonalTests(APITestCase):
     """La DT exige enviar los documentos al correo personal (ORD 2965): aviso y confirmación."""
@@ -178,3 +187,34 @@ class CorreoPersonalTests(APITestCase):
         self.assertTrue(r.data['email_personal_confirmado'])
         r = self.client.patch(url, {'email': 'ana.rojas@gmail.com'}, format='json')
         self.assertEqual((r.data['correo_parece_corporativo'], r.data['email_personal_confirmado']), (False, False))
+
+
+class BancoListaCerradaTests(APITestCase):
+    """El banco se elige de una lista cerrada (core/bancos.py); lo escrito a mano se normaliza."""
+
+    def setUp(self):
+        from .utiles import crear_empleado, crear_usuario_completo
+        self.user, _, _, self.empresa = crear_usuario_completo('banco_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+
+    def test_normaliza_formas_conocidas(self):
+        from ..bancos import normalizar_banco
+        self.assertEqual(normalizar_banco('banco estado'), 'BANCOESTADO')
+        self.assertEqual(normalizar_banco('Itau Corpbanca'), 'ITAÚ')
+        self.assertEqual(normalizar_banco('  '), '')
+        self.assertIsNone(normalizar_banco('Banco Inventado'))
+
+    def test_carpeta_acepta_la_lista_y_rechaza_otro_texto(self):
+        url = f'/api/empleados/{self.emp.id}/'
+        r = self.client.patch(url, {'banco': 'Banco de Chile'}, format='json')
+        self.assertEqual((r.status_code, r.data['banco']), (200, 'BANCO DE CHILE'))
+        r = self.client.patch(url, {'banco': 'Mi banco'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('banco', r.data)
+
+    def test_valor_antiguo_no_impide_guardar_otros_datos(self):
+        Empleado.objects.filter(pk=self.emp.pk).update(banco='BANCO DEL SUR')
+        r = self.client.patch(f'/api/empleados/{self.emp.id}/', {'banco': 'BANCO DEL SUR', 'cargo': 'Cajero'},
+                              format='json')
+        self.assertEqual(r.status_code, 200, r.data)

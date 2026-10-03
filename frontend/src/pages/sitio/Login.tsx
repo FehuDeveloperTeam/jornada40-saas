@@ -29,7 +29,9 @@ export default function Login() {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
   // Página a la que volver: la que pidió iniciar sesión (solo rutas internas).
-  const volverParam = new URLSearchParams(useLocation().search).get('volver') ?? '';
+  const parametros = new URLSearchParams(useLocation().search);
+  const volverParam = parametros.get('volver') ?? '';
+  const porInactividad = parametros.get('inactividad') === '1';
   const volver = /^\/(app|bienvenida)(\/|\?|$)/.test(volverParam) ? volverParam : '/app';
   // Avisos que llegan desde otras pantallas: /reset-password tras guardar la
   // contraseña, o el registro si el inicio de sesión automático falló.
@@ -79,6 +81,11 @@ export default function Login() {
         </div>
       )}
 
+      {porInactividad && !error && (
+        <p role="status" className="rounded-[10px] bg-sunken px-4 py-3 text-[14.5px] text-fg-2">
+          Tu sesión se cerró por inactividad. Ingresa de nuevo para continuar.
+        </p>
+      )}
       <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
         <CampoRut etiqueta="RUT del titular de la cuenta" valor={rut} onChange={(v) => { setRut(v); setError(''); }}
           autoComplete="username" forzarError={Boolean(error) && !validateRut(rut)}

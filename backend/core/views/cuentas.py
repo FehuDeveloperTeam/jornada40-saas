@@ -249,6 +249,7 @@ def perfil_usuario(request):
             'email': request.user.email or cliente.correo or '',
             'telefono': cliente.telefono or '',
             'direccion': cliente.direccion or '',
+            'calle': cliente.calle, 'numero': cliente.numero, 'sin_numero': cliente.sin_numero, 'depto': cliente.depto,
             'plan_nombre': plan.nombre if plan else '',
         }
 
@@ -274,9 +275,11 @@ def perfil_usuario(request):
 
     cliente.tipo_cliente = tipo
     cliente.nombres = nombres
-    for campo in ('apellido_paterno', 'apellido_materno', 'telefono', 'direccion'):
+    for campo in ('apellido_paterno', 'apellido_materno', 'telefono', 'direccion', 'calle', 'numero', 'depto'):
         if campo in d:
-            setattr(cliente, campo, str(d.get(campo) or '').strip())
+            setattr(cliente, campo, str(d.get(campo) or '').strip()[:Cliente._meta.get_field(campo).max_length])
+    if 'sin_numero' in d:
+        cliente.sin_numero = d.get('sin_numero') in (True, 'true', '1', 1)
     cliente.razon_social = razon_social
     cliente.correo = email or cliente.correo
     cliente.save()

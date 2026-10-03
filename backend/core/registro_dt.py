@@ -266,7 +266,8 @@ def fila_contrato(contrato, empleado, empresa, fecha_suscripcion, monto_imponibl
     if not c_comuna:
         avisos.append(f'Comuna del domicilio "{empleado.comuna or "(vacía)"}" sin código de la DT.')
     fila['COMUNA'] = c_comuna or ''
-    calle, numero, dpto = separar_direccion(empleado.direccion)
+    from .direcciones import partes
+    calle, numero, dpto = partes(empleado)
     if not numero:
         avisos.append('No se pudo separar la calle y el número del domicilio: complétalo en el archivo.')
     fila.update({'CALLE': calle[:100], 'NUMERO': numero, 'DPTO': dpto})

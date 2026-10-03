@@ -4,13 +4,14 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Download, LogOut, Mail, PenLine, ShieldCheck } from 'lucide-react';
-import { AlertaError, Button, CampoCodigo, CampoRut, Chip, Field, FirmaPad, Input, J40Root, Logo, Modal, ToggleTema } from '../../components/j40';
+import { AlertaError, Button, CampoCodigo, CampoRut, Chip, CierreInactividad, Field, FirmaPad, Input, J40Root, Logo, Modal, ToggleTema } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { inspeccion, mensajeError } from '../../api/inspeccion';
 import type { DocumentoInspeccion, SesionInspeccion, TipoDocumentoInspeccion } from '../../types';
 import { fechaCL } from '../../utils/formato';
 import { validateRut } from '../../utils/rutUtils';
 import { cn } from '../../utils/cn';
+import { marcarActividad } from '../../utils/actividad';
 
 const CLAVE_SESION = ['inspeccion', 'yo'] as const;
 const CONTROL = 'h-10 w-full px-3 rounded-j40-control border border-line-strong bg-surface text-fg text-[14px] outline-none focus:border-brand focus:ring-[3px] focus:ring-brand-soft';
@@ -34,6 +35,12 @@ export default function Inspeccion() {
   const queryClient = useQueryClient();
   const sesion = useQuery({ queryKey: CLAVE_SESION, queryFn: inspeccion.yo, retry: false });
   const sinSesion = sesion.isError && isAxiosError(sesion.error) && [401, 403].includes(sesion.error.response?.status ?? 0);
+  const salir = async () => {
+    await inspeccion.salir().catch(() => undefined);
+    // Sin la cookie, la sesión vuelve a consultarse y responde 403: se muestra el ingreso.
+    queryClient.removeQueries({ queryKey: ['inspeccion'], predicate: (q) => q.queryKey[1] !== 'yo' });
+    await queryClient.resetQueries({ queryKey: CLAVE_SESION });
+  };
 
   return (
     <J40Root className="min-h-dvh bg-canvas">
@@ -45,20 +52,18 @@ export default function Inspeccion() {
           <ToggleTema />
           {sesion.data && (
             <Button variante="fantasma" tamano="sm" iconoInicio={<LogOut className="size-4" strokeWidth={2} />}
-              onClick={async () => {
-                await inspeccion.salir().catch(() => undefined);
-                // Sin la cookie, la sesión vuelve a consultarse y responde 403: se muestra el ingreso.
-                queryClient.removeQueries({ queryKey: ['inspeccion'], predicate: (q) => q.queryKey[1] !== 'yo' });
-                await queryClient.resetQueries({ queryKey: CLAVE_SESION });
-              }}>
+              onClick={() => void salir()}>
               Salir
             </Button>
+          )}
+          {sesion.data && (
+            <CierreInactividad acceso="inspeccion" minutos={15} alVencer={() => void salir()} latido={inspeccion.yo} />
           )}
         </div>
       </header>
       <main className="max-w-[1180px] mx-auto px-4 py-8 flex flex-col gap-6">
         {sesion.isLoading && <p className="text-[13px] text-fg-3" role="status">Cargando…</p>}
-        {sinSesion && <Ingreso alEntrar={(s) => queryClient.setQueryData(CLAVE_SESION, s)} />}
+        {sinSesion && <Ingreso alEntrar={(s) => { marcarActividad('inspeccion'); queryClient.setQueryData(CLAVE_SESION, s); }} />}
         {sesion.isError && !sinSesion && <AlertaError>No pudimos conectar. Intenta de nuevo en unos minutos.</AlertaError>}
         {sesion.data && <Fiscalizacion sesion={sesion.data} />}
       </main>

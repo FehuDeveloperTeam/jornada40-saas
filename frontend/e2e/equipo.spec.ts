@@ -68,8 +68,8 @@ test('el titular ve la bitácora y descarga una copia verificable', async ({ pag
   await entrar(page);
   await page.goto('/app/equipo?tab=bitacora');
   await expect(page.getByRole('cell', { name: /Inició sesión Carla Muñoz \(equipo\)/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Comprobar que nadie la alteró' }).click();
-  await expect(page.getByText(/Íntegra: los \d+ registros/)).toBeVisible();
+  await page.getByRole('button', { name: 'Verificar integridad' }).click();
+  await expect(page.getByText(/Integridad verificada: los \d+ registros/)).toBeVisible();
   const nombre = await descargar(page, () => page.getByRole('button', { name: 'Descargar PDF' }).click());
   expect(nombre).toBe('bitacora_B-000001.pdf');
 

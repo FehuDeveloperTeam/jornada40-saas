@@ -322,7 +322,7 @@ class ReglamentoViewSet(viewsets.ViewSet):
         if confirmado_en is None:
             return falta_confirmacion()
         vista = SolicitudFirmaViewSet()
-        enviadas, omitidas = 0, []
+        enviadas, omitidas, sin_correo = 0, [], []
         for fila in filas:
             emp = Empleado.objects.select_related('empresa').get(pk=fila['id'])
             if not emp.email:
@@ -334,12 +334,14 @@ class ReglamentoViewSet(viewsets.ViewSet):
                 .exclude(solicitudes_firma__estado__in=_VIVAS).update(activo=False)
             doc = DocumentoLaboral.objects.create(empleado=emp, tipo='INFORMACION_RIESGOS', fecha_emision=hoy, **armado)
             try:
-                vista._crear_solicitud(request.user, emp, 'INFORMACION_RIESGOS', documento_laboral_id=doc.id,
-                                       emision=datos_emisor(request, confirmado_en))
+                s = vista._crear_solicitud(request.user, emp, 'INFORMACION_RIESGOS', documento_laboral_id=doc.id,
+                                           emision=datos_emisor(request, confirmado_en))
                 enviadas += 1
+                if not s.correo_enviado:
+                    sin_correo.append(fila['nombre'])
             except _ErrorFirma as e:
                 omitidas.append({'nombre': fila['nombre'], 'motivo': e.mensaje})
-        return Response({'enviadas': enviadas, 'omitidas': omitidas})
+        return Response({'enviadas': enviadas, 'omitidas': omitidas, 'correo_fallido': sin_correo})
 
     @action(detail=True, methods=['post'])
     def entregar(self, request, pk=None):
@@ -357,7 +359,7 @@ class ReglamentoViewSet(viewsets.ViewSet):
             return falta_confirmacion()
         elegidos = {int(i) for i in (request.data.get('empleados') or [])}
         vista = SolicitudFirmaViewSet()
-        enviadas, omitidas = 0, []
+        enviadas, omitidas, sin_correo = 0, [], []
         hoy = timezone.localdate()
         for fila in entrega(r)['trabajadores']:
             if (elegidos and fila['id'] not in elegidos) or fila['estado'] in ('FIRMADO', 'PENDIENTE', 'PROCESANDO'):
@@ -376,9 +378,11 @@ class ReglamentoViewSet(viewsets.ViewSet):
                     datos={'clausulas': clausulas_constancia(r),
                            'resumen': f'{r.get_tipo_display()} · versión {r.version}'})
             try:
-                vista._crear_solicitud(request.user, emp, 'REGLAMENTO', documento_laboral_id=doc.id,
-                                       emision=datos_emisor(request, confirmado_en))
+                s = vista._crear_solicitud(request.user, emp, 'REGLAMENTO', documento_laboral_id=doc.id,
+                                           emision=datos_emisor(request, confirmado_en))
                 enviadas += 1
+                if not s.correo_enviado:
+                    sin_correo.append(fila['nombre'])
             except _ErrorFirma as e:
                 omitidas.append({'nombre': fila['nombre'], 'motivo': e.mensaje})
-        return Response({'enviadas': enviadas, 'omitidas': omitidas})
+        return Response({'enviadas': enviadas, 'omitidas': omitidas, 'correo_fallido': sin_correo})

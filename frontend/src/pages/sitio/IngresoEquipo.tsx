@@ -31,7 +31,9 @@ export default function IngresoEquipo() {
   const navigate = useNavigate();
   const { loginEquipo, isAuthenticated } = useAuth();
   // Página a la que volver si la sesión venció (solo rutas del panel).
-  const volverParam = new URLSearchParams(useLocation().search).get('volver') ?? '';
+  const parametros = new URLSearchParams(useLocation().search);
+  const volverParam = parametros.get('volver') ?? '';
+  const porInactividad = parametros.get('inactividad') === '1';
   const volver = /^\/app(\/|\?|$)/.test(volverParam) ? volverParam : '/app';
   const [modo, setModo] = useState<'ingreso' | 'recuperar' | 'enviado'>('ingreso');
   const [rut, setRut] = useState('');
@@ -149,6 +151,11 @@ export default function IngresoEquipo() {
       <EncabezadoForm titulo="Ingreso del equipo">
         ¿Eres el titular de la cuenta? <Link to="/login" className="font-medium">Entra aquí</Link>
       </EncabezadoForm>
+      {porInactividad && !error && (
+        <p role="status" className="rounded-[10px] bg-sunken px-4 py-3 text-[14.5px] text-fg-2">
+          Tu sesión se cerró por inactividad. Ingresa de nuevo para continuar.
+        </p>
+      )}
       {error && <AlertaError>{error}</AlertaError>}
       <form onSubmit={enviar} noValidate className="flex flex-col gap-4">
         <CampoRut etiqueta="Tu RUT" valor={rut} onChange={(v) => { setRut(v); setError(''); }}

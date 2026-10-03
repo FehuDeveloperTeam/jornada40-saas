@@ -22,6 +22,7 @@ from num2words import num2words
 import pandas as pd
 from django.db.models import Max, Exists, OuterRef
 from django.core.files.base import ContentFile
+from ..bancos import normalizar_banco
 from ..serializers import EmpleadoSerializer
 
 from .documentos import pdf_anexo_contrato, pdf_documento_legal
@@ -96,6 +97,12 @@ def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
             for campo in _CAMPOS_TEXTO_CARGA:
                 if not _vacio(r.get(campo)):
                     datos[campo] = str(r[campo]).strip().upper()
+            if 'banco' in datos:
+                banco = normalizar_banco(datos['banco'])
+                if banco is None:
+                    error(f'Banco no reconocido ({r["banco"]}): escribe el nombre del banco, por ejemplo '
+                          '"Banco de Chile", "BancoEstado" o "Santander".'); continue
+                datos['banco'] = banco
             if not _vacio(r.get('email')):
                 datos['email'] = str(r['email']).strip().lower()
             if not _vacio(r.get('sexo')):

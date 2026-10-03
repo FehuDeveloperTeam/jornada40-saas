@@ -14,6 +14,7 @@ import type { SolicitudFirma } from '../../types';
 import { cn } from '../../utils/cn';
 import { moduloDeTipo } from '../../utils/moduloDocumento';
 import { capitalizar, fechaCL } from '../../utils/formato';
+import { CORREO_NO_ENVIADO, correoFallo } from '../../utils/correo';
 
 type Estado = SolicitudFirma['estado'];
 /** VENCIDA: pendiente cuyo plazo ya pasó (el enlace ya no sirve), aunque el backend aún no la marque EXPIRADO. */
@@ -98,9 +99,10 @@ export default function Firmas() {
   const accion = async (clave: string, fn: () => Promise<unknown>, ok: string) => {
     setOcupada(clave);
     try {
-      await fn();
+      const r = await fn();
       await queryClient.invalidateQueries({ queryKey: ['firmas'] });
-      avisar(ok);
+      if (correoFallo((r as { data?: unknown } | undefined)?.data)) avisar(CORREO_NO_ENVIADO, 'error');
+      else avisar(ok);
     } catch (err) {
       avisar(mensaje(err, 'No pudimos completar la acción.'), 'error');
     } finally {
