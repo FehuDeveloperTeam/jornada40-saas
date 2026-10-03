@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import { Briefcase, CircleCheck, FileSignature, HeartHandshake, IdCard, Landmark, Mail, Pencil, PenLine } from 'lucide-react';
@@ -9,16 +9,19 @@ import { AlertaError, Button, Input, Modal } from '../../j40';
 import type { TipoAviso } from '../AppShell';
 import { ModalConsentimientoPapel } from '../ModalConsentimientoPapel';
 import { usePermisos } from '../../../hooks/usePermisos';
-import type { Empleado, ViaConsentimiento } from '../../../types';
+import type { CatalogosTrabajador, Empleado, ViaConsentimiento } from '../../../types';
+import { useCatalogosTrabajador } from '../../../hooks/useCatalogos';
 import { capitalizar, fechaCL } from '../../../utils/formato';
-import { BANCOS } from '../trabajador';
 import { AFPS, mensajeErrorCampos } from './utiles';
+import { Conciliacion } from './Conciliacion';
 
 type Tipo = 'texto' | 'fecha' | 'select' | 'numero' | 'correo' | 'sino';
 type Campo = keyof Empleado;
 interface DefCampo {
   campo: Campo; etiqueta: string; tipo?: Tipo; opciones?: [string, string][]; mono?: boolean;
   soloLectura?: boolean; mostrar?: (b: Partial<Empleado>, editando: boolean) => boolean; nombre?: boolean;
+  /** Lista cerrada servida por el backend (GET /catalogos/trabajador/); `vacio` es la primera opción. */
+  catalogo?: { clave: keyof CatalogosTrabajador; vacio: string };
   /** Etiqueta que cambia según lo elegido (p. ej. "Número" → "Altura o kilómetro"). */
   etiquetaSegun?: (b: Partial<Empleado>, editando: boolean) => string;
 }
@@ -70,17 +73,11 @@ const SECCIONES: DefSeccion[] = [
   ] },
   // Solo generan avisos (fuero en el término, cuidado en vacaciones y teletrabajo): core/proteccion.py.
   { clave: 'proteccion', titulo: 'Protecciones especiales', Icono: HeartHandshake, campos: [
-    { campo: 'cuidado_de', etiqueta: 'Responsabilidades de cuidado (Ley 21.645)', tipo: 'select', opciones: [
-      ['', 'No tiene'], ['MENOR_14', 'Cuida a un niño o niña menor de 14 años'],
-      ['MENOR_18_DISCAPACIDAD', 'Cuida a un adolescente menor de 18 con discapacidad o dependencia'],
-      ['DISCAPACIDAD', 'Cuida a una persona con discapacidad'], ['DEPENDENCIA', 'Cuida a una persona con dependencia severa o moderada']] },
+    { campo: 'cuidado_de', etiqueta: 'Responsabilidades de cuidado (Ley 21.645)', tipo: 'select', catalogo: { clave: 'cuidados', vacio: 'No tiene' } },
     { campo: 'hijo_enfermedad_grave', etiqueta: 'Hijo o hija menor de 18 con enfermedad grave (Ley SANNA)', tipo: 'sino' },
-    { campo: 'fuero', etiqueta: 'Fuero laboral', tipo: 'select', opciones: [
-      ['', 'No tiene'], ['MATERNIDAD', 'Maternidad (embarazo y hasta 1 año después del postnatal)'],
-      ['POSTNATAL_PARENTAL', 'Padre con postnatal parental'], ['SINDICAL', 'Dirigente o candidato sindical'],
-      ['DELEGADO', 'Delegado del personal o sindical'], ['COMITE_PARITARIO', 'Representante del Comité Paritario'],
-      ['NEGOCIACION', 'Negociación colectiva en curso']] },
-    { campo: 'fuero_hasta', etiqueta: 'Fuero hasta (vacío si aún no se sabe)', tipo: 'fecha', mostrar: (b) => Boolean(b.fuero) },
+    { campo: 'fuero', etiqueta: 'Fuero laboral', tipo: 'select', catalogo: { clave: 'fueros', vacio: 'No tiene' } },
+    { campo: 'fecha_parto', etiqueta: 'Fecha del parto (vacía durante el embarazo)', tipo: 'fecha', mostrar: (b) => igual(b.fuero, 'MATERNIDAD') },
+    { campo: 'fuero_hasta', etiqueta: 'Fuero hasta (vacío: se calcula con el parto o sigue vigente)', tipo: 'fecha', mostrar: (b) => Boolean(b.fuero) },
   ] },
   { clave: 'prevision', titulo: 'Previsión y pago', Icono: Landmark, campos: [
     { campo: 'afp', etiqueta: 'AFP', tipo: 'select', opciones: [['', 'Sin AFP'], ...AFPS.map((a): [string, string] => [a, capitalizar(a)])] },
@@ -105,8 +102,7 @@ const SECCIONES: DefSeccion[] = [
     { campo: 'tipo_impuesto_renta', etiqueta: 'Impuesto a la renta', tipo: 'select',
       opciones: [['1', 'Segunda categoría'], ['2', 'Único obrero agrícola'], ['3', 'Adicional (no residente)']] },
     { campo: 'forma_pago', etiqueta: 'Forma de pago', tipo: 'select', opciones: [['TRANSFERENCIA', 'Transferencia'], ['DEPOSITO', 'Depósito'], ['CHEQUE', 'Cheque'], ['EFECTIVO', 'Efectivo']] },
-    { campo: 'banco', etiqueta: 'Banco', tipo: 'select', mostrar: conCuenta,
-      opciones: [['', 'Sin especificar'], ...BANCOS.map((b): [string, string] => [b.toUpperCase(), b])] },
+    { campo: 'banco', etiqueta: 'Banco', tipo: 'select', mostrar: conCuenta, catalogo: { clave: 'bancos', vacio: 'Sin especificar' } },
     // El backend guarda los textos en mayúsculas: los valores van igual.
     { campo: 'tipo_cuenta', etiqueta: 'Tipo de cuenta', tipo: 'select', mostrar: conCuenta,
       opciones: [['', 'Sin especificar'], ['CUENTA CORRIENTE', 'Cuenta corriente'], ['CUENTA VISTA / RUT', 'Cuenta vista / RUT'], ['CUENTA DE AHORRO', 'Cuenta de ahorro']] },
@@ -140,9 +136,19 @@ function valorVisible(d: DefCampo, valor: unknown): string {
 type Avisar = (t: string, tipo?: TipoAviso) => void;
 
 export function DatosPersonales({ empleado, avisar }: { empleado: Empleado; avisar: Avisar }) {
+  const catalogos = useCatalogosTrabajador();
+  // Las listas cerradas (bancos, cuidados, fueros) vienen del backend.
+  const secciones = useMemo(() => SECCIONES.map((s) => ({
+    ...s,
+    campos: s.campos.map((c) => c.catalogo ? {
+      ...c, opciones: [['', c.catalogo.vacio] as [string, string],
+        ...(catalogos.data?.[c.catalogo.clave] ?? []).map((o): [string, string] => [o.valor, o.texto])],
+    } : c),
+  })), [catalogos.data]);
   return (
     <div className="flex flex-col gap-5">
-      {SECCIONES.map((s) => <SeccionEditable key={s.clave} seccion={s} empleado={empleado} avisar={avisar} />)}
+      {secciones.map((s) => <SeccionEditable key={s.clave} seccion={s} empleado={empleado} avisar={avisar} />)}
+      {empleado.cuidado_de && <Conciliacion empleado={empleado} avisar={avisar} />}
       <DocumentosElectronicos empleado={empleado} avisar={avisar} />
     </div>
   );

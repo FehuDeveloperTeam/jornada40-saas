@@ -300,7 +300,8 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             self._enviar_email_firma(solicitud, solicitud.empleado, solicitud.empresa)
         except Exception:
             logger.exception('No se pudo reenviar el correo de firma %s', solicitud.pk)
-            return Response({'error': 'No se pudo enviar el correo. Intenta de nuevo en unos minutos.'}, status=500)
+            # El servicio de correo falló (no es un error del sistema): la solicitud sigue pendiente.
+            return Response({'error': 'No se pudo enviar el correo. Intenta de nuevo en unos minutos.'}, status=503)
         return Response({'mensaje': 'Email de firma reenviado correctamente.'})
 
     @action(detail=True, methods=['post'])

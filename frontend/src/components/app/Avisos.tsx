@@ -12,11 +12,11 @@ export function ListaAvisos({ avisos, compacto = false, className }: {
   if (!avisos?.length) return null;
   return (
     <section aria-label="Avisos de jornada" className={cn('flex flex-col gap-2', className)}>
-      {avisos.map((a) => {
+      {avisos.map((a, i) => {
         const alta = a.gravedad === 'alta';
         const Icono = alta ? CircleAlert : Info;
         return (
-          <div key={a.codigo} role="alert"
+          <div key={`${a.codigo}-${i}`} role="alert"
             className={cn('flex gap-2.5 items-start p-3 rounded-[9px]', alta ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn')}>
             <Icono className="size-[19px] shrink-0 mt-px" strokeWidth={2} aria-hidden />
             <div className="flex flex-col gap-1 text-[12.5px] min-w-0">

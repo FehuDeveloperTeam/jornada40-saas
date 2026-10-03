@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import {
   Banknote, CircleAlert, Clock, FileSignature, FileWarning, Inbox, Landmark, Lock, ShieldAlert, Signature, TriangleAlert, Users,
+  MapPin,
 } from 'lucide-react';
 import client from '../../api/client';
 import { lista } from '../../api/lista';
@@ -196,6 +197,19 @@ export default function Inicio() {
         titulo: `${sinAutorizar} ${sinAutorizar === 1 ? 'trabajador sin autorización' : 'trabajadores sin autorización'} de documentos electrónicos`,
         detalle: 'La DT exige su autorización expresa para firmar y enviar documentos en forma electrónica. Envíales el anexo.',
         accion: 'Ver', a: '/app/dt' });
+    }
+    // Direcciones escritas en un solo campo que no se pudieron separar solas (core/direcciones.py).
+    if (!empresa.calle && esTitular) {
+      t.push({ clave: 'dir-empresa', Icono: MapPin, tono: 'neutro', titulo: 'Completa la dirección de la empresa por partes',
+        detalle: 'Calle y número (o "sin número") por separado: así salen bien en los documentos y en Mi DT.',
+        accion: 'Completar', a: '/app/empresa' });
+    }
+    const sinPartes = activos.filter((e) => !e.calle && e.direccion);
+    if (sinPartes.length) {
+      t.push({ clave: 'dir-trabajadores', Icono: MapPin, tono: 'neutro',
+        titulo: `${sinPartes.length} ${sinPartes.length === 1 ? 'trabajador con la dirección' : 'trabajadores con la dirección'} por completar`,
+        detalle: 'Su dirección quedó escrita en un solo campo. Sepárala en calle y número en su ficha.',
+        accion: 'Completar', a: `/app/trabajadores/${sinPartes[0].id}?tab=personal`, modulo: 'TRABAJADORES' });
     }
     return t.filter((x) => !x.modulo || puede(x.modulo));
   })();

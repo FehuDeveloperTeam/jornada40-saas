@@ -218,3 +218,15 @@ class BancoListaCerradaTests(APITestCase):
         r = self.client.patch(f'/api/empleados/{self.emp.id}/', {'banco': 'BANCO DEL SUR', 'cargo': 'Cajero'},
                               format='json')
         self.assertEqual(r.status_code, 200, r.data)
+
+
+class CatalogosTrabajadorTests(APITestCase):
+    def test_listas_cerradas_desde_el_backend(self):
+        from .utiles import crear_usuario_completo
+        user, *_ = crear_usuario_completo('cat_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(user)
+        r = self.client.get('/api/catalogos/trabajador/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn({'valor': 'BANCOESTADO', 'texto': 'BancoEstado'}, r.data['bancos'])
+        self.assertEqual(r.data['cuidados'][0]['valor'], 'MENOR_14')
+        self.assertTrue(any(f['valor'] == 'MATERNIDAD' for f in r.data['fueros']))

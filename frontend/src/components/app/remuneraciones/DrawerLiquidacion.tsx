@@ -10,6 +10,8 @@ import { usePermisos } from '../../../hooks/usePermisos';
 import type { ConceptoRemuneracion, Empleado, Liquidacion, SolicitudFirma, TipoConcepto } from '../../../types';
 import { capitalizar, clp, periodo } from '../../../utils/formato';
 import { cn } from '../../../utils/cn';
+import { useBorrador } from '../../../hooks/useBorrador';
+import { AvisoBorrador } from '../AvisoBorrador';
 
 interface ItemForm {
   clave: number;
@@ -70,10 +72,15 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
 }) {
   const queryClient = useQueryClient();
   const conceptos = useConceptos(empresaId);
-  const [licencia, setLicencia] = useState(String(existente?.dias_licencia ?? 0));
-  const [ausencias, setAusencias] = useState(String(existente?.dias_ausencia ?? 0));
-  const [noContratados, setNoContratados] = useState(String(existente?.dias_no_contratados ?? 0));
-  const [items, setItems] = useState<ItemForm[]>(() => (existente ? itemsDesde(existente) : comisionesDelContrato(empleado)));
+  const [inicial] = useState(() => ({
+    licencia: String(existente?.dias_licencia ?? 0), ausencias: String(existente?.dias_ausencia ?? 0),
+    noContratados: String(existente?.dias_no_contratados ?? 0),
+    items: existente ? itemsDesde(existente) : comisionesDelContrato(empleado),
+  }));
+  const [licencia, setLicencia] = useState(inicial.licencia);
+  const [ausencias, setAusencias] = useState(inicial.ausencias);
+  const [noContratados, setNoContratados] = useState(inicial.noContratados);
+  const [items, setItems] = useState<ItemForm[]>(inicial.items);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const gestionar = usePermisos().puede('REMUNERACIONES', true);
@@ -86,6 +93,14 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
     : firma?.estado === 'PENDIENTE'
       ? 'Tiene una firma pendiente. Cancela la solicitud en Firma electrónica para poder modificarla.'
       : '';
+  // Si la sesión se cierra por inactividad, lo escrito se recupera al volver a abrirla.
+  const formulario = useMemo(() => ({ licencia, ausencias, noContratados, items }), [licencia, ausencias, noContratados, items]);
+  const borrador = useBorrador(`liquidacion-${empleado.id}-${anio}-${mes}-${existente?.id ?? 'nueva'}`, formulario, inicial, !bloqueo);
+  const recuperar = () => {
+    const v = borrador.recuperar();
+    if (!v) return;
+    setLicencia(v.licencia); setAusencias(v.ausencias); setNoContratados(v.noContratados); setItems(v.items);
+  };
 
   const dias = [licencia, ausencias, noContratados].map((d) => Number(d) || 0);
   const diasTrabajados = Math.max(0, 30 - dias[0] - dias[1] - dias[2]);
@@ -131,6 +146,7 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
       if (existente) await client.patch(`/liquidaciones/${existente.id}/`, payload);
       else await client.post('/liquidaciones/', payload);
       await queryClient.invalidateQueries({ queryKey: ['liquidaciones'] });
+      borrador.limpiar();
       avisar(existente ? 'Liquidación actualizada' : `Liquidación de ${periodo(mes, anio)} emitida`);
       onCerrar();
     } catch (err) {
@@ -160,6 +176,7 @@ export function DrawerLiquidacion({ abierto, onCerrar, empleado, empresaId, mes,
         )}
       </>}>
       <div className="flex flex-col gap-5">
+        {borrador.pendiente && !bloqueo && <AvisoBorrador en={borrador.pendiente.en} recuperar={recuperar} descartar={borrador.descartar} />}
         {!empleado.contrato_activo && <AlertaError>El trabajador no tiene contrato: crea uno antes de emitir la liquidación.</AlertaError>}
         {bloqueo && (
           <div className="flex gap-2.5 items-start rounded-[10px] bg-warn-soft text-warn px-3.5 py-3 text-[13px]">

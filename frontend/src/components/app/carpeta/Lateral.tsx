@@ -34,6 +34,7 @@ export function Lateral({ empleado, documentos, nivel, avisar }: {
   }
   for (const a of empleado.avisos_proteccion ?? []) {
     if (a.codigo === 'FUERO') pendientes.push({ texto: a.titulo, detalle: 'No se puede despedir sin desafuero (Art. 174)', a: `${base}?tab=personal`, alta: true });
+    if (a.codigo === 'CONCILIACION') pendientes.push({ texto: a.titulo, detalle: 'Registra tu respuesta en su ficha', a: `${base}?tab=personal`, alta: a.gravedad === 'alta' });
   }
   for (const d of documentos) {
     if (d.firma?.estado === 'RECHAZADO') pendientes.push({ texto: `${d.titulo}: firma rechazada`, detalle: d.firma.motivo_rechazo || 'Revisa y vuelve a enviar', a: `${base}?tab=documentos`, alta: true });

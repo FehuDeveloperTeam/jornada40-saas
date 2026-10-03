@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion
+from .models import Empresa, Empleado, Contrato, AnexoContrato, DocumentoLegal, Liquidacion, Plan, SolicitudFirma, VacacionEmpleado, Finiquito, ConceptoRemuneracion, SolicitudConciliacion
 from dj_rest_auth.serializers import LoginSerializer, PasswordResetSerializer
 from .jornada import avisos_jornada, jornada_maxima_vigente
 from .rut import normalizar_rut_usuario
@@ -207,7 +207,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'anios_previos_feriado', 'fecha_desvinculacion',
             'discapacidad', 'pension_invalidez', 'consentimiento_electronico_en', 'consentimiento_electronico_via',
             'pensionado_vejez', 'tecnico_extranjero_exento', 'tipo_impuesto_renta',
-            'cuidado_de', 'hijo_enfermedad_grave', 'fuero', 'fuero_hasta', 'avisos_proteccion',
+            'cuidado_de', 'hijo_enfermedad_grave', 'fuero', 'fuero_hasta', 'fecha_parto', 'avisos_proteccion',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
@@ -488,3 +488,37 @@ class LoginPorRutSerializer(LoginSerializer):
         if hasattr(attrs.get('user'), 'usuario_equipo') or hasattr(attrs.get('user'), 'encargado_karin'):
             raise serializers.ValidationError({'non_field_errors': ['No se puede iniciar sesión con las credenciales proporcionadas.']})
         return attrs
+
+
+class SolicitudConciliacionSerializer(serializers.ModelSerializer):
+    """Solicitud de un trabajador con responsabilidades de cuidado (Ley 21.645) y su respuesta."""
+    tipo_texto = serializers.CharField(source='get_tipo_display', read_only=True)
+    estado_texto = serializers.CharField(source='get_estado_display', read_only=True)
+    motivo_texto = serializers.CharField(source='get_motivo_display', read_only=True)
+    vence_el = serializers.DateField(read_only=True)
+    avisos = serializers.SerializerMethodField()
+
+    def get_avisos(self, obj):
+        from .views.conciliacion import avisos_solicitud
+        return avisos_solicitud(obj)
+
+    def validate_empleado(self, empleado):
+        request = self.context['request']
+        if empleado.empresa.owner_id != request.user.id:
+            raise serializers.ValidationError('Trabajador no encontrado.')
+        return empleado
+
+    def validate(self, attrs):
+        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', None))
+        if tipo == 'CAMBIO_JORNADA' and not attrs.get('desde', getattr(self.instance, 'desde', None)):
+            raise serializers.ValidationError({'desde': 'Indica desde cuándo pide el cambio de jornada.'})
+        desde, hasta = attrs.get('desde'), attrs.get('hasta')
+        if desde and hasta and hasta < desde:
+            raise serializers.ValidationError({'hasta': 'El término no puede ser anterior al inicio.'})
+        return attrs
+
+    class Meta:
+        model = SolicitudConciliacion
+        fields = ['id', 'empleado', 'tipo', 'tipo_texto', 'presentada_el', 'desde', 'hasta', 'estado', 'estado_texto',
+                  'motivo', 'motivo_texto', 'fundamento', 'respondida_el', 'vence_el', 'avisos', 'creada_en']
+        read_only_fields = ('estado', 'motivo', 'fundamento', 'respondida_el', 'creada_en')

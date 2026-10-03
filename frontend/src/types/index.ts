@@ -151,7 +151,7 @@ export interface AvisoJornada {
     codigo: 'EXCEDE_MAXIMO' | 'HORARIO_SUPERA_PACTADO' | 'ART22_CON_HORARIO' | 'ART22_CON_HORAS'
         | 'DIA_SUPERA_10H' | 'PARCIAL_SOBRE_TOPE' | 'PROXIMA_REDUCCION'
         // Protecciones del trabajador (core/proteccion.py), mismo formato.
-        | 'FUERO' | 'CUIDADO' | 'SANNA';
+        | 'FUERO' | 'CUIDADO' | 'SANNA' | 'CONCILIACION';
     /** alta: incumple hoy · media: conviene revisar. */
     gravedad: 'alta' | 'media';
     titulo: string;
@@ -176,6 +176,8 @@ export interface Empleado {
     hijo_enfermedad_grave?: boolean;
     fuero?: '' | 'MATERNIDAD' | 'POSTNATAL_PARENTAL' | 'SINDICAL' | 'DELEGADO' | 'COMITE_PARITARIO' | 'NEGOCIACION';
     fuero_hasta?: string | null;
+    /** Fuero maternal sin fecha: el fin se calcula desde el parto (core/proteccion.fin_fuero). */
+    fecha_parto?: string | null;
     avisos_proteccion?: AvisoJornada[];
     direccion: string | null;
     /** Dirección por partes; `direccion` la arma el backend. */
@@ -1178,3 +1180,32 @@ export interface CatalogosKarin {
 }
 
 export interface ResumenKarinEmpresa { id: number; nombre: string; abiertas: number; vencidas: number; por_vencer: number; proximo_vence: string | null }
+
+/** Opción de una lista cerrada servida por el backend. */
+export interface OpcionCatalogo { valor: string; texto: string }
+/** GET /catalogos/trabajador/ (core/views/catalogos.py). */
+export interface CatalogosTrabajador { bancos: OpcionCatalogo[]; cuidados: OpcionCatalogo[]; fueros: OpcionCatalogo[] }
+
+/** Solicitud de conciliación (Ley 21.645), core/views/conciliacion.py. */
+export interface SolicitudConciliacion {
+    id: number;
+    empleado: number;
+    tipo: 'TELETRABAJO' | 'CAMBIO_JORNADA';
+    tipo_texto: string;
+    presentada_el: string;
+    desde: string | null;
+    hasta: string | null;
+    estado: 'PENDIENTE' | 'ACEPTADA' | 'ALTERNATIVA' | 'RECHAZADA';
+    estado_texto: string;
+    motivo: string;
+    motivo_texto: string;
+    fundamento: string;
+    respondida_el: string | null;
+    vence_el: string;
+    avisos: string[];
+    creada_en: string;
+}
+export interface OpcionesConciliacion {
+    tipos: { valor: SolicitudConciliacion['tipo']; texto: string; plazo_dias: number }[];
+    motivos: OpcionCatalogo[];
+}

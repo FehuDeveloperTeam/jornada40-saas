@@ -2,6 +2,8 @@ from django.urls import path, include
 from .views import portal_trabajador as portal
 from .views import solicitudes_documento
 from .views import certificados
+from .views import catalogos
+from .views import conciliacion
 from .views import documentos_laborales
 from .views import inspeccion
 from .views import certificado_sueldos
@@ -46,6 +48,7 @@ router.register(r'ley-karin', ley_karin.LeyKarinViewSet, basename='ley_karin')
 router.register(r'reglamentos', reglamento.ReglamentoViewSet, basename='reglamento')
 router.register(r'documentos-laborales', documentos_laborales.DocumentoLaboralViewSet, basename='documento_laboral')
 router.register(r'solicitudes-documento', solicitudes_documento.SolicitudDocumentoViewSet, basename='solicitud_documento')
+router.register(r'solicitudes-conciliacion', conciliacion.SolicitudConciliacionViewSet, basename='solicitud_conciliacion')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -101,6 +104,7 @@ urlpatterns = [
     path('auth/recuperar-por-rut/', recuperar_password_por_rut, name='recuperar_por_rut'),
     path('diagnostico/red/', diagnostico_red, name='diagnostico_red'),
     path('indicadores/', indicadores_del_dia, name='indicadores_del_dia'),
+    path('catalogos/trabajador/', catalogos.catalogos_trabajador, name='catalogos_trabajador'),
     path('parametros/vigentes/', parametros_vigentes, name='parametros_vigentes'),
     path('clientes/mi_suscripcion/', mi_suscripcion, name='mi_suscripcion'),
     path('clientes/perfil/', perfil_usuario, name='perfil_usuario'),

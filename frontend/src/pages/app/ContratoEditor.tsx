@@ -19,6 +19,8 @@ import type { RespuestaLista } from '../../api/lista';
 import { cn } from '../../utils/cn';
 import { capitalizar } from '../../utils/formato';
 import { formatRut, validateRut } from '../../utils/rutUtils';
+import { useBorrador } from '../../hooks/useBorrador';
+import { AvisoBorrador } from '../../components/app/AvisoBorrador';
 
 type TipoJornada = Contrato['tipo_jornada'];
 const DIAS: [string, string][] = [
@@ -138,7 +140,8 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
   const contrato = empleado.contrato_activo;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [f, setF] = useState<Formulario>(() => desde(contrato, empleado.cargo, maximoInicial));
+  const [inicialForm] = useState<Formulario>(() => desde(contrato, empleado.cargo, maximoInicial));
+  const [f, setF] = useState<Formulario>(inicialForm);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState<string | null>(null);
   const [extraidos, setExtraidos] = useState<Record<string, string> | null>(null);
@@ -153,6 +156,8 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
   // Quien solo ve contratos no edita ni crea anexos (el backend responde 403).
   const gestionar = usePermisos().puede('CONTRATOS', true);
   const bloqueado = soloLectura || !gestionar;
+  // Si la sesión se cierra por inactividad, lo escrito se recupera al volver.
+  const borrador = useBorrador(`contrato-${empleado.id}-${contrato?.id ?? 'nuevo'}`, f, inicialForm, !bloqueado);
 
   const conHorario = CON_HORARIO.includes(f.tipo_jornada);
   const esArt22 = f.tipo_jornada === 'ART_22';
@@ -194,6 +199,7 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
       if (contrato) await client.patch(`/contratos/${contrato.id}/`, payload());
       else await client.post('/contratos/', payload());
       await queryClient.invalidateQueries({ queryKey: ['empleados'] });
+      borrador.limpiar();
       avisar(contrato ? 'Contrato actualizado' : 'Contrato creado');
       navigate(`/app/trabajadores/${empleado.id}?tab=contrato`);
     } catch (err) {
@@ -270,6 +276,10 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
       <Link to={`/app/trabajadores/${empleado.id}?tab=contrato`} className="inline-flex items-center gap-1.5 text-[13px] text-fg-2 self-start">
         <ArrowLeft className="size-4" strokeWidth={2} aria-hidden />Carpeta del trabajador
       </Link>
+      {borrador.pendiente && !bloqueado && (
+        <AvisoBorrador en={borrador.pendiente.en} descartar={borrador.descartar}
+          recuperar={() => { const v = borrador.recuperar(); if (v) setF(v); }} />
+      )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">{!contrato ? 'Nuevo contrato' : bloqueado ? 'Contrato' : 'Editar contrato'}</h1>

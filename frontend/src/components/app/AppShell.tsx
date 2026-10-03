@@ -9,6 +9,7 @@ import { Button, Chip, CierreInactividad, J40Root, Logo, ToggleTema } from '../j
 import { ConfirmarIdentidad } from './ConfirmarIdentidad';
 import { useAuth } from '../../context/AuthContext';
 import client, { rutaIngreso } from '../../api/client';
+import { borrarTodosLosBorradores } from '../../utils/borradores';
 import {
   useEmpresaActiva, useIndicadores, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
 } from '../../hooks/usePanel';
@@ -270,7 +271,7 @@ function Sidebar({ empresa, empresas, cambiarEmpresa, maxEmpresas, suscripcion, 
   const solicitudes = useSolicitudesDocumento(empresa.id, permisos.puede('SOLICITUDES'));
   const porAtender = (solicitudes.data ?? []).filter((s) => s.estado === 'PENDIENTE').length;
 
-  const salir = async () => { await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
+  const salir = async () => { borrarTodosLosBorradores(); await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
   const equipo = permisos.esTitular ? undefined : permisos.sesion;
 
   return (
@@ -586,7 +587,7 @@ function BarraInferior() {
     return () => document.removeEventListener('keydown', alTeclear);
   }, [mas]);
 
-  const salir = async () => { setMas(false); await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
+  const salir = async () => { setMas(false); borrarTodosLosBorradores(); await logout(); navigate(permisos.esTitular ? '/login' : '/equipo'); };
 
   return (
     <>

@@ -331,6 +331,8 @@ class Empleado(models.Model):
     hijo_enfermedad_grave = models.BooleanField(default=False, help_text='Hijo/a menor de 18 con enfermedad grave (Ley SANNA).')
     fuero = models.CharField(max_length=20, choices=FUEROS, blank=True, default='')
     fuero_hasta = models.DateField(null=True, blank=True, help_text='Vacío: vigente sin fecha de término conocida.')
+    # Fuero maternal sin fecha de término: se calcula desde el parto (core/proteccion.fin_fuero).
+    fecha_parto = models.DateField(null=True, blank=True)
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     
@@ -1697,3 +1699,65 @@ class ArchivoKarin(models.Model):
 
     class Meta:
         ordering = ['subido_en']
+
+
+class SolicitudConciliacion(models.Model):
+    """Lo que pide un trabajador con responsabilidades de cuidado (Ley 21.645),
+    con el plazo legal para responder: teletrabajo 15 días (Art. 152 quáter O bis)
+    y cambio transitorio de turnos o jornada en vacaciones escolares 10 días,
+    propuesto con 30 de anticipación (Art. 207 ter). Días corridos. El empleador
+    registra la solicitud (la recibe por escrito) y su respuesta; si rechaza u
+    ofrece otra fórmula, debe fundarla."""
+    objects = EnEmpresas('empleado__empresa_id')   # empresas del usuario del equipo
+    TIPOS = [('TELETRABAJO', 'Teletrabajo o trabajo a distancia'),
+             ('CAMBIO_JORNADA', 'Cambio transitorio de turnos o jornada en vacaciones escolares')]
+    PLAZO_RESPUESTA = {'TELETRABAJO': 15, 'CAMBIO_JORNADA': 10}
+    ANTICIPACION_CAMBIO_JORNADA = 30
+    ESTADOS = [('PENDIENTE', 'Pendiente'), ('ACEPTADA', 'Aceptada'),
+               ('ALTERNATIVA', 'Se ofreció otra fórmula'), ('RECHAZADA', 'Rechazada')]
+    MOTIVOS = [('CARGO_NO_PERMITE', 'La naturaleza del cargo no permite hacerlo a distancia'),
+               ('FUNCIONAMIENTO', 'Afecta el funcionamiento de la empresa en ese período'),
+               ('TURNOS', 'No es posible reorganizar los turnos sin afectar a otros trabajadores'),
+               ('SEGURIDAD', 'Razones de seguridad o salud en el trabajo')]
+    empleado = models.ForeignKey('Empleado', on_delete=models.CASCADE, related_name='solicitudes_conciliacion')
+    tipo = models.CharField(max_length=16, choices=TIPOS)
+    presentada_el = models.DateField()
+    desde = models.DateField(null=True, blank=True, help_text='Inicio propuesto (cambio de jornada).')
+    hasta = models.DateField(null=True, blank=True)
+    estado = models.CharField(max_length=12, choices=ESTADOS, default='PENDIENTE')
+    motivo = models.CharField(max_length=20, choices=MOTIVOS, blank=True, default='')
+    fundamento = models.CharField(max_length=500, blank=True, default='',
+                                  help_text='Circunstancias que justifican rechazar u ofrecer otra fórmula.')
+    respondida_el = models.DateField(null=True, blank=True)
+    activo = models.BooleanField(default=True)
+    creada_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-presentada_el', '-id']
+
+    @property
+    def vence_el(self):
+        import datetime
+        return self.presentada_el + datetime.timedelta(days=self.PLAZO_RESPUESTA[self.tipo])
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} · {self.empleado} [{self.estado}]'
+
+
+class PeriodoVacacionesEscolares(models.Model):
+    """Vacaciones escolares del calendario del Mineduc (se cargan en el admin
+    cada año). Las usan los avisos de cuidado: quien cuida a menores tiene
+    preferencia para su feriado en estos períodos (Ley 21.645)."""
+    nombre = models.CharField(max_length=80, help_text='Ej.: Vacaciones de invierno 2027')
+    desde = models.DateField()
+    hasta = models.DateField()
+    regiones = models.CharField(max_length=200, blank=True, default='',
+                                help_text='Vacío: todo el país. Si no, las regiones a las que aplica.')
+
+    class Meta:
+        ordering = ['desde']
+        verbose_name = 'período de vacaciones escolares'
+        verbose_name_plural = 'períodos de vacaciones escolares'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.desde:%d-%m-%Y} al {self.hasta:%d-%m-%Y})'

@@ -1,4 +1,5 @@
 from django.contrib import admin
+from .models import PeriodoVacacionesEscolares, SolicitudConciliacion
 from .models import (RegistroBitacora, ExportacionBitacora, Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
                      RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido,
@@ -287,3 +288,15 @@ class RegistroBitacoraAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(PeriodoVacacionesEscolares)
+class PeriodoVacacionesEscolaresAdmin(admin.ModelAdmin):
+    """Calendario escolar del Mineduc: se carga cada año (avisos de cuidado, Ley 21.645)."""
+    list_display = ('nombre', 'desde', 'hasta', 'regiones')
+
+
+@admin.register(SolicitudConciliacion)
+class SolicitudConciliacionAdmin(admin.ModelAdmin):
+    list_display = ('empleado', 'tipo', 'presentada_el', 'estado', 'respondida_el', 'activo')
+    list_filter = ('tipo', 'estado')

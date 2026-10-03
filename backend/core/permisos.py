@@ -89,7 +89,7 @@ RUTAS_IDENTIDAD = (
 # Datos de la cuenta que todo usuario del equipo necesita para usar el panel (solo lectura).
 RUTAS_COMUNES_LECTURA = (
     '/api/empresas/', '/api/clientes/mi_suscripcion/', '/api/indicadores/', '/api/parametros/vigentes/',
-    '/api/planes/',
+    '/api/planes/', '/api/catalogos/',
 )
 # POST que no modifican nada: vistas previas y descargas.
 _SOLO_LECTURA_POST = ('/simular/', '/evaluar-jornada/', '/descarga_masiva/', '/descargar_anexos_zip/')
@@ -117,6 +117,7 @@ RUTAS_MODULO = [
     ('/api/ley-karin/', ('SEGURIDAD',)),
     ('/api/solicitudes-documento/', ('SOLICITUDES',)),
     ('/api/certificados/', ('TRABAJADORES',)),
+    ('/api/solicitudes-conciliacion/', ('TRABAJADORES',)),
 ]
 
 # Documentos que se firman o se crean por tipo: el módulo sale del tipo.

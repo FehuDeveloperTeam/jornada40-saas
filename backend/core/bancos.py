@@ -1,10 +1,9 @@
 """Bancos e instituciones donde se paga el sueldo: lista cerrada.
 
 Se guarda el nombre de la lista en mayúsculas (Empleado.banco), como el resto
-de los textos del trabajador. El frontend tiene
-la misma lista en src/components/app/trabajador.ts (BANCOS); si se agrega una
-institución, va en los dos lados. Lo escrito antes a mano se normaliza con
-`normalizar_banco` (migración 0092 y carga masiva).
+de los textos del trabajador. El panel la recibe de GET /api/catalogos/trabajador/
+(views/catalogos.py): agregar una institución aquí basta. Lo escrito antes a mano
+se normaliza con `normalizar_banco` (migración 0092 y carga masiva).
 """
 import unicodedata
 
