@@ -15,6 +15,7 @@ import { ListaAvisos } from '../Avisos';
 import { TIPO_CONTRATO, TIPO_JORNADA } from '../trabajador';
 import { BarraJornada, BotonEnlace, ChipFirma, Seccion } from './comun';
 import { firmaDe } from './utiles';
+import { FaltantesContrato } from './FaltantesContrato';
 
 const DIAS: [string, string][] = [
   ['lunes', 'Lunes'], ['martes', 'Martes'], ['miercoles', 'Miércoles'], ['jueves', 'Jueves'],
@@ -90,6 +91,7 @@ export function ContratoJornada({ empleado, firmas, maximo, avisar }: {
 
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] gap-5 items-start">
+      <div className="[grid-column:1/-1] empty:hidden"><FaltantesContrato empleado={empleado} /></div>
       <Seccion titulo="Condiciones del contrato" accion={<ChipFirma firma={firmaContrato} />}>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 p-[18px]">
           <Dato t="Tipo" v={TIPO_CONTRATO[contrato.tipo_contrato] ?? contrato.tipo_contrato} />

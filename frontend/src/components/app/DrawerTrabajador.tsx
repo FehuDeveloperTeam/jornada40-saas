@@ -18,13 +18,15 @@ type TipoContrato = 'INDEFINIDO' | 'PLAZO_FIJO' | 'OBRA_FAENA';
 
 interface Formulario {
   rut: string; nombres: string; apellidoPaterno: string; apellidoMaterno: string; fechaNacimiento: string;
-  cargo: string; departamento: string; tipoContrato: TipoContrato; fechaIngreso: string; fechaFin: string;
+  correo: string; cargo: string; departamento: string; tipoContrato: TipoContrato; fechaIngreso: string; fechaFin: string;
+  /** Con horario (ordinaria o parcial según las horas) o Art. 22 (sin límite de jornada). */
+  jornada: 'CON_HORARIO' | 'ART_22';
   /** null: aún no se toca, se usa el máximo vigente que informa el backend. */
   horas: string | null; sueldo: string;
 }
 
 const VACIO = (): Formulario => ({
-  rut: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', fechaNacimiento: '',
+  rut: '', nombres: '', apellidoPaterno: '', apellidoMaterno: '', fechaNacimiento: '', correo: '', jornada: 'CON_HORARIO',
   cargo: '', departamento: '', tipoContrato: 'INDEFINIDO', fechaIngreso: hoyISO(), fechaFin: '',
   horas: null, sueldo: '',
 });
@@ -61,7 +63,9 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
   const errorHoras = errorHorasSemanales(textoHoras);
   // Parcial: hasta 2/3 del máximo vigente (Art. 40 bis). El backend no deriva el
   // tipo de jornada; solo avisa (PARCIAL_SOBRE_TOPE) si un parcial supera el tope.
-  const tipoJornada = maximo !== undefined && horas > 0 && horas <= (maximo * 2) / 3 ? 'PARCIAL' : 'ORDINARIA';
+  const esArt22 = f.jornada === 'ART_22';
+  const tipoJornada = esArt22 ? 'ART_22'
+    : maximo !== undefined && horas > 0 && horas <= (maximo * 2) / 3 ? 'PARCIAL' : 'ORDINARIA';
   const { avisos } = useAvisosJornada({ tipo_jornada: tipoJornada, horas_semanales: textoHoras, distribucion_horario: {}, sueldo_base: f.sueldo.replace(/\D/g, '') });
 
   const cambiar = (campo: keyof Formulario) => (e: { target: { value: string } }) =>
@@ -75,7 +79,8 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
     fechaIngreso: !f.fechaIngreso,
     fechaFin: requiereFin && !f.fechaFin,
     sueldo: !(Number(f.sueldo.replace(/\D/g, '')) > 0),
-    horas: Boolean(errorHoras),
+    horas: !esArt22 && Boolean(errorHoras),
+    correo: Boolean(f.correo.trim()) && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.correo.trim()),
   };
   const valido = !Object.values(faltan).some(Boolean);
   const departamentos = [...new Set(trabajadores.map((t) => t.departamento).filter(Boolean))] as string[];
@@ -93,18 +98,22 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
         empresa: empresa.id, rut: f.rut, nombres: f.nombres.trim(), apellido_paterno: f.apellidoPaterno.trim(),
         apellido_materno: f.apellidoMaterno.trim() || null, fecha_nacimiento: f.fechaNacimiento || null,
         cargo: f.cargo.trim(), departamento: f.departamento.trim() || null, fecha_ingreso: f.fechaIngreso,
-        sueldo_base: sueldo, horas_laborales: Math.round(horas),
+        sueldo_base: sueldo, horas_laborales: Math.round(esArt22 ? (maximo ?? horas) : horas),
+        ...(f.correo.trim() ? { email: f.correo.trim().toLowerCase() } : {}),
       })).data;
     } catch (err) {
       setError(errorServidor(err, 'No pudimos crear al trabajador. Intenta de nuevo.'));
       setGuardando(false);
       return;
     }
-    let mensaje = 'Trabajador creado';
+    // El alta pide lo mínimo: lo que falta para el contrato se completa en su ficha (aviso en la carpeta).
+    let mensaje = 'Trabajador creado. Completa su ficha para que el contrato salga completo.';
     try {
       await client.post('/contratos/', {
         empleado: nuevo.id, tipo_contrato: f.tipoContrato, cargo: f.cargo.trim(), fecha_inicio: f.fechaIngreso,
-        fecha_fin: requiereFin ? f.fechaFin : null, sueldo_base: sueldo, horas_semanales: horas,
+        fecha_fin: requiereFin ? f.fechaFin : null, sueldo_base: sueldo,
+        // Art. 22 no pacta horas: se guarda el máximo vigente, el valor por defecto del backend.
+        horas_semanales: esArt22 ? (maximo ?? horas) : horas,
         tipo_jornada: tipoJornada,
       });
     } catch (err) {
@@ -151,6 +160,10 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
             <Field etiqueta="Fecha de nacimiento">
               {(p) => <Input {...p} type="date" value={f.fechaNacimiento} onChange={cambiar('fechaNacimiento')} />}
             </Field>
+            <Field etiqueta="Correo personal" ayuda="Para enviarle el contrato y sus documentos a firma."
+              error={err(faltan.correo, 'Revisa el correo.')}>
+              {(p) => <Input {...p} type="email" autoComplete="off" value={f.correo} onChange={cambiar('correo')} placeholder="Opcional" />}
+            </Field>
           </div>
         </fieldset>
 
@@ -183,11 +196,22 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
                 {(p) => <Input {...p} type="date" value={f.fechaFin} onChange={cambiar('fechaFin')} />}
               </Field>
             )}
+            <Field etiqueta="Tipo de jornada"
+              ayuda={esArt22 ? 'Sin límite de jornada (Art. 22 inc. 2°): gerentes, administradores o quienes trabajan sin fiscalización superior inmediata.' : 'El horario de cada día se completa después en el contrato.'}>
+              {(p) => (
+                <select id={p.id} aria-describedby={p['aria-describedby']} className={SELECT} value={f.jornada} onChange={cambiar('jornada')}>
+                  <option value="CON_HORARIO">Con horario (ordinaria o parcial)</option>
+                  <option value="ART_22">Art. 22 (sin límite de jornada)</option>
+                </select>
+              )}
+            </Field>
+            {!esArt22 && (
             <Field etiqueta="Jornada semanal (horas)"
               ayuda={maximo !== undefined ? `Máximo vigente: ${maximo} h · parcial hasta ${Math.floor((maximo * 2) / 3)} h` : undefined}
               error={(intento || horas > HORAS_SEMANALES_MAXIMAS) && errorHoras ? errorHoras : undefined}>
               {(p) => <Input {...p} type="number" inputMode="decimal" step="0.5" min={1} max={HORAS_SEMANALES_MAXIMAS} value={textoHoras} onChange={cambiar('horas')} />}
             </Field>
+            )}
             <Field etiqueta="Sueldo base" error={err(faltan.sueldo, 'Ingresa el sueldo base.')}>
               {(p) => (
                 <div className="flex items-center h-10 rounded-[8px] border border-line-strong bg-surface focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand-soft">
@@ -200,7 +224,7 @@ export function DrawerTrabajador({ abierto, onCerrar }: { abierto: boolean; onCe
               )}
             </Field>
           </div>
-          <ListaAvisos avisos={avisos} />
+          {!esArt22 && <ListaAvisos avisos={avisos} />}
         </fieldset>
       </form>
     </Drawer>

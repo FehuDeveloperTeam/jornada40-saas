@@ -100,3 +100,24 @@ test('la sesión se renueva sola al vencer el acceso', async ({ page, context })
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await expect(page).toHaveURL(/\/app\/remuneraciones$/);
 });
+
+test('alta de un trabajador Art. 22: la ficha avisa qué falta para el contrato', async ({ page }) => {
+  await entrar(page);
+  await page.getByRole('button', { name: 'Agregar trabajador' }).first().click();
+  const drawer = page.getByRole('dialog', { name: 'Agregar trabajador' });
+  await drawer.getByLabel('RUT').fill('15.555.551-3');
+  await drawer.getByLabel('Nombres').fill('Rosa');
+  await drawer.getByLabel('Apellido paterno').fill('Díaz');
+  await drawer.getByLabel('Cargo').fill('Gerente general');
+  await drawer.getByLabel('Tipo de jornada').selectOption('ART_22');
+  await expect(drawer.getByLabel('Jornada semanal (horas)')).toHaveCount(0);
+  await drawer.getByLabel('Sueldo base').fill('2500000');
+  await drawer.getByRole('button', { name: 'Crear trabajador' }).click();
+  await expect(page.getByText(/Completa su ficha para que el contrato salga completo/)).toBeVisible();
+  // La carpeta dice qué falta; el horario no, porque Art. 22 no lo tiene.
+  await expect(page.getByText('Completa la ficha para que el contrato salga completo')).toBeVisible();
+  await expect(page.getByText(/Falta: .*estado civil/)).toBeVisible();
+  await expect(page.getByText(/horario de trabajo/i)).toHaveCount(0);
+  await page.getByRole('navigation', { name: 'Secciones de la carpeta' }).getByRole('link', { name: 'Contrato y jornada' }).click();
+  await expect(page.getByText('Art. 22', { exact: true }).first()).toBeVisible();
+});

@@ -230,3 +230,23 @@ class CatalogosTrabajadorTests(APITestCase):
         self.assertIn({'valor': 'BANCOESTADO', 'texto': 'BancoEstado'}, r.data['bancos'])
         self.assertEqual(r.data['cuidados'][0]['valor'], 'MENOR_14')
         self.assertTrue(any(f['valor'] == 'MATERNIDAD' for f in r.data['fueros']))
+
+
+class FaltantesContratoTests(APITestCase):
+    """El alta rápida deja datos pendientes: la ficha dice cuáles faltan para el contrato (solo aviso)."""
+
+    def test_lista_lo_que_falta_y_art22_no_pide_horario(self):
+        from .utiles import crear_empleado, crear_usuario_completo
+        from ..models import Contrato
+        user, *_, empresa = crear_usuario_completo('falt_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(user)
+        emp = crear_empleado(empresa, '12.345.678-5')
+        Contrato.objects.filter(empleado=emp).delete()
+        Contrato.objects.create(empleado=emp, tipo_contrato='INDEFINIDO', cargo='Gerente', fecha_inicio='2026-09-01',
+                                sueldo_base=1_500_000, tipo_jornada='ORDINARIA', distribucion_horario={})
+        campos = [f['campo'] for f in self.client.get(f'/api/empleados/{emp.id}/').data['faltantes_contrato']]
+        self.assertIn('distribucion_horario', campos)
+        self.assertIn('estado_civil', campos)
+        Contrato.objects.filter(empleado=emp).update(tipo_jornada='ART_22')
+        campos = [f['campo'] for f in self.client.get(f'/api/empleados/{emp.id}/').data['faltantes_contrato']]
+        self.assertNotIn('distribucion_horario', campos)

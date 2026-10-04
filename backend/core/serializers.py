@@ -151,6 +151,12 @@ class EmpleadoSerializer(serializers.ModelSerializer):
     correo_parece_corporativo = serializers.SerializerMethodField()
 
     avisos_proteccion = serializers.SerializerMethodField()
+    # Lo que falta para que el contrato salga completo (core/ficha.py): solo avisa.
+    faltantes_contrato = serializers.SerializerMethodField()
+
+    def get_faltantes_contrato(self, obj):
+        from .ficha import faltantes_contrato
+        return faltantes_contrato(obj)
 
     def get_avisos_proteccion(self, obj):
         from .proteccion import avisos
@@ -208,13 +214,14 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'discapacidad', 'pension_invalidez', 'consentimiento_electronico_en', 'consentimiento_electronico_via',
             'pensionado_vejez', 'tecnico_extranjero_exento', 'tipo_impuesto_renta',
             'cuidado_de', 'hijo_enfermedad_grave', 'fuero', 'fuero_hasta', 'fecha_parto', 'avisos_proteccion',
+            'faltantes_contrato',
             'forma_pago', 'banco', 'tipo_cuenta', 'numero_cuenta',
             'centro_costo', 'ficha_numero',
             'activo', 'creado_en',
             'contrato_activo',
             'tiene_rechazos_pendientes',
         ]
-        read_only_fields = ('id', 'creado_en', 'contrato_activo', 'fecha_desvinculacion', 'avisos_proteccion',
+        read_only_fields = ('id', 'creado_en', 'contrato_activo', 'fecha_desvinculacion', 'avisos_proteccion', 'faltantes_contrato',
                             'tiene_rechazos_pendientes', 'consentimiento_electronico_en',
                             'consentimiento_electronico_via')
 

@@ -179,6 +179,8 @@ export interface Empleado {
     /** Fuero maternal sin fecha: el fin se calcula desde el parto (core/proteccion.fin_fuero). */
     fecha_parto?: string | null;
     avisos_proteccion?: AvisoJornada[];
+    /** Lo que falta para que el contrato salga completo (core/ficha.py). Solo avisa. */
+    faltantes_contrato?: { campo: string; texto: string; pestana: 'personal' | 'contrato' }[];
     direccion: string | null;
     /** Dirección por partes; `direccion` la arma el backend. */
     calle?: string;

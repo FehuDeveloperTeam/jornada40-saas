@@ -11,6 +11,7 @@ import { TIPO_JORNADA } from '../trabajador';
 import { BarraJornada, BotonEnlace, ChipFirma, EnlaceAccion, Seccion } from './comun';
 import { firmaDe } from './utiles';
 import type { DocumentoReciente } from './documentos';
+import { FaltantesContrato } from './FaltantesContrato';
 
 export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, cargando, avisar }: {
   empleado: Empleado; liquidaciones: Liquidacion[]; firmas: SolicitudFirma[]; documentos: DocumentoReciente[];
@@ -30,6 +31,7 @@ export function Resumen({ empleado, liquidaciones, firmas, documentos, maximo, c
 
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-5">
+      <div className="[grid-column:1/-1] empty:hidden"><FaltantesContrato empleado={empleado} /></div>
       <Seccion titulo={ultima ? `Última liquidación · ${periodo(ultima.mes, ultima.anio)}` : 'Última liquidación'}
         accion={ultima && <ChipFirma firma={firmaDe(firmas, 'liquidacion', ultima.id)} />}>
         {ultima ? (

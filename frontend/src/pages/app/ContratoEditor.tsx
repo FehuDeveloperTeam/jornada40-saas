@@ -21,6 +21,7 @@ import { capitalizar } from '../../utils/formato';
 import { formatRut, validateRut } from '../../utils/rutUtils';
 import { useBorrador } from '../../hooks/useBorrador';
 import { AvisoBorrador } from '../../components/app/AvisoBorrador';
+import { FaltantesContrato } from '../../components/app/carpeta/FaltantesContrato';
 
 type TipoJornada = Contrato['tipo_jornada'];
 const DIAS: [string, string][] = [
@@ -276,6 +277,7 @@ function Editor({ empleadoId, maximoInicial }: { empleadoId: number; maximoInici
       <Link to={`/app/trabajadores/${empleado.id}?tab=contrato`} className="inline-flex items-center gap-1.5 text-[13px] text-fg-2 self-start">
         <ArrowLeft className="size-4" strokeWidth={2} aria-hidden />Carpeta del trabajador
       </Link>
+      <FaltantesContrato empleado={empleado} enEditor />
       {borrador.pendiente && !bloqueado && (
         <AvisoBorrador en={borrador.pendiente.en} descartar={borrador.descartar}
           recuperar={() => { const v = borrador.recuperar(); if (v) setF(v); }} />
