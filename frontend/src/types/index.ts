@@ -1226,11 +1226,14 @@ export interface ConciliacionPedida {
 }
 export interface PeticionesPortal {
     id: number; empresa: string; cargo: string; activo: boolean; acceso_hasta: string | null; cuida: string;
+    /** Su ficha dice que cuida a un menor (requisito del cambio de jornada en vacaciones escolares). */
+    cuida_menores: boolean;
     opciones: {
         tipos_vacacion: OpcionCatalogo[];
         permisos: { valor: string; texto: string; dias: number; tipo_dias: string; desde_el_hecho: boolean }[];
         conciliacion: { valor: ConciliacionPedida['tipo']; texto: string; plazo_dias: number }[];
         cuidados: OpcionCatalogo[];
+        cuidados_menores: OpcionCatalogo[];
     };
     vacaciones: VacacionPedida[];
     permisos: PermisoPedido[];

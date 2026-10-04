@@ -17,8 +17,8 @@ SEMANAS_POSTNATAL = 12
 CUIDADOS = [
     ('MENOR_14', 'Niño o niña menor de 14 años'),
     ('MENOR_18_DISCAPACIDAD', 'Adolescente menor de 18 años con discapacidad o dependencia'),
-    ('DISCAPACIDAD', 'Persona con discapacidad'),
-    ('DEPENDENCIA', 'Persona en situación de dependencia severa o moderada'),
+    ('DISCAPACIDAD', 'Persona adulta (18 años o más) con discapacidad'),
+    ('DEPENDENCIA', 'Persona adulta (18 años o más) en situación de dependencia severa o moderada'),
 ]
 # Feriado preferente y cambio de turnos en vacaciones escolares: solo cuidado de menores.
 CUIDADO_MENORES = ('MENOR_14', 'MENOR_18_DISCAPACIDAD')

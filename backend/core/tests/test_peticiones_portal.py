@@ -131,3 +131,37 @@ class PeticionesPortalTests(PortalBase):
         self.assertEqual(cliente.get('/api/peticiones-portal/').data['vacaciones'], [])
         v = VacacionEmpleado.objects.get()
         self.assertEqual(cliente.post(f'/api/vacaciones/{v.id}/responder/', {'aprobar': True}, format='json').status_code, 404)
+
+
+class CuidadoDeclaradoTests(PortalBase):
+    """La ficha dice "persona adulta con discapacidad" pero cuida a un adolescente con discapacidad:
+    lo declara al pedir el cambio de jornada y el empleador lo confirma al responder."""
+
+    def setUp(self):
+        super().setUp()
+        Empleado.objects.filter(pk=self.ficha.pk).update(cuidado_de='DISCAPACIDAD')
+        self._entrar()
+        self.hoy = timezone.localdate()
+
+    def test_declara_menor_y_queda_en_la_ficha(self):
+        desde = self.hoy + datetime.timedelta(days=60)
+        datos = {'empleo': self.ficha.id, 'tipo': 'CAMBIO_JORNADA', 'desde': desde.isoformat(),
+                 'hasta': (desde + datetime.timedelta(days=14)).isoformat()}
+        r = self.client.post('/api/trabajador/peticiones/conciliacion/', datos, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('¿A quién cuidas?', r.data['error'])
+        r = self.client.post('/api/trabajador/peticiones/conciliacion/', {**datos, 'cuidado': 'MENOR_18_DISCAPACIDAD'},
+                             format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertFalse(self.client.get('/api/trabajador/peticiones/').data[0]['cuida_menores'])
+        jefe = APIClient()
+        jefe.force_authenticate(self.jefe)
+        s = SolicitudConciliacion.objects.get()
+        r = jefe.post(f'/api/solicitudes-conciliacion/{s.id}/responder/', {'estado': 'ACEPTADA'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(Empleado.objects.get(pk=self.ficha.pk).cuidado_de, 'MENOR_18_DISCAPACIDAD')
+
+    def test_teletrabajo_no_pide_declarar_si_la_ficha_ya_dice(self):
+        r = self.client.post('/api/trabajador/peticiones/conciliacion/', {'empleo': self.ficha.id, 'tipo': 'TELETRABAJO'},
+                             format='json')
+        self.assertEqual(r.status_code, 201, r.data)

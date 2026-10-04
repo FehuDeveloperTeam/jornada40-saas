@@ -216,6 +216,7 @@ def _opciones(emp):
         'conciliacion': [{'valor': v, 'texto': t, 'plazo_dias': SolicitudConciliacion.PLAZO_RESPUESTA[v]}
                          for v, t in SolicitudConciliacion.TIPOS],
         'cuidados': [{'valor': v, 'texto': t} for v, t in CUIDADOS],
+        'cuidados_menores': [{'valor': v, 'texto': t} for v, t in CUIDADOS if v in CUIDADO_MENORES],
     }
 
 
@@ -228,7 +229,8 @@ def peticiones(request):
         if not emp.activo:
             continue
         salida.append({
-            **_empleo(emp), 'cuida': emp.cuidado_de, 'opciones': _opciones(emp),
+            **_empleo(emp), 'cuida': emp.cuidado_de, 'cuida_menores': emp.cuidado_de in CUIDADO_MENORES,
+            'opciones': _opciones(emp),
             'vacaciones': [_vacacion_dato(v) for v in VacacionEmpleado.objects.filter(empleado=emp, origen='PORTAL')
                            .order_by('-creado_en')[:30]],
             'permisos': [_permiso_dato(s) for s in SolicitudPermiso.objects.filter(empleado=emp)[:30]],
@@ -307,17 +309,23 @@ def pedir_conciliacion(request):
         tipo = request.data.get('tipo')
         if tipo not in dict(SolicitudConciliacion.TIPOS):
             raise PeticionInvalida('Elige qué quieres pedir.')
-        cuidado = ''
-        if not emp.cuidado_de:
-            cuidado = request.data.get('cuidado') or ''
-            if cuidado not in dict(CUIDADOS):
-                raise PeticionInvalida('Indica a quién cuidas.')
+        # A quién cuida: lo que dice su ficha, o lo que declara al pedir (el empleador lo
+        # confirma al responder). Para el cambio de jornada debe ser un menor: si la ficha
+        # dice otra cosa (p. ej. "persona adulta con discapacidad"), puede declararlo aquí.
+        cuidado = request.data.get('cuidado') or ''
+        if cuidado and cuidado not in dict(CUIDADOS):
+            raise PeticionInvalida('Elige a quién cuidas de la lista.')
+        if not emp.cuidado_de and not cuidado:
+            raise PeticionInvalida('Indica a quién cuidas.')
+        if cuidado == emp.cuidado_de:
+            cuidado = ''
         desde = hasta = None
         avisos = []
         if tipo == 'CAMBIO_JORNADA':
-            if (emp.cuidado_de or cuidado) not in CUIDADO_MENORES:
-                raise PeticionInvalida('El cambio de jornada en vacaciones escolares es para quien cuida a un menor de '
-                                       '14 años o a un adolescente con discapacidad (Ley 21.645).')
+            if (cuidado or emp.cuidado_de) not in CUIDADO_MENORES:
+                raise PeticionInvalida('El cambio de jornada en vacaciones escolares es para quien cuida a un niño o niña '
+                                       'menor de 14 años o a un adolescente menor de 18 con discapacidad o dependencia '
+                                       '(Ley 21.645). Si es tu caso, elige esa opción en "¿A quién cuidas?".')
             desde, hasta = _fecha(request.data.get('desde'), 'desde'), _fecha(request.data.get('hasta'), 'hasta')
             _rango(desde, hasta, hoy)
             if (desde - hoy).days < SolicitudConciliacion.ANTICIPACION_CAMBIO_JORNADA:
@@ -442,7 +450,7 @@ def responder_conciliacion_portal(s):
     """Tras responder una solicitud pedida desde el portal: deja en la ficha a quién cuida
     (salvo que se rechace por no acreditarlo) y avisa al trabajador."""
     emp = s.empleado
-    if s.cuidado_declarado and not emp.cuidado_de and s.motivo != 'NO_ACREDITA_CUIDADO':
+    if s.cuidado_declarado and s.cuidado_declarado != emp.cuidado_de and s.motivo != 'NO_ACREDITA_CUIDADO':
         Empleado.objects.filter(pk=emp.pk).update(cuidado_de=s.cuidado_declarado)
     if s.origen == 'PORTAL':
         detalle = (f'Motivo: {s.get_motivo_display()}. {s.fundamento}' if s.motivo else '')

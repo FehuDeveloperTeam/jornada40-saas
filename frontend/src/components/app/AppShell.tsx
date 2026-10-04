@@ -561,16 +561,19 @@ function useMigas(empresa: Empresa): { texto: string; a?: string }[] {
 
 // Lo que no cabe en la barra inferior va en "Más".
 const EN_BARRA = ['/app', '/app/trabajadores', '/app/remuneraciones', '/app/firmas'];
-const MAS: { a: string; etiqueta: string; Icono: LucideIcon; modulos?: ModuloPanel[]; titular?: boolean }[] = [
-  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', Icono: Landmark, modulos: ['DIRECCION_TRABAJO'] },
-  { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', Icono: ScrollText, modulos: ['SEGURIDAD'] },
-  { a: '/app/solicitudes', etiqueta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES', 'VACACIONES'] },
-  { a: '/app/empresa', etiqueta: 'Empresa', Icono: Building2, titular: true },
-  { a: '/app/reportes', etiqueta: 'Reportes', Icono: ChartColumn, modulos: ['REPORTES'] },
-  { a: '/app/equipo', etiqueta: 'Usuarios y bitácora', Icono: UserCog, titular: true },
-  { a: '/app/plan', etiqueta: 'Plan y facturación', Icono: CreditCard, titular: true },
-  { a: '/app/cuenta', etiqueta: 'Mi cuenta', Icono: UserRound },
+const MAS: { a: string; etiqueta: string; corta: string; Icono: LucideIcon; modulos?: ModuloPanel[]; titular?: boolean }[] = [
+  { a: '/app/dt', etiqueta: 'Dirección del Trabajo', corta: 'DT', Icono: Landmark, modulos: ['DIRECCION_TRABAJO'] },
+  { a: '/app/reglamento', etiqueta: 'Reglamento y seguridad', corta: 'Seguridad', Icono: ScrollText, modulos: ['SEGURIDAD'] },
+  { a: '/app/solicitudes', etiqueta: 'Solicitudes', corta: 'Solicitudes', Icono: Inbox, modulos: ['SOLICITUDES', 'VACACIONES'] },
+  { a: '/app/empresa', etiqueta: 'Empresa', corta: 'Empresa', Icono: Building2, titular: true },
+  { a: '/app/reportes', etiqueta: 'Reportes', corta: 'Reportes', Icono: ChartColumn, modulos: ['REPORTES'] },
+  { a: '/app/equipo', etiqueta: 'Usuarios y bitácora', corta: 'Usuarios', Icono: UserCog, titular: true },
+  { a: '/app/plan', etiqueta: 'Plan y facturación', corta: 'Plan', Icono: CreditCard, titular: true },
+  { a: '/app/cuenta', etiqueta: 'Mi cuenta', corta: 'Cuenta', Icono: UserRound },
 ];
+// La barra tiene 4 accesos + "Más": si faltan de los principales (un usuario del equipo
+// sin esos módulos), se completan con los primeros de "Más" para no dejar huecos.
+const EN_BARRA_MAX = 4;
 
 function BarraInferior() {
   const [mas, setMas] = useState(false);
@@ -578,7 +581,13 @@ function BarraInferior() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const permisos = usePermisos();
-  const mas_ = MAS.filter((m) => visible(m, permisos));
+  const principales = NAV.filter((n) => EN_BARRA.includes(n.a) && visible(n, permisos))
+    .map(({ a, corta, Icono, fin, clasico, etiqueta }) => ({ a, corta, Icono, fin, clasico, etiqueta }));
+  const visiblesMas = MAS.filter((m) => visible(m, permisos));
+  const promovidos = visiblesMas.slice(0, Math.max(0, EN_BARRA_MAX - principales.length))
+    .map(({ a, corta, Icono, etiqueta }) => ({ a, corta, Icono, etiqueta, fin: false, clasico: false }));
+  const enBarra = [...principales, ...promovidos];
+  const mas_ = visiblesMas.filter((m) => !promovidos.some((p) => p.a === m.a));
   const enMas = mas_.some((m) => pathname.startsWith(m.a));
 
   useEffect(() => {
@@ -592,8 +601,9 @@ function BarraInferior() {
 
   return (
     <>
-      <nav aria-label="Principal" className="min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line">
-        {NAV.filter((n) => EN_BARRA.includes(n.a) && visible(n, permisos)).map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
+      <nav aria-label="Principal" className={cn('min-[720px]:hidden fixed inset-x-0 bottom-0 z-40 grid px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom))] bg-surface border-t border-line',
+        enBarra.length >= EN_BARRA_MAX ? 'grid-cols-5' : enBarra.length === 3 ? 'grid-cols-4' : 'grid-cols-3')}>
+        {enBarra.map(({ a, corta, Icono, fin, clasico, etiqueta }) => (
           <NavLink key={etiqueta} to={a} end={fin} onClick={() => setMas(false)}
             className={({ isActive }) => cn(
               'flex flex-col items-center justify-center gap-[3px] min-w-0 h-[52px] text-[10.5px] font-medium no-underline hover:no-underline',

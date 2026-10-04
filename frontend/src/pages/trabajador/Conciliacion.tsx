@@ -31,10 +31,13 @@ function Empleo({ empleo }: { empleo: PeticionesPortal }) {
   const [pedir, setPedir] = useState<ConciliacionPedida['tipo'] | null>(null);
   return (
     <Seccion titulo={empleo.empresa} subtitulo={empleo.cargo || undefined}>
-      <div className="flex flex-wrap gap-2.5 px-[18px] py-4">
-        <Button tamano="lg" onClick={() => setPedir('TELETRABAJO')} iconoInicio={<House className="size-5" strokeWidth={2} />}>Pedir teletrabajo</Button>
-        <Button tamano="lg" variante="secundario" onClick={() => setPedir('CAMBIO_JORNADA')}
-          iconoInicio={<CalendarClock className="size-5" strokeWidth={2} />}>Pedir cambio de jornada en vacaciones escolares</Button>
+      {/* En el teléfono los botones van uno bajo el otro y a todo el ancho: nada se sale de la pantalla. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 px-[18px] py-4">
+        <Button tamano="lg" className="w-full" onClick={() => setPedir('TELETRABAJO')}
+          iconoInicio={<House className="size-5" strokeWidth={2} />}>Pedir teletrabajo</Button>
+        <Button tamano="lg" className="w-full" variante="secundario" onClick={() => setPedir('CAMBIO_JORNADA')}
+          iconoInicio={<CalendarClock className="size-5" strokeWidth={2} />}>Pedir cambio de jornada</Button>
+        <p className="sm:col-span-2 text-[12.5px] text-fg-3">El cambio de jornada es para las vacaciones escolares y para quien cuida a un menor.</p>
       </div>
       <div className="border-t border-line">
         {empleo.conciliacion.length === 0 && <p className="px-[18px] py-4 text-[13px] text-fg-3">No has hecho solicitudes.</p>}

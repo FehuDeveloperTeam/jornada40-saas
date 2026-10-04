@@ -66,9 +66,9 @@ export function PeticionesVacaciones({ empleo }: { empleo: PeticionesPortal }) {
   return (
     <div className="border-t border-line">
       <div className="flex flex-wrap items-center gap-2.5 px-[18px] py-3">
-        <h3 className="flex-1 min-w-[160px] text-[12.5px] font-semibold text-fg-2">Mis solicitudes</h3>
-        <Button tamano="lg" onClick={() => setVacacion(true)} iconoInicio={<CalendarPlus className="size-5" strokeWidth={2} />}>Pedir vacaciones</Button>
-        <Button tamano="lg" variante="secundario" onClick={() => setPermiso(true)} iconoInicio={<FilePlus2 className="size-5" strokeWidth={2} />}>Pedir permiso</Button>
+        <h3 className="w-full sm:w-auto sm:flex-1 text-[12.5px] font-semibold text-fg-2">Mis solicitudes</h3>
+        <Button tamano="lg" className="flex-1 sm:flex-none" onClick={() => setVacacion(true)} iconoInicio={<CalendarPlus className="size-5" strokeWidth={2} />}>Pedir vacaciones</Button>
+        <Button tamano="lg" className="flex-1 sm:flex-none" variante="secundario" onClick={() => setPermiso(true)} iconoInicio={<FilePlus2 className="size-5" strokeWidth={2} />}>Pedir permiso</Button>
       </div>
       {lista.length === 0 && <p className="px-[18px] pb-4 text-[13px] text-fg-3">Aún no has pedido vacaciones ni permisos desde aquí.</p>}
       <ul className="flex flex-col">
@@ -213,6 +213,11 @@ export function PedirConciliacion({ empleo, tipo, onCerrar }: {
   const [enviando, setEnviando] = useState(false);
   const cambio = tipo === 'CAMBIO_JORNADA';
   const opcion = empleo.opciones.conciliacion.find((c) => c.valor === tipo);
+  // Sin datos en su ficha, declara a quién cuida. Para el cambio de jornada debe ser un menor:
+  // si su ficha dice otra cosa, lo declara aquí y el empleador lo confirma al responder.
+  const pedirCuidado = !empleo.cuida || (cambio && !empleo.cuida_menores);
+  const opcionesCuidado = cambio ? empleo.opciones.cuidados_menores : empleo.opciones.cuidados;
+  const textoFicha = empleo.opciones.cuidados.find((c) => c.valor === empleo.cuida)?.texto;
 
   const enviar = async () => {
     setEnviando(true);
@@ -232,16 +237,22 @@ export function PedirConciliacion({ empleo, tipo, onCerrar }: {
     <Modal abierto onCerrar={onCerrar} titulo={opcion?.texto ?? 'Solicitud'} subtitulo={empleo.empresa}
       acciones={<><Button variante="secundario" onClick={onCerrar} disabled={enviando}>Cancelar</Button>
         <Button tamano="lg" onClick={() => void enviar()} cargando={enviando}
-          disabled={(!empleo.cuida && !cuidado) || (cambio && (!desde || !hasta))}>Enviar solicitud</Button></>}>
+          disabled={(pedirCuidado && !cuidado) || (cambio && (!desde || !hasta))}>Enviar solicitud</Button></>}>
       <div className="flex flex-col gap-4">
         {error && <AlertaError>{error}</AlertaError>}
-        {!empleo.cuida && (
+        {pedirCuidado && (
           <Campo etiqueta="¿A quién cuidas?">
             <select className={CONTROL} value={cuidado} onChange={(e) => setCuidado(e.target.value)}>
               <option value="">Elige una opción…</option>
-              {empleo.opciones.cuidados.map((c) => <option key={c.valor} value={c.valor}>{c.texto}</option>)}
+              {opcionesCuidado.map((c) => <option key={c.valor} value={c.valor}>{c.texto}</option>)}
             </select>
           </Campo>
+        )}
+        {pedirCuidado && empleo.cuida && textoFicha && (
+          <p className="text-[13px] text-fg-2">
+            Tu ficha dice que cuidas a: <b>{textoFicha.toLowerCase()}</b>. El cambio de jornada es para quien cuida a un menor:
+            si es tu caso, elígelo arriba y tu empleador lo confirmará al responder.
+          </p>
         )}
         {cambio && (
           <div className="grid grid-cols-2 gap-3">
