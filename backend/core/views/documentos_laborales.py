@@ -285,8 +285,14 @@ def _permiso(emp, contrato, d, hoy):
     tipo = _opcion(d.get('permiso'), list(PERMISOS), 'el tipo de permiso')
     texto, dias, tipo_dias, norma = PERMISOS[tipo]
     hecho = _fecha_param(d.get('fecha_hecho'), 'la fecha del hecho')
+    corre_desde = ''
     if tipo in _DESDE_EL_HECHO:
         inicio = hecho
+        # Contado en días hábiles: si el fallecimiento fue domingo o feriado, el permiso parte el día hábil siguiente.
+        while tipo_dias == 'hábiles' and not _es_habil(inicio):
+            inicio += datetime.timedelta(days=1)
+        if inicio != hecho:
+            corre_desde = ' Como el fallecimiento ocurrió en un día inhábil, el permiso se cuenta desde el día hábil siguiente.'
     else:
         inicio = _fecha_param(d.get('inicio'), 'la fecha de inicio del permiso')
         limites = {'NACIMIENTO': (hecho, hecho + relativedelta(months=1)),
@@ -306,7 +312,8 @@ def _permiso(emp, contrato, d, hoy):
         f'Se deja constancia de que el trabajador hace uso del permiso pagado por {texto.lower()}, ocurrido el '
         f'{_fecha(hecho)}, conforme al {norma}.',
         f'El permiso es de {dias} días {tipo_dias}, desde el {_fecha(inicio)} hasta el {_fecha(fin)}, ambos inclusive.'
-        + (' Los días hábiles se cuentan de lunes a sábado, sin domingos ni festivos.' if tipo_dias == 'hábiles' else ''),
+        + (' Los días hábiles se cuentan de lunes a sábado, sin domingos ni festivos.' if tipo_dias == 'hábiles' else '')
+        + corre_desde,
         'Estos días son de cargo del empleador, se pagan íntegramente y no se descuentan de la remuneración ni del '
         'feriado anual.',
     ]

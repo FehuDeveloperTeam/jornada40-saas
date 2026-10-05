@@ -158,6 +158,14 @@ class PermisoTests(DocumentosBase):
         r = self._crear('PERMISO_LEGAL', permiso='MATRIMONIO', fecha_hecho='2026-09-05', inicio='2026-09-07')
         self.assertEqual((r.status_code, r.data['vigente_hasta']), (201, '2026-09-11'))
 
+    def test_fallecimiento_en_dia_inhabil_parte_el_dia_habil_siguiente(self):
+        # Domingo 6 de septiembre de 2026: los 4 días hábiles van del lunes 7 al jueves 10.
+        r = self._crear('PERMISO_LEGAL', permiso='FALLECIMIENTO_PADRES', fecha_hecho='2026-09-06')
+        self.assertEqual((r.status_code, r.data['vigente_desde'], r.data['vigente_hasta']),
+                         (201, '2026-09-07', '2026-09-10'), r.data)
+        clausulas = DocumentoLaboral.objects.get(pk=r.data['id']).datos['clausulas']
+        self.assertTrue(any('día inhábil' in c for c in clausulas))
+
     def test_aviso_si_se_descuenta_ausencia_en_el_mes_del_permiso(self):
         doc = self._crear('PERMISO_LEGAL', permiso='FALLECIMIENTO_PADRES', fecha_hecho='2026-09-07').data
         self._firmar(doc['id'])
