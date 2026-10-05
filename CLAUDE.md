@@ -303,6 +303,8 @@ Routes are defined in `src/App.tsx`. Public pages live in `src/pages/sitio/`; th
 
 Legacy URLs (`/dashboard`, `/empresas`, `/suscripcion`, `/reportes`) redirect to their `/app/*` equivalents.
 
+Landing copy (functions, worker portal, compliance, security, what each plan includes, FAQ) lives in `components/sitio/contenido.ts`; `INCLUYE_POR_NIVEL` is also shown on `/app/plan`, so when a feature changes plan level update it there.
+
 UI primitives live in `src/components/j40/` (design tokens in `src/styles/j40.css`, themed by `data-j40`).
 
 ### Backend-first rule

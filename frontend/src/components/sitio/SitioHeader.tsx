@@ -6,13 +6,14 @@ import { Button, Logo, ToggleTema } from '../j40';
 const ENLACES = [
   { ancla: '#producto', texto: 'Producto' },
   { ancla: '#ley', texto: 'Ley 40 horas' },
+  { ancla: '#cumplimiento', texto: 'Cumplimiento' },
   { ancla: '#seguridad', texto: 'Seguridad' },
   { ancla: '#precios', texto: 'Precios' },
 ];
 
 /**
  * Barra superior del sitio. Fija, con fondo translúcido y desenfoque.
- * Desde 1000 px muestra los enlaces; bajo eso, un menú desplegable.
+ * Desde 1180 px muestra los enlaces; bajo eso, un menú desplegable.
  * Los botones de sesión se ocultan en móvil y pasan al menú.
  */
 export function SitioHeader() {
@@ -36,7 +37,7 @@ export function SitioHeader() {
           <Logo soloIcono className="min-[420px]:hidden" />
         </Link>
 
-        <nav aria-label="Secciones" className="hidden min-[1000px]:flex gap-1 ml-5">
+        <nav aria-label="Secciones" className="hidden min-[1180px]:flex gap-1 ml-5">
           {ENLACES.map((e) => (
             <a key={e.ancla} href={e.ancla}
               className="px-3 py-2 rounded-[8px] text-fg-2 text-[13.5px] font-medium whitespace-nowrap no-underline hover:no-underline hover:text-fg hover:bg-sunken">
@@ -69,14 +70,14 @@ export function SitioHeader() {
           aria-label={menuAbierto ? 'Cerrar menú' : 'Abrir menú'}
           aria-expanded={menuAbierto}
           aria-controls="menu-sitio"
-          className="min-[1000px]:hidden grid place-items-center size-[38px] rounded-j40-control border border-line bg-surface text-fg cursor-pointer"
+          className="min-[1180px]:hidden grid place-items-center size-[38px] rounded-j40-control border border-line bg-surface text-fg cursor-pointer"
         >
           {menuAbierto ? <X className="size-[22px]" strokeWidth={2} /> : <Menu className="size-[22px]" strokeWidth={2} />}
         </button>
       </div>
 
       {menuAbierto && (
-        <div id="menu-sitio" className="min-[1000px]:hidden flex flex-col gap-0.5 px-4 pt-2 pb-4 border-t border-line bg-surface">
+        <div id="menu-sitio" className="min-[1180px]:hidden flex flex-col gap-0.5 px-4 pt-2 pb-4 border-t border-line bg-surface">
           {ENLACES.map((e) => (
             <a key={e.ancla} href={e.ancla} onClick={() => setMenuAbierto(false)}
               className="px-1 py-3 text-fg text-[15px] font-medium no-underline hover:no-underline">

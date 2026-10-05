@@ -4,8 +4,9 @@ import { Check, Minus, Plus } from 'lucide-react';
 import { Button, J40Root, Logo } from '../../components/j40';
 import { SitioHeader } from '../../components/sitio/SitioHeader';
 import {
-  FUNCIONES, INCLUYE_POR_NIVEL, NIVEL_DESTACADO, SEGURIDAD, hitosLey, preguntasFrecuentes,
+  CUMPLIMIENTO, FUNCIONES, INCLUYE_POR_NIVEL, NIVEL_DESTACADO, PORTAL, SEGURIDAD, hitosLey, preguntasFrecuentes,
 } from '../../components/sitio/contenido';
+import type { Destacado } from '../../components/sitio/contenido';
 import { useTheme } from '../../hooks/useTheme';
 import { formatearPrecio, precioCiclo, textoCiclo, textoEmpresas, textoTrabajadores, usePlanes } from '../../hooks/usePlanes';
 import type { Ciclo } from '../../hooks/usePlanes';
@@ -42,7 +43,9 @@ export default function Landing() {
         <Hero onComenzar={() => navigate('/register')} />
         <VistaProducto />
         <Funciones />
+        <PortalTrabajador />
         <CalendarioLey />
+        <Cumplimiento />
         <Seguridad />
         <Precios />
         <PreguntasFrecuentes />
@@ -68,7 +71,8 @@ function Hero({ onComenzar }: { onComenzar: () => void }) {
       </h1>
       <p className="max-w-[620px] text-[clamp(15px,1.6vw,18px)] text-fg-2 text-pretty">
         Jornada40 reúne la carpeta de cada trabajador: contrato, jornada, liquidaciones, vacaciones y documentos
-        legales, con firma electrónica incluida. Hecho en Chile para pymes chilenas.
+        legales, con firma electrónica, Previred, Libro electrónico, Ley Karin y un portal para tu equipo.
+        Hecho en Chile para pymes chilenas.
       </p>
       <div className="flex gap-2.5 flex-wrap justify-center">
         <Button tamano="lg" onClick={onComenzar}>Comenzar gratis</Button>
@@ -138,6 +142,57 @@ function Funciones() {
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+/** Tarjetas con ícono, título y texto: comparten forma las secciones de portal y cumplimiento. */
+function Tarjetas({ items }: { items: Destacado[] }) {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-3">
+      {items.map(({ icono: Icono, titulo, texto }) => (
+        <div key={titulo} className="flex flex-col gap-2.5 p-5 rounded-j40-modal border border-line bg-surface">
+          <span className="grid place-items-center size-10 rounded-[10px] bg-brand-soft text-brand-text">
+            <Icono className="size-[22px]" strokeWidth={2} aria-hidden />
+          </span>
+          <h3 className="text-[16px] font-semibold">{titulo}</h3>
+          <p className="text-[14px] text-fg-2 text-pretty">{texto}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PortalTrabajador() {
+  return (
+    <section id="portal" className={cn(CONTENEDOR, SEPARACION)}>
+      <div className="flex flex-wrap justify-between items-end gap-4 mb-9">
+        <div className="flex flex-col gap-2.5 max-w-[640px]">
+          <Eyebrow>Portal del trabajador · plan Pyme</Eyebrow>
+          <h2 className={TITULO_SECCION}>Tu equipo resuelve solo lo que antes te pedía a ti.</h2>
+          <p className="text-fg-2 text-[15px] text-pretty">
+            Cada trabajador entra con su RUT y un código en su correo, sin instalar nada. Las solicitudes te llegan
+            ordenadas al panel, con los plazos legales de respuesta.
+          </p>
+        </div>
+        <Link to="/trabajador" className="text-[14px] font-medium whitespace-nowrap">Entrar al portal del trabajador</Link>
+      </div>
+      <Tarjetas items={PORTAL} />
+    </section>
+  );
+}
+
+function Cumplimiento() {
+  return (
+    <section id="cumplimiento" className={cn(CONTENEDOR, SEPARACION)}>
+      <div className="flex flex-col gap-2.5 max-w-[640px] mb-9">
+        <Eyebrow>Cumplimiento</Eyebrow>
+        <h2 className={TITULO_SECCION}>Los plazos de la ley, vigilados por ti.</h2>
+        <p className="text-fg-2 text-[15px] text-pretty">
+          Jornada40 avisa; nunca bloquea. Tú decides, con la norma y el plazo a la vista.
+        </p>
+      </div>
+      <Tarjetas items={CUMPLIMIENTO} />
     </section>
   );
 }
