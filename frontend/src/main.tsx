@@ -5,8 +5,14 @@ import './index.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './context/AuthContext.tsx'
 import { ThemeProvider } from './context/ThemeContext.tsx'
+import { recargarPorVersion } from './utils/cargaDiferida'
 
 const queryClient = new QueryClient()
+
+// Un archivo de una versión anterior que ya no existe: se recarga para tomar la nueva.
+window.addEventListener('vite:preloadError', (evento) => {
+  if (recargarPorVersion()) evento.preventDefault()
+})
 
 // Entorno de pruebas (build con VITE_ENTORNO=staging): no se indexa y se nota a simple vista.
 if (import.meta.env.VITE_ENTORNO === 'staging') {

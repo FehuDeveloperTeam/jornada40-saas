@@ -301,6 +301,8 @@ Routes are defined in `src/App.tsx`. Public pages live in `src/pages/sitio/`; th
 | `/app/equipo` (`?tab=bitacora`) | `app/Equipo.tsx` (users and bitácora) | Protected, owner only |
 | `/equipo`, `/equipo/clave/:uid/:token` | `sitio/IngresoEquipo.tsx`, `sitio/ClaveEquipo.tsx` (team login and password) | Public |
 
+Pages load with `diferida()` (`utils/cargaDiferida.ts`, a `lazy` wrapper): after a deploy, a tab opened earlier asks for chunk files that no longer exist, so it reloads once (at most every 10 s; `main.tsx` also handles `vite:preloadError`) and otherwise shows `PaginaNoCargo` with "Recargar" instead of a blank page. Use it for new routes.
+
 Legacy URLs (`/dashboard`, `/empresas`, `/suscripcion`, `/reportes`) redirect to their `/app/*` equivalents.
 
 Landing copy (functions, worker portal, compliance, security, what each plan includes, FAQ) lives in `components/sitio/contenido.ts`; `INCLUYE_POR_NIVEL` is also shown on `/app/plan`, so when a feature changes plan level update it there.

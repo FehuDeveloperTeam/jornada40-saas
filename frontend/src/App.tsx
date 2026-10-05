@@ -1,66 +1,67 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import client, { rutaIngreso } from './api/client';
 import { Button, J40Root } from './components/j40';
 import { ConPermiso } from './components/app/ConPermiso';
 import { MODULOS_DOCUMENTOS } from './hooks/usePermisos';
+import { diferida } from './utils/cargaDiferida';
 
 // Sitio público y acceso: rediseño (paso E). El resto sigue con el diseño
 // anterior hasta su propio paso de la migración.
-const Landing = lazy(() => import('./pages/sitio/Landing'));
-const Login = lazy(() => import('./pages/sitio/Login'));
-const Registro = lazy(() => import('./pages/sitio/Registro'));
-const Recuperar = lazy(() => import('./pages/sitio/Recuperar'));
-const NuevaContrasena = lazy(() => import('./pages/sitio/NuevaContrasena'));
-const IngresoEquipo = lazy(() => import('./pages/sitio/IngresoEquipo'));
-const ClaveEquipo = lazy(() => import('./pages/sitio/ClaveEquipo'));
-const IngresoKarin = lazy(() => import('./pages/sitio/IngresoKarin'));
-const KarinShell = lazy(() => import('./components/karin/KarinShell'));
-const PanelKarin = lazy(() => import('./pages/karin/Panel'));
-const NuevaDenuncia = lazy(() => import('./pages/karin/NuevaDenuncia'));
-const ExpedienteKarin = lazy(() => import('./pages/karin/Expediente'));
-const Bienvenida = lazy(() => import('./pages/sitio/Bienvenida'));
+const Landing = diferida(() => import('./pages/sitio/Landing'));
+const Login = diferida(() => import('./pages/sitio/Login'));
+const Registro = diferida(() => import('./pages/sitio/Registro'));
+const Recuperar = diferida(() => import('./pages/sitio/Recuperar'));
+const NuevaContrasena = diferida(() => import('./pages/sitio/NuevaContrasena'));
+const IngresoEquipo = diferida(() => import('./pages/sitio/IngresoEquipo'));
+const ClaveEquipo = diferida(() => import('./pages/sitio/ClaveEquipo'));
+const IngresoKarin = diferida(() => import('./pages/sitio/IngresoKarin'));
+const KarinShell = diferida(() => import('./components/karin/KarinShell'));
+const PanelKarin = diferida(() => import('./pages/karin/Panel'));
+const NuevaDenuncia = diferida(() => import('./pages/karin/NuevaDenuncia'));
+const ExpedienteKarin = diferida(() => import('./pages/karin/Expediente'));
+const Bienvenida = diferida(() => import('./pages/sitio/Bienvenida'));
 
 // Panel rediseñado (paso A): shell, inicio, trabajadores y carpeta.
-const AppShell = lazy(() => import('./components/app/AppShell'));
-const Inicio = lazy(() => import('./pages/app/Inicio'));
-const Trabajadores = lazy(() => import('./pages/app/Trabajadores'));
-const Carpeta = lazy(() => import('./pages/app/Carpeta'));
-const RemuneracionesPanel = lazy(() => import('./pages/app/Remuneraciones'));
-const Conceptos = lazy(() => import('./pages/app/Conceptos'));
-const FirmasPanel = lazy(() => import('./pages/app/Firmas'));
-const SolicitudesPanel = lazy(() => import('./pages/app/Solicitudes'));
-const FiniquitoPanel = lazy(() => import('./pages/app/Finiquito'));
-const ImportarPanel = lazy(() => import('./pages/app/Importar'));
-const ContratoPanel = lazy(() => import('./pages/app/ContratoEditor'));
-const EmpresaPanel = lazy(() => import('./pages/app/Empresa'));
-const PlanPanel = lazy(() => import('./pages/app/Plan'));
-const CuentaPanel = lazy(() => import('./pages/app/Cuenta'));
+const AppShell = diferida(() => import('./components/app/AppShell'));
+const Inicio = diferida(() => import('./pages/app/Inicio'));
+const Trabajadores = diferida(() => import('./pages/app/Trabajadores'));
+const Carpeta = diferida(() => import('./pages/app/Carpeta'));
+const RemuneracionesPanel = diferida(() => import('./pages/app/Remuneraciones'));
+const Conceptos = diferida(() => import('./pages/app/Conceptos'));
+const FirmasPanel = diferida(() => import('./pages/app/Firmas'));
+const SolicitudesPanel = diferida(() => import('./pages/app/Solicitudes'));
+const FiniquitoPanel = diferida(() => import('./pages/app/Finiquito'));
+const ImportarPanel = diferida(() => import('./pages/app/Importar'));
+const ContratoPanel = diferida(() => import('./pages/app/ContratoEditor'));
+const EmpresaPanel = diferida(() => import('./pages/app/Empresa'));
+const PlanPanel = diferida(() => import('./pages/app/Plan'));
+const CuentaPanel = diferida(() => import('./pages/app/Cuenta'));
 
-const ReportesPanel = lazy(() => import('./pages/app/Reportes'));
-const DireccionTrabajoPanel = lazy(() => import('./pages/app/DireccionTrabajo'));
-const ReglamentoPanel = lazy(() => import('./pages/app/Reglamento'));
-const EmpresasPanel = lazy(() => import('./pages/app/Empresas'));
-const EquipoPanel = lazy(() => import('./pages/app/Equipo'));
-const Terminos = lazy(() => import('./pages/sitio/Terminos'));
-const FirmaPublica = lazy(() => import('./pages/sitio/Firma'));
+const ReportesPanel = diferida(() => import('./pages/app/Reportes'));
+const DireccionTrabajoPanel = diferida(() => import('./pages/app/DireccionTrabajo'));
+const ReglamentoPanel = diferida(() => import('./pages/app/Reglamento'));
+const EmpresasPanel = diferida(() => import('./pages/app/Empresas'));
+const EquipoPanel = diferida(() => import('./pages/app/Equipo'));
+const Terminos = diferida(() => import('./pages/sitio/Terminos'));
+const FirmaPublica = diferida(() => import('./pages/sitio/Firma'));
 
 // Portal del trabajador: sesión propia (cookie del portal), independiente del panel.
-const IngresoTrabajador = lazy(() => import('./pages/sitio/Trabajador'));
-const PortalShell = lazy(() => import('./components/trabajador/PortalShell'));
-const PortalInicio = lazy(() => import('./pages/trabajador/Inicio'));
-const PortalLiquidaciones = lazy(() => import('./pages/trabajador/Liquidaciones'));
-const PortalDocumentos = lazy(() => import('./pages/trabajador/Documentos'));
-const PortalVacaciones = lazy(() => import('./pages/trabajador/Vacaciones'));
-const PortalSeguridad = lazy(() => import('./pages/trabajador/Seguridad'));
-const PortalLeyKarin = lazy(() => import('./pages/trabajador/LeyKarin'));
-const PortalConciliacion = lazy(() => import('./pages/trabajador/Conciliacion'));
-const PortalSolicitudes = lazy(() => import('./pages/trabajador/Solicitudes'));
-const PortalCertificados = lazy(() => import('./pages/trabajador/Certificados'));
-const VerificarCertificado = lazy(() => import('./pages/sitio/Verificar'));
-const InspeccionDT = lazy(() => import('./pages/sitio/Inspeccion'));
+const IngresoTrabajador = diferida(() => import('./pages/sitio/Trabajador'));
+const PortalShell = diferida(() => import('./components/trabajador/PortalShell'));
+const PortalInicio = diferida(() => import('./pages/trabajador/Inicio'));
+const PortalLiquidaciones = diferida(() => import('./pages/trabajador/Liquidaciones'));
+const PortalDocumentos = diferida(() => import('./pages/trabajador/Documentos'));
+const PortalVacaciones = diferida(() => import('./pages/trabajador/Vacaciones'));
+const PortalSeguridad = diferida(() => import('./pages/trabajador/Seguridad'));
+const PortalLeyKarin = diferida(() => import('./pages/trabajador/LeyKarin'));
+const PortalConciliacion = diferida(() => import('./pages/trabajador/Conciliacion'));
+const PortalSolicitudes = diferida(() => import('./pages/trabajador/Solicitudes'));
+const PortalCertificados = diferida(() => import('./pages/trabajador/Certificados'));
+const VerificarCertificado = diferida(() => import('./pages/sitio/Verificar'));
+const InspeccionDT = diferida(() => import('./pages/sitio/Inspeccion'));
 
 // Direcciones del panel anterior: se mantienen para enlaces guardados y correos.
 const DESDE_CLASICO: Record<string, string> = {
