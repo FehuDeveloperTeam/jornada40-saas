@@ -529,6 +529,10 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
+## Pendientes
+
+`docs/PENDIENTES.md` is the living list of what's left outside the code (production prerequisites before publishing to `main`, the Railway cron for `enviar_resumenes`, admin data, legal steps). **When the user asks for pendientes, answer from that file**, and keep it updated (mark done items with [x] and the date).
+
 ## Deuda técnica (en espera)
 
 - **LRE de horas extra compensadas con feriado (Ley 21.561)**: the DT hasn't published codes; tentative 2102 (paid at 6 months) and 2313 (paid at termination). On hold until a DT pronouncement or a newer LRE template confirms them.
