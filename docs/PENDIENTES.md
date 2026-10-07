@@ -18,8 +18,8 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 ## Después de publicar
 
 - [ ] Respaldo automático diario fuera de Railway (cron `pg_dump` → B2 cifrado, retención 30 diarios / 12 mensuales, aviso por correo si falla). Pendiente de autorización.
-- [ ] Cargar en el admin las **vacaciones escolares** (`PeriodoVacacionesEscolares`, calendario Mineduc) de cada año.
-- [ ] Revisar en el admin los **precios de los planes** (el briefing comercial usa los valores iniciales).
+- [x] (2026-10-07, producción) Cargar en el admin las **vacaciones escolares** (`PeriodoVacacionesEscolares`, calendario Mineduc). **Se repite cada año** cuando el Mineduc publique el calendario siguiente.
+- [x] (2026-10-07) Revisar en el admin los **precios de los planes**. Si difieren de los iniciales ($16.990 / $39.990 / $89.990), actualizar la tabla del briefing comercial (`docs/briefing-comercial-jornada40.md`).
 - [ ] Reveniu en **sandbox para staging** (secreto del webhook, enlaces `REVENIU_LINK_*`, `REVENIU_API_URL`).
 - [ ] Eliminar el entorno duplicado de Railway ("stagging").
 
