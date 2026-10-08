@@ -23,6 +23,14 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [ ] Reveniu en **sandbox para staging** (secreto del webhook, enlaces `REVENIU_LINK_*`, `REVENIU_API_URL`).
 - [ ] Eliminar el entorno duplicado de Railway ("stagging").
 
+## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
+
+- [ ] Aprobar el plan (fases, y que la persona presiona siempre el botón final en Mi DT).
+- [ ] Crear la cuenta de desarrollador de Chrome Web Store (US$5, pago único) a nombre de Fehu.
+- [ ] Sesión de levantamiento de los formularios de Mi DT con la Clave Única del titular (solo estructura, ningún dato).
+- [ ] Definir el plan comercial de la extensión (propuesta: contratos, anexos y términos en todos los planes; LRE desde Pyme).
+- [ ] Verificar en Mi DT si el pacto de teletrabajo se registra en su módulo propio (`/empleador/teletrabajo/ingreso`) y no como anexo; si es así, corregir el aviso, la ficha y el plazo en Jornada40.
+
 ## Trámites y temas legales
 
 - [ ] Reconocimiento de la plataforma ante la DT (Etapa D): acordar medidas de seguridad y presentar la solicitud.
