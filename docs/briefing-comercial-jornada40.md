@@ -140,7 +140,7 @@ Todo desde **listas cerradas**: el sistema valida la ley, calcula fechas y redac
 - Firmarlo en Jornada40 es solo una **firma de recepción**; el poder liberatorio lo da la ratificación (el documento lo dice).
 
 ### 5.8 Firma electrónica
-- El trabajador recibe un correo con un enlace personal, verifica su identidad con su **RUT y un código de un solo uso** (3 intentos, 10 minutos), revisa el PDF y firma.
+- El trabajador recibe un correo con un enlace personal, verifica su identidad con su **RUT y un código de un solo uso** (3 intentos, 10 minutos) o con **su clave del portal del trabajador**, revisa el PDF, acepta su contenido y dibuja su firma. El código o la clave solo confirman la identidad; la firma la hace personalmente (criterio de la DT en los Ord. 136 y 79 de 2025), y el certificado lo dice.
 - El empleador **confirma su clave** antes de enviar a firma (vale 10 minutos). Queda registro de quién envió, desde qué IP y cuándo.
 - Cada documento firmado guarda fecha, hora e IP, y **siempre se descarga en su versión firmada**.
 - Si el correo no sale, el sistema lo dice ("listo para firmar, pero el correo no se envió") y se puede reenviar desde *Firma electrónica*.

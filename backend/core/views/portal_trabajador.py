@@ -5,6 +5,10 @@ Reglas de acceso (ver CuentaTrabajador):
 - Una ficha (Empleado) se ve solo si su correo fue verificado por la cuenta
   con un código: el RUT solo no basta, porque cualquier empleador puede
   crear una ficha con un RUT ajeno.
+- La cuenta es de una persona, no del RUT: quien verifica un correo entra a la
+  cuenta que tiene ese correo (o a una nueva), nunca a la de otra persona con
+  el mismo RUT. Así una ficha con RUT ajeno y correo del empleador no muestra
+  las fichas que el trabajador real ya verificó, ni permite cambiar su clave.
 - La empresa debe estar en plan Pyme o superior (nivel 3).
 - Un desvinculado conserva el acceso 3 meses desde la firma de su finiquito
   en Jornada40 o, si no la hay, desde la fecha de desvinculación.
@@ -103,6 +107,41 @@ def fichas_accesibles(cuenta):
     return [e for e in fichas_habilitadas(cuenta.rut) if (e.email or '').strip().lower() in verificados]
 
 
+def cuenta_del_correo(rut, correo):
+    """Cuenta del RUT que verificó ese correo (la de quien lo recibe), o None."""
+    correo = (correo or '').strip()
+    if not correo:
+        return None
+    fila = (CorreoTrabajador.objects.filter(cuenta__rut=limpiar_rut(rut or ''), email__iexact=correo)
+            .select_related('cuenta').order_by('-verificado_en').first())
+    return fila.cuenta if fila else None
+
+
+def _traer_correos(cuenta, correos):
+    """La cuenta acaba de demostrar que recibe estos correos: quedan solo en ella.
+    Si otra cuenta del mismo RUT los tenía, pasan a esta (solo quien recibe el
+    código puede hacerlo)."""
+    for correo in correos:
+        CorreoTrabajador.objects.filter(cuenta__rut=cuenta.rut, email__iexact=correo).exclude(cuenta=cuenta).delete()
+        CorreoTrabajador.objects.update_or_create(cuenta=cuenta, email=correo.strip().lower())
+
+
+def _unir_cuentas(cuentas):
+    """Varias cuentas del RUT con la misma clave: quien la sabe entra a todas, así
+    que se reúnen en la usada más recientemente."""
+    from ..models import CertificadoEmitido, SolicitudDocumento
+    cuentas = sorted(cuentas, key=lambda c: (c.ultimo_ingreso or c.creado_en, c.pk), reverse=True)
+    destino = cuentas[0]
+    for otra in cuentas[1:]:
+        _traer_correos(destino, list(otra.correos.values_list('email', flat=True)))
+        SolicitudDocumento.objects.filter(cuenta=otra).update(cuenta=destino)
+        CertificadoEmitido.objects.filter(cuenta=otra).update(cuenta=destino)
+        otra.password = ''
+        otra.version_sesion += 1
+        otra.save(update_fields=['password', 'version_sesion'])
+    return destino
+
+
 # ── Estado del portal para el empleador (carpeta del trabajador) ─────────────
 
 HORAS_ENTRE_INVITACIONES = 24
@@ -116,8 +155,8 @@ def estado_portal(emp):
     hoy = timezone.localdate()
     correo = (emp.email or '').strip().lower()
     hasta = acceso_hasta(emp)
-    cuenta = CuentaTrabajador.objects.filter(rut=limpiar_rut(emp.rut or '')).first()
-    usa = bool(cuenta and correo and cuenta.correos.filter(email__iexact=correo).exists())
+    cuenta = cuenta_del_correo(emp.rut, correo)
+    usa = cuenta is not None
     invitado = timezone.localtime(emp.portal_invitado_en) if emp.portal_invitado_en else None
     if not _plan_permite(emp.empresa.owner, NIVEL_PLAN_PORTAL):
         estado, texto = 'SIN_PLAN', 'El portal del trabajador está disponible desde el plan Pyme.'
@@ -308,8 +347,7 @@ def ingreso(request):
     rut = _rut_limpio(request.data.get('rut'))
     if not rut:
         return Response({'error': 'Ingresa un RUT válido.'}, status=status.HTTP_400_BAD_REQUEST)
-    cuenta = CuentaTrabajador.objects.filter(rut=rut).first()
-    if cuenta and cuenta.tiene_clave():
+    if CuentaTrabajador.objects.filter(rut=rut).exclude(password='').exists():
         return Response({'metodo': 'clave'})
     return _responder_con_codigo(rut)
 
@@ -343,9 +381,11 @@ def verificar_codigo(request):
         correos = _verificar_codigo(rut, request.data.get('codigo'))
     except ValueError as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    cuenta, _ = CuentaTrabajador.objects.get_or_create(rut=rut)
-    for correo in correos:
-        CorreoTrabajador.objects.update_or_create(cuenta=cuenta, email=correo)
+    # Se entra a la cuenta de quien recibe ese correo; si nadie lo había
+    # verificado, a una cuenta nueva (nunca a la de otra persona con el mismo RUT).
+    cuenta = next((c for c in (cuenta_del_correo(rut, correo) for correo in correos) if c), None) \
+        or CuentaTrabajador.objects.create(rut=rut)
+    _traer_correos(cuenta, correos)
     return _poner_sesion(Response(_datos_cuenta(cuenta, 'codigo')), cuenta, 'codigo')
 
 
@@ -353,9 +393,12 @@ def verificar_codigo(request):
 @_publica
 def ingresar_con_clave(request):
     rut = _rut_limpio(request.data.get('rut'))
-    cuenta = CuentaTrabajador.objects.filter(rut=rut).first() if rut else None
-    if not cuenta or not cuenta.clave_correcta(str(request.data.get('clave') or '')):
+    clave = str(request.data.get('clave') or '')
+    candidatas = CuentaTrabajador.objects.filter(rut=rut).exclude(password='') if rut else []
+    aciertos = [c for c in candidatas if c.clave_correcta(clave)]
+    if not aciertos:
         return Response({'error': 'RUT o clave incorrectos.'}, status=status.HTTP_400_BAD_REQUEST)
+    cuenta = _unir_cuentas(aciertos) if len(aciertos) > 1 else aciertos[0]
     return _poner_sesion(Response(_datos_cuenta(cuenta, 'clave')), cuenta, 'clave')
 
 
@@ -384,7 +427,15 @@ def _empleo(emp):
 def _datos_cuenta(cuenta, via):
     accesibles = fichas_accesibles(cuenta)
     ids = {e.id for e in accesibles}
-    por_vincular = [e for e in fichas_habilitadas(cuenta.rut) if e.id not in ids and (e.email or '').strip()]
+    # Otras fichas del RUT, una por correo y sin decir de qué empresa son: quien
+    # entra con una ficha creada por otro empleador no debe saber dónde trabaja
+    # la persona. Basta el correo enmascarado para que el trabajador reconozca el suyo.
+    por_vincular, vistos = [], set()
+    for e in fichas_habilitadas(cuenta.rut):
+        correo = (e.email or '').strip().lower()
+        if e.id not in ids and correo and correo not in vistos:
+            vistos.add(correo)
+            por_vincular.append(e)
     return {
         'rut': formatear_rut(cuenta.rut),
         'nombre': _nombre(accesibles[0]) if accesibles else '',
@@ -392,8 +443,7 @@ def _datos_cuenta(cuenta, via):
         'mostrar_invitacion_clave': not cuenta.invitacion_clave_vista and not cuenta.tiene_clave(),
         'ingreso_con': via,
         'empleos': [_empleo(e) for e in accesibles],
-        'por_vincular': [{'id': e.id, 'empresa': e.empresa.nombre_legal.title(), 'correo': _enmascarar(e.email)}
-                         for e in por_vincular],
+        'por_vincular': [{'id': e.id, 'correo': _enmascarar(e.email)} for e in por_vincular],
         # Solo si participa en un caso Ley Karin: el menú del portal muestra la sección.
         'tiene_karin': _tiene_karin(cuenta),
     }
@@ -463,8 +513,7 @@ def confirmar_empleo(request):
         correos = _verificar_codigo(request.user.rut, request.data.get('codigo'))
     except ValueError as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    for correo in correos:
-        CorreoTrabajador.objects.update_or_create(cuenta=request.user, email=correo)
+    _traer_correos(request.user, correos)
     return Response(_datos_cuenta(request.user, request.auth.get('via')))
 
 

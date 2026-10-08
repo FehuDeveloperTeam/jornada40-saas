@@ -71,11 +71,15 @@ def firma_publica_info(request, token):
         'email_firmante_enmascarado': _enmascarar_email(solicitud.email_firmante),
         'expira_en': solicitud.expira_en.isoformat(),
         'ya_verificado': solicitud.sesion_token_trabajador is not None,
+        # El trabajador tiene clave del portal y verificó ahí este mismo correo:
+        # puede confirmar su identidad con ella en vez del código.
+        'clave_disponible': _cuenta_con_clave(solicitud) is not None,
         # Comprobante, solo cuando ya se firmó (para volver a verlo desde el enlace).
         **({
             'firmado_en': solicitud.firmado_en.isoformat() if solicitud.firmado_en else None,
             'folio': solicitud.folio,
             'hash_firmado': solicitud.hash_firmado,
+            'verificacion': solicitud.verificacion,
         } if solicitud.estado == 'FIRMADO' else {}),
     })
 
@@ -135,18 +139,20 @@ def firma_publica_solicitar_otp(request, token):
         solicitud=solicitud, verificado=False
     ).update(expira_en=timezone.now())
 
-    # Generar código de 6 dígitos
+    # Código de 6 dígitos: se envía por correo y la base guarda solo su huella.
     codigo = ''.join(secrets.choice(string.digits) for _ in range(6))
 
     otp = OTPFirma.objects.create(
         solicitud=solicitud,
-        codigo=codigo,
+        codigo_hash=OTPFirma.huella(solicitud.token, codigo),
         email_destino=solicitud.email_firmante,
     )
+    from .portal_trabajador import _anotar_para_pruebas
+    _anotar_para_pruebas(f'firma:{solicitud.token}', codigo)
 
     # Enviar email con el código
     try:
-        _enviar_email_otp(otp, solicitud)
+        _enviar_email_otp(otp, solicitud, codigo)
     except Exception:
         logger.exception('No se pudo enviar el código de firma de la solicitud %s', solicitud.pk)
         otp.delete()
@@ -207,7 +213,7 @@ def firma_publica_verificar_otp(request, token):
             status=400
         )
 
-    if otp.codigo != codigo_enviado:
+    if not otp.coincide(solicitud.token, codigo_enviado):
         restantes = 3 - otp.intentos
         msg = (f'Código incorrecto. Te quedan {restantes} intento(s).'
                if restantes > 0 else 'Código bloqueado. Solicita uno nuevo.')
@@ -217,19 +223,70 @@ def firma_publica_verificar_otp(request, token):
     otp.verificado = True
     otp.save(update_fields=['verificado'])
 
-    # Generar sesion_token para el paso de firma
+    return Response({'verificado': True, 'sesion_token': _abrir_sesion(solicitud, 'CODIGO_CORREO')})
+
+
+def _abrir_sesion(solicitud, verificacion):
+    """Identidad confirmada: sesión para revisar y firmar este documento."""
     sesion_token = uuid_mod.uuid4()
     solicitud.sesion_token_trabajador = sesion_token
-    solicitud.save(update_fields=['sesion_token_trabajador', 'actualizado_en'])
-
-    return Response({
-        'verificado': True,
-        'sesion_token': str(sesion_token),
-    })
+    solicitud.verificacion = verificacion
+    solicitud.save(update_fields=['sesion_token_trabajador', 'verificacion', 'actualizado_en'])
+    return str(sesion_token)
 
 
-def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
-    """Envía el código OTP al trabajador por email."""
+def _cuenta_con_clave(solicitud):
+    """Cuenta del portal de quien verificó el correo de esta solicitud, si tiene clave.
+    Es la cuenta de la persona que recibe ese correo (ver CuentaTrabajador): una
+    ficha con el mismo RUT y otro correo no la habilita."""
+    from .portal_trabajador import cuenta_del_correo
+    cuenta = cuenta_del_correo(solicitud.empleado.rut, solicitud.email_firmante)
+    return cuenta if cuenta and cuenta.tiene_clave() else None
+
+
+INTENTOS_CLAVE_POR_HORA = 5
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes(THROTTLES_FIRMA_PUBLICA)
+def firma_publica_verificar_clave(request, token):
+    """Confirma la identidad con el RUT y la clave del portal del trabajador, una
+    credencial que solo él conoce (la base guarda su hash), en vez del código por
+    correo. Como el código, solo verifica identidad: la firma viene después."""
+    try:
+        solicitud = SolicitudFirma.objects.select_related('empleado').get(token=token)
+    except SolicitudFirma.DoesNotExist:
+        return Response({'error': 'Solicitud de firma no encontrada.'}, status=404)
+    if solicitud.estado != 'PENDIENTE':
+        return Response({'error': 'Esta solicitud no está pendiente de firma.'}, status=400)
+    if timezone.now() > solicitud.expira_en:
+        solicitud.estado = 'EXPIRADO'
+        solicitud.save(update_fields=['estado', 'actualizado_en'])
+        return Response({'error': 'El enlace de firma ha expirado.'}, status=410)
+
+    ahora = timezone.now()
+    if solicitud.ultimo_intento_clave and ahora - solicitud.ultimo_intento_clave > timezone.timedelta(hours=1):
+        solicitud.intentos_clave = 0
+    if solicitud.intentos_clave >= INTENTOS_CLAVE_POR_HORA:
+        return Response({'error': 'Superaste los intentos con la clave. Usa el código por correo o '
+                                  'vuelve a intentarlo en una hora.'}, status=429)
+
+    rut_ok = limpiar_rut(request.data.get('rut', '')) == limpiar_rut(solicitud.empleado.rut)
+    cuenta = _cuenta_con_clave(solicitud) if rut_ok else None
+    if not cuenta or not cuenta.clave_correcta(str(request.data.get('clave') or '')):
+        solicitud.intentos_clave += 1
+        solicitud.ultimo_intento_clave = ahora
+        solicitud.save(update_fields=['intentos_clave', 'ultimo_intento_clave', 'actualizado_en'])
+        return Response({'error': 'RUT o clave incorrectos. Si no tienes clave del portal, usa el código por correo.'},
+                        status=400)
+    solicitud.intentos_clave = 0
+    solicitud.save(update_fields=['intentos_clave', 'actualizado_en'])
+    return Response({'verificado': True, 'sesion_token': _abrir_sesion(solicitud, 'CLAVE_PORTAL')})
+
+
+def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma, codigo: str):
+    """Envía el código OTP al trabajador por email (el código no se guarda)."""
     tipo_labels = {
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
@@ -239,12 +296,13 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
     }
     tipo_label = tipo_labels.get(solicitud.tipo_documento, solicitud.tipo_documento)
     empresa_nombre = solicitud.empresa.nombre_legal
-    codigo = otp.codigo
 
     texto_plano = (
         f"Tu código de verificación es: {codigo}\n\n"
         f"Ingresa este código en la página de firma para verificar tu identidad.\n"
         f"Válido por 10 minutos.\n\n"
+        f"El código solo confirma que eres tú. Después revisas el documento y, si estás de acuerdo, "
+        f"lo firmas tú con tu trazo.\n\n"
         f"Si no solicitaste este código, ignora este mensaje.\n\n"
         f"Jornada40 — Sistema de Gestión Laboral"
     )
@@ -267,6 +325,10 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma):
         </div>
         <p style="color:#6b7280;font-size:13px;margin:10px 0 0;">Válido por <strong>10 minutos</strong></p>
       </div>
+      <p style="color:#374151;font-size:14px;margin:0 0 20px;line-height:1.6;">
+        El código solo confirma que eres tú. Después revisas el documento y, si estás de acuerdo,
+        lo firmas tú con tu trazo.
+      </p>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
       <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
         Si no solicitaste este código, puedes ignorar este mensaje con seguridad.<br>
@@ -450,6 +512,10 @@ def firma_publica_firmar(request, token):
 
     if not sesion_token:
         return Response({'error': 'Sesión inválida. Vuelve a verificar tu identidad.'}, status=400)
+    # La firma es la manifestación de voluntad del trabajador: su aceptación
+    # expresa del contenido más su trazo. El código o la clave solo lo identificaron.
+    if request.data.get('acepto') is not True:
+        return Response({'error': 'Para firmar debes aceptar el contenido del documento.'}, status=400)
     if not firma_trabajador:
         return Response({'error': 'Debes dibujar tu firma antes de continuar.'}, status=400)
     if not firma_trabajador.startswith('data:image/'):
@@ -550,6 +616,7 @@ def firma_publica_firmar(request, token):
             folio                 = solicitud.folio,
             hash_original         = hash_original,
             emision               = filas_emision(solicitud),
+            verificacion          = _texto_verificacion(solicitud),
         )
     except Exception:
         logger.exception('Firma %s: no se pudo generar el PDF firmado', solicitud.pk)
@@ -626,7 +693,14 @@ def firma_publica_firmar(request, token):
     return Response({
         'firmado': True, 'firmado_en': firmado_en.isoformat(),
         'folio': solicitud.folio, 'hash_firmado': solicitud.hash_firmado,
+        'verificacion': solicitud.verificacion or 'CODIGO_CORREO',
     })
+
+
+def _texto_verificacion(solicitud):
+    # Antes de registrar el método, el código por correo era el único.
+    return solicitud.get_verificacion_display() if solicitud.verificacion \
+        else dict(SolicitudFirma.VERIFICACIONES)['CODIGO_CORREO']
 
 
 # ============================================================

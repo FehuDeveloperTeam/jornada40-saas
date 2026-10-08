@@ -100,6 +100,7 @@ def _generar_pagina_certificado(
     folio: str = '',
     hash_original: str = '',
     emision: list | None = None,
+    verificacion: str = '',
 ) -> bytes:
     buf = io.BytesIO()
     ancho, alto = A4          # 595.27 × 841.89 pts
@@ -221,7 +222,11 @@ def _generar_pagina_certificado(
         ('FECHA Y HORA DE FIRMA',
          firmado_local.strftime('%d/%m/%Y %H:%M:%S') + ' (hora de Chile)'),
         ('IP DEL FIRMANTE',       ip_firmante or 'No registrada'),
-        ('EMAIL VERIFICADO',      email_firmante),
+        ('CORREO DEL TRABAJADOR', email_firmante),
+        # Ord. DT N°136 y N°79 (2025): la verificación de identidad no reemplaza la
+        # firma; firma la aceptación expresa y el trazo del propio trabajador.
+        ('IDENTIDAD VERIFICADA CON', verificacion or 'Código de un solo uso enviado a su correo personal'),
+        ('ACTO DE FIRMA',         'Aceptación expresa del contenido y trazo de firma del trabajador'),
     ]
     # Firma del empleador: quién emitió el documento y cuándo confirmó su identidad.
     filas.extend(emision or [])
@@ -253,8 +258,11 @@ def _generar_pagina_certificado(
             'sobre Documentos Electrónicos,')
     pie2 = ('Firma Electrónica y Servicios de Certificación de la República '
             'de Chile. Generado por Jornada40 (jornada40.cl).')
+    pie0 = ('El código o la clave solo verifican la identidad del firmante; la firma es su aceptación '
+            'expresa del contenido y su trazo.')
     c.setFillColor(GRIS_SUAVE)
     c.setFont('Helvetica', 6.5)
+    c.drawString(margen, 2.1*cm, pie0)
     c.drawString(margen, 1.5*cm, pie1)
     c.drawString(margen, 0.9*cm, pie2)
 
@@ -284,6 +292,7 @@ def agregar_certificado_firma(
     folio: str = '',
     hash_original: str = '',
     emision: list | None = None,
+    verificacion: str = '',
 ) -> bytes:
     """
     Une el PDF original con la página de certificado de firma.
@@ -299,7 +308,8 @@ def agregar_certificado_firma(
         token:                 UUID de la SolicitudFirma (trazabilidad).
         firmado_en:            Datetime UTC del momento de firma.
         ip_firmante:           IP del trabajador al firmar.
-        email_firmante:        Email verificado con OTP.
+        email_firmante:        Correo personal del trabajador (al que se envió el enlace).
+        verificacion:          Cómo confirmó su identidad (código por correo o clave del portal).
 
     Returns:
         Bytes del PDF final (original + página de certificado).
@@ -321,6 +331,7 @@ def agregar_certificado_firma(
         folio=folio,
         hash_original=hash_original,
         emision=emision,
+        verificacion=verificacion,
     )
 
     writer = PdfWriter()

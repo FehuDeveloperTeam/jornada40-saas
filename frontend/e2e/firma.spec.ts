@@ -74,6 +74,24 @@ test('el trabajador firma desde el teléfono', async ({ page }) => {
   await expect(page.getByText(folio)).toBeVisible();
 });
 
+test('el trabajador confirma su identidad con su clave del portal', async ({ page }) => {
+  // Cuenta del portal de Matías: verificó su correo y creó su clave (el código queda como alternativa).
+  consultar("from core.models import CuentaTrabajador as C, CorreoTrabajador as K; "
+    + "c = C.objects.create(rut='11111112K'); c.fijar_clave('Clave-Portal-2026'); c.save(); "
+    + `K.objects.create(cuenta=c, email='${MATIAS.correo}'); print('ok')`);
+  const token = tokenPendiente('AMONESTACION');
+  await page.goto(`/firma/${token}`);
+  await expect(page.getByText('El código solo confirma que eres tú.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Usar mi clave del portal del trabajador' }).click();
+  await page.getByLabel('Tu RUT').fill(MATIAS.rut);
+  await page.getByLabel('Tu clave del portal del trabajador').fill('otra-clave');
+  await page.getByRole('button', { name: 'Confirmar con mi clave' }).click();
+  await expect(page.getByText(/RUT o clave incorrectos/)).toBeVisible();
+  await page.getByLabel('Tu clave del portal del trabajador').fill('Clave-Portal-2026');
+  await page.getByRole('button', { name: 'Confirmar con mi clave' }).click();
+  await expect(page.getByRole('heading', { name: 'Revisa el documento' })).toBeVisible();
+});
+
 test('el trabajador rechaza con motivo', async ({ page }) => {
   const token = tokenPendiente('AMONESTACION');
   await pedirCodigo(page, token);

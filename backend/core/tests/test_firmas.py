@@ -1,9 +1,10 @@
-"""Firma electrónica: concurrencia, folio y comprobante."""
+"""Firma electrónica: concurrencia, folio, comprobante y verificación de identidad."""
 import uuid
 from unittest.mock import patch
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APITestCase
-from ..models import SolicitudFirma
+from ..models import CorreoTrabajador, CuentaTrabajador, Empleado, OTPFirma, SolicitudFirma
 
 from .utiles import crear_empleado, crear_usuario_completo, confirmar_identidad
 
@@ -39,6 +40,7 @@ class FirmaConcurrenciaTests(APITestCase):
         payload = {
             'sesion_token': str(self.sesion_token),
             'firma_trabajador': 'data:image/png;base64,aGVsbG8=',
+            'acepto': True,
         }
         url = f'/api/firma-publica/{self.solicitud.token}/firmar/'
 
@@ -63,6 +65,7 @@ class FirmaConcurrenciaTests(APITestCase):
         resp = self.client.post(url, {
             'sesion_token': str(self.sesion_token),
             'firma_trabajador': 'data:image/png;base64,aGVsbG8=',
+            'acepto': True,
         }, format='json')
 
         self.assertEqual(resp.status_code, 500)
@@ -112,7 +115,7 @@ class ComprobanteFirmaTests(APITestCase):
         s = self._solicitud()
         antes = timezone.now() - timezone.timedelta(minutes=5)
         for _ in range(5):
-            o = OTPFirma.objects.create(solicitud=s, codigo='000000', email_destino='x@example.com')
+            o = OTPFirma.objects.create(solicitud=s, codigo_hash=OTPFirma.huella(s.token, '000000'), email_destino='x@example.com')
             OTPFirma.objects.filter(id=o.id).update(creado_en=antes)
         r = self.client.post(f'/api/firma-publica/{s.token}/solicitar-otp/', {'rut': '12.345.678-5'}, format='json')
         self.assertEqual(r.status_code, 429)
@@ -134,7 +137,7 @@ class ComprobanteFirmaTests(APITestCase):
             tok = uuid.uuid4()
             s = self._solicitud(sesion_token_trabajador=tok)
             r = self.client.post(f'/api/firma-publica/{s.token}/firmar/',
-                                 {'sesion_token': str(tok), 'firma_trabajador': firma}, format='json')
+                                 {'sesion_token': str(tok), 'firma_trabajador': firma, 'acepto': True}, format='json')
             self.assertEqual(r.status_code, 200, r.data)
             folios.append(r.data['folio'])
             s.refresh_from_db()
@@ -153,6 +156,107 @@ class ComprobanteFirmaTests(APITestCase):
         # El enlace ya firmado muestra el comprobante.
         info = self.client.get(f'/api/firma-publica/{s.token}/').data
         self.assertEqual(info['folio'], folios[1])
+
+
+class VerificacionDeIdentidadTests(APITestCase):
+    """Ord. DT N°136 y N°79 (2025): el código o la clave solo verifican la identidad;
+    firma la aceptación expresa y el trazo del trabajador. El código se guarda como
+    huella y la clave del portal sirve solo si es de quien verificó este correo."""
+
+    FIRMA = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kg'
+             'AAAABJRU5ErkJggg==')
+
+    def setUp(self):
+        cache.clear()   # límites de intentos de la firma pública (misma IP)
+        _, _, _, self.empresa = crear_usuario_completo('verif_owner', '15.555.555-5', '76.555.444-3')
+        self.empleado = crear_empleado(self.empresa, '12.345.678-5')
+        Empleado.objects.filter(pk=self.empleado.pk).update(email='trabajador@example.com')
+        self.s = SolicitudFirma.objects.create(
+            empleado=self.empleado, empresa=self.empresa, tipo_documento='CONTRATO', estado='PENDIENTE',
+            b2_key_temporal='pendientes/x.pdf', email_firmante='trabajador@example.com',
+            expira_en=timezone.now() + timezone.timedelta(days=1))
+        self.base = f'/api/firma-publica/{self.s.token}'
+
+    def _cuenta_con_clave(self, correo='trabajador@example.com', clave='Mi-Clave-2026'):
+        cuenta = CuentaTrabajador.objects.create(rut='123456785')
+        cuenta.fijar_clave(clave)
+        cuenta.save()
+        CorreoTrabajador.objects.create(cuenta=cuenta, email=correo)
+        return cuenta
+
+    def _con_clave(self, clave='Mi-Clave-2026', rut='12.345.678-5'):
+        return self.client.post(f'{self.base}/verificar-clave/', {'rut': rut, 'clave': clave}, format='json')
+
+    @patch('core.views.firma_publica._enviar_email_otp')
+    def test_el_codigo_se_guarda_solo_como_huella(self, enviar):
+        self.assertEqual(self.client.post(f'{self.base}/solicitar-otp/', {'rut': '12.345.678-5'},
+                                          format='json').status_code, 200)
+        codigo = enviar.call_args[0][2]
+        otp = OTPFirma.objects.get(solicitud=self.s)
+        self.assertEqual(otp.codigo_hash, OTPFirma.huella(self.s.token, codigo))
+        self.assertNotEqual(otp.codigo_hash, codigo)
+        self.assertNotIn('codigo', [f.name for f in OTPFirma._meta.get_fields()])
+        malo = '000000' if codigo != '000000' else '111111'
+        self.assertEqual(self.client.post(f'{self.base}/verificar-otp/', {'codigo': malo}, format='json').status_code, 400)
+        r = self.client.post(f'{self.base}/verificar-otp/', {'codigo': codigo}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.s.refresh_from_db()
+        self.assertEqual((str(self.s.sesion_token_trabajador), self.s.verificacion),
+                         (r.data['sesion_token'], 'CODIGO_CORREO'))
+
+    def test_la_clave_del_portal_confirma_la_identidad(self):
+        self.assertFalse(self.client.get(f'{self.base}/').data['clave_disponible'])
+        self._cuenta_con_clave()
+        self.assertTrue(self.client.get(f'{self.base}/').data['clave_disponible'])
+        self.assertEqual(self._con_clave('otra-clave').status_code, 400)
+        self.assertEqual(self._con_clave(rut='11.111.111-1').status_code, 400)
+        r = self._con_clave()
+        self.assertEqual(r.status_code, 200, r.data)
+        self.s.refresh_from_db()
+        self.assertEqual((self.s.verificacion, self.s.intentos_clave), ('CLAVE_PORTAL', 0))
+
+    def test_la_clave_de_otra_persona_con_el_mismo_rut_no_sirve(self):
+        # Cuenta del mismo RUT que verificó otro correo (p. ej. una ficha creada por otro empleador).
+        self._cuenta_con_clave(correo='otro@example.com', clave='Otra-Clave-2026')
+        self.assertFalse(self.client.get(f'{self.base}/').data['clave_disponible'])
+        self.assertEqual(self._con_clave('Otra-Clave-2026').status_code, 400)
+
+    def test_tope_de_intentos_con_la_clave(self):
+        self._cuenta_con_clave()
+        for _ in range(5):
+            self._con_clave('mala')
+        self.assertEqual(self._con_clave().status_code, 429)
+        SolicitudFirma.objects.filter(pk=self.s.pk).update(
+            ultimo_intento_clave=timezone.now() - timezone.timedelta(hours=2))
+        self.assertEqual(self._con_clave().status_code, 200)
+
+    @patch('core.views.firma_publica._enviar_emails_firma_completada')
+    @patch('core.b2_client.eliminar_documento')
+    @patch('core.b2_client.subir_documento')
+    @patch('core.b2_client.descargar_documento')
+    def test_firmar_exige_aceptacion_y_el_certificado_dice_como_se_verifico(self, descargar, subir, _e, _m):
+        import io
+        from pypdf import PdfReader
+        from reportlab.pdfgen import canvas
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf)
+        c.drawString(100, 700, 'Contrato')
+        c.save()
+        descargar.return_value = buf.getvalue()
+        self._cuenta_con_clave()
+        sesion = self._con_clave().data['sesion_token']
+        r = self.client.post(f'{self.base}/firmar/', {'sesion_token': sesion, 'firma_trabajador': self.FIRMA},
+                             format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('aceptar el contenido', r.data['error'])
+        r = self.client.post(f'{self.base}/firmar/', {'sesion_token': sesion, 'firma_trabajador': self.FIRMA,
+                                                      'acepto': True}, format='json')
+        self.assertEqual((r.status_code, r.data['verificacion']), (200, 'CLAVE_PORTAL'))
+        texto = PdfReader(io.BytesIO(subir.call_args[0][0])).pages[-1].extract_text()
+        for frase in ('IDENTIDAD VERIFICADA CON', 'Clave personal del portal del trabajador', 'ACTO DE FIRMA',
+                      'expresa del contenido y trazo de firma del trabajador', 'solo verifican la identidad'):
+            self.assertIn(frase, texto)
+        self.assertEqual(self.client.get(f'{self.base}/').data['verificacion'], 'CLAVE_PORTAL')
 
 
 class DocumentoFirmadoTests(APITestCase):

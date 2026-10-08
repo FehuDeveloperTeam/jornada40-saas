@@ -135,17 +135,17 @@ function OtrosEmpleos({ pendientes }: { pendientes: EmpleoPorVincular[] }) {
   };
 
   return (
-    <Seccion titulo="Otros empleos" subtitulo="Tu RUT aparece en otras empresas que usan Jornada40. Verifica tu correo para ver también esos documentos.">
+    <Seccion titulo="Otros empleos" subtitulo="Tu RUT aparece en otras fichas con estos correos. Si un correo es tuyo, verifícalo para ver también esos documentos.">
       <ul className="flex flex-col">
         {pendientes.map((e) => (
           <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-[18px] py-3 border-b border-line last:border-b-0">
             <Building2 className="size-5 text-fg-3 shrink-0" strokeWidth={2} aria-hidden />
             <span className="flex-1 min-w-[160px] flex flex-col">
-              <span className="text-[13.5px] font-medium">{e.empresa}</span>
-              <span className="text-[12px] text-fg-3 break-all">Código al correo {e.correo}</span>
+              <span className="text-[13.5px] font-medium break-all">{e.correo}</span>
+              <span className="text-[12px] text-fg-3">Te enviaremos un código a ese correo</span>
             </span>
             <Button variante="secundario" tamano="sm" cargando={pidiendo === e.id} onClick={() => verificar(e)}
-              aria-label={`Verificar empleo en ${e.empresa}`}>Verificar</Button>
+              aria-label={`Verificar el correo ${e.correo}`}>Verificar</Button>
           </li>
         ))}
       </ul>
@@ -174,7 +174,7 @@ function ModalVincular({ empleo, destino, onCerrar }: { empleo: EmpleoPorVincula
     try {
       const cuenta = await portal.confirmarEmpleo(valor);
       actualizarCuenta(cuenta);
-      avisar(`Listo: ya ves tus documentos de ${empleo.empresa}.`);
+      avisar('Listo: ya ves también los documentos de ese empleo.');
       onCerrar();
     } catch (err) {
       setError(mensajeError(err, 'No pudimos verificar el código.'));
@@ -195,7 +195,7 @@ function ModalVincular({ empleo, destino, onCerrar }: { empleo: EmpleoPorVincula
   };
 
   return (
-    <Modal abierto onCerrar={() => !verificando && onCerrar()} titulo={`Verificar empleo en ${empleo.empresa}`}
+    <Modal abierto onCerrar={() => !verificando && onCerrar()} titulo={`Verificar el correo ${empleo.correo}`}
       subtitulo={`Enviamos un código de 6 dígitos a ${destino}. Vale por 10 minutos.`}>
       <div className="flex flex-col gap-4">
         {error && <AlertaError>{error}</AlertaError>}

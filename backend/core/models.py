@@ -993,6 +993,17 @@ class SolicitudFirma(models.Model):
     email_firmante   = models.EmailField(blank=True, default='')
 
     sesion_token_trabajador = models.UUIDField(null=True, blank=True)
+    # Cómo confirmó su identidad el trabajador antes de firmar. Solo eso: el acto
+    # de firma es su aceptación expresa del contenido y su trazo (Ord. DT N°136 y
+    # N°79 de 2025), y así lo dice el certificado.
+    VERIFICACIONES = [
+        ('CODIGO_CORREO', 'Código de un solo uso enviado a su correo personal'),
+        ('CLAVE_PORTAL', 'Clave personal del portal del trabajador'),
+    ]
+    verificacion     = models.CharField(max_length=15, choices=VERIFICACIONES, blank=True, default='')
+    # Intentos fallidos con la clave del portal (tope por hora; el código sigue disponible).
+    intentos_clave   = models.PositiveSmallIntegerField(default=0)
+    ultimo_intento_clave = models.DateTimeField(null=True, blank=True)
 
     enviado_en       = models.DateTimeField(auto_now_add=True)
     firmado_en       = models.DateTimeField(null=True, blank=True)
@@ -1092,13 +1103,30 @@ class VacacionEmpleado(models.Model):
 
 
 class OTPFirma(models.Model):
+    """Código de un solo uso que confirma la identidad del trabajador antes de firmar.
+
+    Solo verifica identidad: el acto de firma es su aceptación expresa y su trazo
+    (Ord. DT N°136 y N°79 de 2025). La base guarda una huella HMAC del código,
+    nunca el código: ni quien lea la base puede usarlo para firmar por él."""
     solicitud     = models.ForeignKey(SolicitudFirma, on_delete=models.CASCADE, related_name='otps')
-    codigo        = models.CharField(max_length=6)
+    codigo_hash   = models.CharField(max_length=64, default='')
     email_destino = models.EmailField()
     creado_en     = models.DateTimeField(auto_now_add=True)
     expira_en     = models.DateTimeField()
     verificado    = models.BooleanField(default=False)
     intentos      = models.PositiveSmallIntegerField(default=0)
+
+    @staticmethod
+    def huella(token, codigo):
+        """HMAC-SHA256 del código con la clave del sistema, ligado a la solicitud."""
+        import hashlib
+        import hmac
+        from django.conf import settings
+        return hmac.new(settings.SECRET_KEY.encode(), f'firma:{token}:{codigo}'.encode(), hashlib.sha256).hexdigest()
+
+    def coincide(self, token, codigo):
+        import hmac
+        return bool(self.codigo_hash) and hmac.compare_digest(self.codigo_hash, OTPFirma.huella(token, codigo))
 
     def save(self, *args, **kwargs):
         if not self.expira_en:
@@ -1121,14 +1149,18 @@ class OTPFirma(models.Model):
 # ==========================================
 
 class CuentaTrabajador(models.Model):
-    """Acceso de un trabajador al portal, identificado por su RUT.
+    """Acceso de una persona al portal: su RUT y los correos que demostró recibir.
 
     El RUT solo no basta: cualquier empleador podría crear una ficha con un RUT
-    ajeno. El trabajador ve únicamente las fichas cuyo correo verificó con un
-    código (CorreoTrabajador), así que una ficha con otro correo no le da acceso
-    a nada. La clave es opcional: sin ella se entra con un código al correo.
+    ajeno y su propio correo. Por eso la cuenta no es una por RUT sino una por
+    persona: reúne solo los correos que esa persona verificó con un código
+    (CorreoTrabajador) y ve únicamente las fichas con esos correos. Quien verifica
+    un correo que ninguna cuenta tiene recibe una cuenta propia; verificar un
+    correo que tenía otra cuenta del mismo RUT lo trae a la suya (solo quien lo
+    recibe puede hacerlo). La clave es opcional y de cada cuenta: sin ella se
+    entra con un código al correo.
     """
-    rut = models.CharField(max_length=12, unique=True, help_text='RUT sin puntos ni guion (limpio).')
+    rut = models.CharField(max_length=12, db_index=True, help_text='RUT sin puntos ni guion (limpio).')
     password = models.CharField(max_length=128, blank=True, default='')
     # La invitación a crear clave se muestra una sola vez, se acepte u omita.
     invitacion_clave_vista = models.BooleanField(default=False)

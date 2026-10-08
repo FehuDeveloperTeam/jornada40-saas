@@ -8,6 +8,7 @@ import zipfile
 from unittest.mock import patch
 
 from django.core import mail
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
@@ -132,6 +133,7 @@ class ReglamentoTests(APITestCase):
         self.assertEqual(DocumentoLaboral.objects.filter(tipo='REGLAMENTO').count(), 1)
 
     def test_el_trabajador_lo_ve_en_su_portal(self):
+        cache.clear()   # límite de intentos del portal (misma IP en todas las pruebas)
         reg = self._subir().data
         self.client.force_authenticate(None)
         self.client.post('/api/trabajador/ingreso/', {'rut': '12.345.678-5'}, format='json')

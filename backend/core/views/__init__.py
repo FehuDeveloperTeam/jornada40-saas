@@ -167,6 +167,7 @@ from .firma_publica import (  # noqa: F401
     firma_publica_rechazar,
     firma_publica_solicitar_otp,
     firma_publica_verificar_otp,
+    firma_publica_verificar_clave,
 )
 from .direccion_trabajo import (  # noqa: F401
     RegistroDTViewSet,

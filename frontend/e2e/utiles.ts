@@ -27,8 +27,10 @@ export function consultar(codigo: string): string {
   return manage('shell', '-c', codigo).split('\n').pop() ?? '';
 }
 
+/** Último código de firma de la solicitud: la base guarda solo su huella, así que en
+ *  e2e el backend lo anota en el mismo archivo que los del portal ("firma:<token> código"). */
 export function ultimoCodigoOtp(token: string): string {
-  return consultar(`from core.models import OTPFirma; print(OTPFirma.objects.filter(solicitud__token='${token}').latest('creado_en').codigo)`);
+  return ultimoCodigoPortal(`firma:${token}`);
 }
 
 /**

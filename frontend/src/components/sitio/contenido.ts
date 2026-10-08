@@ -55,7 +55,7 @@ export const SEGURIDAD: Destacado[] = [
   { icono: Lock, titulo: 'Sesiones protegidas', texto: 'Credenciales en cookies seguras que el navegador no expone al código de la página. La sesión se cierra tras 5 minutos sin uso.' },
   { icono: Users, titulo: 'Usuarios con permisos', texto: 'Invita a tu contador o jefatura con acceso solo a los módulos y empresas que elijas: ver o gestionar.' },
   { icono: History, titulo: 'Bitácora verificable', texto: 'Quién hizo qué y cuándo, encadenado con huellas criptográficas. Puedes descargar una copia con código de verificación.' },
-  { icono: ShieldCheck, titulo: 'Firma con verificación', texto: 'Cada firma exige un código de un solo uso enviado al correo del trabajador, con tres intentos y 10 minutos de vigencia.' },
+  { icono: ShieldCheck, titulo: 'Firma con verificación', texto: 'El trabajador confirma su identidad con un código de un solo uso en su correo o con su clave del portal, y firma personalmente: acepta el contenido y dibuja su firma.' },
   { icono: KeyRound, titulo: 'Reserva de la Ley Karin', texto: 'Las denuncias se guardan cifradas y solo el encargado las ve. Ni el titular ni su equipo acceden a su contenido.' },
   { icono: ClipboardCheck, titulo: 'Cálculos trazables', texto: 'Topes, tasas y UF quedan congelados en cada liquidación. Los parámetros los revisa el equipo de Jornada40 contra la fuente oficial.' },
 ];

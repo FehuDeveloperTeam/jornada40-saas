@@ -217,7 +217,7 @@ class TeletrabajoTests(DocumentosBase):
             expira_en=timezone.now() + datetime.timedelta(days=1))
         self.client.force_authenticate(None)
         r = self.client.post(f'/api/firma-publica/{solicitud.token}/firmar/',
-                             {'sesion_token': str(sesion), 'firma_trabajador': 'data:image/png;base64,aGVsbG8='},
+                             {'sesion_token': str(sesion), 'firma_trabajador': 'data:image/png;base64,aGVsbG8=', 'acepto': True},
                              format='json')
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(Empleado.objects.get(pk=self.emp.pk).modalidad, 'HIBRIDO')

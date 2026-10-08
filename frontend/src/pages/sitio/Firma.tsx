@@ -5,7 +5,7 @@ import { isAxiosError } from 'axios';
 import { Check, CircleX, Clock, Download, FileText, Lock, ShieldCheck } from 'lucide-react';
 import client from '../../api/client';
 import { guardarArchivo } from '../../api/descargas';
-import { AlertaError, Button, CampoCodigo, CampoRut, Casilla, FirmaPad, J40Root, Logo, Modal, ToggleTema } from '../../components/j40';
+import { AlertaError, Button, CampoCodigo, CampoRut, Casilla, FirmaPad, InputContrasena, J40Root, Logo, Modal, ToggleTema } from '../../components/j40';
 import { VisorPdf } from '../../components/firma/VisorPdf';
 import { cn } from '../../utils/cn';
 import { capitalizar } from '../../utils/formato';
@@ -19,14 +19,19 @@ interface Info {
   email_firmante_enmascarado: string;
   expira_en: string;
   ya_verificado: boolean;
+  /** Tiene clave del portal y verificó ahí este correo: puede usarla en vez del código. */
+  clave_disponible?: boolean;
   firmado_en?: string | null;
   folio?: string;
   hash_firmado?: string;
+  verificacion?: Verificacion | '';
 }
-interface Comprobante { firmado_en: string; folio: string; hash_firmado: string; firma?: string }
+/** Cómo confirmó su identidad. Solo eso: firma su aceptación y su trazo (Ord. DT 136 y 79). */
+type Verificacion = 'CODIGO_CORREO' | 'CLAVE_PORTAL';
+interface Comprobante { firmado_en: string; folio: string; hash_firmado: string; firma?: string; verificacion?: Verificacion | '' }
 type Paso = 'identidad' | 'codigo' | 'revisar' | 'firmar';
 
-const PASOS: [Paso, string][] = [['identidad', 'Identidad'], ['codigo', 'Código'], ['revisar', 'Revisar'], ['firmar', 'Firmar']];
+const PASOS: [Paso, string][] = [['identidad', 'Identidad'], ['codigo', 'Verificación'], ['revisar', 'Revisar'], ['firmar', 'Firmar']];
 const MOTIVOS = [
   'Los datos personales no son correctos',
   'Los montos o condiciones no son los acordados',
@@ -64,7 +69,8 @@ export default function Firma() {
       .then(({ data }) => {
         setInfo(data);
         if (data.estado === 'FIRMADO' && data.firmado_en) {
-          setComprobante({ firmado_en: data.firmado_en, folio: data.folio ?? '', hash_firmado: data.hash_firmado ?? '' });
+          setComprobante({ firmado_en: data.firmado_en, folio: data.folio ?? '', hash_firmado: data.hash_firmado ?? '',
+            verificacion: data.verificacion ?? '' });
         } else if (data.ya_verificado && leerSesion(token)) {
           setPaso('revisar');
         }
@@ -93,7 +99,8 @@ export default function Firma() {
     cuerpo = (
       <>
         <Progreso actual={paso} />
-        {paso === 'identidad' && <Identidad token={token} info={info} rut={rut} setRut={setRut} onEnviado={() => setPaso('codigo')} />}
+        {paso === 'identidad' && <Identidad token={token} info={info} rut={rut} setRut={setRut} onEnviado={() => setPaso('codigo')}
+          onVerificado={verificado} />}
         {paso === 'codigo' && <Codigo token={token} info={info} rut={rut} onVerificado={verificado} onVolver={() => setPaso('identidad')} />}
         {paso === 'revisar' && sesion && <Revisar token={token} info={info} sesion={sesion} onAceptar={() => setPaso('firmar')}
           onRechazado={() => { guardarSesion(token, null); setInfo({ ...info, estado: 'RECHAZADO' }); }} onSesionVencida={sesionVencida} />}
@@ -166,9 +173,11 @@ function Aviso({ Icono, tono, titulo, texto }: { Icono: typeof Check; tono: 'pel
   );
 }
 
-function Identidad({ token, info, rut, setRut, onEnviado }: {
-  token: string; info: Info; rut: string; setRut: (v: string) => void; onEnviado: () => void;
+function Identidad({ token, info, rut, setRut, onEnviado, onVerificado }: {
+  token: string; info: Info; rut: string; setRut: (v: string) => void; onEnviado: () => void; onVerificado: (sesion: string) => void;
 }) {
+  const [conClave, setConClave] = useState(false);
+  const [clave, setClave] = useState('');
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -188,6 +197,23 @@ function Identidad({ token, info, rut, setRut, onEnviado }: {
     }
   };
 
+  const conMiClave = async () => {
+    if (!validateRut(rut)) { setError('Ingresa un RUT válido.'); return; }
+    if (!clave) { setError('Ingresa tu clave.'); return; }
+    setEnviando(true);
+    setError('');
+    try {
+      const { data } = await client.post<{ sesion_token: string }>(`/firma-publica/${token}/verificar-clave/`, { rut, clave });
+      onVerificado(data.sesion_token);
+    } catch (err) {
+      setError(mensaje(err, 'No pudimos verificar tu clave. Intenta de nuevo en un momento.'));
+      setClave('');
+      setEnviando(false);
+    }
+  };
+
+  const cambiar = (usarClave: boolean) => { setConClave(usarClave); setError(''); setClave(''); };
+
   return (
     <Tarjeta>
       <div>
@@ -196,12 +222,31 @@ function Identidad({ token, info, rut, setRut, onEnviado }: {
       </div>
       <Documento info={info} />
       {error && <AlertaError>{error}</AlertaError>}
-      <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void enviar(); }}>
-        <CampoRut etiqueta="Tu RUT" valor={rut} onChange={setRut} autoComplete="off" />
-        <p className="text-[13px] text-fg-3">
-          Te enviaremos un código de 6 dígitos a <strong className="text-fg font-medium">{info.email_firmante_enmascarado}</strong>.
+      <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void (conClave ? conMiClave() : enviar()); }}>
+        <CampoRut etiqueta="Tu RUT" valor={rut} onChange={setRut} autoComplete={conClave ? 'username' : 'off'} />
+        {conClave ? (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="firma-clave" className="text-[12.5px] font-medium text-fg-2">Tu clave del portal del trabajador</label>
+            <InputContrasena id="firma-clave" autoComplete="current-password" autoFocus value={clave}
+              onChange={(e) => { setClave(e.target.value); setError(''); }} invalido={Boolean(error)} />
+          </div>
+        ) : (
+          <p className="text-[13px] text-fg-3">
+            Te enviaremos un código de 6 dígitos a <strong className="text-fg font-medium">{info.email_firmante_enmascarado}</strong>.
+          </p>
+        )}
+        <p className="text-[13px] text-fg-2 rounded-[10px] bg-sunken px-3.5 py-2.5">
+          {conClave ? 'Tu clave' : 'El código'} solo confirma que eres tú. La firma la haces tú al final:
+          revisas el documento, aceptas su contenido y dibujas tu firma.
         </p>
-        <Button type="submit" tamano="lg" bloque cargando={enviando}>{enviando ? 'Enviando…' : 'Enviar código'}</Button>
+        <Button type="submit" tamano="lg" bloque cargando={enviando}>
+          {conClave ? (enviando ? 'Verificando…' : 'Confirmar con mi clave') : (enviando ? 'Enviando…' : 'Enviar código')}
+        </Button>
+        {info.clave_disponible && (
+          <button type="button" onClick={() => cambiar(!conClave)} className="text-[13.5px] font-medium text-brand-text self-center">
+            {conClave ? 'Prefiero recibir un código por correo' : 'Usar mi clave del portal del trabajador'}
+          </button>
+        )}
       </form>
     </Tarjeta>
   );
@@ -378,7 +423,9 @@ function Firmar({ token, sesion, onVolver, onFirmado, onSesionVencida }: {
     setFirmando(true);
     setError('');
     try {
-      const { data } = await client.post<Comprobante>(`/firma-publica/${token}/firmar/`, { sesion_token: sesion, firma_trabajador: firma });
+      // acepto: la firma es la aceptación expresa del contenido más el trazo del trabajador.
+      const { data } = await client.post<Comprobante>(`/firma-publica/${token}/firmar/`,
+        { sesion_token: sesion, firma_trabajador: firma, acepto: true });
       onFirmado({ ...data, firma });
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 403) { onSesionVencida(); return; }
@@ -393,6 +440,10 @@ function Firmar({ token, sesion, onVolver, onFirmado, onSesionVencida }: {
         <h1 className="text-[22px] font-semibold tracking-[-0.01em]">Firma el documento</h1>
         <p className="text-[14px] text-fg-2 mt-1">Dibuja tu firma con el dedo o el mouse.</p>
       </div>
+      <p className="text-[13.5px] text-fg-2 rounded-[10px] bg-sunken px-3.5 py-2.5">
+        Al firmar declaras que leíste el documento y que estás de acuerdo con su contenido. Esta firma la haces tú:
+        el código o la clave solo confirmaron tu identidad.
+      </p>
       {error && <AlertaError>{error}</AlertaError>}
       <FirmaPad onChange={setFirma} etiqueta="Tu firma" />
       <Button tamano="lg" bloque disabled={!firma} cargando={firmando} onClick={firmar}>{firmando ? 'Firmando…' : 'Firmar documento'}</Button>
@@ -424,7 +475,9 @@ function Listo({ token, info, comprobante, sesion }: { token: string; info: Info
     ['Documento', info.tipo_documento_label],
     ['Firmante', capitalizar(info.trabajador_nombre)],
     ['Fecha y hora', fechaHora(comprobante.firmado_en)],
-    ['Verificación', `Código enviado a ${info.email_firmante_enmascarado}`],
+    ['Identidad verificada con', (comprobante.verificacion || info.verificacion) === 'CLAVE_PORTAL'
+      ? 'Tu clave del portal del trabajador' : `Código enviado a ${info.email_firmante_enmascarado}`],
+    ['Firma', 'Tu aceptación del contenido y tu trazo'],
     ['Folio', <span className="j40-mono">{comprobante.folio || '—'}</span>],
   ];
 

@@ -23,7 +23,7 @@ from .views import (
     AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet,
     SolicitudFirmaViewSet, VacacionViewSet, mi_suscripcion, recuperar_password_por_rut, diagnostico_red, indicadores_del_dia, parametros_vigentes,
     webhook_reveniu, crear_checkout_reveniu, bajar_plan, cancelar_cambio_plan, reanudar_renovacion, perfil_usuario,
-    firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp,
+    firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp, firma_publica_verificar_clave,
     firma_publica_firmar, firma_publica_documento, firma_publica_rechazar,
     FiniquitoViewSet, ConceptoRemuneracionViewSet, RegistroDTViewSet,
 )
@@ -138,6 +138,7 @@ urlpatterns = [
     path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),
     path('firma-publica/<uuid:token>/solicitar-otp/', firma_publica_solicitar_otp, name='firma_publica_solicitar_otp'),
     path('firma-publica/<uuid:token>/verificar-otp/', firma_publica_verificar_otp, name='firma_publica_verificar_otp'),
+    path('firma-publica/<uuid:token>/verificar-clave/', firma_publica_verificar_clave, name='firma_publica_verificar_clave'),
     path('firma-publica/<uuid:token>/firmar/', firma_publica_firmar, name='firma_publica_firmar'),
     path('firma-publica/<uuid:token>/documento/', firma_publica_documento, name='firma_publica_documento'),
     path('firma-publica/<uuid:token>/rechazar/', firma_publica_rechazar, name='firma_publica_rechazar'),

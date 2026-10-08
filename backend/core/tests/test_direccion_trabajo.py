@@ -184,7 +184,7 @@ class ConsentimientoTests(APITestCase):
                 patch('core.b2_client.eliminar_documento'), \
                 patch('core.views.firma_publica._enviar_emails_firma_completada'):
             r = self.client.post(f'/api/firma-publica/{solicitud.token}/firmar/', {
-                'sesion_token': str(sesion), 'firma_trabajador': 'data:image/png;base64,aGVsbG8='}, format='json')
+                'sesion_token': str(sesion), 'firma_trabajador': 'data:image/png;base64,aGVsbG8=', 'acepto': True}, format='json')
         self.assertEqual(r.status_code, 200, r.data)
         self.emp.refresh_from_db()
         self.assertEqual(self.emp.consentimiento_electronico_via, 'ANEXO')

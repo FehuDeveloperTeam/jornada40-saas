@@ -693,9 +693,10 @@ export interface EmpleoPortal {
 }
 
 /** Otra ficha con el mismo RUT cuyo correo aún no se verificó. */
+/** Otra ficha del mismo RUT con un correo que esta cuenta no verificó. Sin nombre de
+ *  empresa: quien entra con una ficha ajena no debe saber dónde trabaja la persona. */
 export interface EmpleoPorVincular {
     id: number;
-    empresa: string;
     /** Correo enmascarado ("ma***@example.com"). */
     correo: string;
 }

@@ -3,10 +3,11 @@ import datetime
 import re
 
 from django.core import mail
+from django.core.cache import cache
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
-from ..models import Contrato, CuentaTrabajador, Empleado, Liquidacion, SolicitudFirma
+from ..models import CodigoTrabajador, Contrato, CorreoTrabajador, CuentaTrabajador, Empleado, Liquidacion, SolicitudFirma
 from ..views.portal_trabajador import COOKIE
 from .utiles import crear_empleado, crear_usuario_completo
 
@@ -15,6 +16,7 @@ RUT = '12.345.678-5'
 
 class PortalBase(APITestCase):
     def setUp(self):
+        cache.clear()   # límites de intentos de otras pruebas (misma IP)
         self.jefe, _, _, self.empresa = crear_usuario_completo('portal_a', '21.000.000-3', '76.000.555-2')
         self.ficha = crear_empleado(self.empresa, RUT, nombres='Ana', apellido='Rojas')
         Empleado.objects.filter(pk=self.ficha.pk).update(email='ana@correo.cl')
@@ -109,6 +111,76 @@ class AislamientoTests(PortalBase):
         r = self.client.post('/api/trabajador/empleos/confirmar/', {'codigo': self._codigo_de('otro@correo.cl')},
                              format='json')
         self.assertEqual(len(r.data['empleos']), 2)
+
+
+class CuentasPorPersonaTests(AislamientoTests):
+    """La cuenta es de la persona que recibe el correo, no del RUT: otra persona
+    con el mismo RUT (p. ej. el empleador que creó una ficha con RUT ajeno y su
+    correo) nunca entra a la cuenta del trabajador real."""
+
+    def _entrar_con(self, cliente, correo):
+        CodigoTrabajador.objects.update(creado_en=timezone.now() - datetime.timedelta(minutes=2))
+        cliente.post('/api/trabajador/codigo/', {'rut': RUT}, format='json')
+        r = cliente.post('/api/trabajador/codigo/verificar/', {'rut': RUT, 'codigo': self._codigo_de(correo)},
+                         format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        return r.data
+
+    def test_ficha_ajena_no_da_acceso_a_lo_que_el_trabajador_ya_verifico(self):
+        trabajador, otro = APIClient(), APIClient()
+        self.assertEqual([e['id'] for e in self._entrar_con(trabajador, 'ana@correo.cl')['empleos']], [self.ficha.id])
+        datos = self._entrar_con(otro, 'otro@correo.cl')
+        self.assertEqual([e['id'] for e in datos['empleos']], [self.ajena.id])
+        # "Otros empleos" no dice en qué empresa trabaja la persona.
+        self.assertEqual(datos['por_vincular'], [{'id': self.ficha.id, 'correo': 'an***@correo.cl'}])
+        contrato = Contrato.objects.get(empleado=self.ficha)
+        self.assertEqual(otro.get('/api/trabajador/descargar/', {'tipo': 'contrato', 'id': contrato.id}).status_code, 404)
+        # Su clave es de su cuenta: no cambia ni cierra la del trabajador.
+        self.assertEqual(otro.post('/api/trabajador/clave/', {'clave_nueva': 'Otra-Clave-2026'},
+                                   format='json').status_code, 200)
+        self.assertEqual(trabajador.get('/api/trabajador/yo/').data['empleos'][0]['id'], self.ficha.id)
+        self.assertFalse(CuentaTrabajador.objects.get(correos__email='ana@correo.cl').tiene_clave())
+        r = APIClient().post('/api/trabajador/clave/ingresar/', {'rut': RUT, 'clave': 'Otra-Clave-2026'}, format='json')
+        self.assertEqual([e['id'] for e in r.data['empleos']], [self.ajena.id])
+        self.assertEqual(CuentaTrabajador.objects.filter(rut='123456785').count(), 2)
+
+    def test_verificar_un_correo_lo_trae_a_la_cuenta_desde_otra(self):
+        # La misma persona entró por separado con cada correo y luego los une.
+        uno, dos = APIClient(), APIClient()
+        self._entrar_con(uno, 'ana@correo.cl')
+        self._entrar_con(dos, 'otro@correo.cl')
+        CodigoTrabajador.objects.update(creado_en=timezone.now() - datetime.timedelta(minutes=2))
+        uno.post('/api/trabajador/empleos/vincular/', {'ficha': self.ajena.id}, format='json')
+        r = uno.post('/api/trabajador/empleos/confirmar/', {'codigo': self._codigo_de('otro@correo.cl')}, format='json')
+        self.assertEqual(len(r.data['empleos']), 2)
+        self.assertEqual(dos.get('/api/trabajador/yo/').data['empleos'], [])
+        self.assertEqual(CorreoTrabajador.objects.filter(email='otro@correo.cl').count(), 1)
+
+    def test_la_misma_clave_en_dos_cuentas_las_une(self):
+        uno, dos = APIClient(), APIClient()
+        self._entrar_con(uno, 'ana@correo.cl')
+        self._entrar_con(dos, 'otro@correo.cl')
+        for c in (uno, dos):
+            self.assertEqual(c.post('/api/trabajador/clave/', {'clave_nueva': 'Misma-Clave-26'},
+                                    format='json').status_code, 200)
+        r = APIClient().post('/api/trabajador/clave/ingresar/', {'rut': RUT, 'clave': 'Misma-Clave-26'}, format='json')
+        self.assertEqual(sorted(e['id'] for e in r.data['empleos']), sorted([self.ficha.id, self.ajena.id]))
+        self.assertEqual(CuentaTrabajador.objects.exclude(password='').count(), 1)
+
+    def test_migracion_separa_las_cuentas_mezcladas(self):
+        from importlib import import_module
+        from django.apps import apps
+        cuenta = CuentaTrabajador.objects.create(rut='123456785')
+        cuenta.fijar_clave('Clave-De-Quien-2026')
+        cuenta.save()
+        for correo in ('ana@correo.cl', 'otro@correo.cl'):
+            CorreoTrabajador.objects.create(cuenta=cuenta, email=correo)
+        import_module('core.migrations.0100_separar_cuentas_mezcladas').separar(apps, None)
+        cuentas = CuentaTrabajador.objects.filter(rut='123456785').order_by('id')
+        self.assertEqual([list(c.correos.values_list('email', flat=True)) for c in cuentas],
+                         [['ana@correo.cl'], ['otro@correo.cl']])
+        self.assertFalse(any(c.tiene_clave() for c in cuentas))
+        self.assertEqual(cuentas[0].version_sesion, cuenta.version_sesion + 1)
 
 
 class ReglasDeAccesoTests(PortalBase):
