@@ -437,7 +437,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ---
 
-## Portal del trabajador (en la rama, no en `main`)
+## Portal del trabajador
 
 - `/api/trabajador/…` (`views/portal_trabajador.py`), screen `/trabajador` (button "Soy trabajador" on the landing). Session: its own signed cookie `jornada40-trabajador` (15 min without use, 8 h max), independent of the employer's JWT, invalidated when the password is created/changed (`CuentaTrabajador.version_sesion`). Views accept JSON only (a cross-site form can't act for the worker) and are throttled (`portal_trabajador` per IP, `portal_trabajador_sesion` per account).
 - Login: RUT → if an account of that RUT has a password, the password (with "cambiar RUT" and "entrar con código"); otherwise a 6-digit code by email. **One code per email, sent separately**: each code verifies only its own email (`CorreoTrabajador`). A worker sees only the `Empleado` rows whose email his account verified — an employer who creates a row with someone else's RUT and his own email gets nothing from other companies. Other rows of the same RUT show up as "por vincular" (only the masked email, no company name: verify it with a code). The response to a RUT with no rows is identical (no enumeration beyond "has a password").
