@@ -26,6 +26,9 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 ## Trámites y temas legales
 
 - [ ] Reconocimiento de la plataforma ante la DT (Etapa D): acordar medidas de seguridad y presentar la solicitud.
+  - Precedentes (revisados 2026-10-08): la DT aprobó en 2025–2026 a Nubox (Ord. 136, 14-03-2025, presentado el 24-09-2024: ~6 meses), Certifika "FirmaWeb" (Ord. 79), SIGNER (Ord. 741), GDEDIGITAL (Ord. 724), HPDIGITAL (Ord. 512), Visión FirmaDoc (Ord. 508), LeanGlobal (Ord. 428), SAFMAG1 (Ord. 426), entre otros; rechazó Albiorix (Ord. 131) y eProc (Ord. 509) por no cumplir el Dictamen 0789/15, y no se pronunció sobre "Workin Docs" (Ord. 48) porque los antecedentes estaban tras un registro: **adjuntar todo directo, sin exigir cuenta**.
+  - Observación que la DT hizo a Nubox y a Certifika (Ord. 136 y 79): la seguridad no puede hacer que el trabajador pierda el control de su firma; objeta "claves dinámicas u OTP generadas por el mismo sistema" que se superpongan a la rúbrica del trabajador. Antes de presentar: dejar claro (flujo, certificado de firma y solicitud) que el código por correo solo verifica identidad y que el acto que firma es la aceptación expresa más el trazo del trabajador; guardar el código OTP con hash (hoy queda en texto plano), y evaluar que el trabajador pueda usar su propia clave del portal en vez del código.
+  - Aprovechar la solicitud para preguntar a la DT por el canal de servicios web (API) para el LRE y el Registro Electrónico Laboral, que la DT anunció como "próxima evolución" (consulta 120083, actualizada 31-05-2023).
 - [ ] Revisión legal de plantillas (reglamento por rubro, documentos Ley Karin, pactos).
 - [ ] Verificar contra una carga real: aporte de indemnización a todo evento en Previred (campos 31–36) y CSV de registro masivo de Mi DT (oculto hasta confirmar la plantilla).
 
