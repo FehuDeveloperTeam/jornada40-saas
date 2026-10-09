@@ -26,6 +26,7 @@ export function Lista({ empresa, onAbrir }: { empresa: EmpresaExtension; onAbrir
 
   const { resumen } = consulta.data;
   const items = porRegistrar(consulta.data.items);
+  const sinFirmar = consulta.data.anexos_sin_firmar ?? 0;
   return (
     <section aria-label="Por registrar en Mi DT" className="flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between gap-2">
@@ -61,6 +62,13 @@ export function Lista({ empresa, onAbrir }: { empresa: EmpresaExtension; onAbrir
             );
           })}
         </ul>
+      )}
+      {sinFirmar > 0 && (
+        <Aviso tono="info">
+          {sinFirmar === 1
+            ? 'Tienes 1 anexo sin firmar. Aparecerá aquí cuando el trabajador lo firme: el plazo para registrarlo en Mi DT corre desde la firma.'
+            : `Tienes ${sinFirmar} anexos sin firmar. Aparecerán aquí cuando los trabajadores los firmen: el plazo para registrarlos en Mi DT corre desde la firma.`}
+        </Aviso>
       )}
     </section>
   );

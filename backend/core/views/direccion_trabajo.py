@@ -155,12 +155,21 @@ def _monto_imponible_pactado(contrato):
     return base + min(math.floor(base * 0.25), tope)
 
 
+def anexos_sin_firmar(empresa):
+    """Anexos de trabajadores activos que el trabajador aún no firma. No están en la lista
+    porque el plazo para registrarlos en Mi DT corre desde la firma; se cuentan para avisarlo."""
+    firmados = SolicitudFirma.objects.filter(empresa=empresa, estado='FIRMADO', tipo_documento='ANEXO_CONTRATO')
+    return (AnexoContrato.objects.filter(contrato__empleado__empresa=empresa, contrato__empleado__activo=True,
+                                         aplicado=False)
+            .exclude(id__in=firmados.values('anexo_contrato_id')).count())
+
+
 def lista_registro(empresa):
     """Lo que la empresa debe registrar en Mi DT, con un resumen por estado."""
     items = items_registro(empresa)
     resumen = {e: sum(1 for i in items if i['estado'] == e) for e in ('VENCIDO', 'PENDIENTE', 'REGISTRADO')}
     resumen['por_vencer'] = sum(1 for i in items if i['estado'] == 'PENDIENTE' and i['dias_habiles_restantes'] <= 3)
-    return {'items': items, 'resumen': resumen}
+    return {'items': items, 'resumen': resumen, 'anexos_sin_firmar': anexos_sin_firmar(empresa)}
 
 
 def ficha_registro(empresa, clave):

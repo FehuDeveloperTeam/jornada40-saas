@@ -137,6 +137,18 @@ class RegistroTests(APITestCase):
         self.assertIn('documentación laboral', campos['Otras estipulaciones']['valor'])
         self.assertTrue(campos['Otras estipulaciones']['copiar'])
 
+    def test_anexo_aparece_al_firmarse_y_antes_se_cuenta_como_sin_firmar(self):
+        anexo = AnexoContrato.objects.create(contrato=self.contrato, titulo='Aumento', descripcion='Sube el sueldo.',
+                                             fecha_emision='2026-09-20')
+        datos = self._listar()
+        self.assertEqual(datos['anexos_sin_firmar'], 1)
+        self.assertNotIn(f'ANEXO:{anexo.id}', [i['clave'] for i in datos['items']])
+        AnexoContrato.objects.filter(pk=anexo.pk).update(
+            aplicado=True, aplicado_en=timezone.make_aware(datetime.datetime(2026, 9, 21, 10)))
+        datos = self._listar()
+        self.assertEqual(datos['anexos_sin_firmar'], 0)
+        self.assertIn(f'ANEXO:{anexo.id}', [i['clave'] for i in datos['items']])
+
     def test_ficha_de_termino_y_de_anexo(self):
         Empleado.objects.filter(pk=self.emp.pk).update(activo=False, fecha_desvinculacion='2026-09-30')
         Finiquito.objects.create(empleado=self.emp, causal_articulo='159_2', fecha_termino='2026-09-30',

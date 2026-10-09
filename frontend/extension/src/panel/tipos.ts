@@ -21,6 +21,8 @@ export interface Vinculacion extends Yo {
 export interface ListaRegistro {
   items: ItemRegistroDT[];
   resumen: ResumenRegistroDT;
+  /** Anexos aún sin firma del trabajador: entran a la lista al firmarse. */
+  anexos_sin_firmar: number;
 }
 
 /** Si la empresa con que se entró a Mi DT es la elegida en el panel. */

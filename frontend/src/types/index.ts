@@ -651,6 +651,8 @@ export interface PendienteConsentimiento {
 export interface RegistroDT {
     items: ItemRegistroDT[];
     resumen: ResumenRegistroDT;
+    /** Anexos aún sin firma del trabajador: entran a la lista al firmarse (el plazo corre desde la firma). */
+    anexos_sin_firmar: number;
     consentimiento: { total: number; con: number; sin: PendienteConsentimiento[] };
     /** CSV para Mi DT: desde el plan Pyme (nivel 3). */
     csv_disponible: boolean;

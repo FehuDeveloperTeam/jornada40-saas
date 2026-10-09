@@ -105,7 +105,7 @@ export default function DireccionTrabajo() {
     );
   }
 
-  const { items, resumen, consentimiento } = registro.data;
+  const { items, resumen, consentimiento, anexos_sin_firmar: sinFirmar = 0 } = registro.data;
   const visibles = items.filter((i) => COINCIDE_ESTADO[filtroEstado](i.estado) && (filtroTipo === 'todos' || i.tipo === filtroTipo));
   const elegidos = visibles.filter((i) => seleccion.has(i.clave));
   const porMarcar = elegidos.filter((i) => i.estado !== 'REGISTRADO');
@@ -230,6 +230,17 @@ export default function DireccionTrabajo() {
           <div className="flex items-start gap-2.5 mx-[18px] mt-3 px-3.5 py-2.5 rounded-[10px] bg-brand-soft text-brand-text text-[12.5px]">
             <Info className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
             <span>¿Ya registraste antes estos contratos en Mi DT? Márcalos como registrados con la fecha en que lo hiciste.</span>
+          </div>
+        )}
+
+        {sinFirmar > 0 && (
+          <div className="flex items-start gap-2.5 mx-[18px] mt-3 px-3.5 py-2.5 rounded-[10px] bg-sunken text-fg-2 text-[12.5px]">
+            <Info className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
+            <span>
+              {sinFirmar === 1
+                ? 'Hay 1 anexo sin firmar: aparecerá en esta lista cuando el trabajador lo firme, porque el plazo para registrarlo en Mi DT corre desde la firma.'
+                : `Hay ${sinFirmar} anexos sin firmar: aparecerán en esta lista cuando los trabajadores los firmen, porque el plazo para registrarlos en Mi DT corre desde la firma.`}
+            </span>
           </div>
         )}
 
