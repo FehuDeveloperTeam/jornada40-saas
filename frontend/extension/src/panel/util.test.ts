@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemRegistroDT } from '../../../src/types';
-import { formatearCodigo, nombrePorDefecto, plazo, porRegistrar } from './util';
+import { formatearCodigo, nombrePorDefecto, plazo, porRegistrar, textoParaCopiar } from './util';
 
 const item = (clave: string, estado: ItemRegistroDT['estado'], vence: string, dias: number | null = 5): ItemRegistroDT => ({
   clave, tipo: 'CONTRATO', detalle: 'Contrato indefinido', empleado: { id: 1, nombre: clave, rut: '1-9', activo: true },
@@ -40,5 +40,14 @@ describe('plazo', () => {
     expect(plazo(item('x', 'PENDIENTE', '2026-10-08', 0)).texto).toBe('Vence hoy');
     expect(plazo(item('x', 'PENDIENTE', '2026-10-09', 1))).toEqual({ texto: 'Queda 1 día hábil (09-10-2026)', tono: 'aviso' });
     expect(plazo(item('x', 'PENDIENTE', '2026-10-20', 8)).tono).toBe('neutro');
+  });
+});
+
+describe('textoParaCopiar', () => {
+  it('copia los montos solo con dígitos y deja igual el resto', () => {
+    expect(textoParaCopiar('$1.000.000')).toBe('1000000');
+    expect(textoParaCopiar('$0')).toBe('0');
+    expect(textoParaCopiar('12.345.678-5')).toBe('12.345.678-5');
+    expect(textoParaCopiar('Quincenal: $200.000 el día 15')).toBe('Quincenal: $200.000 el día 15');
   });
 });

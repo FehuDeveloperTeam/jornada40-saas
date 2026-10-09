@@ -50,6 +50,14 @@ export function descargarJSON(nombre: string, datos: unknown) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/**
+ * Lo que se copia de un dato de la ficha: los montos van solo con dígitos
+ * ("$1.000.000" → "1000000"), que es lo que aceptan los campos de Mi DT.
+ */
+export function textoParaCopiar(valor: string): string {
+  return /^\$\s?[\d.]+$/.test(valor.trim()) ? valor.replace(/\D/g, '') : valor;
+}
+
 /** Copia al portapapeles; si el navegador no lo permite, con el método antiguo. */
 export async function copiarTexto(texto: string): Promise<boolean> {
   try {

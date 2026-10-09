@@ -6,7 +6,7 @@ Esta versión trabaja con **staging** (staging.jornada40.cl) y se instala con un
 
 - Un computador con **Chrome** o **Edge**.
 - Tu cuenta de staging, con al menos un trabajador con contrato.
-- El archivo `jornada40-midt-staging-0.1.0.zip`.
+- El último archivo `jornada40-midt-staging-<versión>.zip` que te envié.
 
 ## 1. Instalar
 

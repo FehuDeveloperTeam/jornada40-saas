@@ -4,7 +4,7 @@ import { Check, CircleAlert, CircleCheck, Copy, Info, Loader2, TriangleAlert } f
 import { cn } from '../../../src/utils/cn';
 import { ENTORNO, SITIO, VERSION } from '../configuracion';
 import { abrirPagina } from './pestana';
-import { copiarTexto } from './util';
+import { copiarTexto, textoParaCopiar } from './util';
 
 type Tono = 'info' | 'aviso' | 'peligro' | 'ok';
 
@@ -75,7 +75,7 @@ export function Casilla({ marcada, onChange, children }: { marcada: boolean; onC
 export function BotonCopiar({ texto, etiqueta }: { texto: string; etiqueta: string }) {
   const [estado, setEstado] = useState<'listo' | 'copiado' | 'error'>('listo');
   const copiar = async () => {
-    setEstado((await copiarTexto(texto)) ? 'copiado' : 'error');
+    setEstado((await copiarTexto(textoParaCopiar(texto))) ? 'copiado' : 'error');
     window.setTimeout(() => setEstado('listo'), 1800);
   };
   return (

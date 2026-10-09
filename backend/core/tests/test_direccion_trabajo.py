@@ -122,6 +122,15 @@ class RegistroTests(APITestCase):
         campos = {c['etiqueta']: c for s in r.data['secciones'] for c in s['campos']}
         self.assertEqual((campos['Calle']['valor'], campos['Número']['valor']), ('Av. Irarrázaval', '2401'))
         self.assertEqual(campos['Lunes']['valor'], '09:00 a 18:00')
+        # Etapa 3: Mi DT exige el total imponible y el no imponible (0 si no hay); el imponible es el mismo
+        # del archivo de carga masiva: sueldo base + gratificación mensual (25 %, bajo el tope del Art. 50).
+        from ..views.direccion_trabajo import _monto_imponible_pactado
+        imponible = _monto_imponible_pactado(self.contrato)
+        self.assertTrue(900_000 < imponible <= 900_000 + 225_000)   # el 25 % o el tope mensual, el menor
+        self.assertEqual(campos['Total imponible']['valor'], f'${imponible:,}'.replace(',', '.'))
+        self.assertEqual(campos['Total no imponible']['valor'], '$0')
+        self.assertEqual((campos['Periodo de pago']['valor'], campos['AFP']['valor'], campos['Sistema de salud']['valor']),
+                         ('Mensual', 'Habitat', 'Fonasa'))
         # Las cláusulas que Mi DT pide copiar salen del texto del contrato.
         self.assertIn('Sueldo Base', campos['Remuneraciones y asignaciones (cláusula del contrato)']['valor'])
         self.assertIn('40', campos['Distribución de jornada (cláusula del contrato)']['valor'])

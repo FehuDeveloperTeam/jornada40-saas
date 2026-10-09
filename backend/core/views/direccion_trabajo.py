@@ -468,13 +468,30 @@ def ficha_contrato(contrato, fecha_suscripcion):
     ]
     grat = ('Art. 50 del Código del Trabajo, pago mensual' if contrato.gratificacion_legal == 'MENSUAL'
             else 'Art. 47 del Código del Trabajo, pago anual')
+    # El mismo monto que va en MONTO_IMPONIBLE del archivo de carga masiva.
+    if contrato.gratificacion_legal == 'MENSUAL':
+        nota_imponible = ('Sueldo base más la gratificación mensual (Art. 50: 25 % del sueldo, con tope de '
+                          '4,75 ingresos mínimos al año).')
+    else:
+        nota_imponible = 'Sueldo base: la gratificación es anual (Art. 47) y no se suma al monto mensual.'
+    if contrato.es_comisionista:
+        nota_imponible += ' Las comisiones son variables y no se suman.'
+    salud = ('Fonasa' if dt.normalizar(emp.sistema_salud) != 'ISAPRE'
+             else f'Isapre {emp.get_isapre_display()}' if emp.isapre else 'Isapre')
     etapa3 = [
-        _campo('Sueldo base', _pesos(contrato.sueldo_base), nota='Periodo de pago: mensual.'),
-        _campo('Día de pago', contrato.dia_pago),
+        _campo('Sueldo base', _pesos(contrato.sueldo_base)),
+        _campo('Total imponible', _pesos(_monto_imponible_pactado(contrato)), nota=nota_imponible),
+        _campo('Total no imponible', _pesos(0),
+               nota='El contrato no pacta asignaciones no imponibles (colación, movilización). '
+                    'Si pactaste alguna aparte, escribe su suma; si no, 0.'),
+        _campo('Periodo de pago', 'Mensual'),
         _campo('Forma de pago', _FORMA_PAGO.get(dt.normalizar(emp.forma_pago), emp.forma_pago)),
+        _campo('Día de pago', contrato.dia_pago),
         _campo('Anticipo', f'Quincenal: {_pesos(contrato.monto_quincena)} el día {contrato.dia_quincena}'
                if contrato.tiene_quincena else 'Sin anticipo'),
         _campo('Gratificación', grat),
+        _campo('AFP', (emp.afp or '').title()),
+        _campo('Sistema de salud', salud),
     ]
     if contrato.es_comisionista:
         etapa3.append(_campo('Otros estipendios', 'Comisiones (mensual), monto variable', nota='Se informa con monto 0.'))

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Jornada40 para Mi DT",
   "short_name": "Jornada40 Mi DT",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Llena los formularios del Registro Electrónico Laboral de Mi DT con los datos de Jornada40. Tú revisas y registras.",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "sidePanel"],
