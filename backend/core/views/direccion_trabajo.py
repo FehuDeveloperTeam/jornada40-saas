@@ -155,6 +155,52 @@ def _monto_imponible_pactado(contrato):
     return base + min(math.floor(base * 0.25), tope)
 
 
+def lista_registro(empresa):
+    """Lo que la empresa debe registrar en Mi DT, con un resumen por estado."""
+    items = items_registro(empresa)
+    resumen = {e: sum(1 for i in items if i['estado'] == e) for e in ('VENCIDO', 'PENDIENTE', 'REGISTRADO')}
+    resumen['por_vencer'] = sum(1 for i in items if i['estado'] == 'PENDIENTE' and i['dias_habiles_restantes'] <= 3)
+    return {'items': items, 'resumen': resumen}
+
+
+def ficha_registro(empresa, clave):
+    """Ficha de un registro (datos en el orden del formulario de Mi DT), o None si no es de la empresa."""
+    item = next((i for i in items_registro(empresa) if i['clave'] == clave), None)
+    if not item:
+        return None
+    tipo, ident = clave.split(':')[0], int(clave.split(':')[1])
+    fecha = datetime.date.fromisoformat(item['fecha'])
+    if tipo == 'CONTRATO':
+        datos = ficha_contrato(Contrato.objects.select_related('empleado__empresa').get(id=ident), fecha)
+    elif tipo == 'ANEXO':
+        datos = ficha_anexo(AnexoContrato.objects.select_related('contrato__empleado').get(id=ident), fecha)
+    elif tipo == 'ANEXO40H':
+        datos = ficha_anexo_40h(Empleado.objects.get(id=item['empleado']['id']), fecha)
+    else:
+        datos = ficha_termino(Empleado.objects.get(id=ident), item)
+    return {**datos, 'clave': clave, 'tipo': tipo, 'estado': item['estado'], 'vence': item['vence']}
+
+
+def marcar_registros(empresa, claves, fecha=None, via='MANUAL', comprobante='', persona=None):
+    """Deja constancia de lo registrado en Mi DT. Devuelve cuántos; ValueError con el motivo."""
+    validas = {i['clave'] for i in items_registro(empresa)}
+    pedidas = [str(c) for c in (claves or [])]
+    if not pedidas or not set(pedidas) <= validas:
+        raise ValueError('Elige registros válidos de esta empresa.')
+    try:
+        fecha = datetime.date.fromisoformat(str(fecha or timezone.localdate().isoformat()))
+    except ValueError:
+        raise ValueError('Fecha inválida.')
+    if fecha > timezone.localdate():
+        raise ValueError('La fecha de registro no puede ser futura.')
+    with transaction.atomic():
+        for clave in pedidas:
+            RegistroDT.objects.update_or_create(empresa=empresa, clave=clave, defaults={
+                'registrado_en': fecha, 'via': via, 'comprobante': (comprobante or '').strip()[:60],
+                'registrado_por': persona if getattr(persona, 'pk', None) else None})
+    return len(pedidas)
+
+
 class RegistroDTViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -168,10 +214,7 @@ class RegistroDTViewSet(viewsets.ViewSet):
         empresa = self._empresa(request)
         if not empresa:
             return Response({'error': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        items = items_registro(empresa)
-        resumen = {e: sum(1 for i in items if i['estado'] == e) for e in ('VENCIDO', 'PENDIENTE', 'REGISTRADO')}
-        resumen['por_vencer'] = sum(1 for i in items if i['estado'] == 'PENDIENTE' and i['dias_habiles_restantes'] <= 3)
-        return Response({'items': items, 'resumen': resumen, 'consentimiento': resumen_consentimiento(empresa),
+        return Response({**lista_registro(empresa), 'consentimiento': resumen_consentimiento(empresa),
                          'csv_disponible': _plan_permite(request.user, 3)})
 
     @action(detail=False, methods=['post'])
@@ -180,20 +223,13 @@ class RegistroDTViewSet(viewsets.ViewSet):
         empresa = self._empresa(request, request.data)
         if not empresa:
             return Response({'error': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        claves = {i['clave'] for i in items_registro(empresa)}
-        pedidas = [str(c) for c in (request.data.get('claves') or [])]
-        if not pedidas or not set(pedidas) <= claves:
-            return Response({'error': 'Elige registros válidos de esta empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+        from ..autenticacion import actor
         try:
-            fecha = datetime.date.fromisoformat(str(request.data.get('fecha') or timezone.localdate().isoformat()))
-        except ValueError:
-            return Response({'error': 'Fecha inválida.'}, status=status.HTTP_400_BAD_REQUEST)
-        if fecha > timezone.localdate():
-            return Response({'error': 'La fecha de registro no puede ser futura.'}, status=status.HTTP_400_BAD_REQUEST)
-        with transaction.atomic():
-            for clave in pedidas:
-                RegistroDT.objects.update_or_create(empresa=empresa, clave=clave, defaults={'registrado_en': fecha})
-        return Response({'marcados': len(pedidas)})
+            n = marcar_registros(empresa, request.data.get('claves'), request.data.get('fecha'),
+                                 via='MANUAL', persona=actor(request))
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'marcados': n})
 
     @action(detail=False, methods=['post'])
     def desmarcar(self, request):
@@ -209,21 +245,10 @@ class RegistroDTViewSet(viewsets.ViewSet):
         empresa = self._empresa(request)
         if not empresa:
             return Response({'error': 'Empresa no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-        clave = str(request.query_params.get('clave') or '')
-        item = next((i for i in items_registro(empresa) if i['clave'] == clave), None)
-        if not item:
+        datos = ficha_registro(empresa, str(request.query_params.get('clave') or ''))
+        if datos is None:
             return Response({'error': 'Registro no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-        tipo, ident = clave.split(':')[0], int(clave.split(':')[1])
-        fecha = datetime.date.fromisoformat(item['fecha'])
-        if tipo == 'CONTRATO':
-            datos = ficha_contrato(Contrato.objects.select_related('empleado__empresa').get(id=ident), fecha)
-        elif tipo == 'ANEXO':
-            datos = ficha_anexo(AnexoContrato.objects.select_related('contrato__empleado').get(id=ident), fecha)
-        elif tipo == 'ANEXO40H':
-            datos = ficha_anexo_40h(Empleado.objects.get(id=item['empleado']['id']), fecha)
-        else:
-            datos = ficha_termino(Empleado.objects.get(id=ident), item)
-        return Response({**datos, 'clave': clave, 'estado': item['estado'], 'vence': item['vence']})
+        return Response(datos)
 
     @action(detail=False, methods=['get'])
     def csv(self, request):
@@ -365,8 +390,14 @@ _FORMA_PAGO = {'EFECTIVO': 'Dinero en efectivo', 'CHEQUE': 'Cheque', 'VALE VISTA
                'DEPOSITO': 'Depósito bancario', 'TRANSFERENCIA': 'Transferencia bancaria'}
 
 
+_NOTA_NOMBRE = 'Mi DT lo trae del Registro Civil al escribir el RUT: compáralo para confirmar que es la persona correcta.'
+
+
 def _campo(etiqueta, valor, copiar=False, nota=''):
-    return {'etiqueta': etiqueta, 'valor': '' if valor is None else str(valor), 'copiar': copiar, 'nota': nota}
+    # `clave` es estable (sale de la etiqueta): la usan los mapeos de la extensión para Mi DT.
+    from django.utils.text import slugify
+    return {'clave': slugify(etiqueta), 'etiqueta': etiqueta, 'valor': '' if valor is None else str(valor),
+            'copiar': copiar, 'nota': nota}
 
 
 def _pesos(valor):
@@ -415,6 +446,7 @@ def ficha_contrato(contrato, fecha_suscripcion):
         _campo('RUT del representante', empresa.rut_representante, copiar=True),
         _campo('RUT del trabajador', emp.rut, copiar=True,
                nota='Nombres, nacionalidad, fecha de nacimiento y sexo los completa Mi DT desde el Registro Civil.'),
+        _campo('Nombre del trabajador', _nombre(emp).title(), nota=_NOTA_NOMBRE),
         _campo('Correo electrónico', (emp.email or '').lower(), copiar=True),
         _campo('Teléfono', dt._telefono(emp.numero_telefono) or emp.numero_telefono, copiar=True),
         _campo('Comuna del domicilio', (emp.comuna or '').title()),
@@ -500,6 +532,7 @@ def ficha_anexo(anexo, fecha):
         'ruta_mi_dt': 'Registro Electrónico Laboral → Registro de Anexo de Contrato de Trabajo',
         'secciones': [{'titulo': 'Datos del anexo', 'campos': [
             _campo('RUT del trabajador', emp.rut, copiar=True),
+            _campo('Nombre del trabajador', _nombre(emp).title(), nota=_NOTA_NOMBRE),
             _campo('Fecha de suscripción del anexo', fecha.strftime('%d-%m-%Y')),
             _campo('Materia', anexo.titulo, copiar=True),
             _campo('Vigencia desde', anexo.vigencia_desde.strftime('%d-%m-%Y') if anexo.vigencia_desde else ''),
@@ -515,6 +548,7 @@ def ficha_anexo_40h(empleado, fecha):
         'ruta_mi_dt': 'Registro Electrónico Laboral → Registro de Anexo de Contrato de Trabajo',
         'secciones': [{'titulo': 'Datos del anexo', 'campos': [
             _campo('RUT del trabajador', empleado.rut, copiar=True),
+            _campo('Nombre del trabajador', _nombre(empleado).title(), nota=_NOTA_NOMBRE),
             _campo('Fecha de suscripción del anexo', fecha.strftime('%d-%m-%Y')),
             _campo('Materia', 'Adecuación de la jornada a la Ley N° 21.561 (40 horas)', copiar=True),
         ]}],
@@ -529,6 +563,7 @@ def ficha_termino(empleado, item):
     glosa = dict(Finiquito._meta.get_field('causal_articulo').choices).get(causal, '')
     campos = [
         _campo('RUT del trabajador', empleado.rut, copiar=True),
+        _campo('Nombre del trabajador', _nombre(empleado).title(), nota=_NOTA_NOMBRE),
         _campo('Fecha de término', datetime.date.fromisoformat(item['fecha']).strftime('%d-%m-%Y')),
         _campo('Causal', glosa or 'Sin causal registrada en Jornada40',
                nota='' if glosa else 'Revisa la causal antes de registrar: la confirmación no se puede editar.'),

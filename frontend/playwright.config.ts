@@ -41,6 +41,8 @@ export default defineConfig({
     },
     {
       command: 'npx vite --port 5173 --strictPort',
+      // Muestra la tarjeta de la extensión para Mi DT (en el panel real, solo en staging por ahora).
+      env: { VITE_EXTENSION_MIDT: '1' },
       url: 'http://localhost:5173',
       timeout: 120_000,
       reuseExistingServer: !process.env.CI,

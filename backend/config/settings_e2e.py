@@ -16,7 +16,10 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {
     'login': '1000/minute', 'register': '1000/minute', 'password_reset': '1000/hour', 'equipo_clave': '1000/hour', 'karin': '100000/hour', 'karin_sesion': '100000/day',
     'anon': '100000/day', 'user': '100000/day',
     'firma_publica': '100000/hour', 'firma_publica_ip': '100000/day',
-    'portal_trabajador': '100000/hour', 'verificar_certificado': '100000/hour', 'confirmar_identidad': '100000/hour', 'inspeccion': '100000/hour', 'inspeccion_sesion': '100000/day', 'portal_trabajador_sesion': '100000/day'}}
+    'portal_trabajador': '100000/hour', 'verificar_certificado': '100000/hour', 'confirmar_identidad': '100000/hour', 'inspeccion': '100000/hour', 'inspeccion_sesion': '100000/day', 'portal_trabajador_sesion': '100000/day',
+    'extension_vincular': '100000/hour', 'extension': '100000/day'}}
 INSTALLED_APPS = [*INSTALLED_APPS, 'e2e']
 # El portal del trabajador anota aquí los códigos que enviaría por correo.
 PORTAL_CODIGOS_E2E = os.path.join(E2E_ARCHIVOS_DIR, 'codigos_portal.txt')
+# La extensión para Mi DT se prueba contra una copia local de Mi DT con su propio mapeo.
+MAPEOS_MIDT_ARCHIVO = str(BASE_DIR / 'e2e' / 'mapeos_midt_e2e.json')

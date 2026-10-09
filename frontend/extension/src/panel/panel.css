@@ -1,0 +1,25 @@
+/* Panel lateral de la extensión: los mismos tokens y componentes j40 del panel
+   de Jornada40, sin fuentes externas (la extensión no carga nada de afuera). */
+@import "tailwindcss" source(none);
+@import "../../../src/styles/j40.css";
+
+@source "./";
+@source "../../../src/components/j40";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  background-color: var(--j40-bg);
+  color: var(--j40-text);
+}

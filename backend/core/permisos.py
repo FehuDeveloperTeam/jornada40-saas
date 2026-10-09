@@ -92,7 +92,10 @@ RUTAS_COMUNES_LECTURA = (
     '/api/planes/', '/api/catalogos/',
 )
 # POST que no modifican nada: vistas previas y descargas.
-_SOLO_LECTURA_POST = ('/simular/', '/evaluar-jornada/', '/descarga_masiva/', '/descargar_anexos_zip/')
+# Conectar o desconectar el propio navegador a la extensión para Mi DT tampoco modifica datos de la
+# cuenta: con "solo ver" la extensión sirve para consultar y copiar (marcar registros pide gestionar).
+_SOLO_LECTURA_POST = ('/simular/', '/evaluar-jornada/', '/descarga_masiva/', '/descargar_anexos_zip/',
+                      '/api/extension/codigo/', '/api/extension/dispositivos/')
 
 # (prefijo, módulos que la abren). El primero que calce decide; con varios módulos basta uno.
 RUTAS_MODULO = [
@@ -113,6 +116,7 @@ RUTAS_MODULO = [
     ('/api/finiquitos/', ('TERMINO',)),
     ('/api/registro-dt/', ('DIRECCION_TRABAJO',)),
     ('/api/inspeccion/bitacora/', ('DIRECCION_TRABAJO',)),
+    ('/api/extension/', ('DIRECCION_TRABAJO',)),
     ('/api/reglamentos/', ('SEGURIDAD',)),
     ('/api/ley-karin/', ('SEGURIDAD',)),
     ('/api/solicitudes-documento/', ('SOLICITUDES',)),

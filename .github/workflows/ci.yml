@@ -1,6 +1,7 @@
 # Integración continua: se ejecuta en cada push y pull request.
 # - backend: tests de Django (core).
-# - frontend: lint y build (incluye la revisión de tipos).
+# - frontend: lint, pruebas unitarias, build (incluye la revisión de tipos) y los
+#   ZIP de la extensión para Mi DT (artefacto extension-mi-dt).
 # - e2e: recorridos de navegador con Playwright contra backend y frontend reales
 #   (config.settings_e2e: base SQLite propia, sin servicios externos).
 name: CI
@@ -51,6 +52,13 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Extensión para Mi DT (staging y producción)
+        run: npm run extension:staging && npm run extension:produccion
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-mi-dt
+          path: frontend/extension/dist/*.zip
+          retention-days: 30
 
   e2e:
     name: Recorridos de navegador (Playwright)

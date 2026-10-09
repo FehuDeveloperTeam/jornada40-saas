@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import PeriodoVacacionesEscolares, SolicitudConciliacion
+from .models import DispositivoExtension, LevantamientoMiDT
 from .models import (RegistroBitacora, ExportacionBitacora, Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
                      RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido,
@@ -300,3 +301,40 @@ class PeriodoVacacionesEscolaresAdmin(admin.ModelAdmin):
 class SolicitudConciliacionAdmin(admin.ModelAdmin):
     list_display = ('empleado', 'tipo', 'presentada_el', 'estado', 'respondida_el', 'activo')
     list_filter = ('tipo', 'estado')
+
+
+@admin.register(DispositivoExtension)
+class DispositivoExtensionAdmin(admin.ModelAdmin):
+    """Navegadores conectados a la extensión para Mi DT. Solo se desconectan (revocado_en)."""
+    list_display = ('nombre', 'cuenta', 'persona', 'creado_en', 'ultimo_uso', 'revocado_en')
+    readonly_fields = ('cuenta', 'persona', 'nombre', 'token_hash', 'creado_en', 'ultimo_uso')
+    search_fields = ('nombre', 'cuenta__username')
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(LevantamientoMiDT)
+class LevantamientoMiDTAdmin(admin.ModelAdmin):
+    """Estructura de pantallas de Mi DT enviada desde la extensión (sin valores): base de los mapeos."""
+    list_display = ('creado_en', 'ruta', 'titulo', 'cuenta', 'version_extension')
+    readonly_fields = ('cuenta', 'persona', 'ruta', 'titulo', 'version_extension', 'estructura', 'creado_en')
+    search_fields = ('ruta', 'titulo')
+    actions = ['descargar_json']
+
+    @admin.action(description='Descargar en JSON (para armar los mapeos)')
+    def descargar_json(self, request, queryset):
+        import json
+        from django.http import HttpResponse
+        datos = [{'id': l.id, 'creado_en': l.creado_en.isoformat(), 'ruta': l.ruta, 'titulo': l.titulo,
+                  'version_extension': l.version_extension, 'estructura': l.estructura}
+                 for l in queryset.order_by('creado_en')]
+        respuesta = HttpResponse(json.dumps(datos, ensure_ascii=False, indent=2), content_type='application/json; charset=utf-8')
+        respuesta['Content-Disposition'] = 'attachment; filename="levantamiento_mi_dt.json"'
+        return respuesta
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

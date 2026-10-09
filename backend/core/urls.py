@@ -9,6 +9,7 @@ from .views import documentos_laborales
 from .views import inspeccion
 from .views import certificado_sueldos
 from .views import resumen
+from .views import extension as vistas_extension
 from .views import reglamento
 from .views import ley_karin
 from .views import bitacora as vista_bitacora
@@ -142,4 +143,16 @@ urlpatterns = [
     path('firma-publica/<uuid:token>/firmar/', firma_publica_firmar, name='firma_publica_firmar'),
     path('firma-publica/<uuid:token>/documento/', firma_publica_documento, name='firma_publica_documento'),
     path('firma-publica/<uuid:token>/rechazar/', firma_publica_rechazar, name='firma_publica_rechazar'),
+    # Extensión "Jornada40 para Mi DT": panel (sesión del panel) y extensión (solo con su token).
+    path('extension/dispositivos/', vistas_extension.dispositivos, name='extension_dispositivos'),
+    path('extension/dispositivos/<int:pk>/desconectar/', vistas_extension.desconectar, name='extension_desconectar'),
+    path('extension/codigo/', vistas_extension.crear_codigo, name='extension_codigo'),
+    path('extension/v1/vincular/', vistas_extension.vincular, name='extension_vincular'),
+    path('extension/v1/yo/', vistas_extension.yo, name='extension_yo'),
+    path('extension/v1/salir/', vistas_extension.salir, name='extension_salir'),
+    path('extension/v1/registro/', vistas_extension.registro, name='extension_registro'),
+    path('extension/v1/registro/ficha/', vistas_extension.registro_ficha, name='extension_ficha'),
+    path('extension/v1/registro/marcar/', vistas_extension.registro_marcar, name='extension_marcar'),
+    path('extension/v1/mapeos/', vistas_extension.mapeos, name='extension_mapeos'),
+    path('extension/v1/levantamiento/', vistas_extension.levantamiento, name='extension_levantamiento'),
 ]

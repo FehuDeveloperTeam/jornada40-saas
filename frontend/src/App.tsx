@@ -46,6 +46,7 @@ const ReglamentoPanel = diferida(() => import('./pages/app/Reglamento'));
 const EmpresasPanel = diferida(() => import('./pages/app/Empresas'));
 const EquipoPanel = diferida(() => import('./pages/app/Equipo'));
 const Terminos = diferida(() => import('./pages/sitio/Terminos'));
+const PrivacidadExtension = diferida(() => import('./pages/sitio/PrivacidadExtension'));
 const FirmaPublica = diferida(() => import('./pages/sitio/Firma'));
 
 // Portal del trabajador: sesión propia (cookie del portal), independiente del panel.
@@ -153,6 +154,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registro />} />
         <Route path="/terminos" element={<Terminos />} />
+        <Route path="/privacidad/extension" element={<PrivacidadExtension />} />
         <Route path="/forgot-password" element={<Recuperar />} />
         {/* La ruta la fija el backend en el correo (PASSWORD_RESET_CONFIRM_URL). */}
         <Route path="/reset-password/:uid/:token" element={<NuevaContrasena />} />

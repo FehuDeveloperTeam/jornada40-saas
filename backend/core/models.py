@@ -772,12 +772,73 @@ class RegistroDT(models.Model):
     clave = models.CharField(max_length=40)
     registrado_en = models.DateField()
     creado_en = models.DateTimeField(auto_now_add=True)
+    # Cómo se dejó constancia: a mano en el panel o con la extensión "Jornada40 para Mi DT"
+    # (que además guarda el número del comprobante que muestra Mi DT, si lo hay).
+    VIAS = [('MANUAL', 'Marcado en el panel'), ('EXTENSION', 'Registrado con la extensión para Mi DT')]
+    via = models.CharField(max_length=10, choices=VIAS, default='MANUAL')
+    comprobante = models.CharField(max_length=60, blank=True, default='')
+    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['empresa', 'clave'], name='registro_dt_unico')]
 
     def __str__(self):
         return f'{self.clave} registrado el {self.registrado_en}'
+
+
+class DispositivoExtension(models.Model):
+    """Navegador conectado a la extensión "Jornada40 para Mi DT".
+
+    El token solo abre las rutas de la extensión (/api/extension/v1/), con los
+    módulos y empresas de la persona que lo conectó. La base guarda su huella
+    (SHA-256), nunca el token. Se corta al desconectarlo en el panel, al quitar
+    a la persona del equipo o tras DIAS_SIN_USO sin usarse."""
+    DIAS_SIN_USO = 90
+    cuenta = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispositivos_extension')
+    persona = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    nombre = models.CharField(max_length=80)
+    token_hash = models.CharField(max_length=64, unique=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    ultimo_uso = models.DateTimeField(null=True, blank=True)
+    revocado_en = models.DateTimeField(null=True, blank=True)
+
+    def vigente(self):
+        desde = self.ultimo_uso or self.creado_en
+        return self.revocado_en is None and timezone.now() - desde < timezone.timedelta(days=self.DIAS_SIN_USO)
+
+    def __str__(self):
+        return f'{self.nombre} ({self.persona_id})'
+
+
+class CodigoExtension(models.Model):
+    """Código de un solo uso (10 minutos) para conectar la extensión desde el panel.
+    Se guarda su huella HMAC, no el código."""
+    cuenta = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    persona = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    codigo_hash = models.CharField(max_length=64, db_index=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    expira_en = models.DateTimeField()
+    usado = models.BooleanField(default=False)
+
+
+class LevantamientoMiDT(models.Model):
+    """Estructura de una pantalla de Mi DT enviada desde la extensión (modo levantamiento):
+    etiquetas, identificadores, tipos y opciones de los campos, sin ningún valor
+    escrito. Con esto se arman los mapeos (core/datos/mapeos_midt.json)."""
+    cuenta = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    persona = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
+    ruta = models.CharField(max_length=300)
+    titulo = models.CharField(max_length=200, blank=True, default='')
+    version_extension = models.CharField(max_length=20, blank=True, default='')
+    estructura = models.JSONField(default=dict)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Levantamiento de pantalla de Mi DT'
+        verbose_name_plural = 'Levantamientos de pantallas de Mi DT'
+
+    def __str__(self):
+        return f'{self.ruta} · {self.creado_en:%d-%m-%Y %H:%M}'
 
 
 class Finiquito(models.Model):

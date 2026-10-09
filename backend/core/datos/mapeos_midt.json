@@ -1,0 +1,10 @@
+{
+  "version": 0,
+  "nota": "Mapeos de los formularios de Mi DT para la extensión Jornada40 para Mi DT (frontend/extension/README.md). Rutas vistas en el código público de Mi DT; las etapas se escriben con el levantamiento hecho en una sesión real. Sin etapas, la extensión muestra la ficha con botones «Copiar».",
+  "empleador": null,
+  "pantallas": {
+    "CONTRATO": { "ruta": "/empleador/registro-electronico-laboral/registroContratoTrabajo", "etapas": [] },
+    "ANEXO": { "ruta": "/empleador/registro-electronico-laboral/anexo", "etapas": [] },
+    "TERMINO": { "ruta": "/empleador/registro-electronico-laboral-termino/registroTerminoTabla", "etapas": [] }
+  }
+}

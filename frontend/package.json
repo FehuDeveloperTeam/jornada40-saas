@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "extension:staging": "node extension/construir.mjs staging",
+    "extension:produccion": "node extension/construir.mjs produccion",
+    "extension:desarrollo": "node extension/construir.mjs desarrollo"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
@@ -29,6 +32,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
+    "@types/chrome": "^0.3.4",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

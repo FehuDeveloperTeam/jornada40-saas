@@ -11,6 +11,8 @@ import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
 import { ModalConsentimientoPapel } from '../../components/app/ModalConsentimientoPapel';
+import { ExtensionMiDT } from '../../components/app/ExtensionMiDT';
+import { extensionMiDTVisible } from '../../utils/extension';
 import { useRegistroDT } from '../../hooks/usePanel';
 import { usePermisos } from '../../hooks/usePermisos';
 import type {
@@ -306,6 +308,8 @@ export default function DireccionTrabajo() {
       <Consentimiento empresaId={empresa.id} datos={consentimiento} pct={pctConsentimiento} avisar={avisar} refrescar={refrescar} />
 
       <Fiscalizacion empresaId={empresa.id} />
+
+      {extensionMiDTVisible() && <ExtensionMiDT avisar={avisar} />}
 
       <FichaMiDT clave={ficha} empresaId={empresa.id} onCerrar={() => setFicha(null)} avisar={avisar}
         onMarcar={gestionar ? (clave) => setMarcar([clave]) : undefined} />

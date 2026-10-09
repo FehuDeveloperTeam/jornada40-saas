@@ -611,7 +611,11 @@ export interface Suscripcion {
 
 // ── Registro en la Dirección del Trabajo (/registro-dt/) ─────────────────────
 
+export interface ResumenRegistroDT { VENCIDO: number; PENDIENTE: number; REGISTRADO: number; por_vencer: number }
+
 export type TipoRegistroDT = 'CONTRATO' | 'ANEXO' | 'TERMINO';
+/** Tipo de una ficha: el anexo Ley 40 horas tiene ficha propia, pero en Mi DT se registra como anexo. */
+export type TipoFichaDT = TipoRegistroDT | 'ANEXO40H';
 export type EstadoRegistroDT = 'VENCIDO' | 'PENDIENTE' | 'REGISTRADO';
 
 /** Un contrato, anexo o término que se debe registrar en Mi DT, con su plazo calculado por el backend. */
@@ -646,7 +650,7 @@ export interface PendienteConsentimiento {
 
 export interface RegistroDT {
     items: ItemRegistroDT[];
-    resumen: { VENCIDO: number; PENDIENTE: number; REGISTRADO: number; por_vencer: number };
+    resumen: ResumenRegistroDT;
     consentimiento: { total: number; con: number; sin: PendienteConsentimiento[] };
     /** CSV para Mi DT: desde el plan Pyme (nivel 3). */
     csv_disponible: boolean;
@@ -661,6 +665,8 @@ export interface ResultadoAnexosConsentimiento {
 
 /** Ficha para el registro individual en Mi DT (GET /registro-dt/ficha/). */
 export interface CampoFichaDT {
+    /** Estable (sale de la etiqueta): la usan los mapeos de la extensión para Mi DT. */
+    clave: string;
     etiqueta: string;
     valor: string;
     /** Texto largo o dato que conviene pegar tal cual en Mi DT. */
@@ -670,6 +676,7 @@ export interface CampoFichaDT {
 
 export interface FichaDT {
     clave: string;
+    tipo: TipoFichaDT;
     titulo: string;
     /** Camino dentro de Mi DT hasta el formulario. */
     ruta_mi_dt: string;
@@ -1250,4 +1257,22 @@ export interface PeticionesPanel {
     conciliacion: (ConciliacionPedida & { empleado: { id: number; nombre: string; rut: string }; cuidado_declarado: string })[];
     motivos_vacacion: OpcionCatalogo[];
     motivos_permiso: OpcionCatalogo[];
+}
+
+/** Navegador conectado a la extensión "Jornada40 para Mi DT". */
+export interface DispositivoExtension {
+    id: number;
+    nombre: string;
+    /** Quién lo conectó (el titular ve los de todo el equipo). */
+    persona: string;
+    creado_en: string;
+    ultimo_uso: string | null;
+    vigente: boolean;
+}
+
+/** Código de un solo uso para conectar la extensión (formato "ABCD-EFGH"). */
+export interface CodigoExtension {
+    codigo: string;
+    expira_en: string;
+    minutos: number;
 }

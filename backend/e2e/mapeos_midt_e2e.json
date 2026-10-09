@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "nota": "Mapeo de prueba para la copia local de Mi DT de frontend/e2e/extension.spec.ts. No es el de producción (core/datos/mapeos_midt.json).",
+  "empleador": { "selector": "#empleador" },
+  "pantallas": {
+    "CONTRATO": {
+      "ruta": "/empleador/registro-electronico-laboral/registroContratoTrabajo",
+      "etapas": [
+        {
+          "titulo": "Etapa 1 · Identificación de las partes",
+          "detectar": "Antecedentes del trabajador",
+          "campos": [
+            { "ficha": "fecha-de-suscripcion", "selector": "#fechaSuscripcion", "tipo": "fecha" },
+            { "ficha": "rut-del-trabajador", "selector": "#rut", "tipo": "texto", "formato": "sin_puntos" },
+            { "ficha": "correo-electronico", "selector": "#correoElectronico", "tipo": "texto" },
+            { "ficha": "comuna-del-domicilio", "selector": "#comuna", "tipo": "seleccion" },
+            { "ficha": "la-contratacion-implico-cambio-de-domicilio", "selector": "input[name=\"cambioDomicilio\"]", "tipo": "radio" },
+            { "ficha": "telefono", "selector": "#telefono", "tipo": "texto", "opcional": true }
+          ],
+          "verificar": [{ "ficha": "nombre-del-trabajador", "selector": "#nombres" }]
+        }
+      ],
+      "exito": { "texto": "registrado exitosamente", "comprobante": "N° de registro:? (\\d+)" }
+    }
+  }
+}

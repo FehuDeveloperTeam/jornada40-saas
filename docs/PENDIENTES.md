@@ -25,9 +25,13 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 
-- [ ] Aprobar el plan (fases, y que la persona presiona siempre el botón final en Mi DT).
-- [ ] Crear la cuenta de desarrollador de Chrome Web Store (US$5, pago único) a nombre de Fehu.
-- [ ] Sesión de levantamiento de los formularios de Mi DT con la Clave Única del titular (solo estructura, ningún dato).
+- [x] (2026-10-08) Aprobar el plan (fases, y que la persona presiona siempre el botón final en Mi DT). Primero en staging.
+- [x] (2026-10-09, en staging) Construida la extensión (panel lateral, conexión con código, lista y ficha con "Copiar", llenado por etapas, comprobante, modo levantamiento) y su parte en Jornada40 (tarjeta en `/app/dt`, solo en staging). Se instala con el ZIP, sin la tienda.
+- [ ] **Instalar la versión de prueba** (ZIP de staging, "Cargar descomprimida") y conectarla con un código desde staging.jornada40.cl → Dirección del Trabajo.
+- [ ] **Sesión de levantamiento** de los formularios de Mi DT con la Clave Única del titular (solo estructura, ningún dato): contrato (4 etapas), anexo, término, LRE, teletrabajo, finiquito, registro masivo. Ideal con un contrato real pendiente, registrándolo al final; registrar también la pantalla de confirmación. Con eso se escriben los mapeos (`backend/core/datos/mapeos_midt.json`).
+- [ ] Crear la cuenta de desarrollador de Chrome Web Store (US$5, pago único) a nombre de Fehu. La de Edge Add-ons es gratis y puede abrirse antes. Todo lo que piden está en `frontend/extension/tienda/FICHA_TIENDA.md`.
+- [ ] Antes de enviar a revisión: cuenta demo en producción para los revisores de las tiendas y capturas tomadas en el piloto (sin datos reales).
+- [ ] Publicar la página de privacidad en producción (`/privacidad/extension`, va con el próximo paso a `main`): la piden las dos tiendas.
 - [ ] Definir el plan comercial de la extensión (propuesta: contratos, anexos y términos en todos los planes; LRE desde Pyme).
 - [ ] Verificar en Mi DT si el pacto de teletrabajo se registra en su módulo propio (`/empleador/teletrabajo/ingreso`) y no como anexo; si es así, corregir el aviso, la ficha y el plazo en Jornada40.
 

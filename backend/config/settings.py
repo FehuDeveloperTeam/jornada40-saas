@@ -153,6 +153,8 @@ REST_FRAMEWORK = {
         'equipo_clave': '10/hour',
         'karin': '30/hour',
         'karin_sesion': '5000/day',
+        'extension_vincular': '20/hour',
+        'extension': '5000/day',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 200,

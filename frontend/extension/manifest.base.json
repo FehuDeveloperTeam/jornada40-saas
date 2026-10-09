@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Jornada40 para Mi DT",
+  "short_name": "Jornada40 Mi DT",
+  "version": "0.1.0",
+  "description": "Llena los formularios del Registro Electrónico Laboral de Mi DT con los datos de Jornada40. Tú revisas y registras.",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["https://midt.dirtrab.cl/*"],
+  "background": {
+    "service_worker": "fondo.js"
+  },
+  "action": {
+    "default_title": "Abrir Jornada40 para Mi DT",
+    "default_icon": {
+      "16": "iconos/icono-16.png",
+      "32": "iconos/icono-32.png",
+      "48": "iconos/icono-48.png",
+      "128": "iconos/icono-128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "panel/panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://midt.dirtrab.cl/*"],
+      "js": ["contenido.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "iconos/icono-16.png",
+    "32": "iconos/icono-32.png",
+    "48": "iconos/icono-48.png",
+    "128": "iconos/icono-128.png"
+  }
+}

@@ -47,6 +47,11 @@ _ESPECIALES = {
     'perfil_usuario': ('PERFIL', 'Modificó los datos del titular'),
     'preferencia_resumen': ('PERFIL', 'Cambió la frecuencia del resumen por correo'),
     'exportar_bitacora': ('DESCARGA', 'Descargó una copia de la bitácora'),
+    'extension_codigo': ('EXTENSION', 'Generó un código para conectar la extensión para Mi DT'),
+    'extension_desconectar': ('EXTENSION', 'Desconectó un navegador de la extensión para Mi DT'),
+    'extension_salir': ('EXTENSION', 'Desconectó la extensión para Mi DT desde el navegador'),
+    'extension_marcar': ('REGISTRO_DT', 'Marcó como registrado en Mi DT con la extensión'),
+    'extension_levantamiento': ('EXTENSION', 'Envió la estructura de una pantalla de Mi DT'),
 }
 
 

@@ -1,6 +1,6 @@
 # Plan: extensión "Jornada40 para Mi DT"
 
-Estado: **propuesta para aprobar** (2026-10-08). No hay código escrito.
+Estado: **aprobado** (2026-10-08), primero en staging. Hecho en código (2026-10-09): Fase 1 completa y la base de las Fases 2 y 3 (panel lateral, conexión, lista, ficha con "Copiar", llenado por etapas con verificación de empresa y nombre, comprobante y modo levantamiento). Falta la **Fase 0 (levantamiento con Mi DT real)** para escribir los mapeos; hasta entonces la extensión muestra la ficha con botones "Copiar". Detalle técnico en `frontend/extension/README.md`; tiendas en `frontend/extension/tienda/FICHA_TIENDA.md`.
 
 ## 1. Objetivo
 
