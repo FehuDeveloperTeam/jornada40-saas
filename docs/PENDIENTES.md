@@ -22,6 +22,8 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [x] (2026-10-07) Revisar en el admin los **precios de los planes**. Si difieren de los iniciales ($16.990 / $39.990 / $89.990), actualizar la tabla del briefing comercial (`docs/briefing-comercial-jornada40.md`).
 - [ ] Reveniu en **sandbox para staging** (secreto del webhook, enlaces `REVENIU_LINK_*`, `REVENIU_API_URL`).
 - [ ] Eliminar el entorno duplicado de Railway ("stagging").
+- [ ] **Pricing** (*en pausa desde el 2026-10-10; se retoma cuando el titular avise*): estudiar cómo cobran los modelos comparables (plataformas de remuneraciones y cumplimiento laboral en Chile) y proponer precios competitivos que reflejen todas las prestaciones de Jornada40. Al cambiar precios: admin, briefing comercial (`docs/briefing-comercial-jornada40.md`) y dossier (`docs/dossier-jornada40.md`).
+- [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 
