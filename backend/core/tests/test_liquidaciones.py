@@ -481,7 +481,7 @@ class ComisionesCatalogoTests(APITestCase):
     def test_renombrar_la_categoria_no_rompe_la_liquidacion_emitida(self):
         """El caso que motivó el cambio."""
         from core.models import ConceptoRemuneracion
-        contrato = self._crear_contrato([{'glosa': 'Carrocería', 'porcentaje': 0.5}])
+        self._crear_contrato([{'glosa': 'Carrocería', 'porcentaje': 0.5}])
         concepto = ConceptoRemuneracion.objects.get(
             empresa=self.empresa, tipo='COMISION', nombre='Carrocería')
 
@@ -660,7 +660,8 @@ class RemuneracionesPeriodoTests(APITestCase):
         self.assertEqual([d['mes'] for d in datos], [9])
 
     def test_zip_periodo_pyme(self):
-        import io, zipfile
+        import io
+        import zipfile
         _, e, emp = self._usuario(3)
         self.client.post('/api/liquidaciones/', {'empleado': emp.id, 'mes': 9, 'anio': 2026}, format='json')
         r = self.client.get(f'/api/liquidaciones/zip_periodo/?empresa={e.id}&mes=9&anio=2026')

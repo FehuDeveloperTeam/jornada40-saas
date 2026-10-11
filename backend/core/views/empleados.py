@@ -76,7 +76,7 @@ def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
                     'cargo': str(r.get('cargo', '')).strip(), 'horas': None, 'sueldo': None,
                     'cambios': [], 'alerta': ''}
 
-            def error(msj):
+            def error(msj, base=base):
                 resultados.append({**base, 'resultado': 'error', 'mensaje': msj})
 
             if not rut_raw:
@@ -602,18 +602,18 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
                     if 'contrato' in documentos and contrato_emp:
                         agregar(f"{carpeta}/Contrato.pdf",
-                                lambda: self._obtener_o_generar_documento(emp, 'contrato', request.user),
+                                lambda emp=emp: self._obtener_o_generar_documento(emp, 'contrato', request.user),
                                 'CONTRATO', contrato=contrato_emp)
 
                     if 'anexo_40h' in documentos and contrato_emp:
                         agregar(f"{carpeta}/Anexo_Ley_40h.pdf",
-                                lambda: self._obtener_o_generar_documento(emp, 'anexo_40h', request.user),
+                                lambda emp=emp: self._obtener_o_generar_documento(emp, 'anexo_40h', request.user),
                                 'ANEXO_40H', contrato=contrato_emp)
 
                     if 'liquidaciones' in documentos and cantidad_liquidaciones > 0:
                         for liq in Liquidacion.objects.filter(empleado=emp).order_by('-anio', '-mes')[:cantidad_liquidaciones]:
                             agregar(f"{carpeta}/Liquidaciones/Liq_{meses_corto[liq.mes - 1]}_{liq.anio}.pdf",
-                                    lambda liq=liq: self._obtener_o_generar_documento(
+                                    lambda liq=liq, emp=emp: self._obtener_o_generar_documento(
                                         emp, f'liquidacion_historica_{liq.mes}_{liq.anio}', request.user),
                                     'LIQUIDACION', liquidacion=liq)
 
@@ -687,7 +687,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     contrato = Contrato.objects.filter(empleado=empleado).first()
                     if not contrato:
                         try: s_base = int(str(empleado.sueldo_base).strip()) if empleado.sueldo_base else 0
-                        except: s_base = 0
+                        except (TypeError, ValueError): s_base = 0
                         
                         f_inicio = empleado.fecha_ingreso if isinstance(empleado.fecha_ingreso, datetime.date) else timezone.localdate()
                         c_cargo = str(empleado.cargo).strip().upper() if empleado.cargo else 'NO ESPECIFICADO'

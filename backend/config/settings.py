@@ -3,6 +3,7 @@ Django settings for config project.
 """
 
 from pathlib import Path
+from datetime import timedelta
 import dj_database_url
 from decouple import config
 import os
@@ -90,6 +91,16 @@ DATABASES = {
         conn_max_age=600,
     )
 }
+
+# SQLite (desarrollo local y pruebas de navegador): el servidor atiende varias
+# solicitudes a la vez y SQLite admite una escritura por vez. Con WAL las
+# lecturas no esperan a las escrituras; con IMMEDIATE quien va a escribir toma
+# el turno al empezar (sin choques al pasar de leer a escribir, como en la
+# cadena de la bitácora), y las escrituras hacen fila hasta 30 s en vez de
+# fallar con "database is locked". Producción usa PostgreSQL y no lo necesita.
+OPCIONES_SQLITE = {'timeout': 30, 'transaction_mode': 'IMMEDIATE', 'init_command': 'PRAGMA journal_mode=WAL;'}
+if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
+    DATABASES['default']['OPTIONS'] = dict(OPCIONES_SQLITE)
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -268,7 +279,6 @@ SESSION_SAVE_EVERY_REQUEST = True
 # 3. Cerrar la sesión inmediatamente si el usuario cierra el navegador
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-from datetime import timedelta
 SIMPLE_JWT = {
     # Panel: 5 minutos sin uso cierran la sesión. El panel avisa al minuto 4 y,
     # mientras haya actividad, renueva en segundo plano; la renovación (que rota)
@@ -286,12 +296,20 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
         },
+        # Errores del servidor → correo al equipo, sin datos personales (core/alertas.py).
+        'alerta_correo': {
+            '()': 'core.alertas.AlertaPorCorreo',
+        },
     },
     'root': {
-        'handlers': ['console'],
+        'handlers': ['console', 'alerta_correo'],
         'level': 'WARNING' if IS_DEPLOYED else 'DEBUG',
     },
 }
+# A quién avisar los errores del servidor. En producción, por defecto al correo del
+# equipo; en staging y en local, solo si se configura (vacío = sin avisos).
+ALERTAS_ERRORES_EMAIL = config('ALERTAS_ERRORES_EMAIL',
+                               default='contacto.jornada40@gmail.com' if IS_PRODUCTION else '')
 
 # ==========================================
 # CONFIGURACIÓN DE ENVÍO DE CORREOS (SMTP)

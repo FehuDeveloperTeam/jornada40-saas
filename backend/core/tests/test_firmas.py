@@ -125,7 +125,8 @@ class ComprobanteFirmaTests(APITestCase):
     @patch('core.b2_client.subir_documento')
     @patch('core.b2_client.descargar_documento')
     def test_firma_asigna_folio_correlativo_y_huellas(self, descargar, _subir, _eliminar, _mails):
-        import hashlib, io
+        import hashlib
+        import io
         from pypdf import PdfReader
         from reportlab.pdfgen import canvas
         buf = io.BytesIO(); c = canvas.Canvas(buf); c.drawString(100, 700, 'Contrato'); c.save()

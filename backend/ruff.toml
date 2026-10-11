@@ -1,0 +1,15 @@
+# Linter de Python (ruff), en CI. Reglas que detectan errores reales: nombres
+# indefinidos o sin uso, importaciones, sintaxis y errores comunes (bugbear).
+# El estilo propio del código se respeta y queda fuera.
+target-version = "py311"
+extend-exclude = ["core/migrations", "venv"]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B"]
+ignore = [
+  "E701", "E702",  # varias instrucciones en una línea: estilo usado a propósito
+  "E731",          # lambda asignada a un nombre
+  "E741",          # nombres de una letra como `l`
+  "B904",          # raise sin `from` dentro de un except
+  "B905",          # zip sin strict=
+]

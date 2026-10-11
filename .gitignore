@@ -4,6 +4,7 @@ __pycache__/
 venv/
 .env
 db.sqlite3
+db.sqlite3-*
 
 # Node
 node_modules/
@@ -18,3 +19,8 @@ backend/e2e.sqlite3*
 backend/e2e-archivos/
 frontend/test-results/
 frontend/playwright-report/
+
+# Cobertura de pruebas del backend (coverage.py)
+.coverage
+.coverage.*
+htmlcov/

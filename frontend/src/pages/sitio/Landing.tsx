@@ -233,9 +233,9 @@ function CalendarioLey() {
                 'flex flex-col gap-1 p-[18px] rounded-j40-card border',
                 h.vigente ? 'bg-brand-btn border-brand-btn text-white' : 'bg-surface border-line text-fg',
               )}>
-              <span className={cn('text-[12px] j40-num', h.vigente ? 'text-white/82' : 'text-fg-3')}>{h.fecha}</span>
+              <span className={cn('text-[12px] j40-num', h.vigente ? 'text-white/95' : 'text-fg-3')}>{h.fecha}</span>
               <span className="text-[32px] font-semibold tracking-[-0.02em]">{h.horas}</span>
-              <span className={cn('text-[13px]', h.vigente ? 'text-white/82' : 'text-fg-3')}>{h.texto}</span>
+              <span className={cn('text-[13px]', h.vigente ? 'text-white/95' : 'text-fg-3')}>{h.texto}</span>
             </li>
           ))}
         </ol>

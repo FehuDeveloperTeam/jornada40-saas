@@ -11,8 +11,6 @@ from rest_framework.throttling import UserRateThrottle
 import datetime
 from ..models import (AnexoContrato, Contrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Finiquito, Liquidacion,
                       SolicitudFirma, VacacionEmpleado)
-
-TIPOS_DOCUMENTO_LABORAL = {t for t, _ in DocumentoLaboral.TIPOS}
 from django.conf import settings
 from num2words import num2words
 from ..serializers import SolicitudFirmaSerializer
@@ -25,6 +23,8 @@ from .finiquitos import pdf_finiquito
 from .vacaciones import pdf_vacacion
 from ..autenticacion import actor, tipos_visibles
 from .base import _ctx_contrato, _es_plan_semilla, _html_a_pdf_bytes, logger
+
+TIPOS_DOCUMENTO_LABORAL = {t for t, _ in DocumentoLaboral.TIPOS}
 
 
 # ==========================================

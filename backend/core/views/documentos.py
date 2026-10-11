@@ -131,7 +131,7 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
             return respuesta_pdf(firmado, nombre, firmado=True)
         try:
             pdf = pdf_documento_legal(documento, _es_plan_semilla(request.user))
-        except Exception as e:
+        except Exception:
             return error_interno('PDF documentos')
         return respuesta_pdf(pdf, nombre)
 

@@ -186,7 +186,7 @@ def registrar_cliente(request):
         
     except IntegrityError:
         return Response({'error': 'Este RUT ya está registrado en el sistema.'}, status=400)
-    except Exception as e:
+    except Exception:
         return error_interno('cuentas')
 
 @api_view(['POST'])

@@ -1,14 +1,22 @@
-# Integración continua: se ejecuta en cada push y pull request.
-# - backend: tests de Django (core).
-# - frontend: lint, pruebas unitarias, build (incluye la revisión de tipos) y los
-#   ZIP de la extensión para Mi DT (artefacto extension-mi-dt).
+# Integración continua: se ejecuta en cada push y pull request, y cada lunes
+# (solo en la rama principal) para revisar avisos de seguridad nuevos.
+# - backend: linter (ruff), análisis de seguridad (bandit), migraciones al día y
+#   pruebas de Django con cobertura
+#   (mínimo en backend/.coveragerc; resumen en la página de la ejecución).
+# - frontend: lint, pruebas unitarias con cobertura, build (incluye la revisión
+#   de tipos) y los ZIP de la extensión para Mi DT (artefacto extension-mi-dt).
+# - dependencias: avisos de seguridad conocidos en las dependencias de
+#   producción (pip-audit y npm audit). No frena los recorridos de navegador.
 # - e2e: recorridos de navegador con Playwright contra backend y frontend reales
-#   (config.settings_e2e: base SQLite propia, sin servicios externos).
+#   (config.settings_e2e: base SQLite propia, sin servicios externos), con
+#   revisión de accesibilidad (axe).
 name: CI
 
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '17 11 * * 1'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,7 +24,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (tests)
+    name: Backend (linter, tests y cobertura)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -29,11 +37,22 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: backend/requirements.txt
-      - run: pip install -r requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Linter (ruff)
+        run: ruff check .
+      - name: Análisis estático de seguridad (bandit, gravedad media o alta)
+        run: bandit -r core config -x core/tests,core/migrations -ll -ii -q
       - name: Migraciones al día
         run: python manage.py makemigrations --check --dry-run
-      - run: python manage.py test core
+      - name: Pruebas con cobertura
+        run: |
+          coverage run manage.py test core --parallel
+          coverage combine
+          coverage report --format=markdown --skip-covered >> "$GITHUB_STEP_SUMMARY" || true
+          coverage report
 
   frontend:
     name: Frontend (lint y build)
@@ -50,7 +69,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npm test
+      - name: Pruebas unitarias con cobertura
+        run: |
+          npm run test:cobertura
+          node scripts/resumen-cobertura.mjs >> "$GITHUB_STEP_SUMMARY"
       - run: npm run build
       - name: Extensión para Mi DT (staging y producción)
         run: npm run extension:staging && npm run extension:produccion
@@ -59,6 +81,23 @@ jobs:
           name: extension-mi-dt
           path: frontend/extension/dist/*.zip
           retention-days: 30
+
+  dependencias:
+    name: Dependencias (avisos de seguridad)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python (pip-audit)
+        run: pip install pip-audit==2.10.1 && pip-audit -r backend/requirements.txt --disable-pip --no-deps
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript (npm audit, dependencias de producción)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
 
   e2e:
     name: Recorridos de navegador (Playwright)

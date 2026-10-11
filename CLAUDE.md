@@ -127,6 +127,7 @@ DATABASE_URL=sqlite:///db.sqlite3              # or postgresql://...
 RESEND_API_KEY=re_xxxxxxxxxxxx                 # Resend.com API key
 # SITIO_URL=https://jornada40.cl               # public site printed in PDFs (certificate verification); set it in staging
 # RAILWAY_ENVIRONMENT_NAME=production          # Railway sets this automatically; omit for local dev
+# ALERTAS_ERRORES_EMAIL=equipo@…               # server-error alerts (core/alertas.py); production defaults to contacto.jornada40@gmail.com, empty = off
 ```
 
 > `IS_PRODUCTION` is derived from `RAILWAY_ENVIRONMENT_NAME` being set. When absent, DEBUG=True and SQLite is used.
@@ -151,6 +152,7 @@ VITE_API_URL=http://127.0.0.1:8000/api
 | `npm run dev` | `vite` | Start HMR dev server on port 5173 |
 | `npm run build` | `tsc -b && vite build` | Type-check + bundle for production |
 | `npm run lint` | `eslint .` | Run ESLint |
+| `npm test` / `npm run test:cobertura` | `vitest run` (`--coverage`) | Unit tests (with coverage and its minimums) |
 | `npm run preview` | `vite preview` | Serve the production build locally |
 
 ### Backend (`manage.py`)
@@ -162,6 +164,10 @@ python manage.py createsuperuser      # Create a Django admin user
 python manage.py collectstatic        # Gather static files (needed in production)
 python manage.py runserver            # Start dev server
 gunicorn config.wsgi:application      # Production server (Railway starts it from the Dockerfile)
+pip install -r requirements-dev.txt   # QA tools: coverage, ruff, pip-audit, tblib (CI; not in the image)
+ruff check .                          # Linter (rules in backend/ruff.toml)
+bandit -r core config -x core/tests,core/migrations -ll -ii -q   # Security static analysis (medium/high); justify false positives with `# nosec Bxxx`
+coverage run manage.py test core --parallel && coverage combine && coverage report   # ≥ 80 % (.coveragerc)
 ```
 
 ---
@@ -582,7 +588,9 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ### Python / Django
 
-- Never return an exception's text to the user: inside `except`, use `error_interno('contexto')` (`views/base.py`), which logs the traceback and answers a generic message. Same for configuration names (e.g. a missing `REVENIU_LINK_*` is logged, the client gets a 503).
+- Never return an exception's text to the user: inside `except`, use `error_interno('contexto')` (`views/base.py`), which logs the traceback and answers a generic message. Every ERROR log with an exception also emails the team (`core/alertas.py`, `ALERTAS_ERRORES_EMAIL`): only route, error type, code trace and the log template — never the exception text or arguments other than short identifiers like the `error_interno` context — so don't put personal data in log templates.
+- Dependencies are pinned in `requirements.txt` (all transitive) and audited in CI; keep them free of known advisories (update within the same series; Django stays on 5.2 LTS). Frontend: `xlsx` comes from SheetJS' CDN tarball (npm's is unmaintained and vulnerable); in Node (e2e) its ES build needs `XLSX.set_fs(fs)` before `writeFile`.
+- SQLite (local and e2e) runs with `OPCIONES_SQLITE` (`config/settings.py`: WAL, `transaction_mode` IMMEDIATE, 30 s timeout) so concurrent requests queue instead of failing with "database is locked"; production uses PostgreSQL. Same for configuration names (e.g. a missing `REVENIU_LINK_*` is logged, the client gets a 503).
 - Payroll proration: `_dias_fuera_de_contrato` (`calculo_liquidacion.py`) adds the days before the start (earliest of contract start and `fecha_ingreso`) and, for a dismissed worker, after the finiquito/plazo-fijo end, so a default 30-day emission (bulk) doesn't pay a full month to someone who joined mid-month. A period before the start is rejected (400).
 
 - All Django code is in the single `core` app — keep it that way unless the codebase grows significantly.
@@ -614,16 +622,18 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Testing
 
-- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~500 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`, `test_portal_trabajador`, `test_solicitudes_documento`, `test_certificados`, `test_documentos_laborales`, `test_inspeccion`, `test_certificado_sueldos`, `test_resumen`, `test_estado_portal`, `test_horas_compensatorias`, `test_reglamento`, `test_ley_karin`, `test_seguridad_laboral`, `test_indemnizacion_todo_evento`, `test_permisos`, `test_bitacora` (incl. verifiable export), `test_equipo`, `test_permisos_equipo`, `test_acceso_karin` (Ley Karin access, encryption, reserved log), `test_denuncias_karin` (complaints flow, DS 21 deadlines, documents, owner counter and emails, worker portal by role, retaliation warnings), `test_sesion_inactividad`, `test_direcciones`, `test_proteccion` (incl. conciliation requests), `test_peticiones_portal`, `test_extension` (Mi DT extension: code, token scope, team permissions, marcar, levantamiento). Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Tests that hit throttled public endpoints (portal, firma pública, logins) call `cache.clear()` in `setUp`: every test uses the same IP and the counters persist across the run. Run with `cd backend && python manage.py test core`.
+- **Backend:** `backend/core/tests/` (Django `APITestCase`, ~500 tests), one file per topic: `test_seguridad`, `test_cuentas`, `test_pagos`, `test_parametros`, `test_liquidaciones`, `test_previred`, `test_trabajadores`, `test_jornada`, `test_feriado`, `test_finiquito`, `test_firmas`, `test_revision_panel`, `test_direccion_trabajo`, `test_lre`, `test_asignacion_familiar`, `test_portal_trabajador`, `test_solicitudes_documento`, `test_certificados`, `test_documentos_laborales`, `test_inspeccion`, `test_certificado_sueldos`, `test_resumen`, `test_estado_portal`, `test_horas_compensatorias`, `test_reglamento`, `test_ley_karin`, `test_seguridad_laboral`, `test_indemnizacion_todo_evento`, `test_permisos`, `test_bitacora` (incl. verifiable export), `test_equipo`, `test_permisos_equipo`, `test_acceso_karin` (Ley Karin access, encryption, reserved log), `test_denuncias_karin` (complaints flow, DS 21 deadlines, documents, owner counter and emails, worker portal by role, retaliation warnings), `test_sesion_inactividad`, `test_direcciones`, `test_proteccion` (incl. conciliation requests), `test_peticiones_portal`, `test_extension` (Mi DT extension: code, token scope, team permissions, marcar, levantamiento), `test_alertas` (server-error emails without personal data). Shared helpers (`crear_usuario_completo`, `crear_empleado`, `indicadores_fijos`, `_mock_config`) live in `tests/utiles.py`. Tests that hit throttled public endpoints (portal, firma pública, logins) call `cache.clear()` in `setUp`: every test uses the same IP and the counters persist across the run. Run with `cd backend && python manage.py test core` (add `--parallel`; `tblib` from `requirements-dev.txt` makes parallel errors readable).
+- **No internet in tests:** `core/tests/__init__.py` replaces `requests`' transport: mindicador.cl answers there with the `@indicadores_fijos` values (UF 41057.20, UTM 71721.0) for the whole suite, and any other real HTTP call raises `SalidaAInternet` (a `BaseException`, so an `except Exception` can't hide it). Mock B2/Reveniu/Gemini with `patch` as usual.
+- **Coverage:** `backend/.coveragerc` (`fail_under = 80`, measured 83.1 % on 2026-10-11); CI writes the report to the run summary. Frontend: `vitest.config.ts` thresholds for `src/utils/**` (75) and `extension/src/*.ts` (80); `scripts/resumen-cobertura.mjs` writes the summary.
 - **Patching:** patch a name in the view module that uses it (e.g. `core.views.suscripciones.config`, `core.views.firma_publica._enviar_email_otp`), not in `core.views`; for UF/UTM use `@indicadores_fijos`. Shared modules like `core.b2_client` are patched at their source.
 - **Frontend:** Vitest + Testing Library (jsdom, `vitest.config.ts`), tests next to the code as `*.test.ts(x)` under `src/` and `extension/src/`: `utils/` (RUT, formatos, Ley 40, contraseña, códigos de verificación), `api/client.test.ts` (401 → renovación única y vuelta al login, 428 → confirmar identidad y repetir una vez; the axios adapter is replaced per test) and the extension (levantamiento without values, filling a React-controlled form, mappings). Run with `npm test`; `npm run build` (type-check) and `npm run lint` must pass too.
-- **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt, portal, pactos, inspeccion, reglamento, equipo, karin, extension — builds the Mi DT extension, loads it in Chromium with `launchPersistentContext` and serves a local copy of Mi DT with `context.route`). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.
+- **End-to-end:** Playwright specs in `frontend/e2e/` (panel, remuneraciones, firma, gestión, dt, portal, pactos, inspeccion, reglamento, equipo, karin, extension — builds the Mi DT extension, loads it in Chromium with `launchPersistentContext` and serves a local copy of Mi DT with `context.route` —, accesibilidad — axe WCAG 2.1 A/AA on 21 screens through `revisarAccesibilidad(page, nombre)` in `e2e/utiles.ts`, which waits for idle network and finished transitions and skips `[data-logo]`; new screens should call it). Run with `cd frontend && npm run e2e`; it starts Django with `config.settings_e2e` (own SQLite, B2 and indicadores stubbed by the `backend/e2e` app) and Vite. `manage.py preparar_e2e` seeds the base (user `12.345.678-5` / `Clave-Segura-2026`, two companies, four workers); each spec restores it with `--reset`. Dates are relative to today.
 
 ---
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request: backend (`makemigrations --check`, `manage.py test core`), frontend (`lint`, `test`, `build`) and, if both pass, the Playwright e2e suite. Deploys are separate: Railway auto-deploys `main` (backend), Vercel deploys the frontend.
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request, and every Monday on the default branch: backend (`ruff check`, `bandit`, `makemigrations --check`, tests in parallel with coverage), frontend (`lint`, unit tests with coverage, `build`, extension ZIPs), dependencias (`pip-audit -r requirements.txt --disable-pip --no-deps` and `npm audit --omit=dev --audit-level=high`; doesn't gate e2e) and, if backend and frontend pass, the Playwright e2e suite. Dependabot (`.github/dependabot.yml`) proposes grouped weekly updates for pip, npm and actions. Deploys are separate: Railway auto-deploys `main` (backend), Vercel deploys the frontend. QA inventory, gaps and next steps: `docs/qa-pruebas-jornada40.md`.
 
 ---
 

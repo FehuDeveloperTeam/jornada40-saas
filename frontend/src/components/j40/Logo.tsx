@@ -12,7 +12,8 @@ interface LogoProps {
 /** Isotipo + "Jornada40", con el 40 en color de marca. */
 export function Logo({ tamano = 36, soloIcono = false, className }: LogoProps) {
   return (
-    <span className={cn('inline-flex items-center gap-2.5 text-fg', className)}>
+    // data-logo: los logotipos están exentos del contraste mínimo (WCAG 1.4.3); la revisión con axe los omite.
+    <span data-logo className={cn('inline-flex items-center gap-2.5 text-fg', className)}>
       <img
         src={logo}
         alt={soloIcono ? 'Jornada40' : ''}

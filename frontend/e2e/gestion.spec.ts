@@ -1,9 +1,14 @@
 import { expect, test } from '@playwright/test';
+import * as fs from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
 import { MATIAS, USUARIO, consultar, descargar, entrar, periodo, restaurarBase } from './utiles';
+
+// SheetJS 0.20 (módulo ES) no carga el sistema de archivos por su cuenta en Node:
+// la prueba arma aquí el Excel que después sube por el navegador.
+XLSX.set_fs(fs);
 
 // Gestión: contrato, documentos, vacaciones, finiquito, importación, reportes, empresa, plan y cuenta.
 test.describe.configure({ mode: 'serial' });

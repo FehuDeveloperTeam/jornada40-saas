@@ -1,0 +1,15 @@
+# Cobertura de las pruebas del servidor (CI: coverage run manage.py test core --parallel).
+[run]
+source = core
+omit =
+    core/migrations/*
+    core/tests/*
+concurrency = multiprocessing
+parallel = True
+sigterm = True
+
+[report]
+skip_empty = True
+precision = 1
+# CI falla si baja de aquí (medido el 11-10-2026: 83,0 %).
+fail_under = 80

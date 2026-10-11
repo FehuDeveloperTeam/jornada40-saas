@@ -1,0 +1,34 @@
+# Dependabot: abre pull requests para actualizar dependencias. Las de seguridad
+# llegan apenas se publica un aviso (requiere activar "Dependabot security
+# updates" en la configuración del repositorio); las demás, agrupadas, una vez
+# por semana. CI corre completo en cada una antes de aceptarla.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Santiago
+    open-pull-requests-limit: 5
+    groups:
+      python-menores:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Santiago
+    open-pull-requests-limit: 5
+    groups:
+      npm-menores:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

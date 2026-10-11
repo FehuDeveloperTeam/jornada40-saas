@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
 import type { Download, Page } from '@playwright/test';
 
@@ -93,4 +94,24 @@ export async function dibujarFirma(page: Page, canvas: ReturnType<Page['locator'
     await page.mouse.move(caja.x + 30 + i * (caja.width - 60) / 24, caja.y + caja.height * (0.6 - 0.3 * Math.sin(i / 3)), { steps: 2 });
   }
   await page.mouse.up();
+}
+
+/**
+ * Revisa la pantalla con axe (WCAG 2.1 A y AA) y falla si encuentra algo,
+ * con la regla, su gravedad y dónde. Los logotipos (`[data-logo]`) se omiten:
+ * WCAG los exime del contraste mínimo.
+ */
+export async function revisarAccesibilidad(page: Page, pantalla: string) {
+  // Con los datos cargados y sin transiciones a medias (un botón que cambia de
+  // color al llegar los datos se mediría con el color intermedio).
+  await page.waitForLoadState('networkidle');
+  await page.waitForFunction(() => document.getAnimations()
+    .every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity));
+  const resultado = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .exclude('[data-logo]')
+    .analyze();
+  const problemas = resultado.violations.map((v) =>
+    `${v.id} (${v.impact}): ${v.help} — ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
+  expect(problemas, `Accesibilidad en ${pantalla}`).toEqual([]);
 }

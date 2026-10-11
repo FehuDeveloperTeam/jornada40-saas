@@ -426,6 +426,11 @@ El detalle de todos los tipos de prueba, incluidas las brechas y los próximos p
 
   **Estado:** construida y probada, en piloto. El levantamiento del formulario de contrato se hizo con una sesión real de Mi DT en octubre de 2026; faltan los de anexo y término. Se publicará en las tiendas de Chrome y Edge cuando exista la cuenta de desarrollador.
 - **Ficha de Mi DT más completa** (total imponible y no imponible, previsión) y **aviso de anexos sin firmar** en la lista de registros.
+- **Mejoras de calidad y seguridad** (11-10-2026; detalle en `docs/qa-pruebas-jornada40.md`):
+  - dependencias actualizadas, sin avisos de seguridad conocidos;
+  - cobertura medida (83 % del servidor) y auditoría automática de dependencias;
+  - revisión de accesibilidad WCAG 2.1 AA con 0 problemas en 21 pantallas;
+  - alertas de errores del servidor por correo, sin datos personales.
 
 ### 9.3 Próximos pasos
 

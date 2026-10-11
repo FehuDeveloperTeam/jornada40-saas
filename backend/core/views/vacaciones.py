@@ -166,7 +166,7 @@ class VacacionViewSet(viewsets.ModelViewSet):
 
             return respuesta_pdf(pdf_vacacion(vacacion, es_semilla), f'vacacion_{empleado.rut}_{vacacion.fecha_inicio}.pdf')
 
-        except Exception as e:
+        except Exception:
             return error_interno('PDF vacaciones')
 
 

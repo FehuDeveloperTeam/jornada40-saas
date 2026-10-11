@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:cobertura": "vitest run --coverage",
     "e2e": "playwright test",
     "extension:staging": "node extension/construir.mjs staging",
     "extension:produccion": "node extension/construir.mjs produccion",
@@ -16,17 +17,18 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
-    "axios": "^1.18.0",
+    "axios": "^1.20.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.18.1",
+    "react-router-dom": "^7.18.4",
     "tailwind-merge": "^3.4.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/vite": "^4.1.18",
@@ -37,6 +39,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "^3.2.7",
     "autoprefixer": "^10.4.24",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",

@@ -23,14 +23,15 @@ class Command(BaseCommand):
             tabla = connection.ops.quote_name(modelo._meta.db_table)
             pk = connection.ops.quote_name(modelo._meta.pk.column)
             # Directo en SQL: algunas tablas (bitácoras) no permiten save(), y aquí el
-            # contenido no cambia, solo su cifrado.
+            # contenido no cambia, solo su cifrado. Tabla y columnas salen de los
+            # modelos (no de un usuario) y van con quote_name; los valores, como parámetros.
             with connection.cursor() as c:
                 for campo in campos:
                     col = connection.ops.quote_name(campo.column)
-                    c.execute(f'SELECT {pk}, {col} FROM {tabla} WHERE {col} IS NOT NULL')
+                    c.execute(f'SELECT {pk}, {col} FROM {tabla} WHERE {col} IS NOT NULL')  # nosec B608
                     for ident, valor in c.fetchall():
                         nuevo = rotar(valor)
                         if nuevo != valor:
-                            c.execute(f'UPDATE {tabla} SET {col} = %s WHERE {pk} = %s', [nuevo, ident])
+                            c.execute(f'UPDATE {tabla} SET {col} = %s WHERE {pk} = %s', [nuevo, ident])  # nosec B608
                             total += 1
         self.stdout.write(f'Valores cifrados de nuevo: {total}.')

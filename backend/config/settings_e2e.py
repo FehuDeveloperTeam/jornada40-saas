@@ -3,10 +3,14 @@ DJANGO_SETTINGS_MODULE=config.settings_e2e. Producción usa config.settings."""
 import os
 
 from config.settings import *  # noqa: F401,F403
-from config.settings import BASE_DIR, INSTALLED_APPS, REST_FRAMEWORK
+from config.settings import BASE_DIR, INSTALLED_APPS, OPCIONES_SQLITE, REST_FRAMEWORK
 
+# Las mismas opciones de SQLite que en desarrollo (ver config/settings.py): sin
+# ellas, dos solicitudes simultáneas chocaban ("database is locked") y un
+# recorrido fallaba de vez en cuando.
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3',
-                         'NAME': os.environ.get('E2E_DB', str(BASE_DIR / 'e2e.sqlite3'))}}
+                         'NAME': os.environ.get('E2E_DB', str(BASE_DIR / 'e2e.sqlite3')),
+                         'OPTIONS': dict(OPCIONES_SQLITE)}}
 E2E_ARCHIVOS_DIR = os.environ.get('E2E_ARCHIVOS_DIR', str(BASE_DIR / 'e2e-archivos'))
 MEDIA_ROOT = os.path.join(E2E_ARCHIVOS_DIR, 'media')
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

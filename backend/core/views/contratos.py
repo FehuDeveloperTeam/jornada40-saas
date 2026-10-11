@@ -115,7 +115,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             nombre = f"Contrato_{contrato.empleado.rut}.pdf"
             contrato.archivo_contrato.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
             return Response({'ok': True, 'mensaje': 'Contrato generado y guardado exitosamente.'})
-        except Exception as e:
+        except Exception:
             return error_interno('contratos')
 
     @action(detail=True, methods=['get'])
@@ -132,7 +132,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             response = HttpResponse(datos, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return response
-        except Exception as e:
+        except Exception:
             return error_interno('contratos')
 
     @action(detail=True, methods=['post'])
@@ -151,7 +151,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             nombre = f"Anexo_40h_{contrato.empleado.rut}.pdf"
             contrato.archivo_anexo_40h.save(nombre, ContentFile(pdf_buf.getvalue()), save=True)
             return Response({'ok': True, 'mensaje': 'Anexo 40h generado y guardado exitosamente.'})
-        except Exception as e:
+        except Exception:
             return error_interno('contratos')
 
     @action(detail=True, methods=['get'])
@@ -167,7 +167,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             response = HttpResponse(datos, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="{nombre}"'
             return response
-        except Exception as e:
+        except Exception:
             return error_interno('contratos')
 
     # Mantener compatibilidad con descarga masiva ZIP (sin guardar)
@@ -182,7 +182,7 @@ class ContratoViewSet(viewsets.ModelViewSet):
             response['Content-Disposition'] = f'attachment; filename="Anexo_40h_{contrato.empleado.rut}.pdf"'
             pisa.CreatePDF(html, dest=response)
             return response
-        except Exception as e:
+        except Exception:
             return error_interno('contratos')
     
 # Campos del contrato que un anexo puede modificar. Todo lo que no esté acá
@@ -384,5 +384,5 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
             if firmado:
                 return respuesta_pdf(firmado, nombre, firmado=True)
             return respuesta_pdf(pdf_anexo_contrato(anexo, _es_plan_semilla(request.user)), nombre)
-        except Exception as e:
+        except Exception:
             return error_interno('contratos')

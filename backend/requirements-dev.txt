@@ -1,2 +1,7 @@
+# Herramientas de calidad (CI y desarrollo); no van en la imagen de producción.
+-r requirements.txt
+coverage==7.16.2
+ruff==0.17.0
+pip-audit==2.10.1
 bandit[toml]==1.8.3
-pip-audit==2.9.0
+tblib==3.2.2

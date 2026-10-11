@@ -23,10 +23,26 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [ ] Reveniu en **sandbox para staging** (secreto del webhook, enlaces `REVENIU_LINK_*`, `REVENIU_API_URL`).
 - [ ] Eliminar el entorno duplicado de Railway ("stagging").
 - [ ] **Pricing** (*en pausa desde el 2026-10-10; se retoma cuando el titular avise*): estudiar cómo cobran los modelos comparables (plataformas de remuneraciones y cumplimiento laboral en Chile) y proponer precios competitivos que reflejen todas las prestaciones de Jornada40. Al cambiar precios: admin, briefing comercial (`docs/briefing-comercial-jornada40.md`) y dossier (`docs/dossier-jornada40.md`).
-- [ ] **Mejoras de QA** (por decidir con el titular; detalle en `docs/qa-pruebas-jornada40.md`, secciones 6 y 7):
-  - rápidas: cobertura en CI, auditoría de dependencias, linter de Python, simular las consultas a mindicador.cl en la suite, causa del recorrido intermitente de la bitácora (PDF), accesibilidad con axe, monitoreo de errores en producción;
-  - operacionales: simulacro de restauración de respaldos, recorridos en Firefox y WebKit, línea base de rendimiento;
-  - antes de escalar: pentest externo, revisión legal externa, auditoría de accesibilidad.
+- [x] (2026-10-11, en la rama y staging) **Mejoras rápidas de QA**:
+  - cobertura en CI (servidor 83,1 %, mínimo 80 %);
+  - auditoría de dependencias y Dependabot;
+  - ruff y bandit (análisis de seguridad);
+  - suite sin internet (mindicador.cl simulado);
+  - causa del recorrido intermitente (choques de escritura en SQLite, corregido);
+  - accesibilidad con axe (0 problemas en 21 pantallas, contraste corregido);
+  - alertas de errores por correo sin datos personales.
+
+  Detalle en `docs/qa-pruebas-jornada40.md`.
+- [ ] **Publicar en `main` las correcciones de seguridad de dependencias** (requiere autorización):
+  - pdf.js permitía ejecutar JavaScript con un PDF malicioso, y la firma del trabajador muestra el reglamento que sube el empleador;
+  - también Django 5.2.17, pypdf, Pillow, PyJWT, cryptography, axios y otros;
+  - producción sigue con las versiones vulnerables hasta entonces;
+  - van junto con las alertas de errores.
+- [ ] Con el archivo ya en `main`, activar en GitHub *Settings → Code security → Dependabot security updates*.
+- [ ] (Opcional) `ALERTAS_ERRORES_EMAIL` en Railway, si las alertas de errores deben ir a otro correo que el de contacto.
+- [ ] **Mejoras de QA siguientes** (por decidir; secciones 6 y 7 de `docs/qa-pruebas-jornada40.md`):
+  - operacionales: simulacro de restauración de respaldos, encabezado CSP, recorridos en Firefox y WebKit, línea base de rendimiento;
+  - antes de escalar: pentest externo, revisión legal externa, auditoría manual de accesibilidad, panel de errores.
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
