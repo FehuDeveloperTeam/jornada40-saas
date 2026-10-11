@@ -24,3 +24,6 @@ frontend/playwright-report/
 .coverage
 .coverage.*
 htmlcov/
+
+# Documento técnico: Word y PDF generados con docs/tecnico/herramientas/construir.py
+docs/tecnico/salida/

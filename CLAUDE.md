@@ -554,6 +554,10 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 `docs/PENDIENTES.md` is the living list of what's left outside the code (production prerequisites before publishing to `main`, the Railway cron for `enviar_resumenes`, admin data, legal steps). **When the user asks for pendientes, answer from that file**, and keep it updated (mark done items with [x] and the date).
 
+## Documento técnico
+
+`docs/tecnico/` is the official, confidential technical document (structure of ISO/IEC/IEEE 29148, 42010, IEEE 1016 and ISO/IEC 25010), written in Spanish Markdown and built to Word and PDF with `python3 docs/tecnico/herramientas/construir.py` (pandoc + LibreOffice UNO; `--figuras` redraws the Mermaid diagrams). Output goes to `docs/tecnico/salida/`, which is not versioned. Its README explains the writing conventions. It is delivered in five parts; delivery 1 (preliminaries and chapters 1–2) was done on 2026-10-11, and progress is tracked in `docs/PENDIENTES.md`. Check every fact against the code, not against this file. When a feature changes, update its chapter too.
+
 ## Deuda técnica (en espera)
 
 - **LRE de horas extra compensadas con feriado (Ley 21.561)**: the DT hasn't published codes; tentative 2102 (paid at 6 months) and 2313 (paid at termination). On hold until a DT pronouncement or a newer LRE template confirms them.

@@ -1,0 +1,58 @@
+%% Figura del capítulo 2: actores y puntos de acceso de Jornada40.
+flowchart LR
+  subgraph Personas[" Personas "]
+    direction TB
+    T(["Titular de la cuenta"])
+    E(["Usuario del equipo"])
+    K(["Encargado Ley Karin"])
+    W(["Trabajador"])
+    I(["Fiscalizador de la DT"])
+    P(["Cualquier persona"])
+    A(["Administrador de Jornada40"])
+  end
+
+  subgraph Accesos[" Puntos de acceso de Jornada40 "]
+    direction TB
+    PAN["<b>Panel del empleador</b><br/>/app · ingreso por /login o /equipo"]
+    EXT["<b>Extensión para Mi DT</b><br/>panel lateral del navegador<br/><i>solo en staging</i>"]
+    KAR["<b>Acceso Ley Karin</b><br/>/karin"]
+    POR["<b>Portal del trabajador</b><br/>/trabajador"]
+    FIR["<b>Firma de documentos</b><br/>/firma/&lt;enlace&gt;"]
+    INS["<b>Portal de fiscalización</b><br/>/inspeccion"]
+    VER["<b>Verificación de documentos</b><br/>/verificar"]
+    ADM["<b>Administración interna</b><br/>/admin en el dominio de la API"]
+  end
+
+  API[["<b>API de Jornada40</b><br/>api.jornada40.cl"]]
+  MIDT["Mi DT<br/>(Dirección del Trabajo)"]
+
+  T --> PAN
+  E --> PAN
+  T --> EXT
+  E --> EXT
+  K --> KAR
+  W --> POR
+  W --> FIR
+  I --> INS
+  P --> VER
+  A --> ADM
+  PAN --> API
+  EXT --> API
+  KAR --> API
+  POR --> API
+  FIR --> API
+  INS --> API
+  VER --> API
+  ADM --> API
+  EXT -. "llena formularios en el navegador de la persona" .-> MIDT
+
+  classDef persona fill:#FFFFFF,stroke:#4B5563,color:#1F2937
+  classDef acceso fill:#E8F1FC,stroke:#0A5DB3,color:#1F2937
+  classDef sistema fill:#0A5DB3,stroke:#0A5DB3,color:#FFFFFF
+  classDef externo fill:#F3F4F6,stroke:#9CA3AF,color:#1F2937
+  classDef staging fill:#E8F1FC,stroke:#0A5DB3,color:#1F2937,stroke-dasharray:6 4
+  class T,E,K,W,I,P,A persona
+  class PAN,KAR,POR,FIR,INS,VER,ADM acceso
+  class EXT staging
+  class API sistema
+  class MIDT externo

@@ -43,6 +43,13 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [ ] **Mejoras de QA siguientes** (por decidir; secciones 6 y 7 de `docs/qa-pruebas-jornada40.md`):
   - operacionales: simulacro de restauración de respaldos, encabezado CSP, recorridos en Firefox y WebKit, línea base de rendimiento;
   - antes de escalar: pentest externo, revisión legal externa, auditoría manual de accesibilidad, panel de errores.
+- [ ] **Documento técnico del sistema** (`docs/tecnico/`, se compila a Word y PDF con `python3 docs/tecnico/herramientas/construir.py`), en cinco entregas:
+  - [x] (2026-10-11) Entrega 1: parte preliminar, resumen ejecutivo, capítulo 1 (Introducción) y capítulo 2 (Descripción general).
+  - [ ] Entrega 2: capítulo 3 (requerimientos funcionales, reglas de negocio y no funcionales).
+  - [ ] Entrega 3: capítulos 4 a 7 (arquitectura, diseño detallado, modelo de datos e interfaces).
+  - [ ] Entrega 4: capítulos 8 a 10 (seguridad, datos personales y cumplimiento normativo).
+  - [ ] Entrega 5: capítulos 11 a 13, anexos A a J y revisión final.
+  - [ ] Completar en la ficha de control quién elabora, revisa y aprueba (lo define el titular).
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
