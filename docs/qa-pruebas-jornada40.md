@@ -30,9 +30,10 @@
 | Verificación en producción | Manual y por comandos | Tras cada publicación | — | Por publicación |
 | Revisión interna de seguridad | Manual | Hecha (oct. 2026) | — | Periódica |
 
-**Estado al 11-10-2026:** todas las suites automáticas en verde.
-- Rama de desarrollo: 525/525 del servidor y 61/61 unitarias; lint y compilación sin errores. Los 57 recorridos de navegador se estaban ejecutando al cerrar este documento.
-- `main` (producción): 512/512 del servidor.
+**Estado al 11-10-2026:**
+- **Rama de desarrollo:** 525/525 del servidor y 61/61 unitarias; lint y compilación sin errores.
+- **Recorridos de navegador (rama):** 56 de 57 en la ejecución completa. El que falló, la descarga de la copia de la bitácora en PDF, pasó al repetirlo solo. La ejecución completa del 09-10-2026 había pasado 57/57. Se trata como **intermitente** (ver brechas).
+- **`main` (producción):** 512/512 del servidor.
 
 ---
 
@@ -204,6 +205,7 @@ El despliegue no depende técnicamente de CI: Railway publica `main` y Vercel el
 | **Accesibilidad** | Las pruebas usan roles y etiquetas accesibles, pero no hay auditoría formal (WCAG). |
 | **Monitoreo de errores en producción** | No hay un servicio de alertas de errores (tipo Sentry); los errores quedan en los registros del servidor. |
 | **Respaldos y su restauración** | Los respaldos automáticos están pendientes; por lo tanto, tampoco se ha probado restaurar. |
+| **Un recorrido intermitente** | La descarga de la copia de la bitácora en PDF falló una vez por tiempo de espera en la ejecución completa (11-10-2026) y pasó al repetirla. Falta encontrar la causa; CI reintenta una vez. |
 | **Dependencia externa en la suite** | Durante la suite del servidor hay 4 consultas reales al servicio público de indicadores (mindicador.cl). Si ese servicio falla, CI podría fallar sin que el código tenga un error. |
 | **Revisión legal externa** | Pendiente para plantillas (reglamento, Ley Karin, pactos). |
 | **Verificación con cargas reales** | Pendientes dos formatos: los campos de indemnización a todo evento en Previred y el registro masivo de contratos en Mi DT. |
@@ -217,6 +219,7 @@ El despliegue no depende técnicamente de CI: Railway publica `main` y Vercel el
    - Dependabot y auditoría de dependencias;
    - linter de Python;
    - simular las 4 consultas a mindicador.cl;
+   - encontrar la causa del recorrido intermitente de la bitácora;
    - axe (accesibilidad) dentro de los recorridos de Playwright;
    - monitoreo de errores en producción.
 2. **Operacionales (semanas):**
