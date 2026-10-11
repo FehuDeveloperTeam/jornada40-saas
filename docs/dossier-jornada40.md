@@ -59,7 +59,7 @@ La frase comercial es *"Jornada40 te dice qué tienes que hacer, cuándo vence y
 
 **Modelo de negocio:** suscripción mensual o anual por niveles (Semilla gratis hasta 3 trabajadores, Starter, Pyme y Corporativo), con pago con tarjeta por Webpay a través de Reveniu.
 
-**Estado:** en producción en jornada40.cl. Tiene más de 500 pruebas automáticas en el servidor, 54 recorridos de navegador automatizados, integración continua y un entorno de pruebas separado. En piloto: una extensión de navegador que llena los formularios de Mi DT.
+**Estado:** en producción en jornada40.cl. Tiene 512 pruebas automáticas en el servidor, 54 recorridos de navegador automatizados, integración continua y un entorno de pruebas separado. En piloto: una extensión de navegador que llena los formularios de Mi DT.
 
 **Por completar con el titular:** equipo, tracción, finanzas, ronda y uso de los fondos (sección 12).
 
@@ -357,7 +357,9 @@ Esto es lo que destacaríamos frente a inversionistas. Las comparaciones directa
 
 ### 7.2 Calidad
 
-- **506 pruebas automáticas del servidor**, en 38 archivos por tema: cálculos de remuneraciones, Previred, LRE, finiquitos, firmas, permisos, Ley Karin, seguridad y portales.
+El detalle de todos los tipos de prueba, incluidas las brechas y los próximos pasos, está en `docs/qa-pruebas-jornada40.md`.
+
+- **512 pruebas automáticas del servidor**, en 38 archivos por tema: cálculos de remuneraciones, Previred, LRE, finiquitos, firmas, permisos, Ley Karin, seguridad y portales. Todas en verde al 11-10-2026.
 - **54 recorridos de navegador automatizados** (Playwright) en 11 áreas: panel, remuneraciones, firma, gestión, Dirección del Trabajo, portal del trabajador, pactos, fiscalización, reglamento, equipo y Ley Karin.
 - **32 pruebas unitarias** de la interfaz.
 - **Integración continua** (GitHub Actions) en cada cambio: verificación de migraciones, pruebas del servidor, revisión de estilo, pruebas unitarias, compilación con revisión de tipos y recorridos de navegador.
