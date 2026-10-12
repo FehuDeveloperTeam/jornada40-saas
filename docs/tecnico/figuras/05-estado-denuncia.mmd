@@ -1,0 +1,11 @@
+%% Capítulo 5: estados de una denuncia Ley Karin (core/denuncias_karin.py, estado_de).
+stateDiagram-v2
+  [*] --> RECIBIDA: denuncia registrada
+  RECIBIDA --> INVESTIGACION: investiga la empresa
+  RECIBIDA --> DERIVADA_DT: deriva a la DT
+  INVESTIGACION --> INFORME: informe emitido
+  INFORME --> REVISION_DT: informe enviado a la DT
+  REVISION_DT --> MEDIDAS: la DT se pronuncia<br/>o pasan 30 días hábiles
+  DERIVADA_DT --> MEDIDAS: resultado de la DT
+  MEDIDAS --> CERRADA: medidas aplicadas<br/>e informadas
+  CERRADA --> [*]

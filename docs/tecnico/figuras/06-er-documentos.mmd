@@ -1,0 +1,28 @@
+%% Capítulo 6 · Cartas, pactos, constancias y reglamento (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction LR
+  Empleado ||--o{ DocumentoLegal : "empleado"
+  Empleado ||--o{ DocumentoLaboral : "empleado"
+  ReglamentoInterno |o--o{ DocumentoLaboral : "reglamento"
+  ConceptoRemuneracion |o--o{ DocumentoLaboral : "concepto"
+  Empresa ||--o{ ReglamentoInterno : "empresa"
+  DocumentoLegal {
+    texto tipo
+    texto causal_articulo
+    fecha fecha_emision
+    fecha fecha_ultimo_dia
+  }
+  DocumentoLaboral {
+    texto tipo
+    json datos
+    fecha vigente_desde
+    fecha vigente_hasta
+    booleano activo
+  }
+  ReglamentoInterno {
+    texto tipo
+    entero version
+    fecha publicado_en
+    fecha vigente_desde
+    booleano activo
+  }

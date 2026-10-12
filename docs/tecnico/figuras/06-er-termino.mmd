@@ -1,0 +1,38 @@
+%% Capítulo 6 · Vacaciones, permisos, conciliación y término (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  Empleado ||--o{ VacacionEmpleado : "empleado"
+  Empresa ||--o{ VacacionEmpleado : "empresa"
+  Empleado ||--o{ SolicitudPermiso : "empleado"
+  DocumentoLaboral |o--o{ SolicitudPermiso : "documento"
+  Empleado ||--o{ SolicitudConciliacion : "empleado"
+  Empleado ||--o{ Finiquito : "empleado"
+  DocumentoLegal |o--o{ Finiquito : "documento_legal"
+  VacacionEmpleado {
+    texto tipo
+    fecha fecha_inicio
+    fecha fecha_fin
+    entero dias_habiles
+    texto estado
+    texto origen
+  }
+  SolicitudPermiso {
+    texto permiso
+    fecha fecha_hecho
+    fecha inicio
+    texto estado
+  }
+  SolicitudConciliacion {
+    texto tipo
+    fecha presentada_el
+    texto estado
+    fecha respondida_el
+    texto origen
+  }
+  Finiquito {
+    fecha fecha_termino
+    texto causal_articulo
+    entero total_a_pagar
+    texto modalidad
+    fecha ratificado_en
+  }

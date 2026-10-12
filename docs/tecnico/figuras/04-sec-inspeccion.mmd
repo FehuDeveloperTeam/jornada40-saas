@@ -1,0 +1,20 @@
+%% Capítulo 4: ingreso y consulta del fiscalizador de la DT.
+sequenceDiagram
+  autonumber
+  actor F as Fiscalizador
+  participant A as API
+  participant R as Resend
+  participant D as Base de datos
+  F->>A: POST /api/inspeccion/ingreso/ con RUT del empleador y correo @dt.gob.cl
+  A->>D: si la empresa existe, guarda la huella del código (10 min)
+  A->>R: código al correo institucional
+  A-->>F: el mismo mensaje exista o no la empresa
+  F->>A: POST /api/inspeccion/verificar/ (3 intentos)
+  A->>D: anota el ingreso
+  A-->>F: cookie firmada (15 min sin uso, 8 h como máximo)
+  F->>A: GET …/trabajadores/ y …/documentos/
+  F->>A: GET …/descargar/?clave=
+  A->>D: anota la descarga
+  A-->>F: PDF firmado o generado, con sus ratificaciones
+  F->>A: POST …/ratificar/ con su firma
+  A->>D: guarda la ratificación y la anota

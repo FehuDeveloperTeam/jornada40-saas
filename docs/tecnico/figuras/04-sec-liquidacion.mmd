@@ -1,0 +1,22 @@
+%% Capítulo 4: vista previa, emisión y descarga de una liquidación.
+sequenceDiagram
+  autonumber
+  actor E as Empleador
+  participant W as Aplicación web
+  participant A as API
+  participant C as Cálculo
+  participant D as Base de datos
+  E->>W: días, horas extra e ítems del mes
+  W->>A: POST …/liquidaciones/simular/
+  A->>C: _calcular_liquidacion con los parámetros del período
+  C-->>A: montos y detalle
+  A-->>W: vista previa y avisos (no guarda nada)
+  E->>W: Emitir
+  W->>A: POST /api/liquidaciones/
+  A->>C: el mismo cálculo
+  A->>D: crea la liquidación (una por trabajador y período)
+  A-->>W: 201 (o 409 si ya existe)
+  E->>W: Descargar
+  W->>A: GET …/{id}/generar_pdf/
+  A->>D: ¿tiene una firma completa?
+  A-->>W: PDF firmado o, si no lo hay, generado desde la plantilla

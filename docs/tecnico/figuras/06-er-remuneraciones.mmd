@@ -1,0 +1,29 @@
+%% Capítulo 6 · Remuneraciones y certificados del SII (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  Empresa |o--o{ ConceptoRemuneracion : "empresa"
+  Empleado ||--o{ Liquidacion : "empleado"
+  Empresa ||--o{ CertificadoSueldos : "empresa"
+  Empleado ||--o{ CertificadoSueldos : "empleado"
+  CertificadoSueldos |o--o{ CertificadoSueldos : "reemplaza"
+  ConceptoRemuneracion {
+    texto codigo
+    texto nombre
+    texto tipo
+    booleano es_imponible
+    texto codigo_lre
+    booleano activo
+  }
+  Liquidacion {
+    entero mes
+    entero anio
+    entero total_imponible
+    entero total_haberes
+    entero sueldo_liquido
+    decimal valor_uf
+  }
+  CertificadoSueldos {
+    entero numero
+    entero anio
+    json datos
+  }

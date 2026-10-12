@@ -1,0 +1,21 @@
+%% Capítulo 4: denuncia Ley Karin desde el portal y atención del encargado.
+sequenceDiagram
+  autonumber
+  actor T as Trabajador
+  participant A as API
+  participant D as Base de datos
+  participant R as Resend
+  actor K as Encargado
+  T->>A: POST …/karin/denunciar/ (sesión del portal)
+  A->>A: valida la ficha, que haya encargado y el máximo de 3 en 24 h
+  A->>D: crea la denuncia cifrada, con número correlativo
+  A->>D: anota el registro reservado
+  A->>R: comprobante al trabajador y aviso sin contenido al encargado
+  A-->>T: 201 con folio y estado
+  K->>A: POST /api/karin/ingresar/ con RUT y clave
+  A-->>K: cookie firmada (5 min sin uso, 4 h como máximo)
+  K->>A: GET /api/karin/denuncias/
+  A-->>K: lista con el próximo plazo de cada caso
+  K->>A: GET /api/karin/denuncias/{id}/
+  A->>D: anota la consulta en el registro reservado
+  A-->>K: expediente descifrado y plazos del DS 21

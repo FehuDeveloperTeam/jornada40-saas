@@ -1,0 +1,28 @@
+%% Capítulo 6 · Firma electrónica (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction LR
+  Empleado ||--o{ SolicitudFirma : "empleado"
+  Empresa ||--o{ SolicitudFirma : "empresa"
+  Contrato |o--o{ SolicitudFirma : "contrato"
+  DocumentoLegal |o--o{ SolicitudFirma : "documento_legal"
+  AnexoContrato |o--o{ SolicitudFirma : "anexo_contrato"
+  Liquidacion |o--o{ SolicitudFirma : "liquidacion"
+  VacacionEmpleado |o--o{ SolicitudFirma : "vacacion"
+  Finiquito |o--o{ SolicitudFirma : "finiquito"
+  DocumentoLaboral |o--o{ SolicitudFirma : "documento_laboral"
+  User |o--o{ SolicitudFirma : "emisor"
+  SolicitudFirma ||--o{ OTPFirma : "solicitud"
+  SolicitudFirma {
+    uuid token UK
+    texto tipo_documento
+    texto estado
+    texto folio
+    texto verificacion
+    texto origen
+    fecha_hora expira_en
+  }
+  OTPFirma {
+    texto codigo_hash
+    fecha_hora expira_en
+    entero intentos
+  }

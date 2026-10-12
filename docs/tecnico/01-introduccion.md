@@ -70,10 +70,10 @@ A la fecha de corte, la versión de pruebas agrega lo siguiente a la de producci
 | 1. Introducción                           | Propósito, alcance, audiencia, referencias y convenciones                                                    | Incluido                  |
 | 2. Descripción general                    | Contexto, actores, módulos, planes, restricciones y dependencias externas                                    | Incluido                  |
 | 3. Requerimientos                         | Funcionales, reglas de negocio y cálculos legales, y no funcionales                                         | Incluido                 |
-| 4. Arquitectura                           | Principios, vistas de contexto, contenedores, componentes, secuencias y despliegue; decisiones              | Entrega 3                 |
-| 5. Diseño detallado                       | Servidor, interfaz, extensión, diagramas de estado y algoritmos                                              | Entrega 3                 |
-| 6. Modelo de datos                        | Entidades, integridad, datos sensibles, parámetros y retención                                               | Entrega 3                 |
-| 7. Interfaces                             | Interfaz de usuario, API, sistemas externos y formatos de archivo                                            | Entrega 3                 |
+| 4. Arquitectura                           | Principios, vistas de contexto, contenedores, componentes, secuencias y despliegue; decisiones              | Incluido                  |
+| 5. Diseño detallado                       | Servidor, interfaz, extensión, diagramas de estado y algoritmos                                              | Incluido                  |
+| 6. Modelo de datos                        | Entidades, integridad, datos sensibles, parámetros y retención                                               | Incluido                  |
+| 7. Interfaces                             | Interfaz de usuario, API, sistemas externos y formatos de archivo                                            | Incluido                  |
 | 8. Seguridad                              | Amenazas, autenticación, autorización, criptografía, auditoría, secretos y firma electrónica                 | Entrega 4                 |
 | 9. Protección de datos personales         | Inventario, proveedores, retención y derechos de los titulares                                               | Entrega 4                 |
 | 10. Cumplimiento normativo                | Marco legal, trazabilidad y documentación electrónica ante la DT                                             | Entrega 4                 |

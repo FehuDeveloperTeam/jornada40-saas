@@ -1,0 +1,23 @@
+%% Capítulo 4: ingreso al portal del trabajador.
+sequenceDiagram
+  autonumber
+  actor T as Trabajador
+  participant W as Aplicación web
+  participant A as API
+  participant R as Resend
+  T->>W: RUT en /trabajador
+  W->>A: POST /api/trabajador/ingreso/
+  alt la persona creó una clave
+    A-->>W: método "clave"
+    T->>W: clave
+    W->>A: POST …/clave/ingresar/
+  else sin clave
+    A->>R: un código a cada correo de sus fichas habilitadas
+    A-->>W: método "código" y correos enmascarados
+    T->>W: código recibido
+    W->>A: POST …/codigo/verificar/
+    A->>A: cuenta de quien recibe ese correo, o una nueva
+  end
+  A-->>W: cookie firmada (15 min sin uso, 8 h como máximo)
+  W->>A: GET …/yo/ y demás consultas
+  A-->>W: solo las fichas cuyo correo verificó la cuenta

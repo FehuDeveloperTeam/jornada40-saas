@@ -1,0 +1,24 @@
+%% Capítulo 6 · Extensión para Mi DT (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  User ||--o{ DispositivoExtension : "cuenta"
+  User ||--o{ DispositivoExtension : "persona"
+  User ||--o{ CodigoExtension : "cuenta"
+  User ||--o{ CodigoExtension : "persona"
+  User ||--o{ LevantamientoMiDT : "cuenta"
+  User |o--o{ LevantamientoMiDT : "persona"
+  DispositivoExtension {
+    texto token_hash UK
+    fecha_hora ultimo_uso
+    fecha_hora revocado_en
+  }
+  CodigoExtension {
+    texto codigo_hash
+    fecha_hora expira_en
+    booleano usado
+  }
+  LevantamientoMiDT {
+    texto ruta
+    texto titulo
+    json estructura
+  }

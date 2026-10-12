@@ -1,0 +1,47 @@
+%% Capítulo 4: despliegue (ambientes de producción y de pruebas).
+flowchart LR
+  DEV(["Equipo de<br/>desarrollo"]) -- "git push" --> GH["<b>GitHub</b><br/>repositorio<br/>integración continua"]
+
+  subgraph PROD[" Producción · rama main "]
+    direction TB
+    VP["<b>Vercel</b><br/>jornada40.cl"]
+    subgraph RP[" Railway · production "]
+      direction TB
+      WEB["<b>Servicio web</b><br/>imagen del Dockerfile<br/>migrate → Gunicorn"]
+      CR["<b>Servicio cron</b><br/>enviar_resumenes"]
+      PG[("PostgreSQL")]
+    end
+  end
+
+  subgraph STG[" Pruebas · rama staging "]
+    direction TB
+    VS["<b>Vercel</b><br/>staging.jornada40.cl<br/>y previews"]
+    subgraph RS[" Railway · staging "]
+      direction TB
+      WEBS["<b>Servicio web</b><br/>misma imagen"]
+      PGS[("PostgreSQL<br/>propio")]
+    end
+  end
+
+  CF["<b>Cloudflare</b><br/>DNS y proxy<br/>de la API"]
+  EXT["<b>Servicios externos</b><br/>B2 · Resend · Gemini<br/>Reveniu (producción<br/>o sandbox)"]
+
+  GH -- "push a main" --> VP
+  GH -- "push a main" --> WEB
+  GH -- "push a staging" --> VS
+  GH -- "push a staging" --> WEBS
+  CF --> WEB
+  CF --> WEBS
+  WEB --> PG
+  CR --> PG
+  WEBS --> PGS
+  WEB --> EXT
+  CR --> EXT
+  WEBS --> EXT
+
+  classDef propio fill:#E8F1FC,stroke:#0A5DB3,color:#1F2937
+  classDef infra fill:#FFFFFF,stroke:#4B5563,color:#1F2937
+  classDef externo fill:#F3F4F6,stroke:#9CA3AF,color:#1F2937
+  class WEB,CR,PG,WEBS,PGS propio
+  class VP,VS,CF,GH,DEV infra
+  class EXT externo

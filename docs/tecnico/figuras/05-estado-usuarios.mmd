@@ -1,0 +1,8 @@
+%% Capítulo 5: estados de un usuario del equipo o de un encargado Ley Karin.
+stateDiagram-v2
+  [*] --> INVITADO: invitación del titular
+  INVITADO --> INVITADO: reenvío de la invitación
+  INVITADO --> ACTIVO: crea su clave
+  INVITADO --> ELIMINADO: el titular lo elimina
+  ACTIVO --> ELIMINADO: el titular lo elimina
+  ELIMINADO --> [*]

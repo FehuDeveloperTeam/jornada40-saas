@@ -1,0 +1,24 @@
+%% Capítulo 4: registro en Mi DT con la extensión.
+sequenceDiagram
+  autonumber
+  actor P as Persona
+  participant W as Panel /app/dt
+  participant X as Extensión
+  participant C as Script en Mi DT
+  participant A as API
+  P->>W: Conectar la extensión
+  W->>A: POST /api/extension/codigo/
+  A-->>W: código de 8 caracteres (10 min, un uso)
+  P->>X: escribe el código
+  X->>A: POST /api/extension/v1/vincular/
+  A-->>X: token (la API guarda solo su huella)
+  X->>A: GET …/v1/registro/ con Authorization: Extension
+  A-->>X: obligaciones, las vencidas primero
+  P->>X: abre una ficha
+  X->>A: GET …/v1/registro/ficha/ y …/v1/mapeos/
+  X->>C: mensaje "llenar" con los campos de la etapa
+  C-->>X: campos llenos, pendientes o "detenido"
+  P->>C: revisa y presiona el botón de Mi DT
+  X->>C: mensaje "exito": lee la confirmación
+  X->>A: POST …/v1/registro/marcar/ con el comprobante
+  A-->>X: registro vía EXTENSION y bitácora

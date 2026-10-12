@@ -1,0 +1,37 @@
+%% Capítulo 6 · Empresas, trabajadores y contratos (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  User ||--o{ Empresa : "owner"
+  Empresa ||--o{ Empleado : "empresa"
+  Empleado ||--o| Contrato : "empleado"
+  AnexoContrato }o--|| Contrato : "contrato"
+  Empresa {
+    texto rut UK
+    texto nombre_legal
+    texto mutual
+    texto ccaf
+    booleano activo
+  }
+  Empleado {
+    texto rut
+    texto nombres
+    entero ficha_numero
+    texto afp
+    texto sistema_salud
+    booleano activo
+    fecha fecha_desvinculacion
+  }
+  Contrato {
+    texto tipo_contrato
+    fecha fecha_inicio
+    fecha fecha_fin
+    entero sueldo_base
+    decimal horas_semanales
+    texto tipo_jornada
+  }
+  AnexoContrato {
+    texto tipo
+    fecha vigencia_desde
+    json cambios
+    booleano aplicado
+  }

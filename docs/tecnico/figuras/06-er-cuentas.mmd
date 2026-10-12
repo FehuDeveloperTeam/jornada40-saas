@@ -1,0 +1,45 @@
+%% Capítulo 6 · Cuentas, planes y pagos (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction LR
+  User ||--o| Cliente : "usuario"
+  Plan |o--o{ Cliente : "plan"
+  Cliente ||--o| Suscripcion : "cliente"
+  Plan ||--o{ Suscripcion : "plan"
+  Plan |o--o{ Suscripcion : "plan_programado"
+  Cliente ||--o{ IntentoPago : "cliente"
+  Plan ||--o{ IntentoPago : "plan"
+  Cliente |o--o{ EventoPasarela : "cliente"
+  Plan |o--o{ EventoPasarela : "plan"
+  Plan {
+    texto nombre
+    entero nivel
+    entero max_empresas
+    entero limite_trabajadores
+    entero precio
+    entero precio_anual
+  }
+  Cliente {
+    texto rut UK
+    texto tipo_cliente
+    texto nombres
+    correo correo
+    texto frecuencia_resumen
+  }
+  Suscripcion {
+    texto estado
+    texto ciclo
+    texto gateway_subscription_id
+    fecha_hora fecha_proximo_cobro
+    fecha_hora fecha_cancelacion
+  }
+  IntentoPago {
+    texto ciclo
+    fecha_hora creado_en
+  }
+  EventoPasarela {
+    texto evento
+    texto orden_compra
+    texto gateway_subscription_id
+    entero monto
+    booleano aplicado
+  }

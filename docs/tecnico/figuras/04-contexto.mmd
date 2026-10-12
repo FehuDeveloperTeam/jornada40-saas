@@ -1,0 +1,45 @@
+%% Capítulo 4: contexto del sistema (modelo C4, nivel 1).
+flowchart LR
+  subgraph Personas[" Personas "]
+    direction TB
+    EMP(["Empleador<br/>y su equipo"])
+    TRA(["Trabajador"])
+    KAR(["Encargado<br/>Ley Karin"])
+    FIS(["Fiscalizador<br/>de la DT"])
+    ADM(["Equipo de<br/>Jornada40"])
+  end
+
+  J40[["<b>Jornada40</b><br/>aplicación web, API<br/>y base de datos"]]
+
+  subgraph Externos[" Servicios externos "]
+    direction TB
+    REV["<b>Reveniu y Transbank</b><br/>suscripciones y cobro"]
+    RES["<b>Resend</b><br/>envío de correos"]
+    B2["<b>Backblaze B2</b><br/>archivos"]
+    GEM["<b>Google Gemini</b><br/>lectura de contratos"]
+    MIN["<b>mindicador.cl</b><br/>UF y UTM"]
+    PRE["<b>previred.com</b><br/>indicadores previsionales"]
+  end
+
+  MIDT["<b>Mi DT</b><br/>Dirección del Trabajo"]
+
+  EMP -- "trabajadores, documentos<br/>y pagos" --> J40
+  TRA -- "firma, consulta y pide" --> J40
+  KAR -- "denuncias" --> J40
+  FIS -- "revisa y ratifica" --> J40
+  ADM -- "parámetros y soporte" --> J40
+  J40 -- "suscripciones" --> REV
+  REV -- "avisos de pago" --> J40
+  J40 -- "correos" --> RES
+  J40 -- "PDF y archivos" --> B2
+  J40 -- "contrato escaneado" --> GEM
+  J40 -- "consulta" --> MIN
+  J40 -- "lee (comando)" --> PRE
+  EMP -. "registra en su navegador,<br/>con la extensión" .-> MIDT
+
+  classDef persona fill:#FFFFFF,stroke:#4B5563,color:#1F2937
+  classDef sistema fill:#0A5DB3,stroke:#0A5DB3,color:#FFFFFF
+  classDef externo fill:#F3F4F6,stroke:#9CA3AF,color:#1F2937
+  class EMP,TRA,KAR,FIS,ADM persona
+  class J40 sistema
+  class REV,RES,B2,GEM,MIN,PRE,MIDT externo

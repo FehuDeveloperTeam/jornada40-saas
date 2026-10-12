@@ -46,7 +46,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [ ] **Documento técnico del sistema** (`docs/tecnico/`, se compila a Word y PDF con `python3 docs/tecnico/herramientas/construir.py`), en cinco entregas:
   - [x] (2026-10-11) Entrega 1: parte preliminar, resumen ejecutivo, capítulo 1 (Introducción) y capítulo 2 (Descripción general).
   - [x] (2026-10-12) Entrega 2: capítulo 3, con 199 requerimientos funcionales, 44 reglas de negocio y 41 no funcionales. Los ejemplos numéricos los comprueba `backend/core/tests/test_ejemplos_documento.py`.
-  - [ ] Entrega 3: capítulos 4 a 7 (arquitectura, diseño detallado, modelo de datos e interfaces).
+  - [x] (2026-10-12) Entrega 3: capítulos 4 a 7 (arquitectura, diseño detallado, modelo de datos e interfaces). Los diagramas entidad-relación los genera `docs/tecnico/herramientas/modelo_datos.py` y las capturas, `CAPTURAS_DOC=1 npx playwright test capturas` (en `frontend/`).
   - [ ] Entrega 4: capítulos 8 a 10 (seguridad, datos personales y cumplimiento normativo).
   - [ ] Entrega 5: capítulos 11 a 13, anexos A a J y revisión final.
   - [ ] Completar en la ficha de control quién elabora, revisa y aprueba (lo define el titular).
@@ -75,6 +75,23 @@ Aparecieron al reconstruir los requerimientos del capítulo 3 del documento téc
   - el estado PAST_DUE nunca se asigna;
   - el borrado lógico solo existe en empresas;
   - "avisos, no bloqueos" tiene excepciones legales.
+
+## Hallazgos de la entrega 3 del documento técnico (2026-10-12, por decidir)
+
+Aparecieron al documentar la arquitectura y el modelo de datos (capítulos 4 a 7). No se corrigieron: cada uno espera decisión. El primero se comprobó con una prueba local.
+
+- [ ] **Prioridad alta: la API del panel no se protege contra CSRF.**
+  - Qué pasa: la autenticación del panel (`CookieConCerco`, sobre `JWTCookieAuthentication` de dj-rest-auth) no verifica un token anti-CSRF (`JWT_AUTH_COOKIE_USE_CSRF` en falso). Las vistas del panel aceptan formularios (`application/x-www-form-urlencoded` y `multipart`), y en los ambientes desplegados las cookies van con `SameSite=None`.
+  - Efecto: un sitio ajeno puede enviar un formulario a la API mientras el titular tiene la sesión abierta, y la API lo procesa. En una prueba local, un `POST` de formulario a `/api/empleados/` sin token creó una ficha (201). El envío a firma sí está protegido por la confirmación de identidad (428). El portal, la Ley Karin, la fiscalización y la extensión solo aceptan JSON y no están expuestos.
+  - Propuesta: cookies `SameSite=Lax` en producción (`jornada40.cl` y `api.jornada40.cl` son el mismo sitio; quitar `jornada40-saas.vercel.app` de los orígenes), un middleware que rechace métodos de escritura con un `Origin` ajeno, y aceptar solo JSON salvo en las rutas que suben archivos.
+- [ ] **Si la migración falla, el servidor arranca igual.** La orden del Dockerfile (`migrate && createsuperuser … || true && gunicorn …`) hace que Gunicorn arranque aunque `migrate` falle, con el esquema a medio aplicar. Propuesta: separar el `|| true` solo para `createsuperuser`.
+- [ ] **Límites de intentos por proceso.** No hay caché compartida (`CACHES` sin configurar: caché en memoria de cada proceso). Con 2 procesos de Gunicorn, cada límite se cuenta por separado y el efectivo puede ser el doble. Propuesta: caché en la base de datos o Redis.
+- [ ] **La rotación del token de renovación no invalida el anterior.** `BLACKLIST_AFTER_ROTATION` está activo, pero sin la aplicación `rest_framework_simplejwt.token_blacklist` no tiene efecto: un token de renovación ya usado, o el de una sesión cerrada, sigue sirviendo hasta que vence (15 min). Propuesta: instalar esa aplicación y su migración.
+- [ ] **El portal de fiscalización revela si una empresa usa Jornada40.** Pedir un segundo código antes de un minuto responde 429 solo si la empresa existe, y un correo fallido responde 503 solo entonces. Basta escribir un correo con dominio `dt.gob.cl`, sin recibirlo. Propuesta: aplicar la espera también cuando la empresa no existe y responder igual aunque falle el envío.
+- [ ] Datos que se acumulan sin limpieza: códigos vencidos (firma, portal, fiscalización y extensión), levantamientos de la extensión y PDF en `pendientes/` de B2 de solicitudes rechazadas, vencidas o canceladas. Definirlo con la política de conservación (capítulo 9).
+- [ ] La salida de los portales (`salir`) no exige sesión ni JSON: un sitio ajeno podría cerrar la sesión de un trabajador, encargado o fiscalizador. Menor.
+- [ ] El número de ficha se asigna como el máximo más uno, sin bloqueo ni unicidad: dos altas simultáneas en la misma empresa podrían repetirlo. Menor.
+- [ ] La cadena de la bitácora usa SHA-256 sin clave: quien tenga escritura directa en la base podría recalcularla. Es una limitación de diseño; las copias exportadas la acotan. Evaluar una clave (HMAC) o un sello externo periódico.
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 

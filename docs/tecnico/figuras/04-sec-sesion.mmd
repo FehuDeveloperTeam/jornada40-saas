@@ -1,0 +1,20 @@
+%% Capítulo 4: ingreso al panel y renovación de la sesión.
+sequenceDiagram
+  autonumber
+  actor P as Titular
+  participant W as Aplicación web
+  participant A as API
+  participant D as Base de datos
+  P->>W: RUT y clave en /login
+  W->>A: POST /api/auth/login/
+  A->>D: valida el usuario y anota el ingreso en la bitácora
+  A-->>W: 200 y cookies HttpOnly de acceso (5 min) y de renovación (15 min)
+  W->>A: GET /api/auth/user/ (ruta protegida)
+  A-->>W: 200: la sesión es válida
+  W->>A: petición con el token de acceso vencido
+  A-->>W: 401
+  W->>A: POST /api/auth/token/refresh/ (una sola vez para las peticiones en espera)
+  A-->>W: 200 y cookies nuevas (rotación)
+  W->>A: repite la petición
+  A-->>W: 200
+  Note over P,W: Sin actividad: aviso 60 s antes de los 5 min y vuelta a /login?volver=…

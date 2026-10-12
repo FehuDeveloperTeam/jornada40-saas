@@ -59,5 +59,6 @@ La integración continua ejecuta estas pruebas, el análisis estático y la audi
 - La firma es simple, no avanzada. Para que un finiquito tenga poder liberatorio debe ratificarse ante un ministro de fe o firmarse en Mi DT.
 - Mi DT no tiene una interfaz de programación (API). El registro se apoya en fichas para copiar y en una extensión que aún está en piloto.
 - Dos formatos de archivo esperan verificación con cargas reales: la indemnización a todo evento en Previred y el registro masivo de contratos en Mi DT.
+- Al documentar la arquitectura se detectaron puntos de seguridad por corregir. El principal: la API del panel no se protege contra formularios enviados desde otros sitios (CSRF). Están registrados como pendientes y se analizan en el capítulo 8.
 
-**Este documento.** Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/IEC/IEEE 42010 e IEEE 1016 (arquitectura y diseño) e ISO/IEC 25010 (calidad). Tiene trece capítulos y diez anexos. Esta versión {{version}} contiene la parte preliminar y los capítulos 1 a 3; el resto se completará en tres entregas más (sección 1.3).
+**Este documento.** Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/IEC/IEEE 42010 e IEEE 1016 (arquitectura y diseño) e ISO/IEC 25010 (calidad). Tiene trece capítulos y diez anexos. Esta versión {{version}} contiene la parte preliminar y los capítulos 1 a 7; el resto se completará en dos entregas más (sección 1.3).

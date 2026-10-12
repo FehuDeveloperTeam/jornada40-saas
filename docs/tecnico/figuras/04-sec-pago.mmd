@@ -1,0 +1,21 @@
+%% Capítulo 4: contratación de un plan y aviso de pago.
+sequenceDiagram
+  autonumber
+  actor P as Titular
+  participant W as Aplicación web
+  participant A as API
+  participant R as Reveniu
+  participant T as Transbank
+  P->>W: elige plan y ciclo
+  W->>A: POST /api/pagos/crear-checkout/
+  A->>A: crea el IntentoPago
+  A->>R: GET /api/v1/plans/ y POST /api/v1/subscriptions/
+  R-->>A: completion_url y security_token
+  A-->>W: datos del pago (o el enlace de pago si la API falla)
+  W->>T: formulario con TBK_TOKEN
+  P->>T: inscribe su tarjeta
+  R->>A: POST …/webhook/reveniu/ con Reveniu-Secret-Key
+  A->>A: guarda el EventoPasarela (descarta repetidos)
+  A->>A: aplica el evento: plan y estado ACTIVE
+  A->>R: GET /api/v1/subscriptions/{id}/ (próximo cobro)
+  A-->>R: 200

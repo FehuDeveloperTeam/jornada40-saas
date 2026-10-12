@@ -1,0 +1,18 @@
+%% Capítulo 4: componentes de la API (modelo C4, nivel 3), por capas.
+block-beta
+  columns 3
+  MW["<b>Petición HTTPS desde Cloudflare → middleware, en orden</b><br/>1 IpReal: IP del visitante · 2 seguridad, CORS y estáticos<br/>3 sesión, CSRF y usuario de Django · 4 Contexto: empresas visibles<br/>5 Bitácora: escrituras y descargas · 6 RenovarSesion: cookies firmadas"]:3
+  AUT["<b>Autenticación, una por acceso</b><br/>CookieConCerco: panel (JWT y permisos del equipo) · SesionTrabajador<br/>SesionKarin · SesionInspeccion · TokenExtension · enlace de firma"]:3
+  V1["<b>Vistas del panel</b><br/>empresas · empleados<br/>contratos · liquidaciones<br/>finiquitos · vacaciones<br/>documentos · reglamento<br/>DT · equipo · bitácora<br/>pagos · cuentas"]
+  V2["<b>Vistas del portal</b><br/>portal_trabajador<br/>peticiones_portal<br/>certificados<br/>karin_portal"]
+  V3["<b>Accesos aislados</b><br/>acceso_karin<br/>denuncias_karin<br/>inspeccion · extension<br/>firma_publica"]
+  R1["<b>Cálculo y archivos</b><br/>calculo_liquidacion<br/>finiquitos · feriado<br/>horas_compensatorias<br/>parametros · previred · lre"]
+  R2["<b>Reglas</b><br/>jornada · proteccion · ficha<br/>denuncias_karin · registro_dt<br/>seguridad · permisos"]
+  R3["<b>Documentos</b><br/>plantillas HTML a PDF<br/>pdf_firma · documentos_karin<br/>docx_simple"]
+  D1["<b>Datos</b><br/>core/models.py · gestores EnEmpresas<br/>cifrado (core/cifrado.py) · bitácoras"]:2
+  X1["<b>Adaptadores externos</b><br/>b2_client · reveniu · indicadores<br/>extractor_contrato · correo · alertas"]
+
+  classDef caja fill:#E8F1FC,stroke:#0A5DB3,color:#1F2937
+  classDef adaptador fill:#F3F4F6,stroke:#9CA3AF,color:#1F2937
+  class MW,AUT,V1,V2,V3,R1,R2,R3,D1 caja
+  class X1 adaptador

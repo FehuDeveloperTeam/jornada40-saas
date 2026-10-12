@@ -1,8 +1,8 @@
 {
   "titulo-documento": "Documento técnico del sistema",
-  "version": "0.2",
+  "version": "0.3",
   "fecha": "12-10-2026",
-  "estado": "Borrador en elaboración (entrega 2 de 5)",
+  "estado": "Borrador en elaboración (entrega 3 de 5)",
   "clasificacion": "Confidencial",
   "autor": "Equipo de desarrollo de Jornada40",
   "commit-rama": "682e59d",
@@ -13,6 +13,10 @@
     "00-resumen-ejecutivo.md",
     "01-introduccion.md",
     "02-descripcion-general.md",
-    "03-requerimientos.md"
+    "03-requerimientos.md",
+    "04-arquitectura.md",
+    "05-diseno-detallado.md",
+    "06-modelo-datos.md",
+    "07-interfaces.md"
   ]
 }

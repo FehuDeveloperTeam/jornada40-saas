@@ -1,0 +1,38 @@
+%% Capítulo 6 · Ley Karin (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  User ||--o{ EncargadoKarin : "cuenta"
+  User ||--o| EncargadoKarin : "usuario"
+  Empresa }o--o{ EncargadoKarin : "empresas"
+  User ||--o{ DenunciaKarin : "cuenta"
+  Empresa ||--o{ DenunciaKarin : "empresa"
+  EncargadoKarin |o--o{ DenunciaKarin : "registrada_por"
+  DenunciaKarin ||--o{ ArchivoKarin : "denuncia"
+  EncargadoKarin |o--o{ ArchivoKarin : "subido_por"
+  User ||--o{ RegistroKarin : "cuenta"
+  EncargadoKarin |o--o{ RegistroKarin : "encargado"
+  EncargadoKarin {
+    texto rut
+    texto estado
+    entero version_sesion
+  }
+  DenunciaKarin {
+    entero numero
+    texto tipo
+    fecha_hora recibida_en
+    JSONCifrado datos
+    json hitos
+    texto origen
+  }
+  ArchivoKarin {
+    texto tipo
+    texto clave
+    texto huella
+    TextoCifrado nombre
+  }
+  RegistroKarin {
+    texto accion
+    TextoCifrado descripcion
+    texto hash UK
+    texto hash_anterior
+  }

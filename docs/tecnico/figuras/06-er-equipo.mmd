@@ -1,0 +1,32 @@
+%% Capítulo 6 · Usuarios del equipo y bitácora (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  User ||--o{ UsuarioEquipo : "cuenta"
+  User ||--o| UsuarioEquipo : "usuario"
+  Empresa }o--o{ UsuarioEquipo : "empresas"
+  User ||--o{ RegistroBitacora : "cuenta"
+  User |o--o{ RegistroBitacora : "actor"
+  Empresa |o--o{ RegistroBitacora : "empresa"
+  User ||--o{ ExportacionBitacora : "cuenta"
+  Empresa |o--o{ ExportacionBitacora : "empresa"
+  User |o--o{ ExportacionBitacora : "generado_por"
+  UsuarioEquipo {
+    texto rut
+    json permisos
+    texto estado
+    texto frecuencia_resumen
+  }
+  RegistroBitacora {
+    texto accion
+    texto ruta
+    entero estado_http
+    texto ip
+    texto hash UK
+    texto hash_anterior
+  }
+  ExportacionBitacora {
+    entero numero
+    texto codigo UK
+    texto formato
+    texto huella
+  }

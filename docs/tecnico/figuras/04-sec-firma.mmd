@@ -1,0 +1,25 @@
+%% Capítulo 4: firma electrónica de un documento.
+sequenceDiagram
+  autonumber
+  actor E as Empleador
+  participant A as API
+  participant S as Backblaze B2
+  participant R as Resend
+  actor T as Trabajador
+  E->>A: POST /api/firmas/solicitar/
+  A-->>E: 428 si no confirmó su clave en los últimos 10 min
+  E->>A: POST …/confirmar_identidad/ y repite
+  A->>S: sube el PDF a pendientes/
+  A->>R: correo con el enlace /firma/{token}
+  T->>A: GET /api/firma-publica/{token}/
+  T->>A: POST …/solicitar-otp/ con su RUT
+  A->>R: código de 6 dígitos (vence en 10 min)
+  T->>A: POST …/verificar-otp/ (o …/verificar-clave/)
+  A-->>T: sesion_token
+  T->>A: GET …/documento/?sesion=
+  A->>S: lee el PDF pendiente
+  T->>A: POST …/firmar/ con su aceptación y su firma dibujada
+  A->>A: folio, huellas SHA-256 y página de certificado
+  A->>S: guarda firmados/… y borra el pendiente
+  A->>R: avisos de firma completada
+  A-->>T: FIRMADO, con folio y huella

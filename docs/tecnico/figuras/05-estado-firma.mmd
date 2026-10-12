@@ -1,0 +1,14 @@
+%% Capítulo 5: estados de una solicitud de firma (SolicitudFirma.estado).
+stateDiagram-v2
+  [*] --> PENDIENTE: envío a firma
+  PENDIENTE --> PROCESANDO: el trabajador firma
+  PROCESANDO --> FIRMADO: PDF guardado
+  PROCESANDO --> PENDIENTE: falla, o 10 min sin terminar
+  PROCESANDO --> EXPIRADO: 10 min sin terminar<br/>y plazo vencido
+  PENDIENTE --> RECHAZADO: el trabajador rechaza
+  PENDIENTE --> CANCELADO: el empleador cancela
+  PENDIENTE --> EXPIRADO: vence el plazo
+  FIRMADO --> [*]
+  RECHAZADO --> [*]
+  CANCELADO --> [*]
+  EXPIRADO --> [*]

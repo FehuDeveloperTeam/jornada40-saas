@@ -1,0 +1,31 @@
+%% Capítulo 6 · Registro en Mi DT y fiscalización (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  Empresa ||--o{ RegistroDT : "empresa"
+  User |o--o{ RegistroDT : "registrado_por"
+  Empresa ||--o{ CodigoInspeccion : "empresa"
+  Empresa ||--o{ RegistroInspeccion : "empresa"
+  Empresa ||--o{ RatificacionInspeccion : "empresa"
+  RegistroDT {
+    texto clave
+    fecha registrado_en
+    texto via
+  }
+  CodigoInspeccion {
+    correo correo
+    texto rut_inspector
+    texto huella
+    fecha_hora expira_en
+    entero intentos
+  }
+  RegistroInspeccion {
+    texto accion
+    fecha_hora creado_en
+  }
+  RatificacionInspeccion {
+    texto clave
+    texto inspector_nombre
+    texto inspector_rut
+    texto ip
+    fecha_hora ratificado_en
+  }

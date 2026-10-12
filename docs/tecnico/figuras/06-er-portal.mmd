@@ -1,0 +1,37 @@
+%% Capítulo 6 · Portal del trabajador (generado por herramientas/modelo_datos.py)
+erDiagram
+  direction TB
+  CuentaTrabajador ||--o{ CorreoTrabajador : "cuenta"
+  Empleado ||--o{ SolicitudDocumento : "empleado"
+  CuentaTrabajador |o--o{ SolicitudDocumento : "cuenta"
+  VacacionEmpleado |o--o{ SolicitudDocumento : "vacacion"
+  Empleado ||--o{ CertificadoEmitido : "empleado"
+  CuentaTrabajador |o--o{ CertificadoEmitido : "cuenta"
+  CuentaTrabajador {
+    texto rut
+    entero version_sesion
+  }
+  CorreoTrabajador {
+    correo email
+    fecha_hora verificado_en
+  }
+  CodigoTrabajador {
+    texto rut
+    texto huella
+    fecha_hora expira_en
+    entero intentos
+    booleano usado
+  }
+  SolicitudDocumento {
+    texto tipo
+    entero mes
+    entero anio
+    texto estado
+    texto motivo
+  }
+  CertificadoEmitido {
+    texto tipo
+    texto codigo UK
+    json datos
+    fecha_hora anulado_en
+  }

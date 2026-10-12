@@ -1,0 +1,37 @@
+%% Capítulo 4: contenedores (modelo C4, nivel 2).
+flowchart TB
+  SPA["<b>Aplicación web</b><br/>React 19 · TypeScript<br/>panel, portal, Ley Karin,<br/>firma, fiscalización<br/>y verificación"]
+  EXT["<b>Extensión para Mi DT</b><br/>Chrome o Edge (MV3)<br/><i>solo en staging</i>"]
+
+  VER["<b>Vercel</b><br/>archivos estáticos<br/>jornada40.cl"]
+  CF["<b>Cloudflare</b><br/>DNS y proxy<br/>api.jornada40.cl"]
+  TBK["<b>Transbank</b><br/>inscripción<br/>de la tarjeta"]
+  MIDT["<b>Mi DT</b><br/>formularios<br/>de la DT"]
+
+  subgraph Railway[" Railway · ambiente production "]
+    API["<b>API REST</b><br/>Django 5.2 · DRF · /admin<br/>Gunicorn: 2 procesos<br/>de 4 hilos"]
+    CRON["<b>Tarea programada</b><br/>enviar_resumenes<br/>diaria, 12:00 UTC"]
+    DB[("<b>PostgreSQL</b>")]
+  end
+
+  SRV["<b>Servicios externos</b><br/>Backblaze B2 · Resend<br/>Reveniu · Google Gemini<br/>mindicador.cl"]
+
+  SPA -- "descarga" --> VER
+  SPA -- "HTTPS · JSON · cookies" --> CF
+  EXT -- "HTTPS · JSON · token" --> CF
+  SPA -- "pago" --> TBK
+  EXT -. "llena formularios" .-> MIDT
+  CF --> API
+  API --> DB
+  CRON --> DB
+  API <-->|"llamadas y avisos de pago"| SRV
+  CRON -- "correos" --> SRV
+
+  classDef propio fill:#E8F1FC,stroke:#0A5DB3,color:#1F2937
+  classDef staging fill:#E8F1FC,stroke:#0A5DB3,color:#1F2937,stroke-dasharray:6 4
+  classDef infra fill:#FFFFFF,stroke:#4B5563,color:#1F2937
+  classDef externo fill:#F3F4F6,stroke:#9CA3AF,color:#1F2937
+  class SPA,API,CRON,DB propio
+  class EXT staging
+  class VER,CF infra
+  class TBK,MIDT,SRV externo

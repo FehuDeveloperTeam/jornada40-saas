@@ -14,6 +14,29 @@
     "clusterBorder": "#C9D3E0",
     "edgeLabelBackground": "#FFFFFF"
   },
-  "flowchart": { "curve": "basis", "padding": 14, "nodeSpacing": 40, "rankSpacing": 60 },
-  "sequence": { "mirrorActors": false, "actorMargin": 40 }
+  "flowchart": {
+    "curve": "basis",
+    "padding": 14,
+    "nodeSpacing": 40,
+    "rankSpacing": 60
+  },
+  "sequence": {
+    "mirrorActors": false,
+    "actorMargin": 24,
+    "wrap": true,
+    "width": 120,
+    "boxMargin": 6,
+    "messageMargin": 28,
+    "noteMargin": 8,
+    "diagramMarginX": 12,
+    "diagramMarginY": 8
+  },
+  "er": {
+    "minEntityWidth": 80,
+    "minEntityHeight": 36,
+    "entityPadding": 10,
+    "nodeSpacing": 30,
+    "rankSpacing": 70,
+    "diagramPadding": 12
+  }
 }
