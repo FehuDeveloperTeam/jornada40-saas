@@ -80,7 +80,7 @@ El menú lateral muestra solo lo que la persona puede usar según su permiso y s
 | Dirección base | `https://api.jornada40.cl/api/` en producción; en las pruebas, la del ambiente de staging |
 | Formato | JSON en ambos sentidos. Los archivos se suben con `multipart/form-data` y se descargan como binarios con `Content-Disposition` |
 | Identificación | Según el acceso (sección 4.7): cookies del panel, cookies firmadas de cada portal, token de la extensión, o el token de la solicitud en la firma |
-| Orígenes | Solo los de la lista de CORS, con credenciales. Encabezados que la aplicación web puede leer: `Content-Disposition`, `X-Documento-Firmado` y `Retry-After` |
+| Orígenes | Solo los de la lista de CORS, con credenciales. **[Solo en staging]** Una escritura que viene de otro origen recibe 403 (sección 4.7). Encabezados que la aplicación web puede leer: `Content-Disposition`, `X-Documento-Firmado` y `Retry-After` |
 | Nombres | Recursos en español y en plural (`/empleados/`, `/liquidaciones/`). Las acciones van después del recurso, por ejemplo `/liquidaciones/simular/` o `/firmas/{id}/reenviar/` |
 | Paginación | Las listas del enrutador responden por páginas de 200: `{count, next, previous, results}`. La aplicación web lee también las respuestas sin paginar (`src/api/lista.ts`) |
 | Versiones | Sin versión en la ruta, porque la API y la aplicación web se publican juntas. La extensión, que se actualiza aparte, usa `/api/extension/v1/` |
@@ -120,7 +120,7 @@ El menú lateral muestra solo lo que la persona puede usar según su permiso y s
 | 200, 201, 204 | Éxito: consulta, creación y operación sin contenido |
 | 400 | Datos inválidos o una regla que lo impide, con el motivo en `error`. Es la respuesta más frecuente: unas 235 en el código |
 | 401 | Sin sesión o sesión vencida; en el panel, la aplicación web intenta renovar. También: secreto inválido en el aviso de pago |
-| 403 | Sin permiso: cerco del equipo, recurso de otra cuenta o sesión de firma inválida |
+| 403 | Sin permiso: cerco del equipo, recurso de otra cuenta, sesión de firma inválida o una escritura que viene de otro origen |
 | 404 | No existe o no pertenece a quien pregunta; ambos casos responden igual |
 | 405, 415 | Método o formato no admitido (DRF); por ejemplo, un formulario en una ruta que solo acepta JSON |
 | 409 | Duplicado, como una segunda liquidación del mismo período |

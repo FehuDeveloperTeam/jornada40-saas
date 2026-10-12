@@ -60,7 +60,7 @@ Un contenedor, en el modelo C4, es una pieza que se ejecuta o guarda datos por s
 **Comunicación.**
 
 - La aplicación web y la extensión llaman a la API por HTTPS con JSON. El dominio `api.jornada40.cl` pasa por Cloudflare.
-- La aplicación web y la API están en orígenes distintos (`jornada40.cl` y `api.jornada40.cl`). La API solo acepta los orígenes de su lista de CORS, con credenciales.
+- La aplicación web y la API están en orígenes distintos (`jornada40.cl` y `api.jornada40.cl`). La API solo acepta los orígenes de su lista de CORS, con credenciales, y rechaza toda escritura que venga de otro origen (sección 4.7).
 - La aplicación web se identifica con cookies; la extensión, con un token en el encabezado `Authorization`.
 - La API llama a los servicios externos con sus bibliotecas (boto3, django-anymail, google-genai) o con `requests`.
 - Reveniu llama a la API para avisar los pagos.
@@ -75,7 +75,7 @@ La API es un proyecto Django (`backend/config`) con una sola aplicación (`backe
 
 | Capa | Ubicación | Responsabilidad |
 |---|---|---|
-| Middleware | `config/settings.py` (`MIDDLEWARE`); `core/middleware.py`, `core/contexto.py`, `core/bitacora.py`, `core/sesion_inactividad.py` | Tomar la IP real del visitante, aplicar seguridad y CORS, preparar el contexto de empresas, anotar la bitácora y renovar las cookies de sesión |
+| Middleware | `config/settings.py` (`MIDDLEWARE`); `core/middleware.py`, `core/contexto.py`, `core/bitacora.py`, `core/sesion_inactividad.py` | Tomar la IP real del visitante, aplicar seguridad y CORS, rechazar las escrituras de otros orígenes, preparar el contexto de empresas, anotar la bitácora y renovar las cookies de sesión |
 | Autenticación | `core/autenticacion.py` y una clase en el módulo de cada acceso | Identificar a quien llama según el acceso y, para el equipo, aplicar sus permisos (sección 4.7) |
 | Vistas | `core/views/` (39 módulos), `core/urls.py`, `core/serializers.py` | Recibir la petición, validar, orquestar y responder; un módulo por tema |
 | Reglas y cálculo | Módulos de `core/views/` y de `core/` | Cálculo de liquidaciones, finiquitos, feriado y plazos; reglas de jornada, protecciones y Ley Karin; archivos legales |
@@ -215,7 +215,7 @@ El trabajador queda identificado por su sesión del portal: no hay denuncias an�
 2. crea el superusuario si se configuró;
 3. inicia Gunicorn con 2 procesos de 4 hilos y un tiempo máximo de 60 segundos por petición.
 
-La orden de arranque encadena esos pasos de modo que, si la migración falla, Gunicorn arranca igual con el esquema a medio aplicar. Está registrado como hallazgo (capítulo 12).
+Si la migración falla, el contenedor se detiene y Gunicorn no arranca: un despliegue no atiende con el esquema a medio aplicar. **[Solo en staging]** Esta regla se corrigió el 12-10-2026; la orden que corre en producción todavía arranca Gunicorn aunque la migración falle (capítulo 12).
 
 **Publicación.** Railway y Vercel despliegan solos al recibir un cambio en `main` (producción) o en `staging` (pruebas). La integración continua de GitHub corre en paralelo y no condiciona el despliegue. Por eso la práctica es integrar en `staging`, revisar ahí y solo después publicar en `main` (capítulo 12).
 
@@ -244,7 +244,12 @@ Cada acceso tiene su propio mecanismo, resumido en la sección 2.2 y detallado e
 
 **Cookies firmadas.** Las cookies firmadas usan la firma de Django con una sal propia de cada acceso. El middleware `RenovarSesionMiddleware` las vuelve a firmar en cada petición autenticada, así que vencen por inactividad; además guardan la hora de ingreso, que fija el tope absoluto.
 
-**Sin formularios de otros sitios.** Las vistas del portal, de la Ley Karin, de la fiscalización y de la extensión solo aceptan JSON, así que un formulario de otro sitio no puede actuar en nombre de la persona. Las vistas del panel no tienen hoy esa restricción ni una verificación anti-CSRF; es un hallazgo de este documento (capítulo 8).
+**Escrituras solo desde la aplicación (CSRF).** **[Solo en staging]** La autenticación del panel no verifica un token anti-CSRF, así que la protección está en dos capas:
+
+- **Revisión del origen.** El middleware `OrigenPermitidoMiddleware` (`core/middleware.py`) responde 403 a toda petición POST, PUT, PATCH o DELETE a la API cuyo encabezado `Origin` no sea un origen de la aplicación ni la propia API. Sin `Origin`, revisa `Referer`; sin ninguno de los dos, la petición no viene de una página web y sigue. Rechaza también el origen `null`, el de un iframe aislado. Quedan fuera el aviso de pago de Reveniu y la extensión, que no usan cookies.
+- **Cookies `SameSite`.** En producción, la aplicación y la API son el mismo sitio, y las cookies de sesión van con `SameSite=Lax`: el navegador no las envía en peticiones que nacen en otro sitio. En staging van con `SameSite=None`, porque las vistas previas de Vercel y el dominio de Railway son otros sitios; ahí protege la revisión del origen.
+
+Además, las vistas del portal, de la Ley Karin, de la fiscalización y de la extensión solo aceptan JSON. Este control corrige el hallazgo de la versión 0.3 del documento (capítulo 8). La prueba `test_csrf` lo comprueba.
 
 ### Aislamiento de los datos
 
@@ -328,7 +333,7 @@ El registro siguiente reúne las decisiones que dan forma al sistema, con su con
 |---|---|---|---|
 | ADR-01 | **Aplicación web separada de la API.** Una aplicación de una sola página en Vercel y una API REST en Railway, en dominios propios. | • Cada parte se despliega por separado. <br>• Las cookies deben viajar entre orígenes, con CORS y credenciales. <br>• Vercel no tiene proxy: la aplicación llama a la API por su dominio. | 13-02-2026 |
 | ADR-02 | **Monolito modular en Django**, con una sola aplicación (`core`) dividida por temas. El equipo es pequeño y el dominio es uno solo: la relación laboral. | • Un solo despliegue y una sola base. <br>• Sin llamadas entre servicios. <br>• La separación por temas depende de la disciplina del código: paquete de vistas desde el 24-09-2026. | 13-02-2026 |
-| ADR-03 | **Sesión del panel con JWT en cookies HttpOnly**, no en el almacenamiento del navegador. Los tiempos son cortos (5 y 15 min) y el token de renovación rota. | • Un script en la página no puede leer el token. <br>• Requiere renovar con frecuencia y cerrar por inactividad. <br>• Con `SameSite=None`, exige protección anti-CSRF propia (hallazgo, capítulo 8). | 13-02-2026 |
+| ADR-03 | **Sesión del panel con JWT en cookies HttpOnly**, no en el almacenamiento del navegador. Los tiempos son cortos (5 y 15 min) y el token de renovación rota. | • Un script en la página no puede leer el token. <br>• Requiere renovar con frecuencia y cerrar por inactividad. <br>• Requiere una protección propia contra peticiones de otros sitios (ADR-21). | 13-02-2026 |
 | ADR-04 | **Todo cálculo legal en el servidor.** La interfaz solo muestra, también en las vistas previas. Los montos legales no se aceptan del navegador. | • Un solo lugar para cada regla, probado en el servidor. <br>• Cada vista previa es una petición. | 23-09-2026 |
 | ADR-05 | **Advertir, no bloquear.** Lo que contraviene una norma se avisa; solo se impide lo que la ley prohíbe o lo que invalidaría un documento o un archivo oficial. | • La decisión queda en el empleador. <br>• Cada aviso debe ser claro y estar en el lugar de la acción. | 23-09-2026 |
 | ADR-06 | **Parámetros legales en tablas versionadas por vigencia**, mantenidas por Jornada40 en el administrador. Lo leído de Previred queda como propuesta hasta que una persona lo confirma. | • Recalcular un período antiguo usa sus valores. <br>• Una actualización no requiere desplegar. <br>• Depende de que alguien cargue cada reajuste a tiempo. | 22-09-2026 |
@@ -346,5 +351,6 @@ El registro siguiente reúne las decisiones que dan forma al sistema, con su con
 | ADR-18 | **Lectura de contratos con Gemini**, filtrando la respuesta a los campos esperados y descartando un RUT inválido. | • Prellena el editor, pero la persona confirma. <br>• Envía el contrato a un tercero (capítulo 9). | 28-04-2026 |
 | ADR-19 | **Pruebas sin internet**: los servicios externos se simulan y toda salida real falla. | • Las pruebas son repetibles. <br>• Las integraciones reales se verifican a mano en el ambiente de pruebas. | 11-10-2026 |
 | ADR-20 | **Alertas de errores por correo, sin servicios de terceros**, y sin datos personales. | • Monitoreo básico sin costo. <br>• No hay panel de errores ni métricas (capítulo 12). | 11-10-2026 |
+| ADR-21 | **Escrituras en la API solo desde los orígenes propios**, revisando `Origin` y `Referer`, más cookies `SameSite=Lax` en producción. Se prefirió a un token anti-CSRF, que la aplicación tendría que leer desde otro dominio. | • Cierra la falsificación de peticiones entre sitios en todos los accesos. <br>• Una copia del sitio en otro dominio no puede usar la API. <br>• Cada origen nuevo de la aplicación se agrega a la configuración. | 12-10-2026 |
 
 : Registro de decisiones de arquitectura

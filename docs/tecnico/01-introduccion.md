@@ -44,6 +44,7 @@ A la fecha de corte, la versión de pruebas agrega lo siguiente a la de producci
   - alertas de errores por correo;
   - configuración de SQLite para desarrollo;
   - medición de cobertura, análisis estático y revisión de accesibilidad;
+- correcciones de seguridad y operación: la API rechaza las escrituras que vienen de otros sitios (CSRF), las cookies de sesión de producción pasan a `SameSite=Lax` y el servidor no arranca si falla una migración;
 - documentación.
 
 ## Audiencia y organización del documento {#sec-audiencia}

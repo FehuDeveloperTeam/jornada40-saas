@@ -10,7 +10,7 @@ Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/
 |---------|------------------------------------------------------------------|----------------------|
 | 1       | Parte preliminar, resumen ejecutivo, capítulos 1 y 2             | Lista (v0.1, 11-10-2026) |
 | 2       | Capítulo 3: requerimientos y reglas de negocio                   | Lista (v0.2, 12-10-2026) |
-| 3       | Capítulos 4 a 7: arquitectura, diseño, datos e interfaces        | Lista (v0.3, 12-10-2026) |
+| 3       | Capítulos 4 a 7: arquitectura, diseño, datos e interfaces        | Lista (v0.3.1, 12-10-2026) |
 | 4       | Capítulos 8 a 10: seguridad, datos personales y cumplimiento     | Pendiente            |
 | 5       | Capítulos 11 a 13, anexos A a J y revisión final                 | Pendiente            |
 

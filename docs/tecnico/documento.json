@@ -1,11 +1,11 @@
 {
   "titulo-documento": "Documento técnico del sistema",
-  "version": "0.3",
+  "version": "0.3.1",
   "fecha": "12-10-2026",
   "estado": "Borrador en elaboración (entrega 3 de 5)",
   "clasificacion": "Confidencial",
   "autor": "Equipo de desarrollo de Jornada40",
-  "commit-rama": "682e59d",
+  "commit-rama": "45e3d65",
   "commit-main": "96ca177",
   "rama": "claude/review-dashboard-branch-IV6aW",
   "capitulos": [
