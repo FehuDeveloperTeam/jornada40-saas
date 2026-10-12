@@ -406,9 +406,7 @@ def ingresar_con_clave(request):
 @authentication_classes([])
 @permission_classes([AllowAny])
 def salir(request):
-    respuesta = Response({'ok': True})
-    respuesta.delete_cookie(COOKIE, path='/', samesite='None' if getattr(settings, 'IS_DEPLOYED', False) else 'Lax')
-    return respuesta
+    return sesion_inactividad.borrar_cookie(Response({'ok': True}), COOKIE)
 
 
 # ── Cuenta ───────────────────────────────────────────────────────────────────

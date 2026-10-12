@@ -30,7 +30,10 @@ COPY . /app/
 # 8. Estáticos y Ejecución
 RUN python manage.py collectstatic --noinput || true
 
+# Si una migración falla, el contenedor se detiene: Gunicorn no arranca con el
+# esquema a medio aplicar. El `|| true` vale solo para createsuperuser, que falla
+# cuando el superusuario ya existe.
 CMD python manage.py migrate && \
-    python manage.py createsuperuser --noinput || true && \
+    (python manage.py createsuperuser --noinput || true) && \
     gunicorn config.wsgi:application --bind 0.0.0.0:$PORT \
       --workers 2 --threads 4 --timeout 60

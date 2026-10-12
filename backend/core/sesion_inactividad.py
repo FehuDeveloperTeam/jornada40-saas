@@ -27,9 +27,17 @@ def leer(valor, salt, inactividad, maximo):
 
 
 def poner_cookie(respuesta, nombre, valor, max_age):
+    """Cookie de sesión de la API: HttpOnly, Secure al desplegar y SameSite según
+    COOKIES_SAMESITE (Lax en producción; ver config/settings.py)."""
     desplegado = bool(getattr(settings, 'IS_DEPLOYED', False))
     respuesta.set_cookie(nombre, valor, max_age=max_age, httponly=True, secure=desplegado,
-                         samesite='None' if desplegado else 'Lax', path='/')
+                         samesite=getattr(settings, 'COOKIES_SAMESITE', 'Lax'), path='/')
+    return respuesta
+
+
+def borrar_cookie(respuesta, nombre):
+    """Borra una cookie puesta con poner_cookie, con los mismos atributos."""
+    respuesta.delete_cookie(nombre, path='/', samesite=getattr(settings, 'COOKIES_SAMESITE', 'Lax'))
     return respuesta
 
 

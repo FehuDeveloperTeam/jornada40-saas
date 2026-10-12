@@ -275,7 +275,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
         respuesta.set_cookie(COOKIE_CONFIRMACION,
                              signing.dumps({'u': request.user.id, 'en': ahora.isoformat()}, salt=_SAL_CONFIRMACION),
                              max_age=VIGENCIA_CONFIRMACION, httponly=True, secure=desplegado,
-                             samesite='None' if desplegado else 'Lax')
+                             samesite=settings.COOKIES_SAMESITE)
         return respuesta
 
     @action(detail=True, methods=['patch'])

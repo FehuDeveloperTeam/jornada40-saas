@@ -417,9 +417,7 @@ def yo(request):
 def salir(request):
     enc = request.user
     registrar_karin(enc.cuenta, 'SALIDA', 'Cerró sesión', encargado=enc, ip=_ip(request))
-    respuesta = Response({'ok': True})
-    respuesta.delete_cookie(COOKIE)
-    return respuesta
+    return sesion_inactividad.borrar_cookie(Response({'ok': True}), COOKIE)
 
 
 @api_view(['POST'])

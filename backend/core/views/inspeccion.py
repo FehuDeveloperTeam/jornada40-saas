@@ -232,9 +232,7 @@ def yo(request):
 def salir(request):
     i = request.user
     _registrar(i.empresa, i.correo, i.nombre, i.rut, 'SALIDA', request)
-    respuesta = Response({'ok': True})
-    respuesta.delete_cookie(COOKIE)
-    return respuesta
+    return sesion_inactividad.borrar_cookie(Response({'ok': True}), COOKIE)
 
 
 # ── Documentos ───────────────────────────────────────────────────────────────

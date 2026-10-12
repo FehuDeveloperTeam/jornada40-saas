@@ -53,6 +53,7 @@ MIDDLEWARE = [
     'core.middleware.IpRealMiddleware',  # primero: todo lo demás ve la IP real
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'core.middleware.OrigenPermitidoMiddleware',  # escrituras en la API solo desde los orígenes propios (CSRF)
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -180,13 +181,22 @@ SITE_ID = 1
 CORS_EXPOSE_HEADERS = ['Content-Disposition', 'X-Documento-Firmado', 'Retry-After']
 
 
+# SameSite de las cookies de sesión de la API (panel, portal, Ley Karin,
+# fiscalización y confirmación de identidad). En producción la aplicación
+# (jornada40.cl) y la API (api.jornada40.cl) son el mismo sitio: con Lax, el
+# navegador no envía la sesión en peticiones que nacen en otro sitio (CSRF).
+# Staging atiende también las vistas previas de Vercel y el dominio de Railway,
+# que son otros sitios, así que ahí sigue None (con Secure). En todos los
+# ambientes, además, core.middleware.OrigenPermitidoMiddleware rechaza las
+# escrituras que vienen de otro origen.
+COOKIES_SAMESITE = 'Lax' if IS_PRODUCTION else ('None' if IS_DEPLOYED else 'Lax')
+
 REST_AUTH = {
     'USE_JWT': True,
     'JWT_AUTH_COOKIE': 'jornada40-auth',
     'JWT_AUTH_REFRESH_COOKIE': 'jornada40-refresh-token',
     'JWT_AUTH_SECURE': IS_DEPLOYED,
-    # SameSite=None + Secure es obligatorio para envío cross-site (Vercel → Railway).
-    'JWT_AUTH_SAMESITE': 'None' if IS_DEPLOYED else 'Lax',
+    'JWT_AUTH_SAMESITE': COOKIES_SAMESITE,
     'PASSWORD_RESET_SERIALIZER': 'core.serializers.CustomPasswordResetSerializer',
     # Se entra solo con el RUT del titular; ver LoginPorRutSerializer.
     'LOGIN_SERIALIZER': 'core.serializers.LoginPorRutSerializer',
@@ -212,16 +222,16 @@ if IS_PRODUCTION:
         "jornada40.cl",
         "www.jornada40.cl",
     ]
+    # Solo los dominios propios: con cookies SameSite=Lax, una copia del sitio en
+    # otro dominio (p. ej. jornada40-saas.vercel.app) no podría usar la sesión.
     CORS_ALLOWED_ORIGINS = [
         "https://jornada40.cl",
         "https://www.jornada40.cl",
-        "https://jornada40-saas.vercel.app",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CSRF_TRUSTED_ORIGINS = [
         "https://jornada40.cl",
         "https://www.jornada40.cl",
-        "https://jornada40-saas.vercel.app",
         "https://api.jornada40.cl",
         "https://jornada40-saas-production.up.railway.app",
     ]
