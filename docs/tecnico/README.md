@@ -9,7 +9,7 @@ Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/
 | Entrega | Contenido                                                        | Estado               |
 |---------|------------------------------------------------------------------|----------------------|
 | 1       | Parte preliminar, resumen ejecutivo, capítulos 1 y 2             | Lista (v0.1, 11-10-2026) |
-| 2       | Capítulo 3: requerimientos y reglas de negocio                   | Pendiente            |
+| 2       | Capítulo 3: requerimientos y reglas de negocio                   | Lista (v0.2, 12-10-2026) |
 | 3       | Capítulos 4 a 7: arquitectura, diseño, datos e interfaces        | Pendiente            |
 | 4       | Capítulos 8 a 10: seguridad, datos personales y cumplimiento     | Pendiente            |
 | 5       | Capítulos 11 a 13, anexos A a J y revisión final                 | Pendiente            |
@@ -47,6 +47,7 @@ Requisitos:
 
 - **Datos del documento:** `{{version}}`, `{{fecha}}`, `{{rama}}` y las demás claves de `documento.json` se reemplazan al compilar, también dentro de `código`.
 - **Tablas:** tablas de Markdown con leyenda `: Título` debajo. Se numeran solas y el ancho de cada columna se calcula según su contenido, así que los guiones del Markdown no importan. Las tablas cortas no se parten entre páginas; en las largas se repite el encabezado.
+- **Saltos de línea en una celda:** `<br>` (por ejemplo, para enumerar con `•` dentro de una celda).
 - **Fuente de una tabla:** un bloque `::: {custom-style="Nota de tabla"}` justo después de la tabla.
 - **Figuras:** `![Título breve](figuras/nombre.png){width=100%}`. El título va al índice de figuras, así que conviene que sea corto; la explicación va en el texto.
 - **Bloques especiales:**
@@ -56,6 +57,7 @@ Requisitos:
 - **Capítulos:** cada capítulo empieza con `# Título {#sec-…}` y queda numerado automáticamente; `{.unnumbered}` lo deja sin número.
 - **Funciones no publicadas:** la marca **[Solo en staging]** señala lo que aún no está en `main`.
 - **Exactitud:** cada dato se comprueba en el código, no en `CLAUDE.md` ni en la memoria. Las rutas se escriben relativas a la raíz del repositorio.
+- **Ejemplos numéricos:** los de la sección 3.2.8 los comprueba `backend/core/tests/test_ejemplos_documento.py`. Si un cálculo cambia, esa prueba falla: actualiza el ejemplo del capítulo en el mismo commit.
 
 ## Publicar una versión nueva
 

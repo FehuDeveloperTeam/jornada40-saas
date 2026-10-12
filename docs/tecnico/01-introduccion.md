@@ -35,7 +35,7 @@ Este documento describe técnicamente el sistema Jornada40: qué hace, qué requ
 
 El documento describe el código de la rama `{{rama}}` en el commit `{{commit-rama}}`, publicada en el ambiente de pruebas (staging). El sitio de producción ejecuta la rama `main` en el commit `{{commit-main}}`. Lo que todavía no está en producción se marca **[Solo en staging]**.
 
-A la fecha de corte, la diferencia entre ambas versiones son 9 commits:
+A la fecha de corte, la versión de pruebas agrega lo siguiente a la de producción:
 
 - la extensión "Jornada40 para Mi DT": servicio en el servidor, panel lateral y página de privacidad;
 - en las fichas para Mi DT, el total imponible y no imponible de la etapa 3 del contrato, y un aviso de los anexos aún sin firmar;
@@ -69,7 +69,7 @@ A la fecha de corte, la diferencia entre ambas versiones son 9 commits:
 | Resumen ejecutivo                         | Visión del sistema para lectores no técnicos                                                                 | Incluido                  |
 | 1. Introducción                           | Propósito, alcance, audiencia, referencias y convenciones                                                    | Incluido                  |
 | 2. Descripción general                    | Contexto, actores, módulos, planes, restricciones y dependencias externas                                    | Incluido                  |
-| 3. Requerimientos                         | Funcionales, reglas de negocio y cálculos legales, y no funcionales                                         | Entrega 2                 |
+| 3. Requerimientos                         | Funcionales, reglas de negocio y cálculos legales, y no funcionales                                         | Incluido                 |
 | 4. Arquitectura                           | Principios, vistas de contexto, contenedores, componentes, secuencias y despliegue; decisiones              | Entrega 3                 |
 | 5. Diseño detallado                       | Servidor, interfaz, extensión, diagramas de estado y algoritmos                                              | Entrega 3                 |
 | 6. Modelo de datos                        | Entidades, integridad, datos sensibles, parámetros y retención                                               | Entrega 3                 |

@@ -34,14 +34,16 @@ Dos principios ordenan el diseño:
 - **Ley Karin:** la información de las denuncias se guarda cifrada y separada del resto del sistema.
 - **Firma:** es una firma electrónica simple. Antes de firmar se verifica la identidad del trabajador con un código o su clave, y queda evidencia de quién emitió el documento y desde dónde.
 
-**Calidad.** Al 11-10-2026, el código descrito tiene:
+**Calidad.** Al {{fecha}}, el código descrito tiene:
 
-- 530 pruebas automáticas del servidor, con 83,1 % de las líneas cubiertas;
+- 537 pruebas automáticas del servidor, con 83,1 % de las líneas cubiertas según la última medición (11-10-2026);
 - 61 pruebas unitarias de la interfaz;
 - 59 recorridos de extremo a extremo en navegador;
 - una revisión automática de accesibilidad (WCAG 2.1, niveles A y AA) en 21 pantallas, sin problemas detectados.
 
 La integración continua ejecuta estas pruebas, el análisis estático y la auditoría de dependencias en cada cambio.
+
+**Requerimientos.** El capítulo 3 especifica 284 requerimientos: 199 funcionales, 44 reglas de negocio y cálculos legales, y 41 no funcionales. De los no funcionales, 27 se cumplen, 9 se cumplen en parte y 5 están pendientes; estos últimos coinciden con las limitaciones de esta página.
 
 **Estado.** El sitio de producción (jornada40.cl) ejecuta la rama `main`. Este documento describe una versión más reciente, publicada en el ambiente de pruebas, que agrega:
 
@@ -58,4 +60,4 @@ La integración continua ejecuta estas pruebas, el análisis estático y la audi
 - Mi DT no tiene una interfaz de programación (API). El registro se apoya en fichas para copiar y en una extensión que aún está en piloto.
 - Dos formatos de archivo esperan verificación con cargas reales: la indemnización a todo evento en Previred y el registro masivo de contratos en Mi DT.
 
-**Este documento.** Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/IEC/IEEE 42010 e IEEE 1016 (arquitectura y diseño) e ISO/IEC 25010 (calidad). Tiene trece capítulos y diez anexos. Esta versión 0.1 contiene la parte preliminar y los capítulos 1 y 2; el resto se completará en cuatro entregas más (sección 1.3).
+**Este documento.** Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/IEC/IEEE 42010 e IEEE 1016 (arquitectura y diseño) e ISO/IEC 25010 (calidad). Tiene trece capítulos y diez anexos. Esta versión {{version}} contiene la parte preliminar y los capítulos 1 a 3; el resto se completará en tres entregas más (sección 1.3).

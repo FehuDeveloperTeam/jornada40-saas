@@ -81,6 +81,7 @@ Control de versiones
 | Versión | Fecha       | Autor                    | Descripción del cambio                                                                                     |
 |---------|-------------|--------------------------|------------------------------------------------------------------------------------------------------------|
 | 0.1     | 11-10-2026  | Equipo de desarrollo     | Primera entrega (1 de 5): parte preliminar, resumen ejecutivo, capítulo 1 (Introducción) y capítulo 2 (Descripción general del sistema). |
+| 0.2     | 12-10-2026  | Equipo de desarrollo     | Segunda entrega (2 de 5): capítulo 3 (Requerimientos), con 199 requerimientos funcionales, 44 reglas de negocio y 41 no funcionales, y ejemplos numéricos verificados por la prueba automática `test_ejemplos_documento`. |
 
 ::: {custom-style="Título de página"}
 Índice general

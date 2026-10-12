@@ -45,12 +45,36 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - antes de escalar: pentest externo, revisión legal externa, auditoría manual de accesibilidad, panel de errores.
 - [ ] **Documento técnico del sistema** (`docs/tecnico/`, se compila a Word y PDF con `python3 docs/tecnico/herramientas/construir.py`), en cinco entregas:
   - [x] (2026-10-11) Entrega 1: parte preliminar, resumen ejecutivo, capítulo 1 (Introducción) y capítulo 2 (Descripción general).
-  - [ ] Entrega 2: capítulo 3 (requerimientos funcionales, reglas de negocio y no funcionales).
+  - [x] (2026-10-12) Entrega 2: capítulo 3, con 199 requerimientos funcionales, 44 reglas de negocio y 41 no funcionales. Los ejemplos numéricos los comprueba `backend/core/tests/test_ejemplos_documento.py`.
   - [ ] Entrega 3: capítulos 4 a 7 (arquitectura, diseño detallado, modelo de datos e interfaces).
   - [ ] Entrega 4: capítulos 8 a 10 (seguridad, datos personales y cumplimiento normativo).
   - [ ] Entrega 5: capítulos 11 a 13, anexos A a J y revisión final.
   - [ ] Completar en la ficha de control quién elabora, revisa y aprueba (lo define el titular).
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
+
+## Hallazgos al documentar el código (2026-10-12, por decidir)
+
+Aparecieron al reconstruir los requerimientos del capítulo 3 del documento técnico. No se corrigieron: cada uno espera decisión.
+
+- [ ] **Prioridad alta: borrado físico por la API.**
+  - Qué pasa: `DELETE` borra la fila en fichas de trabajadores, contratos, liquidaciones, documentos legales, finiquitos y vacaciones. Al borrar una ficha también se borran en cascada sus solicitudes de firma (folio, IP, huellas) y sus documentos.
+  - Quién puede hacerlo: la interfaz no ofrece esa opción, pero la API lo permite al titular y a los usuarios del equipo con "ver y gestionar".
+  - Propuesta: responder 405 en esos recursos (o borrado lógico) y proteger las relaciones de los documentos firmados.
+- [ ] **Prioridad alta: límite del webhook de Reveniu.** No tiene límite propio, así que rige el anónimo de 100 avisos al día por IP. Con más clientes, avisos de pago legítimos podrían recibir 429. Propuesta: un límite propio para el webhook.
+- [ ] El recargo de horas extra menor al 50 % solo se valida si el ítem declara su naturaleza. Por la API, un ítem que trae solo el concepto se calcula sin validar.
+- [ ] Un documento legal firmado (carta o amonestación) se puede editar. La descarga sigue entregando la versión firmada, pero el registro cambia.
+- [ ] Volver a invitar al equipo a una persona eliminada (mismo RUT, misma cuenta) daría un error 500, porque se repite el usuario interno.
+- [ ] La carta de renuncia o mutuo acuerdo no se puede enviar a firma electrónica: falta en la lista de tipos de firma.
+- [ ] El comprobante de vacaciones rotula el día libre por horas extra como "Permiso sin goce de sueldo".
+- [ ] `revisar_topes_imponibles --aplicar` puede recalcular una liquidación con firma pendiente o en proceso.
+- [ ] `sincronizar_previred` no propone tres tasas de la reforma de pensiones: rentabilidad protegida, 0,1 % del empleador y AFC del empleador desde el año 11.
+- [ ] Ante un dato mal formado, la vista previa de la liquidación devuelve el texto técnico del error en vez de un mensaje genérico.
+- [ ] Bajar de plan no revisa el cupo de usuarios del equipo: los usuarios ya activos siguen entrando.
+- [ ] Actualizar `CLAUDE.md` donde no coincide con el código:
+  - Stripe no se usa: el pago es con Reveniu y Transbank;
+  - el estado PAST_DUE nunca se asigna;
+  - el borrado lógico solo existe en empresas;
+  - "avisos, no bloqueos" tiene excepciones legales.
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 

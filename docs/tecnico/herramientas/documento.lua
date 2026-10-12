@@ -1,6 +1,7 @@
 --[[ Filtro de pandoc del documento técnico (salida Word).
 
   - Reemplaza {{clave}} en el texto por el valor de documento.json (versión, fecha…).
+  - Convierte <br> en un salto de línea (sirve dentro de las celdas de las tablas).
   - Numera figuras y tablas ("Figura 3.", "Tabla 5.") con campos SEQ de Word, que
     alimentan los índices de figuras y de tablas.
   - Da a las celdas de las tablas los estilos "Celda" y "Celda encabezado" y calcula
@@ -50,7 +51,18 @@ local PALABRA_MAXIMA = 24   -- una palabra más larga (una ruta, p. ej.) se cort
 local MARGEN_CELDA = 5      -- márgenes de la celda y holgura para la negrita
 local ANCHO_VACIO = 18      -- columna sin contenido (formularios por llenar)
 
-local function largo(texto) return utf8.len(texto) or #texto end
+-- Ancho aproximado en caracteres promedio: las mayúsculas (incluidas las con tilde)
+-- ocupan más que las minúsculas, y eso importa en columnas de códigos como RNF-SEG-01.
+local function largo(texto)
+  local ok, total = pcall(function()
+    local t = 0
+    for _, cp in utf8.codes(texto) do
+      if (cp >= 65 and cp <= 90) or (cp >= 192 and cp <= 222) then t = t + 1.3 else t = t + 1 end
+    end
+    return t
+  end)
+  return ok and total or #texto
+end
 
 local function medidas(bloques)
   local texto = pandoc.utils.stringify(bloques)
@@ -130,6 +142,11 @@ local leer_meta = {
 }
 
 local formato = {
+  -- <br> dentro de una celda de tabla: salto de línea (Word no conoce el HTML).
+  RawInline = function(r)
+    if r.format == 'html' and r.text:match('^<br%s*/?>$') then return pandoc.LineBreak() end
+  end,
+
   Str = function(s)
     local texto, cambios = reemplazar(s.text)
     if cambios > 0 then return pandoc.Str(texto) end
