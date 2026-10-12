@@ -1,8 +1,8 @@
 {
   "titulo-documento": "Documento técnico del sistema",
-  "version": "0.3.1",
+  "version": "0.9",
   "fecha": "12-10-2026",
-  "estado": "Borrador en elaboración (entrega 3 de 5)",
+  "estado": "Versión completa para revisión",
   "clasificacion": "Confidencial",
   "autor": "Equipo de desarrollo de Jornada40",
   "commit-rama": "45e3d65",
@@ -17,6 +17,22 @@
     "04-arquitectura.md",
     "05-diseno-detallado.md",
     "06-modelo-datos.md",
-    "07-interfaces.md"
+    "07-interfaces.md",
+    "08-seguridad.md",
+    "09-datos-personales.md",
+    "10-cumplimiento.md",
+    "11-calidad-pruebas.md",
+    "12-operacion.md",
+    "13-mantenimiento.md",
+    "anexo-a-glosario.md",
+    "anexo-b-diccionario.md",
+    "anexo-c-api.md",
+    "anexo-d-pantallas.md",
+    "anexo-e-plantillas.md",
+    "anexo-f-catalogos.md",
+    "anexo-g-variables.md",
+    "anexo-h-licencias.md",
+    "anexo-i-versiones.md",
+    "anexo-j-trazabilidad.md"
   ]
 }

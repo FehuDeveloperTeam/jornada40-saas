@@ -48,8 +48,10 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [x] (2026-10-11) Entrega 1: parte preliminar, resumen ejecutivo, capítulo 1 (Introducción) y capítulo 2 (Descripción general).
   - [x] (2026-10-12) Entrega 2: capítulo 3, con 199 requerimientos funcionales, 44 reglas de negocio y 41 no funcionales. Los ejemplos numéricos los comprueba `backend/core/tests/test_ejemplos_documento.py`.
   - [x] (2026-10-12) Entrega 3: capítulos 4 a 7 (arquitectura, diseño detallado, modelo de datos e interfaces). Los diagramas entidad-relación los genera `docs/tecnico/herramientas/modelo_datos.py` y las capturas, `CAPTURAS_DOC=1 npx playwright test capturas` (en `frontend/`).
-  - [ ] Entrega 4: capítulos 8 a 10 (seguridad, datos personales y cumplimiento normativo).
-  - [ ] Entrega 5: capítulos 11 a 13, anexos A a J y revisión final.
+  - [x] (2026-10-12) Entrega 4: capítulos 8 a 10 (seguridad, datos personales y cumplimiento normativo).
+  - [x] (2026-10-12) Entrega 5: capítulos 11 a 13, anexos A a J y revisión final. Los anexos B, C, F, H y J los genera `docs/tecnico/herramientas/anexos.py`.
+  - [x] (2026-10-12) Versión 0.9: las cinco entregas consolidadas en un solo Word y PDF, para revisión.
+  - [ ] Revisar la versión 0.9 y enviar las correcciones; con ellas se publica la 1.0.
   - [ ] Completar en la ficha de control quién elabora, revisa y aprueba (lo define el titular).
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
 
@@ -94,6 +96,14 @@ Aparecieron al documentar la arquitectura y el modelo de datos (capítulos 4 a 7
 - [ ] El número de ficha se asigna como el máximo más uno, sin bloqueo ni unicidad: dos altas simultáneas en la misma empresa podrían repetirlo. Menor.
 - [ ] La cadena de la bitácora usa SHA-256 sin clave: quien tenga escritura directa en la base podría recalcularla. Es una limitación de diseño; las copias exportadas la acotan. Evaluar una clave (HMAC) o un sello externo periódico.
 
+## Hallazgos de las entregas 4 y 5 del documento técnico (2026-10-12, por decidir)
+
+Aparecieron al escribir los capítulos 8 a 13 y los anexos. No se corrigieron en el código: cada uno espera decisión.
+
+- [ ] La ruta `api/auth/password/reset/confirm/<uidb64>/<token>/` (una `TemplateView` sin plantilla, en `core/urls.py`) responde 500 a un `GET` de cualquiera y genera una alerta de error. Nada la usa: la recuperación por RUT arma su enlace con `SITIO_URL`. Propuesta: quitarla o responder 404. Menor.
+- [ ] El correo de recuperación de la clave del titular usa la plantilla HTML también como texto plano (`views/cuentas.py → recuperar_password_por_rut`): un lector que muestra solo texto ve las etiquetas. Propuesta: usar `registration/password_reset_email.txt` para el texto. Menor.
+- [x] (2026-10-12) `docs/STAGING.md` decía que sin B2 "los PDF firmados no se guardan": en realidad el envío a firma responde 503. Corregido el texto.
+
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 
 - [x] (2026-10-08) Aprobar el plan (fases, y que la persona presiona siempre el botón final en Mi DT). Primero en staging.
@@ -114,6 +124,7 @@ Aparecieron al documentar la arquitectura y el modelo de datos (capítulos 4 a 7
   - Al revisar esto apareció y se corrigió (2026-10-08) una falla del portal: la cuenta era una por RUT y quien verificaba cualquier correo de ese RUT (p. ej. un empleador con una ficha de RUT ajeno) veía las fichas del trabajador real y podía cambiarle la clave. Ahora la cuenta es por persona; la migración 0100 separó las cuentas mezcladas y les borró la clave. Publicado en producción el 2026-10-08 (commit `96ca177`, migraciones 0099–0104 aplicadas).
   - Aprovechar la solicitud para preguntar a la DT por el canal de servicios web (API) para el LRE y el Registro Electrónico Laboral, que la DT anunció como "próxima evolución" (consulta 120083, actualizada 31-05-2023).
 - [ ] Revisión legal de plantillas (reglamento por rubro, documentos Ley Karin, pactos).
+- [ ] **Ley 21.719 de protección de datos (rige desde el 01-12-2026)**: contrato de tratamiento por encargo con los clientes, política de privacidad, registro de proveedores y transferencias internacionales, procedimiento ante vulneraciones, política de conservación y eliminación, y procedimiento para los derechos de los titulares. Detalle y prioridades en la sección 9.8 del documento técnico; validarlo con asesoría legal.
 - [ ] Verificar contra una carga real: aporte de indemnización a todo evento en Previred (campos 31–36) y CSV de registro masivo de Mi DT (oculto hasta confirmar la plantilla).
 
 ## En espera de terceros

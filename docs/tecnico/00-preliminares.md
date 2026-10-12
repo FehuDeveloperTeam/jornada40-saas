@@ -84,6 +84,7 @@ Control de versiones
 | 0.2     | 12-10-2026  | Equipo de desarrollo     | Segunda entrega (2 de 5): capítulo 3 (Requerimientos), con 199 requerimientos funcionales, 44 reglas de negocio y 41 no funcionales, y ejemplos numéricos verificados por la prueba automática `test_ejemplos_documento`. |
 | 0.3     | 12-10-2026  | Equipo de desarrollo     | Tercera entrega (3 de 5): capítulos 4 (Arquitectura), 5 (Diseño detallado), 6 (Modelo de datos) y 7 (Interfaces), con diagramas generados desde el código y capturas de pantalla con datos de prueba. |
 | 0.3.1   | 12-10-2026  | Equipo de desarrollo     | Revisión de la entrega 3: describe la corrección del hallazgo de CSRF (revisión del origen de las escrituras y cookies `SameSite=Lax` en producción, ADR-21) y el arranque que se detiene si falla una migración. |
+| 0.9     | 12-10-2026  | Equipo de desarrollo     | Versión completa para revisión, que consolida las entregas anteriores con los capítulos 8 (Seguridad), 9 (Protección de datos personales), 10 (Cumplimiento normativo), 11 (Calidad y pruebas), 12 (Instalación, despliegue y operación) y 13 (Mantenimiento y evolución), y los anexos A a J. Agrega RNF-SEG-12 (42 requerimientos no funcionales) y actualiza las cifras de pruebas. |
 
 ::: {custom-style="Título de página"}
 Índice general

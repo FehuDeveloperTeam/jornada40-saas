@@ -36,14 +36,16 @@ Dos principios ordenan el diseño:
 
 **Calidad.** Al {{fecha}}, el código descrito tiene:
 
-- 537 pruebas automáticas del servidor, con 83,1 % de las líneas cubiertas según la última medición (11-10-2026);
+- 551 pruebas automáticas del servidor, con 83,1 % de las líneas cubiertas según la última medición (11-10-2026);
 - 61 pruebas unitarias de la interfaz;
 - 59 recorridos de extremo a extremo en navegador;
 - una revisión automática de accesibilidad (WCAG 2.1, niveles A y AA) en 21 pantallas, sin problemas detectados.
 
-La integración continua ejecuta estas pruebas, el análisis estático y la auditoría de dependencias en cada cambio.
+La integración continua ejecuta estas pruebas, el análisis estático y la auditoría de dependencias en cada cambio. 192 de los 199 requerimientos funcionales y todas las reglas de negocio tienen al menos una prueba automática.
 
-**Requerimientos.** El capítulo 3 especifica 284 requerimientos: 199 funcionales, 44 reglas de negocio y cálculos legales, y 41 no funcionales. De los no funcionales, 27 se cumplen, 9 se cumplen en parte y 5 están pendientes; estos últimos coinciden con las limitaciones de esta página.
+**Requerimientos.** El capítulo 3 especifica 285 requerimientos: 199 funcionales, 44 reglas de negocio y cálculos legales, y 42 no funcionales. De los no funcionales, 28 se cumplen, 9 se cumplen en parte y 5 están pendientes: respaldos, disponibilidad comprometida, pruebas de carga, auditoría de seguridad externa y revisión legal externa de las plantillas.
+
+**Datos personales.** Jornada40 trata los datos de los trabajadores por cuenta de cada empleador (es encargado del tratamiento) y los de sus clientes como responsable. La Ley 21.719 rige desde el 01-12-2026 y exige, entre otras cosas, un contrato de encargo, una política de privacidad, un registro de proveedores y un procedimiento ante vulneraciones, que aún no existen (capítulo 9).
 
 **Estado.** El sitio de producción (jornada40.cl) ejecuta la rama `main`. Este documento describe una versión más reciente, publicada en el ambiente de pruebas, que agrega:
 
@@ -56,10 +58,11 @@ La integración continua ejecuta estas pruebas, el análisis estático y la audi
 
 - Producción mantiene dependencias con avisos de seguridad conocidos. Ya están corregidas en la versión de pruebas y falta publicarlas.
 - No hay respaldos automáticos propios de la base de datos ni pruebas de restauración.
+- Faltan los documentos y procedimientos que exige la Ley 21.719 antes de su vigencia (capítulo 9).
 - No se han hecho pruebas de carga ni una auditoría de seguridad externa.
 - La firma es simple, no avanzada. Para que un finiquito tenga poder liberatorio debe ratificarse ante un ministro de fe o firmarse en Mi DT.
 - Mi DT no tiene una interfaz de programación (API). El registro se apoya en fichas para copiar y en una extensión que aún está en piloto.
 - Dos formatos de archivo esperan verificación con cargas reales: la indemnización a todo evento en Previred y el registro masivo de contratos en Mi DT.
 - Al documentar la arquitectura se detectaron puntos de seguridad por corregir. El principal, que la API del panel aceptaba formularios enviados desde otros sitios (CSRF), ya está corregido en la versión de pruebas y falta publicarlo en producción. Los demás están registrados como pendientes y se analizan en el capítulo 8.
 
-**Este documento.** Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/IEC/IEEE 42010 e IEEE 1016 (arquitectura y diseño) e ISO/IEC 25010 (calidad). Tiene trece capítulos y diez anexos. Esta versión {{version}} contiene la parte preliminar y los capítulos 1 a 7; el resto se completará en dos entregas más (sección 1.3).
+**Este documento.** Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/IEC/IEEE 42010 e IEEE 1016 (arquitectura y diseño) e ISO/IEC 25010 (calidad). Tiene trece capítulos y diez anexos. Esta versión {{version}} es la primera completa y se entrega para revisión; la versión 1.0 incorporará las correcciones (sección 1.3).

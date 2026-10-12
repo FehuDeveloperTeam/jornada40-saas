@@ -9,7 +9,7 @@ Este capítulo describe las interfaces del sistema:
 - los correos que envía (sección 7.5);
 - la comunicación de la extensión con Mi DT (sección 7.6).
 
-El anexo C listará cada ruta de la API con sus parámetros.
+El anexo C lista cada ruta de la API con sus métodos, la vista que la atiende y el acceso que la abre.
 
 ## Interfaces de usuario {#sec-int-usuario}
 

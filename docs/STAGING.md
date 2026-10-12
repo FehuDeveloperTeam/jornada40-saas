@@ -49,7 +49,7 @@ git push origin staging                                    # Railway y Vercel de
 | `REVENIU_API_URL` | `https://integration.reveniu.com` (sandbox) |
 | `REVENIU_WEBHOOK_SECRET` / `REVENIU_API_KEY` | las claves del **sandbox** de Reveniu |
 | `REVENIU_LINK_*` | los links de los planes creados en el sandbox |
-| `B2_BUCKET_NAME` (y claves B2) | un bucket **aparte** (o dejar B2 vacío: los PDF firmados no se guardan) |
+| `B2_BUCKET_NAME` (y claves B2) | un bucket **aparte** (si se deja B2 vacío, el envío a firma responde 503: la firma guarda sus PDF en B2) |
 | `RESEND_API_KEY` | puede ser la misma; los correos salen de verdad, usar correos propios de prueba |
 | `DEFAULT_FROM_EMAIL` | p. ej. `Jornada40 Pruebas <noreply@jornada40.cl>` |
 | `ALERTAS_PAGOS_EMAIL` | correo del equipo |

@@ -11,14 +11,17 @@ Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/
 | 1       | Parte preliminar, resumen ejecutivo, capítulos 1 y 2             | Lista (v0.1, 11-10-2026) |
 | 2       | Capítulo 3: requerimientos y reglas de negocio                   | Lista (v0.2, 12-10-2026) |
 | 3       | Capítulos 4 a 7: arquitectura, diseño, datos e interfaces        | Lista (v0.3.1, 12-10-2026) |
-| 4       | Capítulos 8 a 10: seguridad, datos personales y cumplimiento     | Pendiente            |
-| 5       | Capítulos 11 a 13, anexos A a J y revisión final                 | Pendiente            |
+| 4       | Capítulos 8 a 10: seguridad, datos personales y cumplimiento     | Lista (v0.9, 12-10-2026) |
+| 5       | Capítulos 11 a 13, anexos A a J y revisión final                 | Lista (v0.9, 12-10-2026) |
+
+La versión 0.9 consolida las cinco entregas en un solo documento para revisión. La 1.0 incorporará las correcciones del titular.
 
 ## Archivos
 
 - `documento.json`: versión, fecha, estado, clasificación, commits descritos y orden de los capítulos.
 - `00-preliminares.md`: portada, ficha de control, control de versiones e índices.
 - `00-resumen-ejecutivo.md`, `01-introduccion.md`, `02-descripcion-general.md`…: un archivo por capítulo.
+- `anexo-a-glosario.md` … `anexo-j-trazabilidad.md`: un archivo por anexo. Los de B, C, F, H y J los genera `herramientas/anexos.py` y no se editan a mano.
 - `figuras/`: cada diagrama en Mermaid (`.mmd`) junto a su imagen (`.png`), y las capturas de pantalla (`07-*.png`). Las imágenes se versionan, así que compilar no requiere Node.
   - `06-er-*.mmd` no se editan a mano: los genera `herramientas/modelo_datos.py` desde los modelos de Django.
   - `07-*.png` las toma `frontend/e2e/capturas.spec.ts` con los datos de prueba.
@@ -27,7 +30,8 @@ Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/
   - `referencia.py`: plantilla de estilos de Word;
   - `documento.lua`: filtro de pandoc (numeración, anchos de tabla, índices, valores de `documento.json`);
   - `mermaid.json`: colores, tipografía y espaciado de los diagramas;
-  - `modelo_datos.py`: diagramas entidad-relación del capítulo 6 y, con `--json`, el resumen de todos los modelos (base del anexo B).
+  - `modelo_datos.py`: diagramas entidad-relación del capítulo 6 y, con `--json`, el resumen de todos los modelos;
+  - `anexos.py`: anexos que salen del código: B (diccionario de datos), C (rutas de la API), F (catálogos), H (licencias) y J (trazabilidad, desde el capítulo 3).
 - `salida/`: Word y PDF generados. No se versiona.
 
 ## Compilar
@@ -44,6 +48,7 @@ Para regenerar las figuras que salen del código:
 
 ```bash
 python3 docs/tecnico/herramientas/modelo_datos.py   # con el entorno del backend (Django instalado)
+python3 docs/tecnico/herramientas/anexos.py         # anexos B, C, F, H y J (también necesita frontend/node_modules)
 cd frontend && CAPTURAS_DOC=1 npx playwright test capturas   # capturas del capítulo 7
 ```
 
@@ -65,6 +70,7 @@ Requisitos:
   - `::: indice`, `::: indice-figuras` y `::: indice-tablas` para los índices;
   - `::: salto-pagina` para un salto de página.
 - **Capítulos:** cada capítulo empieza con `# Título {#sec-…}` y queda numerado automáticamente; `{.unnumbered}` lo deja sin número.
+- **Anexos:** cada uno empieza con `# Anexo X. Título {.unnumbered #sec-anexo-x}`. Sus subtítulos van con `#### … {.unnumbered}`, que no entran al índice general (salvo los dominios del anexo B, de nivel 2, para ubicarlos), y sus tablas no llevan leyenda, para no llenar el índice de tablas.
 - **Funciones no publicadas:** la marca **[Solo en staging]** señala lo que aún no está en `main`.
 - **Exactitud:** cada dato se comprueba en el código, no en `CLAUDE.md` ni en la memoria. Las rutas se escriben relativas a la raíz del repositorio.
 - **Ejemplos numéricos:** los de la sección 3.2.8 los comprueba `backend/core/tests/test_ejemplos_documento.py`. Si un cálculo cambia, esa prueba falla: actualiza el ejemplo del capítulo en el mismo commit.

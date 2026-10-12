@@ -524,6 +524,7 @@ Los atributos siguen el modelo de calidad de ISO/IEC 25010. Para cada requerimie
 | RNF-SEG-09 | El código debe revisarse con análisis estático de seguridad. | `bandit` en cada cambio, para riesgos de severidad media y alta [Solo en staging]. | **Cumple**<br>Integración continua |
 | RNF-SEG-10 | Los errores no deben revelar detalles internos al usuario. | Las excepciones se registran y el usuario recibe un mensaje genérico (`error_interno`); las alertas al equipo no llevan datos personales [Solo en staging]. Excepción conocida: la vista previa de la liquidación devuelve el texto de un error de conversión de datos. | **Parcial**<br>`test_alertas` |
 | RNF-SEG-11 | La seguridad debe validarse con una prueba de intrusión externa. | Hasta ahora solo hay revisión interna y pruebas automáticas. | **Pendiente** |
+| RNF-SEG-12 | Las operaciones que cambian datos solo deben aceptarse desde la propia aplicación, no desde páginas de otros sitios (CSRF). | Revisión del origen de toda escritura en la API (`OrigenPermitidoMiddleware`) y cookies `SameSite=Lax` en producción [Solo en staging]. Las vistas de los portales, además, solo aceptan JSON. | **Cumple**<br>`test_csrf` |
 
 : Requerimientos no funcionales de seguridad
 
@@ -564,7 +565,7 @@ Los atributos siguen el modelo de calidad de ISO/IEC 25010. Para cada requerimie
 
 | Código | Requerimiento | Cómo se cumple | Estado y verificación |
 |---|---|---|---|
-| RNF-MAN-01 | Cada cambio debe pasar pruebas automáticas antes de publicarse. | La integración continua corre 537 pruebas del servidor, 61 unitarias de la interfaz y 59 recorridos de navegador. Los recorridos solo se ejecutan si las demás pruebas pasan. | **Cumple**<br>Integración continua |
+| RNF-MAN-01 | Cada cambio debe pasar pruebas automáticas antes de publicarse. | La integración continua corre 551 pruebas del servidor, 61 unitarias de la interfaz y 59 recorridos de navegador. Los recorridos solo se ejecutan si las demás pruebas pasan. | **Cumple**<br>Integración continua |
 | RNF-MAN-02 | El servidor debe mantener una cobertura de pruebas mínima. | La integración continua exige 80 % de las líneas del servidor; la última medición, del 11-10-2026, es 83,1 %. La interfaz tiene mínimos para sus utilidades y para la extensión [Solo en staging]. | **Cumple**<br>Integración continua |
 | RNF-MAN-03 | El código debe pasar análisis estático y tener sus migraciones al día. | TypeScript estricto, ESLint, ruff [Solo en staging] y una verificación de que no faltan migraciones. | **Cumple**<br>Integración continua |
 | RNF-MAN-04 | Los cambios legales y de catálogo deben poder hacerse sin modificar el código. | Se cambian sin desplegar código: <br>• parámetros previsionales, tasas de AFP, tramos de asignación familiar, factores del SII y vacaciones escolares: en el admin; <br>• mapeos de Mi DT y plantilla del LRE: archivos de datos. | **Cumple**<br>`test_parametros` |

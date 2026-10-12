@@ -113,7 +113,8 @@ def _tipo(campo):
     return {
         'CharField': 'texto', 'TextField': 'texto', 'EmailField': 'correo', 'SlugField': 'texto',
         'IntegerField': 'entero', 'PositiveIntegerField': 'entero', 'PositiveSmallIntegerField': 'entero',
-        'SmallIntegerField': 'entero', 'BigIntegerField': 'entero', 'AutoField': 'entero', 'BigAutoField': 'entero',
+        'SmallIntegerField': 'entero', 'BigIntegerField': 'entero', 'PositiveBigIntegerField': 'entero',
+        'AutoField': 'entero', 'BigAutoField': 'entero',
         'DecimalField': 'decimal', 'FloatField': 'decimal', 'BooleanField': 'booleano',
         'DateField': 'fecha', 'DateTimeField': 'fecha_hora', 'JSONField': 'json', 'UUIDField': 'uuid',
         'FileField': 'archivo', 'ImageField': 'imagen', 'GenericIPAddressField': 'ip',

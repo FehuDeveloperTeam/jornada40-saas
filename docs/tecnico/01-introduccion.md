@@ -75,13 +75,13 @@ A la fecha de corte, la versión de pruebas agrega lo siguiente a la de producci
 | 5. Diseño detallado                       | Servidor, interfaz, extensión, diagramas de estado y algoritmos                                              | Incluido                  |
 | 6. Modelo de datos                        | Entidades, integridad, datos sensibles, parámetros y retención                                               | Incluido                  |
 | 7. Interfaces                             | Interfaz de usuario, API, sistemas externos y formatos de archivo                                            | Incluido                  |
-| 8. Seguridad                              | Amenazas, autenticación, autorización, criptografía, auditoría, secretos y firma electrónica                 | Entrega 4                 |
-| 9. Protección de datos personales         | Inventario, proveedores, retención y derechos de los titulares                                               | Entrega 4                 |
-| 10. Cumplimiento normativo                | Marco legal, trazabilidad y documentación electrónica ante la DT                                             | Entrega 4                 |
-| 11. Calidad y pruebas                     | Estrategia, ambientes, resultados, trazabilidad y pruebas pendientes                                         | Entrega 5                 |
-| 12. Instalación, despliegue y operación   | Requisitos, puesta en marcha, configuración, integración continua, monitoreo, respaldo y procedimientos      | Entrega 5                 |
-| 13. Mantenimiento y evolución             | Gestión de la configuración, convenciones, guía de mantenimiento, limitaciones y riesgos                     | Entrega 5                 |
-| Anexos A a J                              | Glosario, diccionario de datos, API, pantallas, plantillas, catálogos, variables, licencias, versiones y trazabilidad | Entrega 5        |
+| 8. Seguridad                              | Amenazas, autenticación, autorización, criptografía, auditoría, secretos y firma electrónica                 | Incluido                  |
+| 9. Protección de datos personales         | Inventario, proveedores, retención y derechos de los titulares                                               | Incluido                  |
+| 10. Cumplimiento normativo                | Marco legal, trazabilidad y documentación electrónica ante la DT                                             | Incluido                  |
+| 11. Calidad y pruebas                     | Estrategia, ambientes, resultados, trazabilidad y pruebas pendientes                                         | Incluido                  |
+| 12. Instalación, despliegue y operación   | Requisitos, puesta en marcha, configuración, integración continua, monitoreo, respaldo y procedimientos      | Incluido                  |
+| 13. Mantenimiento y evolución             | Gestión de la configuración, convenciones, guía de mantenimiento, limitaciones y riesgos                     | Incluido                  |
+| Anexos A a J                              | Glosario, diccionario de datos, API, pantallas, plantillas, catálogos, variables, licencias, versiones y trazabilidad | Incluido         |
 
 : Capítulos del documento y su estado en esta versión
 
@@ -181,7 +181,7 @@ Los requerimientos, reglas y decisiones llevan un código estable, que permite c
 
 ### Términos y siglas principales
 
-El anexo A contendrá el glosario completo. Los términos siguientes se usan desde el capítulo 2.
+El anexo A reúne el glosario completo. Los términos siguientes se usan desde el capítulo 2.
 
 | Término o sigla       | Significado                                                                                                                                      |
 |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|

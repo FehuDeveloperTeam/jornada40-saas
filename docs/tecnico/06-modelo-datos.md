@@ -40,7 +40,7 @@ Además de las tablas propias, la base contiene las de Django y sus bibliotecas:
 - `||` significa exactamente uno y `|o`, cero o uno;
 - `o{` significa cero o más.
 
-Cada caja muestra una selección de atributos con su tipo; la marca UK indica un valor único. El detalle campo por campo estará en el anexo B. Las entidades de otro dominio se dibujan sin atributos, solo como referencia.
+Cada caja muestra una selección de atributos con su tipo; la marca UK indica un valor único. El detalle campo por campo está en el anexo B. Las entidades de otro dominio se dibujan sin atributos, solo como referencia.
 
 **`User`** es el usuario de Django. Guarda las credenciales de tres tipos de personas:
 
@@ -71,6 +71,7 @@ Las otras formas de ingreso tienen sus propias tablas de credenciales:
 | booleano | `BooleanField` | Marcas como `activo` o `usado` |
 | json | `JSONField` | Estructuras variables (ver más abajo) |
 | uuid | `UUIDField` | Enlaces públicos de firma |
+| ip | `GenericIPAddressField` | Dirección IP de quien firma |
 | archivo | `FileField` | Archivos guardados en el almacenamiento (sección 6.6) |
 | TextoCifrado, JSONCifrado | Campos propios (`core/cifrado.py`) | Datos reservados de la Ley Karin (sección 6.5) |
 
