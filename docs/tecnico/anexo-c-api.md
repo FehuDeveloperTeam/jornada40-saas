@@ -1,13 +1,15 @@
 # Anexo C. Rutas de la API {.unnumbered #sec-anexo-c}
 
-Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enrutador de Django. Las convenciones, los códigos de estado y los límites de intentos están en la sección 7.2. Columnas:
+Las 219 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enrutador de Django. Las convenciones, los códigos de estado y los límites de intentos están en la sección 7.2. Columnas:
 
 - **Métodos:** los que admite la ruta.
 - **Vista:** la función o clase que la atiende; en las de DRF, también sus acciones.
 - **Acceso:** quién la abre (sección 4.7). *Panel* pide la sesión del titular o de un usuario del equipo; *Portal*, *Ley Karin*, *Fiscalización* y *Extensión* piden la sesión o el token de ese acceso, y «sin sesión» marca sus rutas de ingreso; *Firma pública* pide el enlace de la solicitud y, para ver el documento y firmar, el código o la clave; *Público* no pide sesión.
 - **Módulo:** en el panel, el módulo que exige a un usuario del equipo (sección 8.3); con dos, basta uno. «Lectura común» se abre a todo el equipo solo para consultar; «Identidad de la persona» actúa sobre la propia persona; «Solo el titular», solo para el dueño de la cuenta.
 
-**Rutas auxiliares.** `auth/password/reset/` responde 410: la recuperación por correo está cerrada y se recupera por RUT. `auth/password/reset/confirm/{uidb64}/{token}/` solo existe para nombrar un enlace que ya no se usa (sección 8.10). `diagnostico/red/` responde solo con `DIAGNOSTICO_RED=1`.
+**Rutas auxiliares.** `auth/password/reset/` responde 410: la recuperación por correo está cerrada y se recupera por RUT. `diagnostico/red/` responde solo con `DIAGNOSTICO_RED=1`.
+
+**Sin borrado.** **[Solo en staging]** Las rutas de trabajadores, contratos, liquidaciones, cartas, finiquitos y vacaciones no admiten DELETE (405): esos registros respaldan firmas y obligaciones laborales, y no se borran (sección 6.4.2).
 
 #### `/api/anexos_contrato/` {.unnumbered}
 
@@ -29,7 +31,6 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | POST | `/api/auth/password/change/` | PasswordChangeView | Panel | Identidad de la persona |
 | POST | `/api/auth/password/reset/` | recuperacion_por_correo_cerrada | Público | — |
 | POST | `/api/auth/password/reset/confirm/` | PasswordResetConfirmView | Público | — |
-| GET | `/api/auth/password/reset/confirm/{uidb64}/{token}/` | TemplateView | Público | — |
 | POST | `/api/auth/recuperar-por-rut/` | recuperar_password_por_rut | Público | — |
 | POST | `/api/auth/register/` | registrar_cliente | Público | — |
 | GET | `/api/auth/sesion/` | sesion | Panel | Identidad de la persona |
@@ -92,7 +93,7 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 |---|---|---|---|---|
 | GET, POST | `/api/contratos/` | ContratoViewSet (create, list) | Panel | Contratos y anexos |
 | POST | `/api/contratos/evaluar-jornada/` | ContratoViewSet (evaluar_jornada) | Panel | Contratos y anexos |
-| DELETE, GET, PATCH, PUT | `/api/contratos/{pk}/` | ContratoViewSet (destroy, partial_update, retrieve, update) | Panel | Contratos y anexos |
+| GET, PATCH, PUT | `/api/contratos/{pk}/` | ContratoViewSet (partial_update, retrieve, update) | Panel | Contratos y anexos |
 | GET | `/api/contratos/{pk}/descargar_anexo_40h/` | ContratoViewSet (descargar_anexo_40h) | Panel | Contratos y anexos |
 | GET | `/api/contratos/{pk}/descargar_contrato/` | ContratoViewSet (descargar_contrato) | Panel | Contratos y anexos |
 | GET | `/api/contratos/{pk}/generar_anexo/` | ContratoViewSet (generar_anexo) | Panel | Contratos y anexos |
@@ -120,7 +121,7 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | Métodos | Ruta | Vista | Acceso | Módulo |
 |---|---|---|---|---|
 | GET, POST | `/api/documentos_legales/` | DocumentoLegalViewSet (create, list) | Panel | Según el tipo de documento |
-| DELETE, GET, PATCH, PUT | `/api/documentos_legales/{pk}/` | DocumentoLegalViewSet (destroy, partial_update, retrieve, update) | Panel | Según el tipo de documento |
+| GET, PATCH, PUT | `/api/documentos_legales/{pk}/` | DocumentoLegalViewSet (partial_update, retrieve, update) | Panel | Según el tipo de documento |
 | GET | `/api/documentos_legales/{pk}/generar_pdf/` | DocumentoLegalViewSet (generar_pdf) | Panel | Según el tipo de documento |
 
 #### `/api/empleados/` {.unnumbered}
@@ -132,7 +133,7 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | POST | `/api/empleados/descarga_masiva/` | EmpleadoViewSet (descarga_masiva) | Panel | Reportes y expedientes |
 | POST | `/api/empleados/descargar_anexos_zip/` | EmpleadoViewSet (descargar_anexos_zip) | Panel | Reportes y expedientes |
 | GET | `/api/empleados/{empleado_id}/certificados/` | certificados_empleado | Panel | Trabajadores |
-| DELETE, GET, PATCH, PUT | `/api/empleados/{pk}/` | EmpleadoViewSet (destroy, partial_update, retrieve, update) | Panel | Trabajadores |
+| GET, PATCH, PUT | `/api/empleados/{pk}/` | EmpleadoViewSet (partial_update, retrieve, update) | Panel | Trabajadores |
 | POST | `/api/empleados/{pk}/consentimiento/` | EmpleadoViewSet (consentimiento) | Panel | Dirección del Trabajo |
 | POST | `/api/empleados/{pk}/digitalizar_contrato/` | EmpleadoViewSet (digitalizar_contrato) | Panel | Contratos y anexos |
 | GET | `/api/empleados/{pk}/documentos_disponibles/` | EmpleadoViewSet (documentos_disponibles) | Panel | Trabajadores |
@@ -189,7 +190,7 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 |---|---|---|---|---|
 | GET, POST | `/api/finiquitos/` | FiniquitoViewSet (create, list) | Panel | Término de contrato |
 | POST | `/api/finiquitos/simular/` | FiniquitoViewSet (simular) | Panel | Término de contrato |
-| DELETE, GET, PATCH, PUT | `/api/finiquitos/{pk}/` | FiniquitoViewSet (destroy, partial_update, retrieve, update) | Panel | Término de contrato |
+| GET, PATCH, PUT | `/api/finiquitos/{pk}/` | FiniquitoViewSet (partial_update, retrieve, update) | Panel | Término de contrato |
 | GET | `/api/finiquitos/{pk}/ficha_mi_dt/` | FiniquitoViewSet (ficha_mi_dt) | Panel | Término de contrato |
 | GET | `/api/finiquitos/{pk}/generar_pdf/` | FiniquitoViewSet (generar_pdf) | Panel | Término de contrato |
 | POST | `/api/finiquitos/{pk}/registrar_ratificacion/` | FiniquitoViewSet (registrar_ratificacion) | Panel | Término de contrato |
@@ -288,7 +289,7 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | GET | `/api/liquidaciones/revisar_lre/` | LiquidacionViewSet (revisar_lre) | Panel | Remuneraciones |
 | POST | `/api/liquidaciones/simular/` | LiquidacionViewSet (simular) | Panel | Remuneraciones |
 | GET | `/api/liquidaciones/zip_periodo/` | LiquidacionViewSet (zip_periodo) | Panel | Remuneraciones o Reportes y expedientes |
-| DELETE, GET, PATCH, PUT | `/api/liquidaciones/{pk}/` | LiquidacionViewSet (destroy, partial_update, retrieve, update) | Panel | Remuneraciones |
+| GET, PATCH, PUT | `/api/liquidaciones/{pk}/` | LiquidacionViewSet (partial_update, retrieve, update) | Panel | Remuneraciones |
 | GET | `/api/liquidaciones/{pk}/generar_pdf/` | LiquidacionViewSet (generar_pdf) | Panel | Remuneraciones |
 
 #### `/api/pagos/` {.unnumbered}
@@ -405,7 +406,7 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | GET | `/api/vacaciones/compensatorias/` | VacacionViewSet (compensatorias) | Panel | Vacaciones y permisos |
 | GET | `/api/vacaciones/dias_habiles/` | VacacionViewSet (dias_habiles) | Panel | Vacaciones y permisos |
 | GET | `/api/vacaciones/saldo/` | VacacionViewSet (saldo) | Panel | Vacaciones y permisos |
-| DELETE, GET, PATCH, PUT | `/api/vacaciones/{pk}/` | VacacionViewSet (destroy, partial_update, retrieve, update) | Panel | Vacaciones y permisos |
+| GET, PATCH, PUT | `/api/vacaciones/{pk}/` | VacacionViewSet (partial_update, retrieve, update) | Panel | Vacaciones y permisos |
 | GET | `/api/vacaciones/{pk}/generar_pdf/` | VacacionViewSet (generar_pdf) | Panel | Vacaciones y permisos |
 | POST | `/api/vacaciones/{pk}/responder/` | VacacionViewSet (responder) | Panel | Vacaciones y permisos |
 

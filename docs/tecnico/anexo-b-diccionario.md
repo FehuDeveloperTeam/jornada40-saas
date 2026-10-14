@@ -416,20 +416,20 @@ Tabla `core_solicitudfirma`.
 | Campo | Tipo | Detalle |
 |---|---|---|
 | `id` | entero | identificador |
-| `empleado` | relación | Referencia a `Empleado`; al borrar: CASCADE |
-| `empresa` | relación | Referencia a `Empresa`; al borrar: CASCADE |
-| `contrato` | relación | Referencia a `Contrato`; al borrar: SET_NULL; admite nulo |
-| `documento_legal` | relación | Referencia a `DocumentoLegal`; al borrar: SET_NULL; admite nulo |
-| `anexo_contrato` | relación | Referencia a `AnexoContrato`; al borrar: SET_NULL; admite nulo |
-| `liquidacion` | relación | Referencia a `Liquidacion`; al borrar: SET_NULL; admite nulo |
-| `vacacion` | relación | Referencia a `VacacionEmpleado`; al borrar: SET_NULL; admite nulo |
-| `finiquito` | relación | Referencia a `Finiquito`; al borrar: SET_NULL; admite nulo |
-| `documento_laboral` | relación | Referencia a `DocumentoLaboral`; al borrar: SET_NULL; admite nulo |
+| `empleado` | relación | Referencia a `Empleado`; al borrar: PROTECT |
+| `empresa` | relación | Referencia a `Empresa`; al borrar: PROTECT |
+| `contrato` | relación | Referencia a `Contrato`; al borrar: PROTECT; admite nulo |
+| `documento_legal` | relación | Referencia a `DocumentoLegal`; al borrar: PROTECT; admite nulo |
+| `anexo_contrato` | relación | Referencia a `AnexoContrato`; al borrar: PROTECT; admite nulo |
+| `liquidacion` | relación | Referencia a `Liquidacion`; al borrar: PROTECT; admite nulo |
+| `vacacion` | relación | Referencia a `VacacionEmpleado`; al borrar: PROTECT; admite nulo |
+| `finiquito` | relación | Referencia a `Finiquito`; al borrar: PROTECT; admite nulo |
+| `documento_laboral` | relación | Referencia a `DocumentoLaboral`; al borrar: PROTECT; admite nulo |
 | `origen` | texto | por omisión: `PANEL`; opciones: `PANEL`, `PORTAL` |
 | `emisor` | relación | Referencia a `User`; al borrar: SET_NULL; admite nulo |
 | `emisor_ip` | texto | por omisión: vacío; hasta 64 caracteres |
 | `emisor_confirmado_en` | fecha_hora | admite nulo |
-| `tipo_documento` | texto | 18 opciones (anexo F) |
+| `tipo_documento` | texto | 19 opciones (anexo F) |
 | `token` | uuid | único; por omisión: un identificador aleatorio |
 | `estado` | texto | por omisión: `PENDIENTE`; opciones: `PENDIENTE`, `PROCESANDO`, `FIRMADO`, `RECHAZADO`, `EXPIRADO`, `CANCELADO` |
 | `b2_key_temporal` | texto | por omisión: vacío; hasta 500 caracteres |

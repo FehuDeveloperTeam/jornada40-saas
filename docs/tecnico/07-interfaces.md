@@ -154,10 +154,11 @@ El menú lateral muestra solo lo que la persona puede usar según su permiso y s
 | `verificar_certificado` | 120 por hora | IP |
 | `extension_vincular` | 20 por hora | IP, al conectar la extensión |
 | `extension` | 5.000 por día | Navegador conectado |
+| `webhook_reveniu` | 600 por hora | IP, en el aviso de pago de Reveniu **[Solo en staging]**. Antes usaba el límite anónimo de 100 al día |
 
 : Límites de intentos de la API
 
-Los contadores viven en la caché de cada proceso (sección 4.7). Los intentos de los códigos y de la clave de firma se cuentan además en la base de datos.
+Los contadores viven en la caché (sección 4.7): **[Solo en staging]** compartida en la base de datos en los ambientes desplegados; en producción, todavía local a cada proceso. Los intentos de los códigos y de la clave de firma se cuentan además en la base de datos.
 
 ## Sistemas externos {#sec-int-externos}
 

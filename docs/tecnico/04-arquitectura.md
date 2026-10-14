@@ -24,7 +24,7 @@ Los principios de producto de la sección 2.1.3 tienen estas consecuencias técn
 2. **Una API para todos los accesos, con sesiones separadas.** Los siete accesos usan la misma API y la misma base de datos. Cada uno tiene su forma de identificarse, su sesión y sus límites, y ninguno abre los datos de otro (ADR-10).
 3. **Aislamiento en la capa de datos.** Cada consulta del panel se filtra por la cuenta. A los usuarios del equipo, además, se les aplica un filtro por empresa en los gestores de los modelos, de modo que olvidar un filtro en una vista no expone datos (ADR-11).
 4. **Monolito modular.** Un solo proyecto Django con una sola aplicación, dividida por temas, y un solo proceso desplegable. Es la forma más simple de operar con un equipo pequeño (ADR-02).
-5. **Servidor sin estado entre peticiones.** La sesión viaja en cookies firmadas o en tokens, y los archivos se guardan en el almacenamiento de objetos. Cualquier proceso atiende cualquier petición. Hay una excepción: la caché, que hoy es local a cada proceso (sección 4.7).
+5. **Servidor sin estado entre peticiones.** La sesión viaja en cookies firmadas o en tokens, y los archivos se guardan en el almacenamiento de objetos. Cualquier proceso atiende cualquier petición. En los ambientes desplegados, la caché vive en la base de datos y también se comparte (sección 4.7). **[Solo en staging]** En producción todavía es local a cada proceso.
 6. **Evidencia por diseño.** Los documentos firmados se guardan con su huella, las bitácoras solo admiten agregar registros y los datos reservados se cifran (ADR-08, ADR-12 y ADR-13).
 7. **Degradación controlada.** Si falla un servicio externo, el sistema sigue con un respaldo y lo avisa: valor de respaldo de la UF, enlace de pago fijo, solicitud de firma que se puede reenviar. No falla en silencio.
 8. **Configuración por ambiente.** El mismo código corre en desarrollo, pruebas y producción. Lo que cambia se lee de variables de entorno (sección 4.7).
@@ -98,9 +98,9 @@ Las secuencias siguientes muestran los ocho flujos que mejor explican cómo cola
 El titular entra con su RUT y su clave. La API responde con dos cookies HttpOnly:
 
 - el token de acceso, que vence en 5 minutos;
-- el token de renovación, que vence en 15 minutos y rota en cada uso.
+- el token de renovación, que vence en 15 minutos y rota en cada uso. **[Solo en staging]** El token ya usado queda en una lista negra y deja de servir; lo mismo pasa con el de una sesión cerrada.
 
-Ante un 401, el cliente HTTP de la aplicación web (`src/api/client.ts`) pide una sola renovación para todas las peticiones que esperan y las repite. Si la renovación falla dentro del panel, vuelve al ingreso recordando la página.
+Ante un 401, el cliente HTTP de la aplicación web (`src/api/client.ts`) pide una sola renovación para todas las peticiones que esperan y las repite. **[Solo en staging]** Como el token usado ya no sirve, las pestañas abiertas del mismo navegador se turnan para renovar (un bloqueo del navegador, Web Locks, y una marca en `localStorage`): si otra pestaña acaba de renovar, la petición se repite con la cookie nueva en vez de cerrar la sesión. Si la renovación falla dentro del panel, vuelve al ingreso recordando la página.
 
 Mientras hay actividad, el componente de cierre por inactividad renueva la sesión cada 2 minutos. Tras 5 minutos sin actividad, la cierra; avisa 60 segundos antes (sección 4.7).
 
@@ -212,8 +212,9 @@ El trabajador queda identificado por su sesión del portal: no hay denuncias an�
 **Construcción de la API.** La imagen se construye con el Dockerfile de `backend/`, sobre Python 3.11, e incluye los estáticos. Al arrancar el contenedor:
 
 1. aplica las migraciones;
-2. crea el superusuario si se configuró;
-3. inicia Gunicorn con 2 procesos de 4 hilos y un tiempo máximo de 60 segundos por petición.
+2. crea la tabla de la caché compartida si falta (`createcachetable`) **[Solo en staging]**;
+3. crea el superusuario si se configuró;
+4. inicia Gunicorn con 2 procesos de 4 hilos y un tiempo máximo de 60 segundos por petición.
 
 Si la migración falla, el contenedor se detiene y Gunicorn no arranca: un despliegue no atiende con el esquema a medio aplicar. **[Solo en staging]** Esta regla se corrigió el 12-10-2026; la orden que corre en producción todavía arranca Gunicorn aunque la migración falle (capítulo 12).
 
@@ -221,7 +222,7 @@ Si la migración falla, el contenedor se detiene y Gunicorn no arranca: un despl
 
 **Escalamiento.** Hoy corre un contenedor de la API. El diseño admite más, porque el servidor no guarda estado entre peticiones (sección 4.1), con dos salvedades:
 
-- los límites de intentos y la caché de indicadores son locales a cada proceso;
+- en producción, los límites de intentos y la caché de indicadores todavía son locales a cada proceso; la caché compartida en la base de datos lo resuelve **[Solo en staging]**;
 - la tarea programada debe seguir siendo una sola, para no repetir los resúmenes.
 
 ## Conceptos transversales {#sec-arq-transversales}
@@ -308,9 +309,9 @@ El servidor usa `es-cl` y la zona `America/Santiago`, con fechas conscientes de 
 
 ### Caché y límites de intentos
 
-**Caché.** No hay un servicio de caché configurado, así que Django usa una caché en memoria de cada proceso. Ahí viven la UF y la UTM (6 horas), los contadores de los límites de intentos y la agrupación de alertas.
+**Caché.** Ahí viven la UF y la UTM (6 horas), los contadores de los límites de intentos y la agrupación de alertas. **[Solo en staging]** En los ambientes desplegados es una caché en la base de datos (`DatabaseCache`, tabla `cache_jornada40`, hasta 20.000 entradas), que comparten todos los procesos; el contenedor crea la tabla al arrancar y la tarea diaria también, si corre antes. En desarrollo y en las pruebas es una caché en memoria. No hace falta un servicio aparte, como Redis.
 
-**Límites de intentos.** Con dos procesos de Gunicorn, cada proceso cuenta por separado: el límite efectivo puede llegar al doble del configurado. Este hallazgo se trata en el capítulo 8, con la opción de una caché compartida. Los límites que más importan para la seguridad no dependen de la caché, porque cuentan en la base de datos: los intentos de los códigos y de la clave de firma.
+**Límites de intentos.** Con la caché compartida, los dos procesos de Gunicorn cuentan juntos. En producción la caché todavía es local a cada proceso, y el límite efectivo puede llegar al doble del configurado (capítulo 8). Los límites que más importan para la seguridad no dependen de la caché, porque cuentan en la base de datos: los intentos de los códigos y de la clave de firma.
 
 ### Correo
 

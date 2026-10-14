@@ -44,10 +44,10 @@ Medidos el {{fecha}} sobre la rama `{{rama}}`:
 
 | Tipo | Herramienta | Alcance | Resultado |
 |---|---|---|---|
-| Servidor | Django `APITestCase` | 551 pruebas en 42 archivos | Todas pasan |
-| Cobertura del servidor | coverage.py | 12.820 líneas medibles | 83,1 % (mínimo exigido: 80 %) |
-| Unitarias de la interfaz | Vitest y Testing Library | 61 pruebas en 14 archivos | Todas pasan |
-| Cobertura de la interfaz | Vitest (v8) | Utilidades y extensión | Utilidades 83,1 % (mínimo 75 %), extensión 86,4 % (mínimo 80 %), cliente HTTP 28,6 %. Las pantallas (1,9 %) las cubren los recorridos de navegador |
+| Servidor | Django `APITestCase` | 577 pruebas en 42 archivos | Todas pasan |
+| Cobertura del servidor | coverage.py | 12.912 líneas medibles | 84,1 % (mínimo exigido: 80 %) |
+| Unitarias de la interfaz | Vitest y Testing Library | 64 pruebas en 14 archivos | Todas pasan |
+| Cobertura de la interfaz | Vitest (v8) | Utilidades y extensión | Utilidades 83,1 % (mínimo 75 %), extensión 86,4 % (mínimo 80 %), cliente HTTP 35,2 %. Las pantallas (1,9 %) las cubren los recorridos de navegador |
 | De extremo a extremo | Playwright (Chromium) | 59 recorridos en 13 áreas | Todos pasan; 4 más, de capturas para este documento, se omiten salvo con `CAPTURAS_DOC=1` |
 | Accesibilidad | axe (WCAG 2.1 A y AA) | 21 pantallas: 9 públicas, la firma y 11 del panel | 0 problemas |
 | Análisis estático | ruff, bandit, ESLint, TypeScript estricto | Servidor, interfaz y extensión | Sin hallazgos (bandit: severidad media o alta) |
@@ -58,20 +58,20 @@ Medidos el {{fecha}} sobre la rama `{{rama}}`:
 
 | Área | Archivos de prueba y número de pruebas |
 |---|---|
-| Remuneraciones y archivos legales | liquidaciones 53, parámetros 35, asignación familiar 6, horas compensatorias 5, indemnización a todo evento 2, Previred 6, LRE 6, Certificado N°6 6 |
+| Remuneraciones y archivos legales | liquidaciones 55, parámetros 40, asignación familiar 6, horas compensatorias 6, indemnización a todo evento 2, Previred 6, LRE 6, Certificado N°6 6 |
 | Jornada, feriado y término | jornada 22, feriado 9, finiquito 20 |
-| Documentos y firma | documentos laborales 20, firmas 19, certificados 15, reglamento 7, seguridad laboral 5 |
+| Documentos y firma | documentos laborales 20, firmas 23, certificados 15, reglamento 7, seguridad laboral 5 |
 | Ley Karin | denuncias 18, acceso 9, aviso semestral 4 |
-| Dirección del Trabajo y fiscalización | Dirección del Trabajo 16, fiscalización 10, extensión 12 |
+| Dirección del Trabajo y fiscalización | Dirección del Trabajo 16, fiscalización 12, extensión 12 |
 | Portales | portal del trabajador 20, peticiones 10, solicitudes de documentos 13, estado del portal 3 |
-| Seguridad, cuentas y accesos | seguridad 24, CSRF 14, cuentas 32, permisos del equipo 7, equipo 5, permisos 2, sesión por inactividad 5, bitácora 6, alertas 5 |
-| Pagos | pagos 37 |
-| Panel y gestión | trabajadores 19, revisión del panel 12, protecciones 8, direcciones 4, resumen por correo 7 |
+| Seguridad, cuentas y accesos | seguridad 30, CSRF 14, cuentas 33, permisos del equipo 7, equipo 7, permisos 2, sesión por inactividad 5, bitácora 6, alertas 5 |
+| Pagos | pagos 38 |
+| Panel y gestión | trabajadores 20, revisión del panel 12, protecciones 8, direcciones 4, resumen por correo 8 |
 | Documento técnico | ejemplos 7 |
 
 : Pruebas del servidor por área (métodos de prueba por archivo)
 
-La suma de los métodos (545) es menor que las 551 pruebas que ejecuta Django, porque algunas clases de prueba heredan casos de otras.
+La suma de los métodos (571) es menor que las 577 pruebas que ejecuta Django, porque algunas clases de prueba heredan casos de otras.
 
 ## Integración continua {#sec-cal-ci}
 
@@ -92,18 +92,17 @@ Dependabot propone cada semana actualizaciones agrupadas de pip, npm y las accio
 
 **Estado.**
 
-- **Requerimientos funcionales:** 192 de 199 nombran al menos un archivo de prueba en el capítulo 3.
+- **Requerimientos funcionales:** 193 de 199 nombran al menos un archivo de prueba en el capítulo 3.
 - **Reglas de negocio:** las 44 tienen pruebas.
 - **Requerimientos no funcionales:** su verificación figura en su tabla; varios se revisan a mano.
 
 El anexo J reúne la matriz completa.
 
-**Requerimientos sin prueba directa.** Siete requerimientos funcionales no tienen una prueba automática propia:
+**Requerimientos sin prueba directa.** Seis requerimientos funcionales no tienen una prueba automática propia:
 
 - RF-CTA-09 y RF-CTA-12: firma del representante y puesta en marcha;
 - RF-CON-12;
 - RF-REM-05;
-- RF-VAC-07;
 - RF-EQU-03 y RF-EQU-09.
 
 Casi todos son comportamientos de pantalla que los recorridos de navegador ejercitan en parte. Conviene agregarles una prueba específica.
@@ -112,13 +111,13 @@ Casi todos son comportamientos de pantalla que los recorridos de navegador ejerc
 
 | Atributo | Cumple | En parte | Pendiente |
 |---|---|---|---|
-| Seguridad (SEG) | 8 | 3 | 1 |
+| Seguridad (SEG) | 9 | 2 | 1 |
 | Confiabilidad y disponibilidad (DIS) | 2 | 1 | 2 |
 | Rendimiento (REN) | 1 | 1 | 1 |
 | Usabilidad y accesibilidad (USA) | 3 | 1 | 0 |
 | Mantenibilidad (MAN) | 5 | 0 | 0 |
 | Compatibilidad y portabilidad (COM) | 3 | 2 | 0 |
-| Privacidad (PRI) | 3 | 1 | 0 |
+| Privacidad (PRI) | 2 | 2 | 0 |
 | Cumplimiento legal (LEG) | 3 | 0 | 1 |
 
 : Estado de los requerimientos no funcionales por atributo

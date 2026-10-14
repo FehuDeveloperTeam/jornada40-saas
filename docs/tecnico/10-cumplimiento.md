@@ -62,10 +62,10 @@ El Dictamen 0789/15 de la Dirección del Trabajo y sus pronunciamientos posterio
 | Firma del empleador por documento | ORD N° 2257 de 2022 | El empleador confirma su clave antes de enviar a firma; queda registrado quién emitió el documento, cuándo y desde qué IP | Implementado |
 | Envío del documento al trabajador y uso de su correo personal | ORD N° 2965 | El PDF firmado se envía por correo al trabajador y queda en su portal; la ficha advierte si el correo parece corporativo | Implementado |
 | Acceso irrestricto de la fiscalización | Dictamen 0789/15 | Portal de fiscalización de solo lectura, con todos los trabajadores y documentos, descarga de la versión firmada, ratificación en terreno y registro de cada acceso | Implementado |
-| Finiquito con poder liberatorio | Código del Trabajo, Art. 177 | La firma en Jornada40 es solo de recepción. Se registran la modalidad (ministro de fe o Mi DT) y la ratificación | Implementado |
+| Finiquito con poder liberatorio | Código del Trabajo, Art. 177 | La firma en Jornada40 es solo de recepción. Se registran la modalidad (ministro de fe o Mi DT) y la ratificación. **[Solo en staging]** La renuncia y el mutuo acuerdo firmados en Jornada40 advierten que el empleador solo puede invocarlos ratificados ante un ministro de fe o firmados por el presidente del sindicato o el delegado | Implementado |
 | Registro de contratos, anexos y términos | Ley 21.327 | Plazos en días hábiles, fichas para copiar en Mi DT y extensión de llenado (**[Solo en staging]**); Mi DT no tiene interfaz de programación | Implementado; la extensión, en piloto |
 | Libro de Remuneraciones Electrónico | Código del Trabajo, Art. 62 bis | Archivo mensual con las 147 columnas de la plantilla oficial | Implementado |
-| Reconocimiento de la plataforma por la DT | Práctica de la DT: precedentes de otras plataformas (por ejemplo, ORD N° 136 de 2025) | Falta acordar las medidas de seguridad y presentar la solicitud (Etapa D) | Pendiente |
+| Reconocimiento de la plataforma por la DT | Práctica de la DT: precedentes de otras plataformas (por ejemplo, ORD N° 136 de 2025) | Falta acordar las medidas de seguridad y presentar la solicitud (Etapa D). El borrador de la solicitud está en `docs/legal/07-solicitud-dt.md` | Pendiente |
 
 : Exigencias de la documentación laboral electrónica
 
@@ -76,6 +76,8 @@ El Dictamen 0789/15 de la Dirección del Trabajo y sus pronunciamientos posterio
 - el portal de fiscalización.
 
 La DT dejó de pronunciarse sobre una plataforma cuyos antecedentes estaban detrás de un registro (`docs/PENDIENTES.md`).
+
+**Borrador de la solicitud.** El borrador del 14-10-2026 (`docs/legal/07-solicitud-dt.md`) recorre los requisitos copulativos a) a e) del Dictamen 0789/15, tal como los cita el ORD N° 136 de 2025, y los dos que ese ordinario agrega: el consentimiento expreso del trabajador y el envío automático del documento a su correo personal. Responde también la observación del ORD N° 136 sobre los códigos que reemplazan la firma dibujada: en Jornada40, el código solo verifica la identidad. Lista los anexos que conviene acompañar y marca con [COMPLETAR] los datos de la empresa solicitante. Antes de presentarlo, deben publicarse en producción las correcciones de la rama, porque el borrador las describe.
 
 ## Criterios adoptados {#sec-cum-criterios}
 
@@ -113,7 +115,7 @@ Esos casos se informan directamente en Previred.
 
 **Supuestos del registro masivo.** Trabajadores con RUT chileno, sin subcontratación ni servicios transitorios, y con el lugar de trabajo en la comuna de la empresa (SU-03).
 
-**Actualización de parámetros.** Los reajustes de topes, tasas, ingreso mínimo, asignación familiar y factores del SII se cargan a mano en el administrador. Un reajuste tardío afecta los cálculos de ese período, aunque el sistema lo advierte (sección 6.3). Además, `sincronizar_previred` no propone tres tasas de la reforma de pensiones.
+**Actualización de parámetros.** Los reajustes de topes, tasas, ingreso mínimo, asignación familiar y factores del SII se cargan a mano en el administrador. Un reajuste tardío afecta los cálculos de ese período, aunque el sistema lo advierte (sección 6.3). **[Solo en staging]** Desde el 14-10-2026, `sincronizar_previred` también propone las tasas de la reforma de pensiones (rentabilidad protegida, expectativa de vida y el aporte del empleador a la AFP), el SIS y el seguro de cesantía desde el año 11; lo que no puede leer lo copia de lo vigente y lo informa. En producción, esas tasas todavía se ingresan a mano.
 
 **Plantillas.** La plantilla del reglamento interno es una guía con partes por completar; no reemplaza el reglamento de cada empresa.
 

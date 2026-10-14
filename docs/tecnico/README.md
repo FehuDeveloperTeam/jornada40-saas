@@ -14,7 +14,7 @@ Sigue la estructura de los estándares ISO/IEC/IEEE 29148 (requerimientos), ISO/
 | 4       | Capítulos 8 a 10: seguridad, datos personales y cumplimiento     | Lista (v0.9, 12-10-2026) |
 | 5       | Capítulos 11 a 13, anexos A a J y revisión final                 | Lista (v0.9, 12-10-2026) |
 
-La versión 0.9 consolida las cinco entregas en un solo documento para revisión. La 1.0 incorporará las correcciones del titular.
+La versión 0.9 consolida las cinco entregas en un solo documento para revisión. La 0.9.1 (14-10-2026) describe las correcciones de seguridad y de funcionamiento de esa fecha. La 1.0 incorporará las correcciones del titular.
 
 ## Archivos
 

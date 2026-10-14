@@ -91,10 +91,11 @@ La sección 12.7 indica cuándo se actualiza cada uno.
 **Arranque de la API.** Railway construye la imagen del Dockerfile, que reúne los estáticos. Al arrancar el contenedor:
 
 - aplica las migraciones; si alguna falla, el contenedor se detiene;
+- crea la tabla de la caché compartida si falta (`createcachetable`);
 - crea el superusuario si no existe;
 - inicia Gunicorn.
 
-**[Solo en staging]** El corte por migración fallida es de la versión de pruebas; la orden que corre hoy en producción arranca Gunicorn aunque la migración falle.
+**[Solo en staging]** El corte por migración fallida y la tabla de la caché son de la versión de pruebas; la orden que corre hoy en producción arranca Gunicorn aunque la migración falle y usa una caché en memoria por proceso.
 
 **Antes de publicar en producción:**
 
@@ -171,18 +172,18 @@ Conviene probar la restauración en una base aparte antes de necesitarla.
 
 | Procedimiento | Cuándo | Cómo |
 |---|---|---|
-| Actualizar parámetros previsionales | Cada reajuste de topes, ingreso mínimo o tasas; Previred publica cada mes | Ejecutar `sincronizar_previred`, revisar la propuesta y confirmarla en el administrador. Las tres tasas de la reforma de pensiones que el comando no propone se ingresan a mano |
+| Actualizar parámetros previsionales | Cada reajuste de topes, ingreso mínimo o tasas; Previred publica cada mes | Ejecutar `sincronizar_previred` (con `--crear-propuesta` para guardarla), revisar la propuesta y confirmarla en el administrador. **[Solo en staging]** El comando lee también las tasas de la reforma de pensiones, el SIS y el seguro de cesantía desde el año 11; las que no logra leer las copia de lo vigente y las informa, y esas se revisan a mano. En producción, esas tasas todavía se ingresan a mano: el comando no las lee y, en una propuesta nueva, tres de ellas (rentabilidad protegida, aporte del empleador y cesantía desde el año 11) quedan con el valor por omisión del modelo |
 | Asignación familiar | Cuando la SUSESO publica un reajuste | Agregar los tres tramos con su fecha de vigencia en el administrador |
 | Factores de actualización del SII | Cada enero | Cargar los 12 factores del año anterior antes de emitir el Certificado N°6 |
 | Vacaciones escolares | Cuando el Mineduc publica el calendario | Cargar los períodos en el administrador |
 | Revisar parámetros e indicadores | Cada mes y ante una alerta | `python manage.py estado_indicadores` |
 | Vincular un aviso de pago no asociado | Cuando llega el correo de pagos | Administrador → Eventos de la pasarela → el aviso → elegir cliente y plan → guardar |
 | Cancelar o reanudar a mano en Reveniu | Cuando el correo de pagos lo pide | Hacerlo en el panel de Reveniu, que el correo identifica |
-| Recalcular liquidaciones emitidas sin tope | Una vez, si el comando lo informa | `revisar_topes_imponibles` (solo informa); con `--aplicar` recalcula las que no tienen firma |
+| Recalcular liquidaciones emitidas sin tope | Una vez, si el comando lo informa | `revisar_topes_imponibles` (solo informa); con `--aplicar` recalcula las que no tienen firma. **[Solo en staging]** Las que están en firma (pendiente o en proceso) se marcan «EN FIRMA» y no se tocan: se cancela la solicitud y se vuelve a ejecutar |
 | Rotar la clave de cifrado de la Ley Karin | Si se sospecha que se filtró, o periódicamente | Agregar la clave nueva al principio de `KARIN_CLAVES_CIFRADO`, desplegar, ejecutar `rotar_cifrado` y luego quitar la clave antigua |
 | Rotar `SECRET_KEY` | Si se sospecha que se filtró | Cambiarla en Railway y desplegar. Se cierran todas las sesiones y quedan sin efecto los códigos, las invitaciones y los enlaces de recuperación pendientes; los enlaces de firma siguen sirviendo con un código nuevo. Conviene hacerlo en un horario de poco uso |
 | Diagnóstico de la IP del visitante | Si los límites de intentos o la auditoría muestran IP raras | Activar `DIAGNOSTICO_RED=1`, consultar `GET /api/diagnostico/red/` y volver a desactivarlo |
-| Tarea programada en un ambiente nuevo | Al crear el ambiente | Segundo servicio desde el mismo repositorio, con comando `python manage.py enviar_resumenes`, horario `0 12 * * *` y las mismas variables que el servicio web |
+| Tarea programada en un ambiente nuevo | Al crear el ambiente | Segundo servicio desde el mismo repositorio, con comando `python manage.py enviar_resumenes`, horario `0 12 * * *` y las mismas variables que el servicio web. **[Solo en staging]** La tarea también crea la tabla de la caché si falta y, al final, borra los tokens de sesión vencidos de la lista negra (`flushexpiredtokens`) |
 | Responder a una alerta de error | Al recibirla | Ubicar la ruta y la traza en el registro de Railway, reproducir con una prueba, corregir y publicar por staging |
 
 : Procedimientos de operación

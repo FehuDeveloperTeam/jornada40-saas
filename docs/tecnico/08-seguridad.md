@@ -57,12 +57,13 @@ La sección 4.7 resume los mecanismos de sesión de cada acceso, el capítulo 6 
 
 - El ingreso al portal responde igual exista o no un trabajador con ese RUT; solo indica si la persona creó una clave.
 - La recuperación del titular, la del equipo y la del encargado responden siempre lo mismo.
+- El portal de fiscalización responde igual exista o no la empresa en Jornada40. **[Solo en staging]** Desde el 14-10-2026 esto incluye la espera de un minuto entre códigos, que rige para todo correo y RUT de empleador, y una falla del correo, que se anota y recibe la misma respuesta. En producción, esos dos casos todavía responden distinto si la empresa existe.
 
-Hay una excepción: el portal de fiscalización responde distinto, solo si la empresa existe, a un segundo pedido antes de un minuto o a una falla del correo (sección 8.10).
+Queda una diferencia de tiempo: cuando la cuenta o la empresa existen, el servidor envía el correo antes de responder, y la respuesta tarda más. Medirla exige muchas peticiones, que los límites de intentos frenan, pero no las impide (sección 8.10).
 
 **Sesiones.** Los tiempos de cada acceso están en la sección 4.7.
 
-- **Panel:** el token de acceso dura 5 minutos y el de renovación, 15; este rota en cada uso.
+- **Panel:** el token de acceso dura 5 minutos y el de renovación, 15; este rota en cada uso. **[Solo en staging]** El token usado y el de una sesión cerrada quedan en la lista negra de simplejwt (`token_blacklist`) y dejan de servir; la tarea diaria borra los vencidos (`flushexpiredtokens`). Para que dos pestañas no se cierren la sesión entre ellas, la aplicación web renueva desde una pestaña a la vez (sección 4.5.1).
 - **Cookies firmadas:** las del portal, la Ley Karin y la fiscalización vencen por inactividad y tienen además un tope absoluto.
 - **Cierre por inactividad:** la aplicación web cierra la sesión del panel tras 5 minutos sin uso y avisa antes.
 - **Cookies:** todas son HttpOnly, de modo que un script de la página no las puede leer, y llevan Secure en los ambientes desplegados.
@@ -72,7 +73,7 @@ Hay una excepción: el portal de fiscalización responde distinto, solo si la em
 **Falta:**
 
 - **Segundo factor:** ningún acceso tiene un segundo factor de autenticación, tampoco el administrador de Django.
-- **Revocación al rotar:** sin la aplicación `token_blacklist` de simplejwt, el token de renovación ya usado, o el de una sesión cerrada, sigue sirviendo hasta que vence (15 minutos).
+- **Revocación al rotar, en producción:** hasta publicar la lista negra, el token de renovación ya usado, o el de una sesión cerrada, sigue sirviendo hasta que vence (15 minutos).
 
 Ambos puntos están en la sección 8.10.
 
@@ -104,7 +105,11 @@ Una ruta nueva queda cerrada para el equipo hasta que se asigna a un módulo. La
 - La fiscalización es de solo lectura y abarca una sola empresa.
 - El token de la extensión actúa sobre la cuenta que lo generó. Si lo generó un usuario del equipo, aplica sus permisos: ver para leer y gestionar para marcar.
 
-**Hallazgo pendiente.** La API todavía acepta el borrado físico (`DELETE`) de trabajadores, contratos, liquidaciones, cartas, finiquitos y vacaciones al titular y a usuarios con permiso de gestionar (sección 6.4.2).
+**Borrado físico.** **[Solo en staging]** Desde el 14-10-2026, la API no acepta el borrado (`DELETE`) de trabajadores, contratos, liquidaciones, cartas, finiquitos y vacaciones (405), y las relaciones de las solicitudes de firma impiden borrar la ficha o el documento firmado por cualquier vía (sección 6.4.2). En producción, el titular y los usuarios con permiso de gestionar todavía pueden borrarlos por la API.
+
+**Documentos en firma.** **[Solo en staging]** Una carta, un comprobante de vacaciones o un anexo pendiente de firma, en proceso o firmado ya no se puede editar (sección 6.4.5). En producción, solo el contrato, las liquidaciones y los finiquitos tienen ese bloqueo.
+
+**Cupo del equipo.** **[Solo en staging]** Si el plan de la cuenta baja y el equipo queda sobre el cupo, los usuarios más recientes que sobran quedan suspendidos: su sesión responde 401 y el ingreso del equipo responde 403 con un mensaje que lo explica. No se elimina a nadie, y recuperan el acceso cuando el titular ajusta su equipo o su plan. Bajar de plan desde el panel ya no se permite si el equipo excede el cupo del plan nuevo; al pasar a Semilla, el mensaje avisa que el equipo quedará sin acceso.
 
 ## Protección de la aplicación web {#sec-seg-web}
 
@@ -118,7 +123,7 @@ Una ruta nueva queda cerrada para el equipo hasta que se asigna a un módulo. La
 | Transporte | HTTPS en Vercel y Cloudflare; HSTS de un año en la API de producción y en Vercel; cookies Secure | Vigente |
 | Archivos subidos | Tipo y tamaño limitados (tabla siguiente); los archivos de la Ley Karin se cifran antes de guardarse | Vigente |
 | Redirección abierta | Tras el ingreso, `volver` solo acepta rutas internas de `/app` o `/bienvenida` | Vigente |
-| Saturación | Límites de intentos por IP, por cuenta y por enlace; máximo de 60 s por petición; tamaños máximos; páginas de 200 registros | Vigente, con la salvedad de la caché por proceso (sección 8.10) |
+| Saturación | Límites de intentos por IP, por cuenta y por enlace; máximo de 60 s por petición; tamaños máximos; páginas de 200 registros | Vigente. En producción, los límites se cuentan por proceso hasta publicar la caché compartida (sección 8.10) |
 | Errores con información interna | `DEBUG` apagado en los ambientes desplegados; respuestas genéricas ante errores inesperados (`error_interno`) | Vigente |
 | Permisos del navegador | `Permissions-Policy` sin cámara, micrófono ni ubicación; `Referrer-Policy: strict-origin-when-cross-origin`; `nosniff` | Vigente |
 
@@ -239,19 +244,22 @@ Los hallazgos se registraron en `docs/PENDIENTES.md` al documentar el código.
 |---|---|---|
 | La API del panel aceptaba formularios de otros sitios con la sesión abierta (CSRF) | Alto | Corregido el 12-10-2026 en la rama y en staging; falta publicarlo en producción |
 | La salida de los portales se podía forzar desde otro sitio | Bajo | Corregido con la revisión del origen; falta publicarlo |
-| Borrado físico por la API de fichas y documentos, que arrastra la evidencia de firma (sección 6.4.2) | Alto | Pendiente: responder 405 o borrar lógicamente |
+| Borrado físico por la API de fichas y documentos, que arrastra la evidencia de firma (sección 6.4.2) | Alto | Corregido el 14-10-2026 en la rama y en staging (405 y relaciones `PROTECT`); falta publicarlo en producción |
 | No hay respaldos automáticos propios de la base ni pruebas de restauración | Alto | Pendiente (capítulo 12) |
 | Sin auditoría de seguridad ni prueba de penetración externas | Medio | Pendiente antes de escalar |
-| El aviso de pago de Reveniu solo tiene el límite anónimo (100 por día por IP) | Medio | Pendiente: límite propio |
-| Límites de intentos contados por cada proceso del servidor (caché local) | Medio | Pendiente: caché compartida |
-| Una carta firmada se puede editar por la API (la descarga sigue entregando la firmada) | Medio | Pendiente |
+| El aviso de pago de Reveniu solo tiene el límite anónimo (100 por día por IP): con muchos clientes, avisos de pago legítimos podían recibir 429 | Medio | Corregido el 14-10-2026: límite propio de 600 por hora; falta publicarlo |
+| Límites de intentos contados por cada proceso del servidor (caché local) | Medio | Corregido el 14-10-2026: caché compartida en la base de datos; falta publicarlo |
+| Una carta firmada se puede editar por la API (la descarga sigue entregando la firmada) | Medio | Corregido el 14-10-2026, también para comprobantes de vacaciones y anexos en firma o firmados; falta publicarlo |
+| Usuarios del equipo sobre el cupo del plan después de bajar de plan | Bajo | Corregido el 14-10-2026: los que sobran quedan suspendidos; falta publicarlo |
 | Sin segundo factor de autenticación, tampoco en el administrador de Django | Medio | Pendiente: evaluar segundo factor para el titular y el administrador |
 | Sin política de contenido (CSP) en la aplicación web | Medio | Pendiente |
-| El token de renovación usado o de una sesión cerrada sirve hasta vencer (15 min) | Bajo | Pendiente: instalar `token_blacklist` |
-| El portal de fiscalización revela, en dos casos, si una empresa usa Jornada40 | Bajo | Pendiente: responder siempre igual |
+| El token de renovación usado o de una sesión cerrada sirve hasta vencer (15 min) | Bajo | Corregido el 14-10-2026: lista negra de simplejwt; falta publicarlo |
+| El portal de fiscalización revela, en dos casos, si una empresa usa Jornada40 | Bajo | Corregido el 14-10-2026 en el contenido de la respuesta; falta publicarlo |
+| Las respuestas que no revelan si una cuenta o una empresa existe tardan más cuando existe, porque el correo se envía antes de responder (portal, recuperaciones y fiscalización) | Bajo | Pendiente: enviar esos correos en segundo plano o igualar el tiempo de respuesta |
 | La cadena de la bitácora no usa clave | Bajo | Limitación de diseño: evaluar HMAC o un sello externo periódico |
 | El depósito de B2 no tiene bloqueo de objetos ni versiones | Bajo | Pendiente: evaluar bloqueo de objetos para `firmados/` |
-| No está documentado quién tiene acceso a la configuración de cada proveedor | Medio | Pendiente: inventario de accesos y revisión periódica |
-| Una ruta auxiliar de recuperación de clave responde 500 a cualquiera y genera una alerta (anexo C) | Bajo | Pendiente: quitarla |
+| No está documentado quién tiene acceso a la configuración de cada proveedor | Medio | Pendiente: inventario de accesos y revisión periódica (`docs/legal/03-registro-proveedores.md`) |
+| Una ruta auxiliar de recuperación de clave responde 500 a cualquiera y genera una alerta (anexo C) | Bajo | Corregido el 14-10-2026: ruta quitada; falta publicarlo |
+| La dependencia `stripe` está instalada y no se usa | Bajo | Pendiente: quitarla de `requirements.txt` |
 
 : Hallazgos de seguridad y su estado

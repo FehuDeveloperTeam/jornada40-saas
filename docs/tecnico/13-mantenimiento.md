@@ -70,10 +70,10 @@ Las listas siguientes recogen lo que hay que revisar en los cambios más comunes
 
 | Línea | Qué falta | Estado |
 |---|---|---|
-| Publicación | Llevar a producción las correcciones de la versión de pruebas: dependencias, alertas, CSRF y arranque | Requiere la autorización del titular |
+| Publicación | Llevar a producción las correcciones de la versión de pruebas: dependencias, alertas, CSRF, arranque y las correcciones del 14-10-2026 (sección 1.2.3) | Requiere la autorización del titular |
 | Extensión para Mi DT | Sesión de levantamiento con una cuenta real; mapeos; publicación en Chrome Web Store y Edge Add-ons; plan comercial | En piloto en staging |
-| Reconocimiento de la DT | Acordar las medidas de seguridad y presentar la solicitud (Etapa D) | Pendiente |
-| Protección de datos | Contrato de encargo, política de privacidad, registro de proveedores, procedimiento de vulneraciones, conservación (sección 9.8) | Urgente: la Ley 21.719 rige desde el 01-12-2026 |
+| Reconocimiento de la DT | Acordar las medidas de seguridad y presentar la solicitud (Etapa D) | Pendiente. Borrador de la solicitud en `docs/legal/07-solicitud-dt.md` |
+| Protección de datos | Contrato de encargo, política de privacidad, registro de proveedores, procedimiento de vulneraciones, conservación (sección 9.8) | Urgente: la Ley 21.719 rige desde el 01-12-2026. Borradores listos en `docs/legal/` para revisión de un abogado |
 | Continuidad | Respaldos automáticos, simulacros de restauración, monitor de disponibilidad (capítulo 12) | Pendiente de autorización |
 | Seguridad | Hallazgos pendientes (sección 8.10), segundo factor, CSP, auditoría externa | Por priorizar |
 | Calidad | Carga, navegadores adicionales, accesibilidad manual, formatos con cargas reales (sección 11.7) | Por priorizar |

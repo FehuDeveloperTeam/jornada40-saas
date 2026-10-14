@@ -36,29 +36,30 @@ Dos principios ordenan el diseño:
 
 **Calidad.** Al {{fecha}}, el código descrito tiene:
 
-- 551 pruebas automáticas del servidor, con 83,1 % de las líneas cubiertas según la última medición (11-10-2026);
-- 61 pruebas unitarias de la interfaz;
+- 577 pruebas automáticas del servidor, con 84,1 % de las líneas cubiertas según la última medición (14-10-2026);
+- 64 pruebas unitarias de la interfaz;
 - 59 recorridos de extremo a extremo en navegador;
 - una revisión automática de accesibilidad (WCAG 2.1, niveles A y AA) en 21 pantallas, sin problemas detectados.
 
-La integración continua ejecuta estas pruebas, el análisis estático y la auditoría de dependencias en cada cambio. 192 de los 199 requerimientos funcionales y todas las reglas de negocio tienen al menos una prueba automática.
+La integración continua ejecuta estas pruebas, el análisis estático y la auditoría de dependencias en cada cambio. 193 de los 199 requerimientos funcionales y todas las reglas de negocio tienen al menos una prueba automática.
 
 **Requerimientos.** El capítulo 3 especifica 285 requerimientos: 199 funcionales, 44 reglas de negocio y cálculos legales, y 42 no funcionales. De los no funcionales, 28 se cumplen, 9 se cumplen en parte y 5 están pendientes: respaldos, disponibilidad comprometida, pruebas de carga, auditoría de seguridad externa y revisión legal externa de las plantillas.
 
-**Datos personales.** Jornada40 trata los datos de los trabajadores por cuenta de cada empleador (es encargado del tratamiento) y los de sus clientes como responsable. La Ley 21.719 rige desde el 01-12-2026 y exige, entre otras cosas, un contrato de encargo, una política de privacidad, un registro de proveedores y un procedimiento ante vulneraciones, que aún no existen (capítulo 9).
+**Datos personales.** Jornada40 trata los datos de los trabajadores por cuenta de cada empleador (es encargado del tratamiento) y los de sus clientes como responsable. La Ley 21.719 rige desde el 01-12-2026 y exige, entre otras cosas, un contrato de encargo, una política de privacidad, un registro de proveedores y un procedimiento ante vulneraciones. Hay borradores para revisión legal desde el 14-10-2026, pero ninguno rige todavía (capítulo 9).
 
 **Estado.** El sitio de producción (jornada40.cl) ejecuta la rama `main`. Este documento describe una versión más reciente, publicada en el ambiente de pruebas, que agrega:
 
 - la extensión para Mi DT;
 - las alertas de errores por correo;
 - la actualización de las dependencias que tenían avisos de seguridad conocidos;
-- la protección de la API contra peticiones enviadas desde otros sitios (CSRF).
+- la protección de la API contra peticiones enviadas desde otros sitios (CSRF);
+- las correcciones del 14-10-2026: la API ya no borra trabajadores ni sus documentos, los documentos en firma no se editan, los tokens de sesión usados dejan de servir y los límites de intentos se cuentan entre todos los procesos, entre otras (sección 1.2.3).
 
 **Principales limitaciones y riesgos.**
 
 - Producción mantiene dependencias con avisos de seguridad conocidos. Ya están corregidas en la versión de pruebas y falta publicarlas.
 - No hay respaldos automáticos propios de la base de datos ni pruebas de restauración.
-- Faltan los documentos y procedimientos que exige la Ley 21.719 antes de su vigencia (capítulo 9).
+- Los documentos y procedimientos que exige la Ley 21.719 están en borrador y deben revisarse, completarse y publicarse antes de su vigencia (capítulo 9).
 - No se han hecho pruebas de carga ni una auditoría de seguridad externa.
 - La firma es simple, no avanzada. Para que un finiquito tenga poder liberatorio debe ratificarse ante un ministro de fe o firmarse en Mi DT.
 - Mi DT no tiene una interfaz de programación (API). El registro se apoya en fichas para copiar y en una extensión que aún está en piloto.

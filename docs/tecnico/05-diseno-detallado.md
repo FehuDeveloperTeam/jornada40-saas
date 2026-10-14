@@ -126,10 +126,10 @@ Antes de generar un documento, la descarga busca su versión firmada (`pdf_firma
 
 | Comando | Uso |
 |---|---|
-| `enviar_resumenes` | Resúmenes por correo del día y avisos de plazos a los encargados Ley Karin. Lo ejecuta el servicio cron; se puede repetir el mismo día sin duplicar envíos |
-| `sincronizar_previred` | Lee los indicadores de Previred y crea una propuesta de parámetros sin confirmar |
+| `enviar_resumenes` | Resúmenes por correo del día y avisos de plazos a los encargados Ley Karin. Lo ejecuta el servicio cron; se puede repetir el mismo día sin duplicar envíos. **[Solo en staging]** También crea la tabla de la caché si falta y borra los tokens vencidos de la lista negra |
+| `sincronizar_previred` | Lee los indicadores de Previred y crea una propuesta de parámetros sin confirmar. **[Solo en staging]** Lee también las tasas de la reforma de pensiones, el SIS y el seguro de cesantía desde el año 11 (`PATRONES_TASAS`), en el formato de la página de octubre de 2026 y en el anterior; lo que no lee lo copia de lo vigente |
 | `estado_indicadores` | Informa si se calcula con parámetros sin confirmar o antiguos, o con UF y UTM de respaldo |
-| `revisar_topes_imponibles` | Detecta, y con `--aplicar` recalcula, liquidaciones emitidas sin el tope imponible. No toca las firmadas |
+| `revisar_topes_imponibles` | Detecta, y con `--aplicar` recalcula, liquidaciones emitidas sin el tope imponible. No toca las firmadas ni, **[Solo en staging]**, las que están en firma |
 | `rotar_cifrado` | Vuelve a cifrar los datos reservados con la clave actual |
 
 : Comandos de administración

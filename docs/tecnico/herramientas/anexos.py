@@ -142,10 +142,21 @@ def _recorrer(patrones, prefijo=''):
             yield prefijo + str(p.pattern), p
 
 
+def _acciones(callback):
+    """Método → acción de una ruta de DRF, sin los métodos que la clase no admite.
+
+    El enrutador asocia DELETE a `destroy` aunque la clase lo excluya de `http_method_names`
+    (responde 405), así que se filtra con esa lista.
+    """
+    clase = getattr(callback, 'cls', None)
+    permitidos = getattr(clase, 'http_method_names', None)
+    return {m: a for m, a in (getattr(callback, 'actions', None) or {}).items()
+            if permitidos is None or m in permitidos}
+
+
 def _metodos(callback):
-    acciones = getattr(callback, 'actions', None)
-    if acciones:
-        return sorted(m.upper() for m in acciones)
+    if getattr(callback, 'actions', None):
+        return sorted(m.upper() for m in _acciones(callback))
     clase = getattr(callback, 'cls', None) or getattr(callback, 'view_class', None)
     if clase is None:
         return ['GET']
@@ -217,7 +228,7 @@ def anexo_c():
         fila['vista'] = clase.__name__ if clase is not None and nombre in ('view', 'WrappedAPIView') else (
             getattr(clase, '__name__', '') if getattr(callback, 'actions', None) else nombre)
         if getattr(callback, 'actions', None):
-            acciones = sorted(set(callback.actions.values()))
+            acciones = sorted(set(_acciones(callback).values()))
             fila['vista'] = f'{getattr(clase, "__name__", "")} ({", ".join(acciones)})'
         fila['acceso'] = acceso
     for ruta, fila in filas.items():
@@ -238,8 +249,10 @@ def anexo_c():
               'todo el equipo solo para consultar; «Identidad de la persona» actúa sobre la propia persona; '
               '«Solo el titular», solo para el dueño de la cuenta.', '',
               '**Rutas auxiliares.** `auth/password/reset/` responde 410: la recuperación por correo está cerrada y '
-              'se recupera por RUT. `auth/password/reset/confirm/{uidb64}/{token}/` solo existe para nombrar un enlace '
-              'que ya no se usa (sección 8.10). `diagnostico/red/` responde solo con `DIAGNOSTICO_RED=1`.', '']
+              'se recupera por RUT. `diagnostico/red/` responde solo con `DIAGNOSTICO_RED=1`.', '',
+              '**Sin borrado.** **[Solo en staging]** Las rutas de trabajadores, contratos, liquidaciones, cartas, finiquitos y vacaciones '
+              'no admiten DELETE (405): esos registros respaldan firmas y obligaciones laborales, y no se borran '
+              '(sección 6.4.2).', '']
     for grupo in sorted(grupos):
         lineas += [f'#### `/api/{grupo}/` {{.unnumbered}}', '', '| Métodos | Ruta | Vista | Acceso | Módulo |', '|---|---|---|---|---|']
         for ruta, fila in sorted(grupos[grupo]):

@@ -45,7 +45,13 @@ A la fecha de corte, la versión de pruebas agrega lo siguiente a la de producci
   - configuración de SQLite para desarrollo;
   - medición de cobertura, análisis estático y revisión de accesibilidad;
 - correcciones de seguridad y operación: la API rechaza las escrituras que vienen de otros sitios (CSRF), las cookies de sesión de producción pasan a `SameSite=Lax` y el servidor no arranca si falla una migración;
-- documentación.
+- correcciones del 14-10-2026 (migración 0106 y las de la lista negra de simplejwt):
+  - la API no borra trabajadores ni documentos, y las solicitudes de firma protegen lo que firman;
+  - el token de renovación usado deja de servir, la caché de los límites de intentos se comparte entre procesos y los avisos de pago de Reveniu tienen su propio límite;
+  - las cartas, los comprobantes de vacaciones y los anexos en firma o firmados no se editan;
+  - el portal de fiscalización responde igual en todos los casos y se quitó una ruta que respondía 500;
+  - correcciones funcionales: la renuncia o el mutuo acuerdo se puede enviar a firma, el recargo de las horas extra se valida según el concepto, un usuario del equipo eliminado se puede volver a invitar, el cupo del equipo se respeta al bajar de plan, los números de ficha no se repiten, el comprobante del día libre por horas extra, la lectura de las tasas de Previred y los mensajes de error de la liquidación;
+- documentación, incluidos los borradores legales de `docs/legal/`.
 
 ## Audiencia y organización del documento {#sec-audiencia}
 

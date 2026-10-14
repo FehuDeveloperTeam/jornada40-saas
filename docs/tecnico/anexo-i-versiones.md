@@ -9,7 +9,7 @@ Jornada40 no tiene etiquetas de versión: cada publicación se identifica por su
 | 07-10-2026 | `ed4f120` | Versión rediseñada, con lo construido desde fines de septiembre; migraciones 0064 a 0098 |
 | 08-10-2026 | `96ca177` | Cuentas del portal por persona y separación entre verificar la identidad y firmar; migraciones 0099 a 0104. Es la versión de producción a la fecha de corte |
 
-Railway publica cada cambio que llega a `main` (sección 4.6); las publicaciones anteriores no quedaron registradas aparte. La versión de pruebas agrega a `96ca177` lo descrito en la sección 1.2.3, incluida la migración 0105.
+Railway publica cada cambio que llega a `main` (sección 4.6); las publicaciones anteriores no quedaron registradas aparte. La versión de pruebas agrega a `96ca177` lo descrito en la sección 1.2.3, incluidas las migraciones 0105 y 0106 y las de la lista negra de tokens de simplejwt.
 
 #### Hitos del desarrollo {.unnumbered}
 
@@ -39,5 +39,6 @@ Railway publica cada cambio que llega a `main` (sección 4.6); las publicaciones
 | 09-10-2026 | **[Solo en staging]** Extensión «Jornada40 para Mi DT» |
 | 11-10-2026 | **[Solo en staging]** Cobertura, auditoría de dependencias, linter, accesibilidad y alertas de errores |
 | 12-10-2026 | **[Solo en staging]** Protección contra CSRF y arranque que se detiene si falla una migración |
+| 14-10-2026 | **[Solo en staging]** Sin borrado físico por la API, lista negra de tokens, caché compartida, límite propio para los avisos de pago, bloqueo de los documentos en firma, renuncia o mutuo acuerdo a firma y otras correcciones funcionales |
 
 **Actividad.** Los commits se concentran en abril (159) y septiembre (102); entre junio y agosto hubo poca actividad (28 commits).

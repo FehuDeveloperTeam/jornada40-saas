@@ -24,13 +24,13 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 | `test_extension` | RF-EXT-01, RF-EXT-02, RF-EXT-03, RF-EXT-04, RF-EXT-05, RF-EXT-09, RNF-SEG-05 |
 | `test_feriado` | RF-VAC-01, RF-VAC-02, RF-VAC-03, RN-VAC-01, RN-VAC-02, RN-VAC-03, RN-VAC-04 |
 | `test_finiquito` | RF-CON-05, RF-CON-06, RF-VAC-01, RF-DOC-04, RF-FIN-02, RF-FIN-03, RF-FIN-04, RF-FIN-05, RF-FIN-06, RN-FIN-01, RN-FIN-02, RN-FIN-03, RN-FIN-04, RN-FIN-05, RN-FIN-07 |
-| `test_firmas` | RF-REM-14, RF-DOC-03, RF-FIR-01, RF-FIR-02, RF-FIR-05, RF-FIR-06, RF-FIR-08, RF-FIR-09, RF-FIR-10, RF-FIR-12, RF-FIR-13, RF-FIR-15, RNF-SEG-05, RNF-DIS-01, RNF-DIS-02, RNF-LEG-03 |
-| `test_horas_compensatorias` | RF-REM-15, RF-VAC-05, RF-DOC-07, RN-REM-15 |
+| `test_firmas` | RF-CON-08, RF-REM-14, RF-VAC-07, RF-DOC-01, RF-DOC-03, RF-FIR-01, RF-FIR-02, RF-FIR-05, RF-FIR-06, RF-FIR-08, RF-FIR-09, RF-FIR-10, RF-FIR-12, RF-FIR-13, RF-FIR-15, RNF-SEG-05, RNF-DIS-01, RNF-DIS-02, RNF-LEG-03 |
+| `test_horas_compensatorias` | RF-REM-15, RF-VAC-05, RF-VAC-07, RF-DOC-07, RN-REM-15 |
 | `test_indemnizacion_todo_evento` | RF-REM-15, RN-REM-14, RN-FIN-06 |
 | `test_inspeccion` | RF-DT-07, RF-DT-08, RF-DT-09, RF-DT-10, RF-DT-11, RNF-SEG-02, RNF-SEG-06, RNF-PRI-02 |
 | `test_jornada` | RF-CON-02, RF-CON-03, RF-CON-04, RF-CON-07, RN-CON-01, RN-CON-02, RNF-LEG-01, RNF-LEG-02 |
 | `test_ley_karin` | RF-KAR-01 |
-| `test_liquidaciones` | RF-REM-01, RF-REM-02, RF-REM-03, RF-REM-06, RF-REM-07, RF-REM-08, RF-REM-14, RF-ARC-06, RF-ARC-08, RN-REM-04, RN-REM-05, RN-REM-06, RN-REM-07, RN-REM-09, RN-REM-10, RN-REM-11, RN-REM-12, RN-REM-16 |
+| `test_liquidaciones` | RF-REM-01, RF-REM-02, RF-REM-03, RF-REM-06, RF-REM-07, RF-REM-08, RF-REM-14, RF-ARC-06, RF-ARC-08, RN-REM-04, RN-REM-05, RN-REM-06, RN-REM-07, RN-REM-09, RN-REM-10, RN-REM-11, RN-REM-12, RN-REM-16, RNF-SEG-10 |
 | `test_lre` | RF-REM-09, RF-ARC-04, RF-ARC-05, RNF-COM-04 |
 | `test_pagos` | RF-CTA-02, RF-TRA-03, RF-TRA-04, RF-ARC-07, RF-DOC-01, RF-DOC-02, RF-PAG-01, RF-PAG-02, RF-PAG-03, RF-PAG-04, RF-PAG-05, RF-PAG-06, RF-PAG-07, RF-PAG-08, RF-PAG-09, RF-PAG-10, RN-PAG-01, RNF-DIS-01 |
 | `test_parametros` | RF-REM-10, RF-REM-11, RF-REM-16, RN-REM-01, RN-REM-02, RN-REM-03, RN-REM-08, RN-REM-10, RN-REM-16, RNF-DIS-01, RNF-MAN-04, RNF-LEG-01 |
@@ -47,7 +47,7 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 | `test_seguridad_laboral` | RF-DOC-11, RF-REG-08, RF-REG-09, RN-DOC-06 |
 | `test_sesion_inactividad` | RF-KAR-03, RNF-SEG-01 |
 | `test_solicitudes_documento` | RF-POR-10, RF-POR-11, RN-POR-03 |
-| `test_trabajadores` | RF-TRA-06, RF-TRA-07, RF-TRA-08, RF-TRA-09, RF-TRA-13, RF-CON-01, RN-REM-04, RN-PAG-01 |
+| `test_trabajadores` | RF-TRA-01, RF-TRA-06, RF-TRA-07, RF-TRA-08, RF-TRA-09, RF-TRA-13, RF-CON-01, RN-REM-04, RN-PAG-01 |
 | `CierreInactividad.test.tsx` | RNF-SEG-01, RNF-USA-04 |
 | `accesibilidad.spec.ts` | RNF-USA-02 |
 | `borradores.test.ts` | RNF-USA-04 |
@@ -61,7 +61,7 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 
 #### Requerimientos sin un archivo de prueba propio {.unnumbered}
 
-- **Funcionales sin prueba directa (7):** RF-CTA-09, RF-CTA-12, RF-CON-12, RF-REM-05, RF-VAC-07, RF-EQU-03, RF-EQU-09.
+- **Funcionales sin prueba directa (6):** RF-CTA-09, RF-CTA-12, RF-CON-12, RF-REM-05, RF-EQU-03, RF-EQU-09.
 - **No funcionales pendientes (5):** RNF-SEG-11, RNF-DIS-03, RNF-DIS-05, RNF-REN-03, RNF-LEG-04. Aún no se cumplen, así que no hay qué probar (sección 11.7).
 - **No funcionales verificados de otra forma (13):** RNF-SEG-04, RNF-SEG-08, RNF-SEG-09, RNF-REN-01, RNF-USA-01, RNF-USA-03, RNF-MAN-01, RNF-MAN-02, RNF-MAN-03, RNF-COM-01, RNF-COM-02, RNF-COM-03, RNF-PRI-04. Se comprueban en la integración continua, en los recorridos de navegador en general, en la configuración o por revisión manual, según indica su fila en el capítulo 3.
 

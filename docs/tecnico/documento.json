@@ -1,11 +1,11 @@
 {
   "titulo-documento": "Documento técnico del sistema",
-  "version": "0.9",
-  "fecha": "12-10-2026",
+  "version": "0.9.1",
+  "fecha": "14-10-2026",
   "estado": "Versión completa para revisión",
   "clasificacion": "Confidencial",
   "autor": "Equipo de desarrollo de Jornada40",
-  "commit-rama": "45e3d65",
+  "commit-rama": "1baa162",
   "commit-main": "96ca177",
   "rama": "claude/review-dashboard-branch-IV6aW",
   "capitulos": [

@@ -45,7 +45,7 @@ Este capítulo describe el sistema; no es una opinión legal. Las brechas de la 
 
 : Inventario de datos personales
 
-La aplicación web no usa analítica, publicidad ni rastreo de terceros. La sección 6.5 describe cómo se guarda cada categoría y el anexo B lista los campos.
+La aplicación web no usa analítica, publicidad ni rastreo de terceros. Sí carga sus fuentes tipográficas (Poppins e IBM Plex Mono) desde Google Fonts (`frontend/index.html`), así que el navegador de cada visitante, incluidos los trabajadores que firman, envía su dirección IP a Google (sección 9.4). La sección 6.5 describe cómo se guarda cada categoría y el anexo B lista los campos.
 
 ## Datos sensibles {#sec-dp-sensibles}
 
@@ -69,12 +69,15 @@ Algunos datos revelan la salud, la vida sexual o la afiliación sindical de una 
 | Google (Gemini) | Lectura de contratos escaneados | El contrato completo que sube el empleador | Empresa de Estados Unidos |
 | Cloudflare | DNS y proxy de la API | Todo el tráfico de la API, en tránsito | Red global |
 | Vercel | Publicación de la aplicación web | Direcciones IP de los visitantes en sus registros | Empresa de Estados Unidos |
+| Google (Fonts) | Fuentes tipográficas de la aplicación web | Dirección IP y navegador de cada visitante | Empresa de Estados Unidos |
 | Reveniu y Transbank | Suscripciones y cobro | Nombre y correo del titular, montos; la tarjeta solo en Transbank | Chile |
 | mindicador.cl | UF y UTM | Ninguno | Chile |
 
 : Proveedores que tratan datos personales
 
-**Transferencias internacionales.** Casi todos los proveedores están fuera de Chile, así que guardar y procesar los datos implica transferencias internacionales. Con la nueva ley, esas transferencias requieren garantías adecuadas, como cláusulas contractuales. Hoy no hay un registro de subencargados ni de sus contratos (sección 9.8).
+**Transferencias internacionales.** Casi todos los proveedores están fuera de Chile, así que guardar y procesar los datos implica transferencias internacionales. Con la nueva ley, esas transferencias requieren garantías adecuadas, como cláusulas contractuales. El borrador `docs/legal/03-registro-proveedores.md` inventaría los proveedores; faltan sus contratos, sus garantías y las regiones de cada servicio (sección 9.8).
+
+**Google Fonts.** Alojar las fuentes en el propio sitio elimina esa transferencia sin cambiar el diseño; es una de las propuestas del registro de proveedores.
 
 **Gemini.** La lectura con Gemini envía a Google el documento completo, con los datos personales del trabajador. Las condiciones de Google distinguen entre el uso pagado de su API, en que no usa los datos para mejorar sus productos, y el gratuito, en que puede hacerlo. Debe verificarse en qué condición está la clave configurada. También conviene informarlo a los clientes, porque la lectura es una opción y no un paso obligatorio.
 
@@ -105,7 +108,7 @@ Algunos datos revelan la salud, la vida sexual o la afiliación sindical de una 
 
 : Ejercicio de los derechos de los titulares
 
-El canal publicado hoy es `contacto.jornada40@gmail.com`; lo informa la política de privacidad de la extensión. No hay una política de privacidad general de la plataforma.
+El canal publicado hoy es `contacto.jornada40@gmail.com`; lo informa la política de privacidad de la extensión. No hay una política de privacidad general publicada: el borrador está en `docs/legal/02-politica-de-privacidad.md`, y el procedimiento para atender los derechos, en `docs/legal/06-procedimiento-derechos.md`.
 
 ## Seguridad y vulneraciones {#sec-dp-vulneraciones}
 
@@ -117,7 +120,7 @@ El canal publicado hoy es `contacto.jornada40@gmail.com`; lo informa la polític
 - bitácoras inalterables;
 - alertas de errores sin datos personales.
 
-**Lo que falta.** No hay un procedimiento escrito de respuesta a incidentes ni de notificación de vulneraciones. Con la nueva ley, las vulneraciones de seguridad deben reportarse a la Agencia y, en ciertos casos, a los titulares afectados. Como encargado, Jornada40 debe además avisar al empleador.
+**Lo que falta.** No hay un procedimiento vigente de respuesta a incidentes ni de notificación de vulneraciones; el borrador está en `docs/legal/04-procedimiento-vulneraciones.md`. Con la nueva ley, las vulneraciones de seguridad deben reportarse a la Agencia y, en ciertos casos, a los titulares afectados. Como encargado, Jornada40 debe además avisar al empleador.
 
 ## Brechas frente a la Ley 21.719 {#sec-dp-brechas}
 
@@ -132,5 +135,8 @@ El canal publicado hoy es `contacto.jornada40@gmail.com`; lo informa la polític
 | Datos sensibles en claro (salud, afiliación sindical) | Media | Revisar la necesidad de cada campo y su base de licitud; evaluar cifrarlos o restringir quién los ve |
 | Lectura de contratos con Gemini | Media | Verificar las condiciones de uso de datos de la clave, informarlo al cliente y mantener la lectura como una opción |
 | Sin registro de las actividades de tratamiento ni designación de un responsable interno | Media | Registro de actividades a partir de este capítulo; evaluar un delegado de protección de datos y un modelo de prevención de infracciones |
+| Las fuentes tipográficas se cargan desde Google Fonts, que recibe la IP de cada visitante | Baja | Alojar las fuentes en el propio sitio |
 
 : Brechas frente a la Ley 21.719
+
+**Borradores.** El 14-10-2026 se redactaron en `docs/legal/` los borradores que cubren las cuatro brechas de prioridad alta y dos de las de prioridad media: anexo de tratamiento por encargo, política de privacidad, registro de proveedores, procedimiento de vulneraciones, política de conservación y procedimiento de derechos. Siguen el texto de la Ley 21.719 y marcan lo que falta completar o revisar. No rigen hasta que un abogado los revise, los complete y se publiquen; `python3 docs/legal/construir.py` los genera en Word.

@@ -82,7 +82,7 @@ Las otras formas de ingreso tienen sus propias tablas de credenciales:
 **Listas cerradas.** Los estados, tipos y motivos se guardan como texto con opciones fijas (`choices`), por ejemplo:
 
 - los 6 estados de una solicitud de firma;
-- los 18 tipos de documento que se pueden firmar.
+- los 19 tipos de documento que se pueden firmar.
 
 La base no valida esas opciones: las valida el servidor en los serializadores y las vistas.
 
@@ -96,7 +96,7 @@ La base no valida esas opciones: las valida el servidor en los serializadores y 
 
 Su forma la definen el código y las pruebas, no la base de datos.
 
-**Borrado lógico.** Ocho modelos tienen el campo `activo`: `Plan`, `Empresa`, `Empleado`, `ConceptoRemuneracion`, `DocumentoLaboral`, `ReglamentoInterno`, `ArchivoKarin` y `SolicitudConciliacion`. Desactivar reemplaza a borrar. Los demás registros reflejan su ciclo de vida con un estado (por ejemplo, una solicitud de firma `CANCELADO`) o no se eliminan nunca. La sección 6.4.2 describe dónde la API todavía permite un borrado físico.
+**Borrado lógico.** Ocho modelos tienen el campo `activo`: `Plan`, `Empresa`, `Empleado`, `ConceptoRemuneracion`, `DocumentoLaboral`, `ReglamentoInterno`, `ArchivoKarin` y `SolicitudConciliacion`. Desactivar reemplaza a borrar. Los demás registros reflejan su ciclo de vida con un estado (por ejemplo, una solicitud de firma `CANCELADO`) o no se eliminan nunca. La sección 6.4.2 describe cómo el servidor impide el borrado físico.
 
 ## Entidades por dominio {#sec-datos-dominios}
 
@@ -235,7 +235,7 @@ El tipo determina el contenido de `datos`, del que se redactan las cláusulas. `
 - a la persona que lo emitió (`emisor`);
 - al documento que se firma.
 
-Para el documento tiene siete claves foráneas opcionales, una por clase de documento: contrato, carta, anexo, liquidación, vacación, finiquito y documento laboral. Según el tipo (`tipo_documento`, 18 valores), se llena una sola. Por ejemplo, el contrato y el anexo de 40 horas usan la del contrato, y los nueve tipos de documento laboral, la suya. Guarda además:
+Para el documento tiene siete claves foráneas opcionales, una por clase de documento: contrato, carta, anexo, liquidación, vacación, finiquito y documento laboral. Según el tipo (`tipo_documento`, 19 valores), se llena una sola. Por ejemplo, el contrato y el anexo de 40 horas usan la del contrato, las cuatro cartas (amonestación, despido, constancia y, **[Solo en staging]**, renuncia o mutuo acuerdo) usan la de la carta, y los nueve tipos de documento laboral, la suya. Las nueve relaciones impiden borrar lo que la solicitud respalda (sección 6.4.2). Guarda además:
 
 - el token del enlace público (UUID único) y su vencimiento;
 - el estado: `PENDIENTE`, `PROCESANDO`, `FIRMADO`, `RECHAZADO`, `EXPIRADO` o `CANCELADO`;
@@ -402,9 +402,9 @@ Las 75 claves foráneas y relaciones uno a uno siguen tres reglas al borrarse el
 
 | Regla | Relaciones | Cuándo se usa |
 |---|---|---|
-| `CASCADE` (borra también) | 34 | Datos que no tienen sentido sin su dueño: las fichas sin su empresa, las liquidaciones o las solicitudes de firma sin su ficha |
-| `SET_NULL` (deja vacío) | 26 | Referencias que pueden desaparecer sin perder el registro: quién emitió una firma, el documento de una solicitud, el plan de un cliente |
-| `PROTECT` (impide borrar) | 15 | Lo que se debe conservar: la cuenta de la bitácora, de los usuarios del equipo y de la Ley Karin; las denuncias y sus archivos; el reglamento y el concepto de un documento laboral; el plan de una suscripción |
+| `CASCADE` (borra también) | 32 | Datos que no tienen sentido sin su dueño: las fichas sin su empresa, las liquidaciones sin su ficha |
+| `SET_NULL` (deja vacío) | 19 | Referencias que pueden desaparecer sin perder el registro: quién emitió una firma, el plan de un cliente |
+| `PROTECT` (impide borrar) | 24 | Lo que se debe conservar: la cuenta de la bitácora, de los usuarios del equipo y de la Ley Karin; las denuncias y sus archivos; el reglamento y el concepto de un documento laboral; el plan de una suscripción; la ficha, la empresa y el documento de cada solicitud de firma **[Solo en staging]** |
 
 : Reglas de borrado de las relaciones
 
@@ -415,9 +415,14 @@ En la operación normal, el panel no borra lo que importa:
 - **Firmas:** se cancelan.
 - **Certificados:** se anulan, y se conservan.
 
-Sin embargo, la API todavía acepta la operación de borrado (`DELETE`) en seis recursos: trabajadores, contratos, liquidaciones, cartas, finiquitos y vacaciones. La pueden usar el titular y los usuarios del equipo con permiso de gestionar. Como las solicitudes de firma dependen de la ficha en cascada, borrar un trabajador por la API eliminaría también la evidencia de sus firmas. Ninguna pantalla lo ofrece, pero la regla del borrado lógico no está garantizada en el servidor. Este hallazgo está registrado en `docs/PENDIENTES.md` y se retoma en los capítulos 8 y 13.
+**[Solo en staging]** Desde el 14-10-2026, el servidor también lo garantiza en dos capas:
 
-El administrador de Django, reservado al equipo de Jornada40, también permite borrar fichas, empresas y contratos. Los modelos de la Ley Karin y los usuarios del equipo no están en el administrador, y la bitácora aparece en él solo para consulta.
+- **La API no ofrece el borrado.** Los recursos de trabajadores, contratos, liquidaciones, cartas, finiquitos y vacaciones no aceptan la operación `DELETE`: responden 405 (`METODOS_SIN_BORRADO`, en `core/views/base.py`). Un anexo sin firmar se puede descartar; uno aplicado o con una solicitud de firma, no (403).
+- **Las firmas protegen lo que firman.** Las nueve relaciones de `SolicitudFirma` con la ficha, la empresa y cada tipo de documento son `PROTECT` (migración 0106). Mientras exista una solicitud de firma, ni el trabajador ni el documento se pueden borrar por ninguna vía, tampoco desde el administrador de Django. La migración no cambia el esquema de la base: la regla la aplica Django.
+
+En producción, la API todavía acepta `DELETE` en esos seis recursos y las solicitudes de firma dependen de la ficha en cascada: borrar un trabajador por la API eliminaría también la evidencia de sus firmas (capítulo 8).
+
+El administrador de Django, reservado al equipo de Jornada40, permite borrar fichas, empresas y contratos que no tengan firmas. Los modelos de la Ley Karin y los usuarios del equipo no están en el administrador, y la bitácora aparece en él solo para consulta.
 
 ### Numeración correlativa {#sec-datos-numeracion}
 
@@ -429,7 +434,7 @@ Los números que se muestran en documentos se asignan como el máximo actual má
 - las copias de la bitácora, por cuenta;
 - la cadena de la bitácora y la del registro Ley Karin, por cuenta.
 
-El número de ficha del trabajador también es el máximo más uno, pero sin bloqueo ni restricción de unicidad. Dos altas simultáneas en la misma empresa podrían recibir el mismo número; el servidor sí impide repetirlo al editarlo. El número de ficha no tiene efecto legal.
+El número de ficha del trabajador también es el máximo más uno. **[Solo en staging]** Desde el 14-10-2026 se asigna con la fila de la empresa bloqueada, tanto en el alta individual (`Empleado.save`) como en la carga masiva, así que dos altas simultáneas ya no reciben el mismo número; en producción todavía podría pasar. El servidor también impide repetirlo al editarlo. La base de datos no tiene una restricción de unicidad para el número: agregarla exige revisar antes que los datos de producción no tengan números repetidos. El número de ficha no tiene efecto legal.
 
 ### Registros inalterables {#sec-datos-inalterables}
 
@@ -446,7 +451,7 @@ La cadena delata cualquier cambio hecho fuera de la aplicación. Pero la huella 
 Algunos registros guardan una copia de lo que se usó al emitirlos, para que no cambien después:
 
 - **Liquidaciones:** guardan la UF, el sueldo y las horas del contrato, y el detalle de cada ítem (sección 6.2.3).
-- **Documentos firmados:** se entregan siempre desde el PDF firmado guardado, no se vuelven a generar. Con una firma viva, el servidor impide editar el contrato (se modifica con anexos), las liquidaciones y los finiquitos. Una carta firmada todavía se puede editar por la API, aunque lo que se entrega sigue siendo el PDF firmado; es otro de los hallazgos registrados en `docs/PENDIENTES.md`.
+- **Documentos firmados:** se entregan siempre desde el PDF firmado guardado, no se vuelven a generar. Con una firma viva (pendiente, en proceso o firmada), el servidor impide editar el contrato (se modifica con anexos), las liquidaciones y los finiquitos. **[Solo en staging]** Desde el 14-10-2026 también impide editar las cartas, los comprobantes de vacaciones y los anexos (`exigir_sin_firma`, en `core/views/base.py`): responde 400 y pide cancelar la solicitud o emitir un documento nuevo. En producción, esos tres documentos todavía se pueden editar por la API, aunque lo que se entrega sigue siendo el PDF firmado.
 - **Certificados del portal:** guardan en `datos` lo que certifican; el PDF se reconstruye desde ahí.
 - **Certificado N°6:** reemitir con datos distintos crea un número nuevo y conserva el anterior.
 
@@ -506,7 +511,7 @@ Sin las variables de B2, como en desarrollo, los archivos van a la carpeta local
 
 ## Migraciones {#sec-datos-migraciones}
 
-El esquema evoluciona con las migraciones de Django en `backend/core/migrations/`: hay 105 a la fecha de corte, de la `0001` a la `0105`.
+El esquema evoluciona con las migraciones de Django en `backend/core/migrations/`: hay 106 a la fecha de corte, de la `0001` a la `0106`. **[Solo en staging]** La 0106 cambia las reglas de borrado de las solicitudes de firma (sección 6.4.2) y agrega el tipo «Renuncia o Mutuo Acuerdo»; no modifica tablas. La lista negra de tokens trae sus propias migraciones (aplicación `token_blacklist` de simplejwt), que crean dos tablas.
 
 - **Generación:** se generan con `makemigrations` y no se editan a mano.
 - **Integración continua:** ejecuta `makemigrations --check`, que falla si un cambio en los modelos no tiene su migración.
