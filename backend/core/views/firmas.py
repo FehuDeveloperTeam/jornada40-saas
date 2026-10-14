@@ -350,34 +350,21 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             html = render_to_string('anexo_40h.html', ctx)
             return _html_a_pdf_bytes(html, f'Anexo40h_{empleado.rut}'), contrato, None, None, None, None
 
-        if tipo_doc in ('AMONESTACION', 'CONSTANCIA'):
+        if tipo_doc in ('AMONESTACION', 'CONSTANCIA', 'DESPIDO', 'MUTUO_ACUERDO'):
+            # El tipo pedido debe ser el del documento: el permiso del equipo se decide por ese tipo.
             if doc_legal_id:
                 try:
-                    doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
-                except DocumentoLegal.DoesNotExist:
+                    doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado, tipo=tipo_doc)
+                except (DocumentoLegal.DoesNotExist, ValueError, TypeError):
                     raise _ErrorFirma('Documento legal no encontrado.')
             else:
                 doc = DocumentoLegal.objects.filter(
                     empleado=empleado, tipo=tipo_doc
                 ).order_by('-fecha_emision').first()
                 if not doc:
-                    raise _ErrorFirma(f'No se encontró documento de tipo {tipo_doc}.')
+                    raise _ErrorFirma('No se encontró la carta de término.' if tipo_doc == 'DESPIDO' else
+                                      f'No se encontró documento de tipo {tipo_doc}.')
             return pdf_documento_legal(doc, es_plan_semilla), None, doc, None, None, None
-
-        if tipo_doc == 'DESPIDO':
-            if doc_legal_id:
-                try:
-                    doc = DocumentoLegal.objects.get(id=doc_legal_id, empleado=empleado)
-                except DocumentoLegal.DoesNotExist:
-                    raise _ErrorFirma('Documento legal no encontrado.')
-            else:
-                doc = DocumentoLegal.objects.filter(
-                    empleado=empleado, tipo='DESPIDO'
-                ).order_by('-fecha_emision').first()
-                if not doc:
-                    raise _ErrorFirma('No se encontró carta de despido.')
-            pdf_bytes = pdf_documento_legal(doc, es_plan_semilla)
-            return pdf_bytes, None, doc, None, None, None
 
         if tipo_doc == 'ANEXO_CONTRATO':
             if not anexo_id:
@@ -452,6 +439,7 @@ class SolicitudFirmaViewSet(viewsets.GenericViewSet):
             'AMONESTACION':   'Carta de Amonestación',
             'DESPIDO':        'Carta de Despido',
             'CONSTANCIA':     'Constancia Laboral',
+            'MUTUO_ACUERDO':  'Renuncia o Mutuo Acuerdo',
             'ANEXO_CONTRATO': 'Anexo de Contrato',
             'LIQUIDACION':    'Liquidación de Sueldo',
             'VACACION':       'Comprobante de Vacaciones',

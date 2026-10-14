@@ -223,7 +223,7 @@ def recuperar_password_por_rut(request):
             request=request,
             use_https=True,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            email_template_name='registration/password_reset_email.html',
+            email_template_name='registration/password_reset_email.txt',   # texto plano
             html_email_template_name='registration/password_reset_email.html',
             extra_email_context={'sitio': settings.SITIO_URL.rstrip('/')},
         )

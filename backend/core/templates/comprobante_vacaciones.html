@@ -97,8 +97,12 @@
                     Vacación Legal (Art. 67 Código del Trabajo)
                 {% elif vacacion.tipo == 'VACACION_PROGRESIVA' %}
                     Feriado Progresivo (Art. 68 Código del Trabajo)
-                {% else %}
+                {% elif vacacion.tipo == 'DIA_COMPENSATORIO' %}
+                    Día libre por horas extra compensadas (Art. 32 Código del Trabajo){% if vacacion.horas_compensatorias %}: {{ vacacion.horas_compensatorias|floatformat:"-1" }} horas de descanso{% endif %}
+                {% elif vacacion.tipo == 'PERMISO_SIN_GOCE' %}
                     Permiso Sin Goce de Sueldo
+                {% else %}
+                    {{ vacacion.get_tipo_display }}
                 {% endif %}
             </td>
         </tr>

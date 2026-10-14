@@ -771,3 +771,25 @@ class CajaLegalTests(APITestCase):
     def test_recargo_legal_o_mayor_aceptado(self):
         self.assertEqual(self._hora_extra(50).status_code, 200)
         self.assertEqual(self._hora_extra(100).status_code, 200)
+
+    def test_recargo_se_valida_aunque_el_item_traiga_solo_el_concepto(self):
+        """Por la API, un ítem con el concepto de horas extra y sin naturaleza también se valida
+        (antes se calculaba con el recargo menor sin advertirlo)."""
+        from core.models import ConceptoRemuneracion
+        hora = ConceptoRemuneracion.objects.get(codigo='HORA_EXTRA_50', empresa=None)
+        r = self.client.post('/api/liquidaciones/simular/', {
+            'empleado': self.emp.id, 'mes': 9, 'anio': 2026,
+            'detalle_items': [{'concepto': hora.id, 'horas': 5, 'recargo': 20}]}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('50 %', r.data['error'])
+
+    def test_dato_mal_formado_responde_un_mensaje_para_la_persona(self):
+        """Sin el texto técnico del error (antes: «invalid literal for int()…»)."""
+        from core.views.liquidaciones import MENSAJE_DATO_INVALIDO
+        datos = {'empleado': self.emp.id, 'mes': 9, 'anio': 2026, 'dias_ausencia': 'tres'}
+        with self.assertLogs('core.views.base', level='WARNING') as registro:
+            r = self.client.post('/api/liquidaciones/simular/', datos, format='json')
+        self.assertEqual((r.status_code, r.data['error']), (400, MENSAJE_DATO_INVALIDO))
+        self.assertNotIn('ERROR', ' '.join(registro.output))   # aviso, no error: no manda alerta por correo
+        r = self.client.post('/api/liquidaciones/', datos, format='json')
+        self.assertEqual((r.status_code, r.data['error']), (400, MENSAJE_DATO_INVALIDO))

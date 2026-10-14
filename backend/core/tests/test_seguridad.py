@@ -317,3 +317,94 @@ class AislamientoAlCrearTests(APITestCase):
         r = self.client.post('/api/contratos/', {'empleado': self.emp_b.id, 'fecha_inicio': '2026-01-01',
                              'sueldo_base': 1}, format='json')
         self.assertEqual(r.status_code, 400)
+
+
+# ─── Borrado físico, evidencia de firma, lista negra de tokens y aviso de pago ──
+
+class SinBorradoFisicoTests(APITestCase):
+    """Trabajadores y documentos no se borran por la API: respaldan firmas y obligaciones legales."""
+
+    def setUp(self):
+        from ..models import Contrato, DocumentoLegal, Liquidacion
+        self.user, _, _, self.empresa = crear_usuario_completo('borrado', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        self.contrato = Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', cargo='Analista',
+                                                fecha_inicio='2024-01-01', sueldo_base=900_000)
+        self.liq = Liquidacion.objects.create(empleado=self.emp, mes=8, anio=2026, total_haberes=1, sueldo_liquido=1)
+        self.doc = DocumentoLegal.objects.create(empleado=self.emp, tipo='AMONESTACION', fecha_emision='2026-05-01',
+                                                 hechos='Atrasos')
+
+    def test_delete_responde_405_y_no_borra(self):
+        from ..models import Contrato, DocumentoLegal, Empleado, Liquidacion
+        rutas = [f'/api/empleados/{self.emp.id}/', f'/api/contratos/{self.contrato.id}/',
+                 f'/api/liquidaciones/{self.liq.id}/', f'/api/documentos_legales/{self.doc.id}/',
+                 '/api/finiquitos/1/', '/api/vacaciones/1/']
+        for ruta in rutas:
+            with self.subTest(ruta=ruta):
+                self.assertEqual(self.client.delete(ruta).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(Empleado.objects.filter(pk=self.emp.pk).exists())
+        self.assertTrue(Contrato.objects.filter(pk=self.contrato.pk).exists())
+        self.assertTrue(Liquidacion.objects.filter(pk=self.liq.pk).exists())
+        self.assertTrue(DocumentoLegal.objects.filter(pk=self.doc.pk).exists())
+
+    def test_la_solicitud_de_firma_protege_al_trabajador_y_al_documento(self):
+        """Ni desde el administrador se borran en cascada folio, IP y huellas de una firma."""
+        from django.db.models import ProtectedError
+        from ..models import SolicitudFirma
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, liquidacion=self.liq,
+                                      tipo_documento='LIQUIDACION', estado='RECHAZADO')
+        with self.assertRaises(ProtectedError):
+            self.liq.delete()
+        with self.assertRaises(ProtectedError):
+            self.emp.delete()
+
+    def test_un_anexo_enviado_a_firma_no_se_elimina(self):
+        from ..models import AnexoContrato, SolicitudFirma
+        borrador = AnexoContrato.objects.create(contrato=self.contrato, titulo='Cambio de turno',
+                                                fecha_emision='2026-09-01')
+        enviado = AnexoContrato.objects.create(contrato=self.contrato, titulo='Cambio de cargo',
+                                               fecha_emision='2026-09-01')
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, anexo_contrato=enviado,
+                                      tipo_documento='ANEXO_CONTRATO', estado='EXPIRADO')
+        self.assertEqual(self.client.delete(f'/api/anexos_contrato/{enviado.id}/').status_code, 403)
+        self.assertEqual(self.client.delete(f'/api/anexos_contrato/{borrador.id}/').status_code, 204)
+
+
+class ListaNegraTokensTests(APITestCase):
+    """Un token de renovación sirve una vez; el de una sesión cerrada deja de servir."""
+
+    def setUp(self):
+        cache.clear()
+        crear_usuario_completo('11.111.111-1', '11.111.111-1', '76.000.000-0')
+        r = self.client.post('/api/auth/login/', {'username': '11.111.111-1', 'password': 'pass1234'}, format='json')
+        self.assertEqual(r.status_code, 200)
+
+    def _renovar(self):
+        return self.client.post('/api/auth/token/refresh/', {}, format='json')
+
+    def test_un_token_de_renovacion_sirve_una_sola_vez(self):
+        anterior = self.client.cookies['jornada40-refresh-token'].value
+        self.assertEqual(self._renovar().status_code, 200)
+        self.assertEqual(self._renovar().status_code, 200)            # con el nuevo, sigue
+        self.client.cookies['jornada40-refresh-token'] = anterior
+        self.assertEqual(self._renovar().status_code, 401)            # el usado ya no sirve
+
+    def test_al_salir_el_token_de_renovacion_deja_de_servir(self):
+        anterior = self.client.cookies['jornada40-refresh-token'].value
+        self.assertEqual(self.client.post('/api/auth/logout/', {}, format='json').status_code, 200)
+        self.client.cookies['jornada40-refresh-token'] = anterior
+        self.assertEqual(self._renovar().status_code, 401)
+
+
+class WebhookReveniuLimiteTests(APITestCase):
+    """El aviso de pago tiene su propio límite: con el anónimo (100 al día) se perdían avisos."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_mas_de_cien_avisos_de_la_misma_ip_no_reciben_429(self):
+        with self.assertLogs('django.request', level='WARNING'):   # sin secreto configurado: 503, no 429
+            for _ in range(105):
+                r = self.client.post('/api/pagos/webhook/reveniu/', {}, format='json')
+                self.assertNotEqual(r.status_code, status.HTTP_429_TOO_MANY_REQUESTS)

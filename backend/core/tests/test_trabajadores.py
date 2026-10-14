@@ -250,3 +250,19 @@ class FaltantesContratoTests(APITestCase):
         Contrato.objects.filter(empleado=emp).update(tipo_jornada='ART_22')
         campos = [f['campo'] for f in self.client.get(f'/api/empleados/{emp.id}/').data['faltantes_contrato']]
         self.assertNotIn('distribucion_horario', campos)
+
+
+class NumeroDeFichaTests(APITestCase):
+    """El número de ficha es correlativo por empresa (se asigna con la empresa bloqueada)."""
+
+    def test_correlativo_por_empresa_y_respeta_el_indicado(self):
+        from ..models import Empleado
+        _, _, _, empresa = crear_usuario_completo('fichas', '21.000.000-3', '76.000.555-2')
+        _, _, _, otra = crear_usuario_completo('fichas_b', '33.333.333-3', '77.777.777-7')
+        a, b = crear_empleado(empresa, '12.345.678-5'), crear_empleado(empresa, '9.876.543-3')
+        self.assertEqual((a.ficha_numero, b.ficha_numero), (1, 2))
+        c = Empleado.objects.create(empresa=empresa, rut='11.111.111-1', nombres='Carla', apellido_paterno='Díaz',
+                                    fecha_ingreso='2024-01-01', ficha_numero=10)
+        d = crear_empleado(empresa, '22.222.222-2')
+        self.assertEqual((c.ficha_numero, d.ficha_numero), (10, 11))
+        self.assertEqual(crear_empleado(otra, '12.345.678-5').ficha_numero, 1)

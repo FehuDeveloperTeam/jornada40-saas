@@ -2,9 +2,13 @@
 
 Pensado para correr una vez al día (cron de Railway). Es seguro repetirlo el
 mismo día: quien ya recibió su resumen hoy no recibe otro.
+
+Como es la tarea diaria, también hace el mantenimiento: borra los tokens de
+sesión vencidos de la lista negra (crecen con cada renovación).
 """
 import logging
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -18,6 +22,9 @@ class Command(BaseCommand):
     help = 'Envía el resumen de pendientes a los empleadores y a sus equipos según su frecuencia.'
 
     def handle(self, *args, **opciones):
+        # La tabla de la caché compartida la crea el servicio web al arrancar; si esta
+        # tarea corriera antes (despliegue nuevo), la crea aquí. No hace nada si ya existe.
+        call_command('createcachetable', verbosity=0)
         hoy = timezone.localdate()
         enviados = revisados = errores = 0
         for cliente in Cliente.objects.exclude(frecuencia_resumen='NUNCA').select_related('usuario'):
@@ -50,3 +57,7 @@ class Command(BaseCommand):
                 errores += 1
                 logger.exception('Resumen: falló el aviso al encargado Ley Karin %s', enc.id)
         self.stdout.write(f'Resumen: {revisados} revisados, {enviados} enviados, {errores} con error.')
+        try:
+            call_command('flushexpiredtokens', verbosity=0)
+        except Exception:
+            logger.exception('Mantenimiento: no se pudieron borrar los tokens vencidos')

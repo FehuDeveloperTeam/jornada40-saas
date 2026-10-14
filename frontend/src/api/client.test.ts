@@ -24,6 +24,7 @@ describe('cliente de la API', () => {
   const asignar = vi.fn();
 
   beforeEach(() => {
+    localStorage.clear();   // la marca de la última renovación se comparte entre pestañas
     vi.stubGlobal('location', { pathname: '/app/trabajadores', search: '?tab=1', assign: asignar });
   });
   afterEach(async () => {
@@ -52,6 +53,42 @@ describe('cliente de la API', () => {
     simular({ '/empleados/': [{ status: 401 }], '/auth/token/refresh/': [{ status: 401 }] });
     await expect(client.get('/empleados/')).rejects.toBeInstanceOf(AxiosError);
     expect(asignar).toHaveBeenCalledWith('/login?volver=%2Fapp%2Ftrabajadores%3Ftab%3D1');
+  });
+
+  it('si otra pestaña acaba de renovar, usa sus cookies sin volver a renovar', async () => {
+    localStorage.setItem('j40-renovada-en', String(Date.now()));
+    const pedidos = simular({ '/empleados/': [{ status: 401 }, { status: 200, data: ['ok'] }] });
+    const r = await client.get('/empleados/');
+    expect(r.data).toEqual(['ok']);
+    expect(pedidos).toEqual(['/empleados/', '/empleados/']);
+  });
+
+  it('si la renovación falla porque otra pestaña la hizo antes, repite la petición sin salir', async () => {
+    const pedidos = simular({ '/empleados/': [{ status: 401 }, { status: 200, data: ['ok'] }] });
+    const adaptador = client.defaults.adapter as (c: InternalAxiosRequestConfig) => Promise<AxiosResponse>;
+    client.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
+      if (config.url === '/auth/token/refresh/') {
+        // Otra pestaña renovó con el mismo token un instante antes: este queda en lista negra.
+        localStorage.setItem('j40-renovada-en', String(Date.now()));
+        pedidos.push(config.url);
+        throw new AxiosError('error', undefined, config, null,
+          { data: {}, status: 401, statusText: '', headers: {}, config });
+      }
+      return adaptador(config);
+    };
+    const r = await client.get('/empleados/');
+    expect(r.data).toEqual(['ok']);
+    expect(pedidos).toEqual(['/empleados/', '/auth/token/refresh/', '/empleados/']);
+    expect(asignar).not.toHaveBeenCalled();
+  });
+
+  it('con Web Locks, la renovación se hace dentro del candado compartido entre pestañas', async () => {
+    const request = vi.fn((_nombre: string, fn: () => Promise<boolean>) => fn());
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } });
+    const pedidos = simular({ '/empleados/': [{ status: 401 }, { status: 200 }] });
+    await client.get('/empleados/');
+    expect(request).toHaveBeenCalledWith('j40-renovar-sesion', expect.any(Function));
+    expect(pedidos).toEqual(['/empleados/', '/auth/token/refresh/', '/empleados/']);
   });
 
   it('no renueva en las rutas con sesión propia (portal del trabajador)', async () => {

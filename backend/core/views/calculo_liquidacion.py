@@ -156,9 +156,12 @@ def _validar_conceptos(data, user):
 
     # El recargo de las horas extras no puede ser menor al 50 % (Art. 32 del
     # Código del Trabajo). Uno mayor es decisión del empleador; uno menor
-    # dejaría mal calculada la liquidación.
+    # dejaría mal calculada la liquidación. La naturaleza sale del concepto,
+    # como en el cálculo: un ítem que solo trae el concepto también se valida.
     for item in items:
-        if item.get('naturaleza') != 'HORA_EXTRA' or item.get('recargo') in (None, ''):
+        concepto = conceptos.get(item.get('concepto'))
+        naturaleza = concepto.tipo if concepto is not None else item.get('naturaleza')
+        if naturaleza != 'HORA_EXTRA' or item.get('recargo') in (None, ''):
             continue
         try:
             recargo = float(item['recargo'])

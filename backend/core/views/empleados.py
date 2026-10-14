@@ -28,7 +28,7 @@ from ..serializers import EmpleadoSerializer
 from .documentos import pdf_anexo_contrato, pdf_documento_legal
 from .finiquitos import pdf_finiquito
 from .vacaciones import pdf_vacacion
-from .base import _ctx_contrato, _es_plan_semilla, _exigir_cupo_trabajador, _limite_trabajadores, _plan_permite, _trabajadores_vigentes, estandarizar_fecha, logger, pdf_firmado
+from .base import METODOS_SIN_BORRADO, _ctx_contrato, _es_plan_semilla, _exigir_cupo_trabajador, _limite_trabajadores, _plan_permite, _trabajadores_vigentes, estandarizar_fecha, logger, pdf_firmado
 
 
 # Columnas obligatorias para crear un trabajador desde la planilla. Al
@@ -59,13 +59,17 @@ def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
     """
     empleados_bd = Empleado.objects.filter(empresa=empresa)
     mapa = {limpiar_rut(e.rut): e for e in empleados_bd}
-    siguiente_ficha = (empleados_bd.aggregate(Max('ficha_numero'))['ficha_numero__max'] or 0) + 1
     total_actual = _trabajadores_vigentes(empresa.owner)
     maximo_legal = jornada_maxima_vigente()
     vistos = set()
     resultados = []
 
     with transaction.atomic():
+        # La empresa queda bloqueada durante la carga: un alta simultánea no puede tomar
+        # los mismos números de ficha.
+        Empresa._base_manager.select_for_update().filter(pk=empresa.pk).first()
+        siguiente_ficha = (Empleado._base_manager.filter(empresa=empresa)
+                           .aggregate(Max('ficha_numero'))['ficha_numero__max'] or 0) + 1
         for fila_num, row in enumerate(registros, start=2):  # la fila 1 es el encabezado
             r = {str(k).strip().lower().replace(' ', '_'): v for k, v in row.items()}
             if all(_vacio(v) for v in r.values()):
@@ -167,6 +171,7 @@ def _procesar_carga_masiva(empresa, registros, limite_trabajadores, guardar):
 
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
+    http_method_names = METODOS_SIN_BORRADO   # sin DELETE: no se borra lo que respalda firmas (405)
     serializer_class = EmpleadoSerializer
     permission_classes = [IsAuthenticated]
 

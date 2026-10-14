@@ -24,6 +24,7 @@ import string
 
 from django.conf import settings
 from django.core import signing
+from django.core.cache import cache
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -53,7 +54,7 @@ _SAL = 'portal-inspeccion'
 _MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre',
           'noviembre', 'diciembre']
 MENSAJE_INGRESO = ('Si la empresa usa Jornada40, enviamos un código a tu correo institucional. '
-                   'Vence en 10 minutos.')
+                   'Vence en 10 minutos. Si no llega en unos minutos, vuelve a pedirlo.')
 
 
 def dominios_permitidos():
@@ -158,13 +159,13 @@ def ingreso(request):
         return Response({'error': 'Ingresa tu nombre completo y tu RUT.'}, status=status.HTTP_400_BAD_REQUEST)
     if not validar_rut(limpiar_rut(d.get('rut_empresa') or '')):
         return Response({'error': 'Ingresa un RUT de empleador válido.'}, status=status.HTTP_400_BAD_REQUEST)
+    # La espera de un minuto rige exista o no la empresa en Jornada40: si solo se aplicara
+    # a las que existen, un 429 revelaría cuáles usan el sistema.
+    if not cache.add(f'inspeccion_codigo_{correo}_{limpiar_rut(d.get("rut_empresa") or "")}', 1, 60):
+        return Response({'error': 'Espera un minuto antes de pedir otro código.'},
+                        status=status.HTTP_429_TOO_MANY_REQUESTS)
     empresa = _empresa_por_rut(d.get('rut_empresa'))
     if empresa:
-        reciente = CodigoInspeccion.objects.filter(correo=correo, empresa=empresa,
-                                                   creado_en__gte=timezone.now() - datetime.timedelta(minutes=1))
-        if reciente.exists():
-            return Response({'error': 'Espera un minuto antes de pedir otro código.'},
-                            status=status.HTTP_429_TOO_MANY_REQUESTS)
         CodigoInspeccion.objects.filter(correo=correo, empresa=empresa, usado=False).update(usado=True)
         codigo = ''.join(secrets.choice(string.digits) for _ in range(6))
         CodigoInspeccion.objects.create(empresa=empresa, correo=correo, nombre=nombre, rut_inspector=rut,
@@ -180,9 +181,9 @@ def ingreso(request):
                                                     {'codigo': codigo, 'minutos': MINUTOS_CODIGO}), 'text/html')
             msg.send()
         except Exception:
+            # Misma respuesta que si la empresa no existiera: un 503 aquí revelaría que existe.
+            # El inspector puede volver a pedirlo en un minuto (lo dice el mensaje).
             logger.exception('No se pudo enviar el código de inspección')
-            return Response({'error': 'No pudimos enviar el código. Intenta de nuevo en unos minutos.'},
-                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
     # Misma respuesta exista o no la empresa en Jornada40.
     return Response({'mensaje': MENSAJE_INGRESO})
 
@@ -367,7 +368,7 @@ def _pdf(empresa, clave):
     if tipo == 'legal':
         from .documentos import pdf_documento_legal
         d = DocumentoLegal.objects.get(id=ident, empleado__in=emp_qs)
-        firmado = pdf_firmado(['AMONESTACION', 'CONSTANCIA', 'DESPIDO'], documento_legal=d)
+        firmado = pdf_firmado(['AMONESTACION', 'CONSTANCIA', 'DESPIDO', 'MUTUO_ACUERDO'], documento_legal=d)
         return firmado or pdf_documento_legal(d, False), d.tipo.title(), bool(firmado)
     if tipo == 'vacacion':
         from .vacaciones import pdf_vacacion

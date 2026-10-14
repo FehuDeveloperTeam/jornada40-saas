@@ -299,6 +299,77 @@ class DocumentoFirmadoTests(APITestCase):
         self.assertIn(r.status_code, (200, 201), getattr(r, 'data', None))
 
 
+class CartasYFirmaTests(APITestCase):
+    """Cartas: la renuncia o mutuo acuerdo también se firma, y una carta firmada no se edita."""
+
+    def setUp(self):
+        from ..models import DocumentoLegal, Empresa
+        self.user, _, _, self.empresa = crear_usuario_completo('cartas_owner', '21.000.000-3', '76.000.555-2')
+        self.client.force_authenticate(self.user)
+        confirmar_identidad(self.client, self.user)
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        Empleado.objects.filter(pk=self.emp.pk).update(email='t@correo.cl')
+        Empresa.objects.filter(pk=self.empresa.pk).update(firma_imagen='data:image/png;base64,AAAA')
+        self.mutuo = DocumentoLegal.objects.create(empleado=self.emp, tipo='MUTUO_ACUERDO', causal_articulo='159_1',
+                                                   fecha_ultimo_dia='2026-10-31', fecha_emision='2026-10-15',
+                                                   hechos='')
+        self.amonestacion = DocumentoLegal.objects.create(empleado=self.emp, tipo='AMONESTACION', hechos='Atrasos',
+                                                          fecha_emision='2026-09-01')
+
+    @patch('core.b2_client.subir_documento')
+    def test_mutuo_acuerdo_se_envia_a_firma_y_advierte_el_art_177(self, _subir):
+        with patch('core.views.documentos._html_a_pdf_bytes', return_value=b'%PDF') as convertir:
+            r = self.client.post('/api/firmas/solicitar/', {'empleado_id': self.emp.id, 'tipo_documento': 'MUTUO_ACUERDO',
+                                                            'documento_legal_id': self.mutuo.id}, format='json')
+        self.assertEqual(r.status_code, 201, getattr(r, 'data', None))
+        self.assertEqual(SolicitudFirma.objects.get().tipo_documento, 'MUTUO_ACUERDO')
+        html = convertir.call_args.args[0]
+        self.assertIn('159 N°1', html)
+        self.assertIn('artículo 177', html)
+        self.assertIn('31 de octubre de 2026', html.lower())
+
+    def test_el_tipo_pedido_debe_ser_el_del_documento(self):
+        """El permiso del equipo se decide por el tipo: no se puede firmar una carta haciéndola pasar por otra."""
+        r = self.client.post('/api/firmas/solicitar/', {'empleado_id': self.emp.id, 'tipo_documento': 'AMONESTACION',
+                                                        'documento_legal_id': self.mutuo.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(SolicitudFirma.objects.count(), 0)
+
+    def test_carta_firmada_o_en_firma_no_se_edita(self):
+        url = f'/api/documentos_legales/{self.amonestacion.id}/'
+        solicitud = SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa,
+                                                  documento_legal=self.amonestacion, tipo_documento='AMONESTACION',
+                                                  estado='PENDIENTE')
+        r = self.client.patch(url, {'hechos': 'Otros hechos'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Cancela la solicitud', r.data['error'])
+        SolicitudFirma.objects.filter(pk=solicitud.pk).update(estado='FIRMADO', firmado_en=timezone.now())
+        r = self.client.patch(url, {'hechos': 'Otros hechos'}, format='json')
+        self.assertIn('está firmado', r.data['error'])
+        self.amonestacion.refresh_from_db()
+        self.assertEqual(self.amonestacion.hechos, 'Atrasos')
+        SolicitudFirma.objects.filter(pk=solicitud.pk).update(estado='RECHAZADO')
+        self.assertEqual(self.client.patch(url, {'hechos': 'Otros hechos'}, format='json').status_code, 200)
+
+    def test_vacacion_y_anexo_firmados_o_en_firma_no_se_editan(self):
+        from ..models import AnexoContrato, Contrato, VacacionEmpleado
+        vacacion = VacacionEmpleado.objects.create(empleado=self.emp, empresa=self.empresa, fecha_inicio='2026-11-02',
+                                                   fecha_fin='2026-11-06', dias_habiles=5)
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, vacacion=vacacion,
+                                      tipo_documento='VACACION', estado='FIRMADO', firmado_en=timezone.now())
+        r = self.client.patch(f'/api/vacaciones/{vacacion.id}/', {'observaciones': 'Cambio'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('está firmado', r.data['error'])
+        contrato = Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', cargo='Analista',
+                                           fecha_inicio='2024-01-01', sueldo_base=900_000)
+        anexo = AnexoContrato.objects.create(contrato=contrato, titulo='Cambio de turno', fecha_emision='2026-10-01')
+        SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, anexo_contrato=anexo,
+                                      tipo_documento='ANEXO_CONTRATO', estado='PENDIENTE')
+        r = self.client.patch(f'/api/anexos_contrato/{anexo.id}/', {'titulo': 'Otro'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Cancela la solicitud', r.data['error'])
+
+
 class EnvioMasivoLiquidacionesTests(APITestCase):
     """Remuneraciones envía a firma todas las liquidaciones del período de una vez."""
 

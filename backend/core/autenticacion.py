@@ -23,6 +23,29 @@ def usuario_equipo_de(user):
     return getattr(user, 'usuario_equipo', None) if getattr(user, 'pk', None) else None
 
 
+MENSAJE_FUERA_DE_CUPO = ('Tu acceso está suspendido: el plan de la cuenta ahora permite menos usuarios del equipo. '
+                         'Pídele al titular que revise su plan o su equipo.')
+
+
+def dentro_del_cupo(ue):
+    """Si el usuario del equipo cabe en el cupo del plan actual de su cuenta.
+
+    Si el plan bajó (por ejemplo, al terminar la suscripción), los usuarios que exceden
+    el cupo quedan suspendidos, empezando por los más recientes, hasta que el titular
+    ajuste su equipo o su plan. No se elimina a nadie.
+    """
+    from .models import UsuarioEquipo
+    from .views.base import _plan_activo
+    cuenta = ue.cuenta
+    cliente = getattr(cuenta, 'perfil_cliente', None)
+    cupo = p.cupo_equipo(_plan_activo(cuenta), getattr(cliente, 'usuarios_adicionales', 0))
+    if cupo <= 0:
+        return False
+    vigentes = (UsuarioEquipo.objects.filter(cuenta=cuenta, estado__in=('INVITADO', 'ACTIVO'))
+                .order_by('creado_en', 'id').values_list('id', flat=True)[:cupo])
+    return ue.id in set(vigentes)
+
+
 def actor(request):
     """La persona que actúa (titular o usuario del equipo)."""
     return getattr(request, 'actor', None) or request.user
@@ -124,6 +147,8 @@ class CookieConCerco(JWTCookieAuthentication):
             return user, token
         if ue.estado != 'ACTIVO' or not user.is_active:
             raise exceptions.AuthenticationFailed('Tu acceso a esta cuenta fue retirado.')
+        if not dentro_del_cupo(ue):
+            raise exceptions.AuthenticationFailed(MENSAJE_FUERA_DE_CUPO)
         if autorizar_equipo(request, ue):
             return user, token
         request._request.actor = user

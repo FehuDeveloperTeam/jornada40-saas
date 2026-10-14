@@ -574,7 +574,7 @@ export interface SolicitudFirma {
     vacacion: number | null;
     finiquito: number | null;
     documento_laboral: number | null;
-    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'ANEXO_CONTRATO' | 'LIQUIDACION'
+    tipo_documento: 'CONTRATO' | 'ANEXO_40H' | 'AMONESTACION' | 'DESPIDO' | 'CONSTANCIA' | 'MUTUO_ACUERDO' | 'ANEXO_CONTRATO' | 'LIQUIDACION'
         | 'VACACION' | 'FINIQUITO' | TipoDocumentoLaboral | TipoDocumentoLaboralSistema;
     token: string;
     estado: 'PENDIENTE' | 'PROCESANDO' | 'FIRMADO' | 'RECHAZADO' | 'EXPIRADO' | 'CANCELADO';

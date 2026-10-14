@@ -38,9 +38,47 @@ const SIN_RENOVAR = ['/auth/login/', '/auth/equipo/', '/karin/', '/auth/token/re
     '/inspeccion/documentos/', '/inspeccion/descargar/', '/inspeccion/ratificar/'];
 let renovando: Promise<boolean> | null = null;
 
-function renovarSesion(): Promise<boolean> {
-    renovando ??= client.post('/auth/token/refresh/', {}, { _sinRenovar: true })
-        .then(() => true, () => false)
+/**
+ * Cada token de renovación sirve una sola vez (el servidor lo pone en lista
+ * negra al usarlo). Las pestañas comparten las cookies: si dos renovaran a la
+ * vez con el mismo token, la segunda fallaría y cerraría la sesión. Por eso la
+ * renovación se hace de a una pestaña por vez (Web Locks) y, si otra acaba de
+ * renovar, las cookies ya son nuevas y no hace falta volver a hacerlo.
+ */
+const MARCA_RENOVACION = 'j40-renovada-en';
+const RENOVADA_HACE_POCO_MS = 10_000;
+
+function marcarRenovacion() {
+    try { localStorage.setItem(MARCA_RENOVACION, String(Date.now())); } catch { /* sin almacenamiento */ }
+}
+function renovadaHacePoco(): boolean {
+    try {
+        const marca = Number(localStorage.getItem(MARCA_RENOVACION) || 0);
+        return Date.now() - marca < RENOVADA_HACE_POCO_MS;
+    } catch {
+        return false;
+    }
+}
+
+async function renovarEnServidor(): Promise<boolean> {
+    if (renovadaHacePoco()) return true;
+    try {
+        await client.post('/auth/token/refresh/', {}, { _sinRenovar: true });
+    } catch {
+        return false;
+    }
+    marcarRenovacion();
+    return true;
+}
+
+async function renovarDeAUnaPestana(): Promise<boolean> {
+    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    return locks ? locks.request('j40-renovar-sesion', renovarEnServidor) : renovarEnServidor();
+}
+
+/** Renueva la sesión del panel (una vez para todas las peticiones que esperan). */
+export function renovarSesion(): Promise<boolean> {
+    renovando ??= renovarDeAUnaPestana()
         .finally(() => { setTimeout(() => { renovando = null; }, 0); });
     return renovando;
 }
@@ -99,7 +137,9 @@ client.interceptors.response.use(undefined, async (error: AxiosError) => {
         || SIN_RENOVAR.some((ruta) => url.includes(ruta))) {
         return Promise.reject(error);
     }
-    if (await renovarSesion()) {
+    if (await renovarSesion() || renovadaHacePoco()) {
+        // Sin Web Locks, otra pestaña pudo renovar justo antes con el mismo token:
+        // sus cookies nuevas ya sirven, así que se repite una vez antes de salir.
         config._reintento = true;
         return client(config);
     }

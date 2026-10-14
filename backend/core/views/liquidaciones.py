@@ -19,14 +19,26 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from ..serializers import LiquidacionSerializer
 
-from .base import error_interno, _es_plan_semilla, _plan_permite, logger, pdf_firmado, respuesta_pdf
+from .base import METODOS_SIN_BORRADO, error_interno, _es_plan_semilla, _plan_permite, logger, pdf_firmado, respuesta_pdf
 from . import lre as lre_views
 from .calculo_liquidacion import PeriodoSinContrato, _calcular_liquidacion, _pdf_liquidacion, _terminos_congelados, _terminos_vigentes, _validar_conceptos
 from .parametros import _anios_de_servicio, _parametros_previsionales, _tasas_afc, _tope_en_pesos
 from .previred import _linea_previred, _tasa_accidentes
 
 
+MENSAJE_DATO_INVALIDO = ('Hay un dato con formato inválido (días, horas, montos o porcentajes). '
+                         'Revísalos e intenta de nuevo.')
+
+
+def _dato_invalido(contexto):
+    """400 con un mensaje para la persona: el texto técnico del error queda solo en el registro
+    (como aviso, sin alerta por correo: es un dato del formulario, no una falla del servidor)."""
+    logger.warning('%s con datos inválidos', contexto, exc_info=True)
+    return Response({'error': MENSAJE_DATO_INVALIDO}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class LiquidacionViewSet(viewsets.ModelViewSet):
+    http_method_names = METODOS_SIN_BORRADO   # sin DELETE: no se borra lo que respalda firmas (405)
     queryset = Liquidacion.objects.all().order_by('-anio', '-mes')
     serializer_class = LiquidacionSerializer
     permission_classes = [IsAuthenticated]
@@ -79,8 +91,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             calculado = _calcular_liquidacion(contrato, empleado, data, terminos=terminos)
         except PeriodoSinContrato as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except (ValueError, TypeError) as e:
-            return Response({'error': f'Datos inválidos: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return _dato_invalido('Vista previa de liquidación')
         # Respaldo documental (pactos y autorizaciones firmadas): avisos, nunca bloqueos.
         from .documentos_laborales import avisos_liquidacion
         avisos = avisos_liquidacion(empleado, data.get('mes'), data.get('anio'), calculado['detalle_items'],
@@ -126,6 +138,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             )
         except PeriodoSinContrato as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return _dato_invalido('Liquidación')
         except Exception:
             logger.exception('Error al guardar la liquidación')
             return Response({'error': 'No se pudo guardar la liquidación. Revisa los datos e intenta de nuevo.'},
@@ -202,6 +216,8 @@ class LiquidacionViewSet(viewsets.ModelViewSet):
             )
         except PeriodoSinContrato as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return _dato_invalido('Liquidación')
         except Exception:
             logger.exception('Error al guardar la liquidación')
             return Response({'error': 'No se pudo guardar la liquidación. Revisa los datos e intenta de nuevo.'},

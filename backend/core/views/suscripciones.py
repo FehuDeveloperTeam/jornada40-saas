@@ -1,5 +1,5 @@
 """Planes, suscripción y pasarela de pagos (Reveniu)."""
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -16,7 +16,7 @@ import urllib.parse
 from django.core.mail import EmailMultiAlternatives
 
 from .. import reveniu
-from .base import _plan_activo, _trabajadores_vigentes, logger
+from .base import WebhookReveniuThrottle, _plan_activo, _trabajadores_vigentes, logger
 
 
 # Endpoint para listar los planes activos en la BD
@@ -311,6 +311,7 @@ def aplicar_evento_pasarela(evento):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([WebhookReveniuThrottle])
 def webhook_reveniu(request):
     webhook_secret = config('REVENIU_WEBHOOK_SECRET', default=None)
 
@@ -421,6 +422,14 @@ def _excesos(user, plan):
     empresas = Empresa.objects.filter(owner=user, activo=True).count()
     if plan.max_empresas and empresas > plan.max_empresas:
         excesos.append(f'{empresas} empresas activas (el plan {plan.nombre} permite {plan.max_empresas})')
+    # Usuarios del equipo: con menos cupo, los que sobran quedarían sin acceso.
+    from ..models import UsuarioEquipo
+    from ..permisos import cupo_equipo
+    usuarios = UsuarioEquipo.objects.filter(cuenta=user, estado__in=('INVITADO', 'ACTIVO')).count()
+    cliente = getattr(user, 'perfil_cliente', None)
+    cupo = cupo_equipo(plan, getattr(cliente, 'usuarios_adicionales', 0))
+    if usuarios > cupo:
+        excesos.append(f'{usuarios} usuarios del equipo (el plan {plan.nombre} permite {cupo})')
     return excesos
 
 
@@ -464,12 +473,17 @@ def bajar_plan(request):
         suscripcion.plan_programado = None
         suscripcion.save(update_fields=['fecha_cancelacion', 'plan_programado'])
         _actualizar_proximo_cobro(suscripcion)
-        return Response({'mensaje': f'Tu plan {actual.nombre} sigue hasta el fin del período pagado; después pasas a {nuevo.nombre}.'})
+        mensaje = f'Tu plan {actual.nombre} sigue hasta el fin del período pagado; después pasas a {nuevo.nombre}.'
+        from ..models import UsuarioEquipo
+        if UsuarioEquipo.objects.filter(cuenta=request.user, estado__in=('INVITADO', 'ACTIVO')).exists():
+            mensaje += f' Desde entonces, los usuarios de tu equipo quedan sin acceso: {nuevo.nombre} no incluye usuarios.'
+        return Response({'mensaje': mensaje})
 
     excesos = _excesos(request.user, nuevo)
     if excesos:
         return Response({'error': f'Antes de pasar a {nuevo.nombre} debes ajustar tu cuenta: tienes '
-                                  f'{" y ".join(excesos)}. Desvincula trabajadores o desactiva empresas y vuelve a intentarlo.'},
+                                  f'{" y ".join(excesos)}. Desvincula trabajadores, desactiva empresas o elimina '
+                                  'usuarios del equipo, según corresponda, y vuelve a intentarlo.'},
                         status=status.HTTP_400_BAD_REQUEST)
     monto = _precio_del_ciclo(nuevo, suscripcion.ciclo)
     if not monto:

@@ -56,6 +56,7 @@ def firma_publica_info(request, token):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'MUTUO_ACUERDO': 'Renuncia o Mutuo Acuerdo',
         'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
         'FINIQUITO': 'Finiquito de Término',
     }
@@ -291,6 +292,7 @@ def _enviar_email_otp(otp: OTPFirma, solicitud: SolicitudFirma, codigo: str):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'MUTUO_ACUERDO': 'Renuncia o Mutuo Acuerdo',
         'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
         'FINIQUITO': 'Finiquito de Término',
     }
@@ -384,6 +386,7 @@ def _enviar_emails_firma_completada(
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'MUTUO_ACUERDO': 'Renuncia o Mutuo Acuerdo',
         'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
         'FINIQUITO': 'Finiquito de Término',
     }
@@ -589,6 +592,7 @@ def firma_publica_firmar(request, token):
         'CONTRATO': 'Contrato Laboral', 'ANEXO_40H': 'Anexo Ley 40 Horas',
         'AMONESTACION': 'Carta de Amonestación', 'DESPIDO': 'Carta de Despido',
         'CONSTANCIA': 'Constancia Laboral', 'ANEXO_CONTRATO': 'Anexo de Contrato',
+        'MUTUO_ACUERDO': 'Renuncia o Mutuo Acuerdo',
         'LIQUIDACION': 'Liquidación de Sueldo', 'VACACION': 'Comprobante de Vacaciones',
         'FINIQUITO': 'Finiquito (firma de recepción)',
         **dict(DocumentoLaboral.TIPOS),
@@ -713,6 +717,7 @@ _TIPO_LABELS_PUBLICO = {
     'AMONESTACION':   'Carta de Amonestación',
     'DESPIDO':        'Carta de Despido',
     'CONSTANCIA':     'Constancia Laboral',
+    'MUTUO_ACUERDO':  'Renuncia o Mutuo Acuerdo',
     'ANEXO_CONTRATO': 'Anexo de Contrato',
     'LIQUIDACION':    'Liquidación de Sueldo',
     'VACACION':       'Comprobante de Vacaciones',

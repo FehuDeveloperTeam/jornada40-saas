@@ -11,7 +11,7 @@ from .utiles import crear_usuario_completo
 CLAVE = 'Clave-Equipo-2026'
 
 
-class EquipoTests(APITestCase):
+class EquipoBase(APITestCase):
     def setUp(self):
         cache.clear()   # límites de intentos de otras pruebas
         self.user, self.cliente, self.plan, self.empresa = crear_usuario_completo('eq', '21.000.000-3', '76.000.555-K')
@@ -28,6 +28,8 @@ class EquipoTests(APITestCase):
         return APIClient().post('/api/auth/equipo/clave/', {'uid': enlace.group(1), 'token': enlace.group(2),
                                                             'clave': clave}, format='json')
 
+
+class EquipoTests(EquipoBase):
     def test_alta_invitacion_clave_e_ingreso(self):
         r = self._crear()
         self.assertEqual(r.status_code, 201, r.data)
@@ -118,3 +120,50 @@ class EquipoTests(APITestCase):
         self.assertEqual(APIClient().post('/api/auth/equipo/ingresar/', {'rut': '12.345.678-5',
                                                                          'clave': 'Otra-Clave-2027'},
                                           format='json').status_code, 200)
+
+
+class EquipoReinvitacionYCupoTests(EquipoBase):
+    """Volver a invitar a quien se eliminó y suspender a quienes exceden el cupo si el plan baja."""
+
+    def _ingresar(self, rut):
+        cliente = APIClient()
+        return cliente, cliente.post('/api/auth/equipo/ingresar/', {'rut': rut, 'clave': CLAVE}, format='json')
+
+    def test_volver_a_invitar_a_quien_se_elimino(self):
+        """Antes daba 500 (el usuario interno ya existía). Ahora recibe otro; el anterior conserva su historial."""
+        self._crear()
+        self._activar()
+        anterior = UsuarioEquipo.objects.get()
+        self.client.post(f'/api/equipo/{anterior.id}/eliminar/')
+        r = self._crear()
+        self.assertEqual(r.status_code, 201, r.data)
+        nuevo = UsuarioEquipo.objects.exclude(pk=anterior.pk).get()
+        self.assertNotEqual(nuevo.usuario.username, anterior.usuario.username)
+        self.assertEqual(UsuarioEquipo.objects.get(pk=anterior.pk).estado, 'ELIMINADO')
+        self.assertEqual(self._activar().status_code, 200)
+        self.assertEqual(self._ingresar('12.345.678-5')[1].status_code, 200)
+
+    def test_si_el_plan_baja_los_que_exceden_el_cupo_quedan_suspendidos(self):
+        from ..autenticacion import MENSAJE_FUERA_DE_CUPO
+        self.cliente.usuarios_adicionales = 1          # Pyme de prueba (1 empresa): 2 + 1 adicional
+        self.cliente.save()
+        for rut, correo in (('12.345.678-5', 'a@empresa.cl'), ('9.876.543-3', 'b@empresa.cl'),
+                            ('11.111.111-1', 'c@empresa.cl')):
+            self.assertEqual(self._crear(rut=rut, correo=correo).status_code, 201)
+            self.assertEqual(self._activar().status_code, 200)
+        primero, _ = self._ingresar('12.345.678-5')
+        tercero, r = self._ingresar('11.111.111-1')
+        self.assertEqual(r.status_code, 200)
+        # Deja de tener el usuario adicional: el cupo vuelve a 2 y el más reciente queda fuera.
+        self.cliente.usuarios_adicionales = 0
+        self.cliente.save()
+        self.assertEqual(primero.get('/api/auth/sesion/').status_code, 200)
+        r = tercero.get('/api/auth/sesion/')
+        self.assertEqual((r.status_code, r.data['detail']), (401, MENSAJE_FUERA_DE_CUPO))
+        r = self._ingresar('11.111.111-1')[1]
+        self.assertEqual((r.status_code, r.data['error']), (403, MENSAJE_FUERA_DE_CUPO))
+        self.assertEqual(UsuarioEquipo.objects.filter(estado='ACTIVO').count(), 3)   # no se elimina a nadie
+        # Sin usuarios en el plan (Semilla), nadie del equipo entra.
+        self.plan.nivel = 1
+        self.plan.save()
+        self.assertEqual(primero.get('/api/auth/sesion/').status_code, 401)

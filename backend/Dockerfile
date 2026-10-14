@@ -31,9 +31,11 @@ COPY . /app/
 RUN python manage.py collectstatic --noinput || true
 
 # Si una migración falla, el contenedor se detiene: Gunicorn no arranca con el
-# esquema a medio aplicar. El `|| true` vale solo para createsuperuser, que falla
-# cuando el superusuario ya existe.
+# esquema a medio aplicar. createcachetable crea, si falta, la tabla de la caché
+# compartida (límites de intentos). El `|| true` vale solo para createsuperuser,
+# que falla cuando el superusuario ya existe.
 CMD python manage.py migrate && \
+    python manage.py createcachetable && \
     (python manage.py createsuperuser --noinput || true) && \
     gunicorn config.wsgi:application --bind 0.0.0.0:$PORT \
       --workers 2 --threads 4 --timeout 60

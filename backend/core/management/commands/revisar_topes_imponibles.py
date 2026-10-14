@@ -5,8 +5,9 @@ y cesantía se calculaban sobre el total imponible sin aplicar el tope legal.
 En rentas altas eso significa cotizaciones y líquidos incorrectos.
 
 Sin argumentos solo informa. Con --aplicar recalcula las liquidaciones que no
-tengan una firma confirmada: una liquidación ya firmada por el trabajador no
-se toca, porque su corrección pasa por emitir una nueva.
+tengan una firma confirmada ni en curso: una liquidación firmada por el trabajador no
+se toca (su corrección pasa por emitir una nueva) y una en firma espera a que se
+cancele la solicitud.
 
     python manage.py revisar_topes_imponibles
     python manage.py revisar_topes_imponibles --aplicar
@@ -50,10 +51,14 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING(
             f'{len(afectadas)} liquidación(es) con renta sobre el tope imponible:\n'))
 
-        firmadas = SolicitudFirma.objects.filter(
-            tipo_documento='LIQUIDACION', estado='FIRMADO',
-        ).values_list('liquidacion_id', flat=True)
-        firmadas = set(firmadas)
+        # Firmadas o en firma: no se recalculan. Una en firma cambiaría el documento que el
+        # trabajador está revisando (se cancela la solicitud y se vuelve a ejecutar).
+        en_firma = {}
+        for liquidacion_id, estado in SolicitudFirma.objects.filter(
+                tipo_documento='LIQUIDACION', estado__in=['FIRMADO', 'PENDIENTE', 'PROCESANDO'],
+        ).values_list('liquidacion_id', 'estado'):
+            if en_firma.get(liquidacion_id) != 'FIRMADO':
+                en_firma[liquidacion_id] = estado
 
         corregidas = omitidas = 0
 
@@ -65,8 +70,12 @@ class Command(BaseCommand):
                         f'${int(liq.total_imponible):,} · tope ${tope:,} · '
                         f'exceso ${exceso:,}'.replace(',', '.'))
 
-            if liq.id in firmadas:
+            if en_firma.get(liq.id) == 'FIRMADO':
                 self.stdout.write(etiqueta + self.style.NOTICE('  [FIRMADA — no se toca]'))
+                omitidas += 1
+                continue
+            if liq.id in en_firma:
+                self.stdout.write(etiqueta + self.style.NOTICE('  [EN FIRMA — cancela la solicitud y vuelve a ejecutar]'))
                 omitidas += 1
                 continue
 
@@ -114,7 +123,8 @@ class Command(BaseCommand):
             if omitidas:
                 self.stdout.write(
                     'Las firmadas requieren emitir una liquidación nueva; '
-                    'corregirlas en silencio alteraría un documento ya firmado.')
+                    'corregirlas en silencio alteraría un documento ya firmado. '
+                    'Las que están en firma se corrigen después de cancelar su solicitud.')
         else:
             self.stdout.write(
                 'Simulación. Ejecuta con --aplicar para corregir las no firmadas.')

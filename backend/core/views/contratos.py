@@ -15,13 +15,14 @@ from ..jornada import avisos_jornada, jornada_maxima_vigente
 from django.core.files.base import ContentFile
 from ..serializers import ContratoSerializer, AnexoContratoSerializer
 
-from .base import error_interno, _MESES, _ctx_contrato, _es_plan_semilla, pdf_firmado, respuesta_pdf
+from .base import METODOS_SIN_BORRADO, error_interno, exigir_sin_firma, _MESES, _ctx_contrato, _es_plan_semilla, pdf_firmado, respuesta_pdf
 from .documentos import pdf_anexo_contrato
 from .calculo_liquidacion import _normalizar_comisiones_config
 from .parametros import ingreso_minimo_vigente
 
 
 class ContratoViewSet(viewsets.ModelViewSet):
+    http_method_names = METODOS_SIN_BORRADO   # sin DELETE: no se borra lo que respalda firmas (405)
     serializer_class = ContratoSerializer
     permission_classes = [IsAuthenticated]
 
@@ -326,17 +327,27 @@ class AnexoContratoViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        if self.get_object().aplicado:
+        anexo = self.get_object()
+        if anexo.aplicado:
             return Response(
                 {'error': 'Este anexo ya fue firmado y sus cambios se aplicaron al contrato; no puede modificarse.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        exigir_sin_firma(anexo_contrato=anexo)   # enviado a firma: el trabajador revisa ese texto
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if self.get_object().aplicado:
+        anexo = self.get_object()
+        if anexo.aplicado:
             return Response(
                 {'error': 'Este anexo ya fue firmado y sus cambios se aplicaron al contrato; no puede eliminarse.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        # Una solicitud de firma, aunque se haya rechazado o vencido, es evidencia (folio, IP, huellas).
+        if SolicitudFirma.objects.filter(anexo_contrato=anexo).exists():
+            return Response(
+                {'error': 'Este anexo ya se envió a firma y queda como registro: no puede eliminarse. '
+                          'Si no corresponde, crea uno nuevo.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().destroy(request, *args, **kwargs)

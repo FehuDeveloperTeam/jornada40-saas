@@ -30,6 +30,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from ..autenticacion import MENSAJE_FUERA_DE_CUPO, dentro_del_cupo
 from ..bitacora import cuenta_de, registrar
 from ..models import Empresa, UsuarioEquipo
 from ..permisos import MODULOS, NIVELES, cupo_equipo, normalizar_permisos
@@ -165,8 +166,13 @@ class EquipoViewSet(viewsets.ViewSet):
             return Response({'error': problema}, status=status.HTTP_400_BAD_REQUEST)
         if UsuarioEquipo.objects.filter(cuenta=cuenta, rut=campos['rut']).exclude(estado='ELIMINADO').exists():
             return Response({'error': 'Esa persona ya está en tu equipo.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Quien fue eliminado y vuelve recibe otro usuario interno: el anterior queda inactivo con su
+        # historial (bitácora, firmas emitidas). Reusar el nombre daba un error 500.
+        interno = f'equipo:{cuenta.pk}:{limpiar_rut(campos["rut"])}'
+        if User.objects.filter(username=interno).exists():
+            interno = f'{interno}:{int(timezone.now().timestamp())}'
         with transaction.atomic():
-            usuario = User(username=f'equipo:{cuenta.pk}:{limpiar_rut(campos["rut"])}', email=campos['correo'],
+            usuario = User(username=interno, email=campos['correo'],
                            first_name=campos['nombres'][:150], last_name=campos['apellidos'][:150])
             usuario.set_unusable_password()
             usuario.save()
@@ -265,6 +271,10 @@ def ingresar_equipo(request):
         return Response({'error': _ERROR_INGRESO}, status=status.HTTP_400_BAD_REQUEST)
     validos = [ue for ue in _cuentas_del_rut(rut) if ue.usuario.is_active and ue.usuario.check_password(clave)]
     ip = request.META.get('REMOTE_ADDR', '')
+    if validos and not any(dentro_del_cupo(ue) for ue in validos):
+        # Clave correcta, pero la cuenta ya no tiene cupo para este usuario (bajó de plan).
+        return Response({'error': MENSAJE_FUERA_DE_CUPO}, status=status.HTTP_403_FORBIDDEN)
+    validos = [ue for ue in validos if dentro_del_cupo(ue)]
     if not validos:
         for ue in _cuentas_del_rut(rut):
             registrar(ue.cuenta, 'INGRESO_FALLIDO', f'Intento de ingreso fallido de {ue.nombre_completo} (equipo)',

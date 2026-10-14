@@ -125,3 +125,19 @@ class ResumenTests(APITestCase):
         ue.refresh_from_db()
         self.cliente.refresh_from_db()
         self.assertEqual((ue.frecuencia_resumen, self.cliente.frecuencia_resumen), ('NUNCA', 'SEMANAL'))
+
+
+class MantenimientoDiarioTests(APITestCase):
+    """La tarea diaria también borra los tokens de sesión vencidos de la lista negra."""
+
+    def test_borra_los_tokens_vencidos(self):
+        from django.contrib.auth.models import User
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+        usuario = User.objects.create_user(username='mantencion', password='x')
+        ahora = timezone.now()
+        OutstandingToken.objects.create(user=usuario, jti='vencido', token='t1', created_at=ahora - timedelta(days=2),
+                                        expires_at=ahora - timedelta(days=1))
+        OutstandingToken.objects.create(user=usuario, jti='vigente', token='t2', created_at=ahora,
+                                        expires_at=ahora + timedelta(minutes=15))
+        call_command('enviar_resumenes', stdout=StringIO())
+        self.assertEqual(list(OutstandingToken.objects.values_list('jti', flat=True)), ['vigente'])

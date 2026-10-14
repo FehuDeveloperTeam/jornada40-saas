@@ -18,7 +18,6 @@ from .views import acceso_karin
 from .views import denuncias_karin
 from .views import karin_portal
 from rest_framework.routers import DefaultRouter
-from django.views.generic import TemplateView
 from .views import (
     DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet,
     AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet,
@@ -134,7 +133,6 @@ urlpatterns = [
     path('karin/bitacora/verificar/', acceso_karin.verificar_bitacora, name='karin_bitacora_verificar'),
     path('bitacora/verificar/', vista_bitacora.verificar_bitacora, name='verificar_bitacora'),
     path('bitacora/exportar/', vista_bitacora.exportar_bitacora, name='exportar_bitacora'),
-    path('auth/password/reset/confirm/<str:uidb64>/<str:token>/', TemplateView.as_view(), name='password_reset_confirm'),
     # Firma electrónica — endpoints públicos (sin autenticación)
     path('firma-publica/<uuid:token>/', firma_publica_info, name='firma_publica_info'),
     path('firma-publica/<uuid:token>/solicitar-otp/', firma_publica_solicitar_otp, name='firma_publica_solicitar_otp'),

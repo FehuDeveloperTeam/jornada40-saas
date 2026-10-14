@@ -511,6 +511,20 @@ class BajarPlanTests(APITestCase):
         self.assertIn('2 trabajadores', r.data['error'])
         cambiar.assert_not_called()
 
+    @patch('core.reveniu.cambiar_monto')
+    def test_no_baja_si_el_equipo_excede_el_cupo_del_plan_nuevo(self, cambiar, _obtener):
+        """Starter permite 2 usuarios del equipo: con 3, los que sobran quedarían sin acceso."""
+        from django.contrib.auth.models import User
+        from ..models import UsuarioEquipo
+        for i, rut in enumerate(('12.345.678-5', '9.876.543-3', '11.111.111-1')):
+            usuario = User.objects.create_user(username=f'equipo:{self.user.pk}:{i}', password='x')
+            UsuarioEquipo.objects.create(cuenta=self.user, usuario=usuario, rut=rut, nombres='Ana', apellidos='Rojas',
+                                         correo=f'{i}@empresa.cl', estado='ACTIVO')
+        r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.starter.id}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('3 usuarios del equipo', r.data['error'])
+        cambiar.assert_not_called()
+
     @patch('core.reveniu.cambiar_monto', side_effect=__import__('core.reveniu', fromlist=['x']).ErrorReveniu('caída'))
     def test_si_reveniu_falla_no_queda_programado(self, _cambiar, _obtener):
         r = self.client.post('/api/pagos/bajar-plan/', {'plan_id': self.starter.id}, format='json')

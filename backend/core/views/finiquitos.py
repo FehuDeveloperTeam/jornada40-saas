@@ -17,7 +17,7 @@ from html import escape as _esc
 from django.db.models import Q
 from ..serializers import FiniquitoSerializer
 
-from .base import error_interno, _MESES, _plan_permite, pdf_firmado, respuesta_pdf
+from .base import METODOS_SIN_BORRADO, error_interno, _MESES, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _dias_progresivos_del_anio, _es_dia_habil_feriado, calcular_saldo_vacaciones
 from .horas_compensatorias import pago_en_finiquito
 from .indemnizacion import anios_antes_del_pacto
@@ -340,6 +340,7 @@ def _calcular_finiquito(empleado, fecha_termino, dias_trabajados_ultimo_mes, cau
 
 
 class FiniquitoViewSet(viewsets.ModelViewSet):
+    http_method_names = METODOS_SIN_BORRADO   # sin DELETE: no se borra lo que respalda firmas (405)
     serializer_class = FiniquitoSerializer
     permission_classes = [IsAuthenticated]
 

@@ -75,6 +75,17 @@ class FirmaPublicaIpThrottle(AnonRateThrottle):
 THROTTLES_FIRMA_PUBLICA = [FirmaPublicaTokenThrottle, FirmaPublicaIpThrottle]
 
 
+class WebhookReveniuThrottle(AnonRateThrottle):
+    """Avisos de pago de Reveniu: límite propio por IP. Con el anónimo (100 al día)
+    los avisos legítimos de muchos clientes podían recibir 429."""
+    scope = 'webhook_reveniu'
+
+
+# Fichas de trabajadores y sus documentos: la API no los borra (DELETE responde 405).
+# Respaldan firmas y obligaciones legales; se desactivan, se anulan o se corrigen.
+METODOS_SIN_BORRADO = ['get', 'post', 'put', 'patch', 'head', 'options']
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -292,6 +303,19 @@ def pdf_firmado(tipo_documento, **documento):
     except Exception:
         logger.exception('No se pudo descargar el PDF firmado de la solicitud %s', solicitud.pk)
         return None
+
+
+def exigir_sin_firma(**documento):
+    """Un documento firmado o enviado a firma no se modifica: el registro debe decir lo mismo
+    que el PDF que el trabajador firmó o está revisando. Si tiene un error, se emite otro
+    (un contrato firmado cambia por anexo). Responde 400 con el motivo."""
+    from ..models import SolicitudFirma
+    firma = (SolicitudFirma.objects.filter(estado__in=['PENDIENTE', 'PROCESANDO', 'FIRMADO'], **documento)
+             .order_by('-enviado_en').first())
+    if firma:
+        raise ValidationError({'error': 'El documento está firmado: no se puede modificar. Si tiene un error, '
+                                        'emite uno nuevo.' if firma.estado == 'FIRMADO' else
+                               'El documento está enviado a firma. Cancela la solicitud antes de editarlo.'})
 
 
 def respuesta_pdf(pdf_bytes, nombre, firmado=False):

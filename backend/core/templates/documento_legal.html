@@ -60,6 +60,15 @@
         {% endif %}
         <p>Sus cotizaciones previsionales se encuentran al día. Su finiquito estará a su disposición dentro de los plazos legales en la notaría respectiva.</p>
     
+    {% elif documento.tipo == 'MUTUO_ACUERDO' %}
+        {% if documento.causal_articulo == '159_2' %}
+            <p>Por medio del presente documento se deja constancia de que el trabajador individualizado presentó su renuncia voluntaria al cargo, poniendo término a su contrato de trabajo conforme al artículo 159 N°2 del Código del Trabajo{% if fecha_ultimo_dia_texto %}, siendo su último día de trabajo el {{ fecha_ultimo_dia_texto }}{% endif %}.</p>
+        {% else %}
+            <p>Por medio del presente documento, la empresa <span class="bold">{{ empresa.nombre_legal }}</span> y el trabajador individualizado acuerdan poner término al contrato de trabajo por mutuo acuerdo de las partes, conforme al artículo 159 N°1 del Código del Trabajo{% if fecha_ultimo_dia_texto %}, siendo el último día de trabajo el {{ fecha_ultimo_dia_texto }}{% endif %}.</p>
+        {% endif %}
+        {% if documento.hechos %}<p>{{ documento.hechos|linebreaks }}</p>{% endif %}
+        <p>De acuerdo con el artículo 177 del Código del Trabajo, para que el empleador pueda invocar este documento debe ser ratificado por el trabajador ante un ministro de fe (inspector del trabajo, notario, oficial del Registro Civil o secretario municipal) o firmado por el presidente del sindicato o el delegado del personal o sindical. La firma en Jornada40 acredita su recepción y aceptación por el trabajador.</p>
+
     {% else %}
         <p>Por medio del presente documento se deja constancia de lo siguiente:</p>
         <p>{{ documento.hechos|linebreaks }}</p>

@@ -11,11 +11,12 @@ from ..models import Contrato, DocumentoLegal
 import datetime
 from ..serializers import DocumentoLegalSerializer
 
-from .base import error_interno, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
+from .base import METODOS_SIN_BORRADO, error_interno, exigir_sin_firma, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .finiquitos import _CAUSALES_CON_INDEMNIZACION, _calcular_finiquito
 
 
 class DocumentoLegalViewSet(viewsets.ModelViewSet):
+    http_method_names = METODOS_SIN_BORRADO   # sin DELETE: no se borra lo que respalda firmas (405)
     queryset = DocumentoLegal.objects.all().order_by('-fecha_emision', '-creado_en')
     serializer_class = DocumentoLegalSerializer
     permission_classes = [IsAuthenticated]
@@ -100,6 +101,9 @@ class DocumentoLegalViewSet(viewsets.ModelViewSet):
         self._montos_legales(serializer.save())
 
     def perform_update(self, serializer):
+        # Firmada o en firma, la carta ya no cambia: la descarga entrega la firmada y el
+        # registro debe decir lo mismo. Si hay un error, se emite una nueva.
+        exigir_sin_firma(documento_legal=serializer.instance)
         self._exigir_plan_si_es_carta_de_termino(
             serializer.validated_data.get('tipo', serializer.instance.tipo))
         documento = serializer.save()
@@ -179,6 +183,8 @@ def pdf_documento_legal(documento, es_plan_semilla) -> bytes:
         })
         html = render_to_string('carta_despido.html', context)
     else:
+        if documento.tipo == 'MUTUO_ACUERDO' and getattr(documento, 'fecha_ultimo_dia', None):
+            context['fecha_ultimo_dia_texto'] = _fecha_es(documento.fecha_ultimo_dia)
         html = render_to_string('documento_legal.html', context)
     return _html_a_pdf_bytes(html, f'{documento.tipo}_{empleado.rut}_{documento.fecha_emision}')
 

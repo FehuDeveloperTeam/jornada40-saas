@@ -5,6 +5,7 @@ import io
 import re
 
 from django.core import mail
+from django.core.cache import cache
 from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APITestCase
@@ -26,6 +27,7 @@ def _png():
 
 class InspeccionBase(APITestCase):
     def setUp(self):
+        cache.clear()   # la espera entre códigos se cuenta en la caché, compartida entre pruebas
         self.jefe, _, self.plan, self.empresa = crear_usuario_completo('insp_a', '21.000.000-3', RUT_EMPRESA)
         self.activo = crear_empleado(self.empresa, '12.345.678-5', nombres='Ana', apellido='Rojas')
         self.contrato = Contrato.objects.create(empleado=self.activo, tipo_contrato='INDEFINIDO', cargo='Analista',
@@ -63,6 +65,21 @@ class IngresoTests(InspeccionBase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual(r.data['mensaje'], self._pedir().data['mensaje'])
+
+    def test_la_espera_entre_codigos_no_revela_si_la_empresa_existe(self):
+        """Pedir otro código antes de un minuto responde 429 exista o no la empresa."""
+        self.assertEqual(self._pedir().status_code, 200)
+        self.assertEqual(self._pedir().status_code, 429)
+        self.assertEqual(self._pedir(rut_empresa='77.777.777-7').status_code, 200)
+        self.assertEqual(self._pedir(rut_empresa='77.777.777-7').status_code, 429)
+
+    def test_un_correo_fallido_responde_igual_que_una_empresa_inexistente(self):
+        from unittest.mock import patch
+        with patch('core.views.inspeccion.EmailMultiAlternatives.send', side_effect=Exception('smtp')), \
+                self.assertLogs('core.views.base', level='ERROR'):
+            r = self._pedir()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['mensaje'], self._pedir(rut_empresa='77.777.777-7').data['mensaje'])
 
     def test_ingreso_con_codigo_y_bitacora(self):
         r = self._entrar()

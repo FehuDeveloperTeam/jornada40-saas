@@ -291,6 +291,126 @@ class ParserPreviredTests(APITestCase):
             otro, r'tope\s+imponible[^.]{0,60}?([\d.,]+)\s*UF', 'tope_imponible_afp_uf'))
 
 
+class PreviredFormatoActualTests(APITestCase):
+    """Formato de la página a octubre de 2026 y tasas de la reforma de pensiones.
+
+    El HTML reproduce el texto de la página (sin copiarla entera): «TOPES IMPONIBLES Para
+    afiliados a una AFP (90 UF)», «Rentas mínimas imponibles», el bloque «Seguro social» y la
+    columna «Cargo del Empleador» de las tasas AFP.
+    """
+
+    HTML_ACTUAL = """
+    <html><body>
+    <h3>RENTAS TOPES IMPONIBLES</h3>
+    <p>Para afiliados a una AFP (90 UF): $ 3.695.148</p>
+    <p>Para afiliados al IPS (ex INP) (60 UF): $ 2.452.426</p>
+    <p>Para Seguro de Cesant&iacute;a (135,2 UF): $ 5.550.933</p>
+    <h3>RENTAS M&Iacute;NIMAS IMPONIBLES</h3>
+    <p>Trab. Dependientes e Independientes: $ 553.553</p>
+    <p>Menores de 18 y Mayores de 65: $ 412.938</p>
+    <h3>SEGURO SOCIAL</h3>
+    <table><tr><td>Rentabilidad Protegida</td><td>0.90%</td></tr>
+    <tr><td>Expectativa de Vida</td><td>0.72%</td></tr>
+    <tr><td>Seguro de Invalidez y Sobrevivencia (SIS) (*)</td><td>1,78%</td></tr></table>
+    <h3>AFP</h3>
+    <table><tr><th>TASA COTIZACI&Oacute;N AFP</th><th>Cargo del Trabajador (*)</th><th>Cargo del Empleador</th>
+    <th>Total a Pagar (**)</th></tr>
+    <tr><td>Capital</td><td>11,44%</td><td>0,1%</td><td>11,54%</td></tr>
+    <tr><td>Modelo</td><td>10,58%</td><td>0,1%</td><td>10,68%</td></tr></table>
+    <h3>SEGURO DE CESANT&Iacute;A (AFC)</h3>
+    <table><tr><td>Plazo Indefinido</td><td>2,4% R.I.</td><td>0,6% R.I.</td></tr>
+    <tr><td>Plazo Fijo</td><td>3,0% R.I.</td><td>&#8211;</td></tr>
+    <tr><td>Plazo Indefinido 11 a&ntilde;os o m&aacute;s (*)</td><td>0,8% R.I.</td><td>&#8211;</td></tr></table>
+    </body></html>
+    """
+
+    def setUp(self):
+        from core.management.commands import sincronizar_previred as sp
+        self.sp = sp
+
+    def test_numeros_con_punto_decimal(self):
+        self.assertEqual(self.sp._a_numero('0.90'), 0.9)
+        self.assertEqual(self.sp._a_numero('1.000'), 1000.0)
+
+    def test_lee_topes_sueldo_minimo_y_tasas_del_formato_actual(self):
+        leido, tasas, opcionales = self.sp.leer_indicadores(self.sp._texto_plano(self.HTML_ACTUAL))
+        self.assertEqual(leido, {'tope_imponible_afp_uf': 90.0, 'tope_imponible_afc_uf': 135.2,
+                                 'ingreso_minimo_mensual': 553553.0})
+        self.assertEqual(tasas, {'CAPITAL': 0.1144, 'MODELO': 0.1058})
+        self.assertEqual(opcionales, {'tasa_rentabilidad_protegida': 0.009, 'tasa_expectativa_vida': 0.0072,
+                                      'tasa_sis': 0.0178, 'tasa_afp_empleador': 0.001,
+                                      'tasa_afc_empleador_11_anios': 0.008})
+
+    def _ejecutar(self, html):
+        import io
+        from django.core.management import call_command
+        respuesta = type('R', (), {'raise_for_status': lambda self: None, 'text': html})()
+        with patch('core.management.commands.sincronizar_previred.requests.get', return_value=respuesta):
+            call_command('sincronizar_previred', '--crear-propuesta', '--vigente-desde', '2099-01-01',
+                         stdout=io.StringIO())
+        from core.models import ParametroPrevisional
+        return ParametroPrevisional.objects.get(vigente_desde='2099-01-01')
+
+    def test_la_propuesta_trae_las_tasas_de_la_reforma_leidas(self):
+        from core.models import ParametroPrevisional
+        vigente = ParametroPrevisional.objects.order_by('-vigente_desde').first()
+        ParametroPrevisional.objects.filter(pk=vigente.pk).update(   # distintas de las de la página
+            tasa_rentabilidad_protegida=0.0123, tasa_afp_empleador=0.0045, tasa_afc_empleador_11_anios=0.0077,
+            tasa_sis=0.0149)
+        propuesta = self._ejecutar(self.HTML_ACTUAL)
+        self.assertFalse(propuesta.confirmado)
+        self.assertEqual((float(propuesta.tasa_rentabilidad_protegida), float(propuesta.tasa_afp_empleador),
+                          float(propuesta.tasa_afc_empleador_11_anios), float(propuesta.tasa_sis)),
+                         (0.009, 0.001, 0.008, 0.0178))
+
+    def test_sin_leerlas_conserva_las_vigentes_y_no_los_valores_por_omision(self):
+        """Antes, las tres tasas de la reforma quedaban con los valores por omisión del modelo."""
+        from core.models import ParametroPrevisional
+        vigente = ParametroPrevisional.objects.order_by('-vigente_desde').first()
+        ParametroPrevisional.objects.filter(pk=vigente.pk).update(
+            tasa_rentabilidad_protegida=0.0123, tasa_afp_empleador=0.0045, tasa_afc_empleador_11_anios=0.0077)
+        html_antiguo = ParserPreviredTests.HTML.replace('87,8 UF', '95,5 UF')   # sin bloque de seguro social
+        propuesta = self._ejecutar(html_antiguo)
+        self.assertEqual(float(propuesta.tope_imponible_afp_uf), 95.5)
+        self.assertEqual((float(propuesta.tasa_rentabilidad_protegida), float(propuesta.tasa_afp_empleador),
+                          float(propuesta.tasa_afc_empleador_11_anios)), (0.0123, 0.0045, 0.0077))
+        self.assertEqual(propuesta.tasa_salud, vigente.tasa_salud)
+
+
+class RevisarTopesImponiblesTests(APITestCase):
+    """--aplicar no recalcula las liquidaciones firmadas ni las que están en firma."""
+
+    def setUp(self):
+        from core.models import Contrato
+        from .utiles import crear_empleado, crear_usuario_completo
+        self.user, _, _, self.empresa = crear_usuario_completo('topes', '21.000.000-3', '76.000.555-2')
+        self.emp = crear_empleado(self.empresa, '12.345.678-5')
+        Contrato.objects.create(empleado=self.emp, tipo_contrato='INDEFINIDO', cargo='Gerente',
+                                fecha_inicio='2024-01-01', sueldo_base=9_000_000)
+
+    def _liquidacion(self, mes):
+        from core.models import Liquidacion
+        return Liquidacion.objects.create(empleado=self.emp, mes=mes, anio=2026, total_imponible=9_000_000,
+                                          total_haberes=9_000_000, sueldo_liquido=1, valor_uf=40000)
+
+    def test_no_toca_las_firmadas_ni_las_en_firma(self):
+        import io
+        from django.core.management import call_command
+        from core.models import SolicitudFirma
+        libre, en_firma, firmada = self._liquidacion(6), self._liquidacion(7), self._liquidacion(8)
+        for liq, estado in ((en_firma, 'PENDIENTE'), (firmada, 'FIRMADO')):
+            SolicitudFirma.objects.create(empleado=self.emp, empresa=self.empresa, liquidacion=liq,
+                                          tipo_documento='LIQUIDACION', estado=estado)
+        salida = io.StringIO()
+        call_command('revisar_topes_imponibles', '--aplicar', stdout=salida)
+        for liq in (libre, en_firma, firmada):
+            liq.refresh_from_db()
+        self.assertNotEqual(libre.sueldo_liquido, 1)
+        self.assertEqual((en_firma.sueldo_liquido, firmada.sueldo_liquido), (1, 1))
+        self.assertIn('EN FIRMA', salida.getvalue())
+        self.assertIn('FIRMADA', salida.getvalue())
+
+
 class HistoricoParametrosTests(APITestCase):
     """El histórico cargado en migraciones debe resolver cada período con sus valores.
 

@@ -174,6 +174,15 @@ class RecuperacionSoloPorRutTests(APITestCase):
         self._pedir('123456785')  # sin formato: se normaliza
         self.assertEqual(len(mail.outbox), 1)
 
+    def test_el_correo_trae_texto_plano_sin_etiquetas(self):
+        """Antes, la versión de texto era la plantilla HTML: un lector de solo texto veía las etiquetas."""
+        from django.core import mail
+        self._pedir('12.345.678-5')
+        correo = mail.outbox[0]
+        self.assertNotIn('<', correo.body)
+        self.assertIn('/reset-password/', correo.body)
+        self.assertEqual(correo.alternatives[0][1], 'text/html')
+
     def test_rut_invalido(self):
         self.assertEqual(self._pedir('12.345.678-9').status_code, 400)
 

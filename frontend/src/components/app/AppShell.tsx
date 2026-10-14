@@ -8,7 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Button, Chip, CierreInactividad, J40Root, Logo, ToggleTema } from '../j40';
 import { ConfirmarIdentidad } from './ConfirmarIdentidad';
 import { useAuth } from '../../context/AuthContext';
-import client, { rutaIngreso } from '../../api/client';
+import { renovarSesion, rutaIngreso } from '../../api/client';
 import { borrarTodosLosBorradores } from '../../utils/borradores';
 import {
   useEmpresaActiva, useIndicadores, usePeticionesPanel, useRegistroDT, useSolicitudesDocumento, useSuscripcion, useTrabajadores,
@@ -119,7 +119,8 @@ export default function AppShell() {
     const ruta = rutaIngreso(pathname + search);
     navigate(`${ruta}${ruta.includes('?') ? '&' : '?'}inactividad=1`, { replace: true });
   }, [logout, navigate]);
-  const latidoPanel = useCallback(() => client.post('/auth/token/refresh/', {}, { _sinRenovar: true }), []);
+  // Renovación coordinada entre pestañas: el token de renovación sirve una sola vez.
+  const latidoPanel = useCallback(() => renovarSesion(), []);
   const { empresa, empresas, cambiar, cargando, error } = useEmpresaActiva();
   const { suscripcion, nivel, maxEmpresas, cargando: cargandoPlan, error: errorSuscripcion, reintentar } = useSuscripcion();
   const reintentarSuscripcion = useCallback(() => { void reintentar(); }, [reintentar]);

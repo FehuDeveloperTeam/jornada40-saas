@@ -1,5 +1,5 @@
 import uuid
-from django.db import models
+from django.db import models, transaction
 
 from .cifrado import JSONCifrado, TextoCifrado
 from .contexto import EnEmpresas
@@ -339,17 +339,6 @@ class Empleado(models.Model):
     def __str__(self):
         return f"{self.nombres} {self.apellido_paterno}"
     def save(self, *args, **kwargs):
-        # Solo calculamos la ficha si el empleado es nuevo (no tiene ficha aún)
-        if not self.ficha_numero:
-            # Buscamos cuál es el número de ficha más alto DENTRO de esta empresa específica
-            max_ficha = Empleado.objects.filter(empresa=self.empresa).aggregate(Max('ficha_numero'))['ficha_numero__max']
-            
-            # Si ya hay empleados, le sumamos 1 al número mayor. Si es el primero, le ponemos 1.
-            if max_ficha is not None:
-                self.ficha_numero = max_ficha + 1
-            else:
-                self.ficha_numero = 1
-                
         # Fecha de desvinculación: se marca al desactivar y se limpia al reactivar.
         if not self.activo and self.fecha_desvinculacion is None:
             self.fecha_desvinculacion = timezone.localdate()
@@ -361,8 +350,18 @@ class Empleado(models.Model):
         if kwargs.get('update_fields') is not None and set(kwargs['update_fields']) & {'calle', 'numero', 'sin_numero', 'depto'}:
             kwargs['update_fields'] = list(set(kwargs['update_fields']) | {'direccion'})
 
-        # Finalmente, ejecutamos el guardado normal de Django
-        super(Empleado, self).save(*args, **kwargs)
+        if self.ficha_numero or not self.empresa_id:
+            super(Empleado, self).save(*args, **kwargs)
+            return
+        # Ficha nueva: número correlativo por empresa (el mayor más uno). La fila de la empresa
+        # queda bloqueada mientras se calcula y se guarda, para que dos altas simultáneas no
+        # repitan el número (en SQLite, la transacción IMMEDIATE ya hace esperar a la otra).
+        with transaction.atomic():
+            Empresa._base_manager.select_for_update().filter(pk=self.empresa_id).first()
+            maximo = (Empleado._base_manager.filter(empresa_id=self.empresa_id)
+                      .aggregate(Max('ficha_numero'))['ficha_numero__max'])
+            self.ficha_numero = (maximo or 0) + 1
+            super(Empleado, self).save(*args, **kwargs)
 
     class Meta:
         unique_together = [('empresa', 'rut')]
@@ -1007,6 +1006,7 @@ class SolicitudFirma(models.Model):
         ('AMONESTACION',    'Carta de Amonestación'),
         ('DESPIDO',         'Carta de Despido'),
         ('CONSTANCIA',      'Constancia Laboral'),
+        ('MUTUO_ACUERDO',   'Renuncia o Mutuo Acuerdo'),
         ('ANEXO_CONTRATO',  'Anexo de Contrato'),
         ('LIQUIDACION',     'Liquidación de Sueldo'),
         ('VACACION',        'Comprobante de Vacaciones'),
@@ -1022,16 +1022,18 @@ class SolicitudFirma(models.Model):
         ('REVOCACION_DESCUENTO', 'Constancia de revocación de descuento'),
     ]
 
-    empleado         = models.ForeignKey('Empleado',      on_delete=models.CASCADE,    related_name='solicitudes_firma')
-    empresa          = models.ForeignKey('Empresa',       on_delete=models.CASCADE,    related_name='solicitudes_firma')
-    contrato         = models.ForeignKey('Contrato',      on_delete=models.SET_NULL,   null=True, blank=True)
-    documento_legal  = models.ForeignKey('DocumentoLegal', on_delete=models.SET_NULL,  null=True, blank=True)
-    anexo_contrato   = models.ForeignKey('AnexoContrato', on_delete=models.SET_NULL,   null=True, blank=True,
+    # PROTECT: una solicitud de firma es evidencia (folio, IP, huellas, PDF firmado). Ni el trabajador
+    # ni el documento firmado se pueden borrar mientras exista, tampoco desde el administrador.
+    empleado         = models.ForeignKey('Empleado',      on_delete=models.PROTECT,    related_name='solicitudes_firma')
+    empresa          = models.ForeignKey('Empresa',       on_delete=models.PROTECT,    related_name='solicitudes_firma')
+    contrato         = models.ForeignKey('Contrato',      on_delete=models.PROTECT,    null=True, blank=True)
+    documento_legal  = models.ForeignKey('DocumentoLegal', on_delete=models.PROTECT,   null=True, blank=True)
+    anexo_contrato   = models.ForeignKey('AnexoContrato', on_delete=models.PROTECT,    null=True, blank=True,
                                          related_name='solicitudes_firma')
-    liquidacion      = models.ForeignKey('Liquidacion',   on_delete=models.SET_NULL,   null=True, blank=True)
-    vacacion         = models.ForeignKey('VacacionEmpleado', on_delete=models.SET_NULL, null=True, blank=True)
-    finiquito        = models.ForeignKey('Finiquito',     on_delete=models.SET_NULL,   null=True, blank=True)
-    documento_laboral = models.ForeignKey('DocumentoLaboral', on_delete=models.SET_NULL, null=True, blank=True,
+    liquidacion      = models.ForeignKey('Liquidacion',   on_delete=models.PROTECT,    null=True, blank=True)
+    vacacion         = models.ForeignKey('VacacionEmpleado', on_delete=models.PROTECT, null=True, blank=True)
+    finiquito        = models.ForeignKey('Finiquito',     on_delete=models.PROTECT,    null=True, blank=True)
+    documento_laboral = models.ForeignKey('DocumentoLaboral', on_delete=models.PROTECT, null=True, blank=True,
                                           related_name='solicitudes_firma')
     # Firma del empleador por documento: quién lo emitió y cuándo confirmó su
     # identidad con su clave (el documento queda vinculado a su autor, ORD 82/2025).

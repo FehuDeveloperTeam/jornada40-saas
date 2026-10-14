@@ -116,3 +116,19 @@ class HorasCompensatoriasTests(DocumentosBase):
         _, detalle = _calcular_finiquito(self.emp, datetime.date(2026, 4, 30), 30, '161')
         self.assertEqual(detalle['horas_compensatorias'], 15)
         self.assertEqual(detalle['monto_horas_compensatorias'], round(VALOR_HORA * 15))
+
+
+class ComprobanteDiaLibreTests(DocumentosBase):
+    """El comprobante de un día libre por horas extra dice qué es (antes: «Permiso sin goce de sueldo»)."""
+
+    def test_rotulo_del_dia_libre(self):
+        from django.template.loader import render_to_string
+        from ..models import VacacionEmpleado
+        vacacion = VacacionEmpleado(empleado=self.emp, empresa=self.emp.empresa, tipo='DIA_COMPENSATORIO',
+                                    fecha_inicio=datetime.date(2026, 10, 20), fecha_fin=datetime.date(2026, 10, 20),
+                                    dias_habiles=1, horas_compensatorias=8)
+        html = render_to_string('comprobante_vacaciones.html', {'vacacion': vacacion, 'empleado': self.emp,
+                                                                'empresa': self.emp.empresa})
+        self.assertIn('Día libre por horas extra compensadas', html)
+        self.assertIn('8 horas de descanso', html)
+        self.assertNotIn('Sin Goce', html)

@@ -10,7 +10,7 @@ from django.utils import timezone
 from ..models import Contrato, Empleado, VacacionEmpleado
 import datetime
 
-from .base import error_interno, _MESES, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
+from .base import METODOS_SIN_BORRADO, error_interno, exigir_sin_firma, _MESES, _es_plan_semilla, _html_a_pdf_bytes, _plan_permite, pdf_firmado, respuesta_pdf
 from .feriado import _calcular_dias_habiles_vacacion, calcular_saldo_vacaciones
 from . import horas_compensatorias as hc
 
@@ -19,6 +19,7 @@ from . import horas_compensatorias as hc
 # VACACIONES Y PERMISOS
 # ==========================================
 class VacacionViewSet(viewsets.ModelViewSet):
+    http_method_names = METODOS_SIN_BORRADO   # sin DELETE: no se borra lo que respalda firmas (405)
     serializer_class = None  # se asigna abajo tras importar el serializer
     permission_classes = [IsAuthenticated]
 
@@ -118,6 +119,7 @@ class VacacionViewSet(viewsets.ModelViewSet):
         self._guardar(serializer)
 
     def perform_update(self, serializer):
+        exigir_sin_firma(vacacion=serializer.instance)   # el comprobante firmado o en firma no cambia
         self._guardar(serializer)
 
     @action(detail=False, methods=['get'], url_path='dias_habiles')

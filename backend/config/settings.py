@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'storages',
     'rest_framework',
     'rest_framework.authtoken',
+    # Lista negra de tokens: un token de renovación ya usado o el de una sesión cerrada deja de servir.
+    'rest_framework_simplejwt.token_blacklist',
     'dj_rest_auth',
     'corsheaders', 
     
@@ -102,6 +104,21 @@ DATABASES = {
 OPCIONES_SQLITE = {'timeout': 30, 'transaction_mode': 'IMMEDIATE', 'init_command': 'PRAGMA journal_mode=WAL;'}
 if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
     DATABASES['default']['OPTIONS'] = dict(OPCIONES_SQLITE)
+
+# Caché: contadores de los límites de intentos, avisos de error ya enviados, UF y UTM.
+# Desplegada, se comparte en la base de datos: con dos procesos de Gunicorn, una caché
+# en memoria por proceso contaba cada límite por separado (el efectivo era el doble).
+# `createcachetable` crea la tabla al arrancar (Dockerfile).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'cache_jornada40',
+        'OPTIONS': {'MAX_ENTRIES': 20000},
+    } if IS_DEPLOYED else {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'OPTIONS': {'MAX_ENTRIES': 20000},
+    },
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -167,6 +184,8 @@ REST_FRAMEWORK = {
         'karin_sesion': '5000/day',
         'extension_vincular': '20/hour',
         'extension': '5000/day',
+        # Avisos de pago de Reveniu: propio y amplio por IP (con el anónimo, 100 al día, se perdían avisos).
+        'webhook_reveniu': '600/hour',
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 200,

@@ -29,13 +29,13 @@ const TIPO_LEGAL: Record<string, string> = {
   AMONESTACION: 'Carta de amonestación', DESPIDO: 'Carta de término', MUTUO_ACUERDO: 'Término por mutuo acuerdo',
   CONSTANCIA: 'Constancia laboral',
 };
-// Tipos legales que admite la firma electrónica (el mutuo acuerdo no).
+// Tipos legales que admite la firma electrónica.
 const FIRMA_LEGAL: Partial<Record<DocumentoLegal['tipo'], SolicitudFirma['tipo_documento']>> = {
-  AMONESTACION: 'AMONESTACION', DESPIDO: 'DESPIDO', CONSTANCIA: 'CONSTANCIA',
+  AMONESTACION: 'AMONESTACION', DESPIDO: 'DESPIDO', CONSTANCIA: 'CONSTANCIA', MUTUO_ACUERDO: 'MUTUO_ACUERDO',
 };
 const TIPO_VACACION: Record<string, string> = {
   VACACION_LEGAL: 'Comprobante de vacaciones', VACACION_PROGRESIVA: 'Comprobante de feriado progresivo',
-  PERMISO_SIN_GOCE: 'Permiso sin goce de sueldo',
+  PERMISO_SIN_GOCE: 'Permiso sin goce de sueldo', DIA_COMPENSATORIO: 'Comprobante de día libre por horas extra',
 };
 
 /**
