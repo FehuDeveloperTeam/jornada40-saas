@@ -44,12 +44,12 @@ Medidos el {{fecha}} sobre la rama `{{rama}}`:
 
 | Tipo | Herramienta | Alcance | Resultado |
 |---|---|---|---|
-| Servidor | Django `APITestCase` | 577 pruebas en 42 archivos | Todas pasan |
-| Cobertura del servidor | coverage.py | 12.912 líneas medibles | 84,1 % (mínimo exigido: 80 %) |
-| Unitarias de la interfaz | Vitest y Testing Library | 64 pruebas en 14 archivos | Todas pasan |
-| Cobertura de la interfaz | Vitest (v8) | Utilidades y extensión | Utilidades 83,1 % (mínimo 75 %), extensión 86,4 % (mínimo 80 %), cliente HTTP 35,2 %. Las pantallas (1,9 %) las cubren los recorridos de navegador |
-| De extremo a extremo | Playwright (Chromium) | 59 recorridos en 13 áreas | Todos pasan; 4 más, de capturas para este documento, se omiten salvo con `CAPTURAS_DOC=1` |
-| Accesibilidad | axe (WCAG 2.1 A y AA) | 21 pantallas: 9 públicas, la firma y 11 del panel | 0 problemas |
+| Servidor | Django `APITestCase` | 600 pruebas en 43 archivos | Todas pasan |
+| Cobertura del servidor | coverage.py | 13.236 líneas medibles | 84,6 % (mínimo exigido: 80 %) |
+| Unitarias de la interfaz | Vitest y Testing Library | 65 pruebas en 14 archivos | Todas pasan |
+| Cobertura de la interfaz | Vitest (v8) | Utilidades y extensión | Utilidades 83,3 % (mínimo 75 %), extensión 86,4 % (mínimo 80 %), cliente HTTP 35,2 %. Las pantallas (1,9 %) las cubren los recorridos de navegador |
+| De extremo a extremo | Playwright (Chromium) | 62 recorridos en 14 áreas | Todos pasan; 4 más, de capturas para este documento, se omiten salvo con `CAPTURAS_DOC=1` |
+| Accesibilidad | axe (WCAG 2.1 A y AA) | 21 pantallas: 9 públicas, la firma y 11 del panel; además, el registro con código de prueba y el plan en prueba [Solo en staging] | 0 problemas |
 | Análisis estático | ruff, bandit, ESLint, TypeScript estricto | Servidor, interfaz y extensión | Sin hallazgos (bandit: severidad media o alta) |
 | Dependencias | pip-audit y npm audit | Servidor y dependencias de producción de la interfaz | 0 avisos conocidos |
 | Migraciones | `makemigrations --check` | Modelos | Al día |
@@ -65,13 +65,13 @@ Medidos el {{fecha}} sobre la rama `{{rama}}`:
 | Dirección del Trabajo y fiscalización | Dirección del Trabajo 16, fiscalización 12, extensión 12 |
 | Portales | portal del trabajador 20, peticiones 10, solicitudes de documentos 13, estado del portal 3 |
 | Seguridad, cuentas y accesos | seguridad 30, CSRF 14, cuentas 33, permisos del equipo 7, equipo 7, permisos 2, sesión por inactividad 5, bitácora 6, alertas 5 |
-| Pagos | pagos 38 |
+| Pagos | pagos 38, códigos de prueba 23 [Solo en staging] |
 | Panel y gestión | trabajadores 20, revisión del panel 12, protecciones 8, direcciones 4, resumen por correo 8 |
 | Documento técnico | ejemplos 7 |
 
 : Pruebas del servidor por área (métodos de prueba por archivo)
 
-La suma de los métodos (571) es menor que las 577 pruebas que ejecuta Django, porque algunas clases de prueba heredan casos de otras.
+La suma de los métodos (594) es menor que las 600 pruebas que ejecuta Django, porque algunas clases de prueba heredan casos de otras.
 
 ## Integración continua {#sec-cal-ci}
 
