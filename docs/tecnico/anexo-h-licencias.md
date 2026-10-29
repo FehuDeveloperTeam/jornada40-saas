@@ -15,8 +15,8 @@ Dependencias con su versión fijada y su licencia, generadas con `herramientas/a
 | asgiref | 3.11.1 | BSD License |
 | asn1crypto | 1.5.1 | MIT License |
 | attrs | 26.1.0 | MIT |
-| brotli | 1.2.0 | MIT |
-| certifi | 2026.2.25 | Mozilla Public License 2.0 (MPL 2.0) |
+| brotli | 1.2.1 | MIT |
+| certifi | 2026.10.23 | Mozilla Public License 2.0 (MPL 2.0) |
 | cffi | 2.0.0 | MIT |
 | charset-normalizer | 3.4.5 | MIT |
 | cryptography | 50.0.0 | Apache-2.0 OR BSD-3-Clause |
@@ -29,7 +29,7 @@ Dependencias con su versión fijada y su licencia, generadas con `herramientas/a
 | django-anymail | 14.0 | BSD License |
 | django-cors-headers | 4.9.0 | MIT |
 | django-storages | 1.14.4 | BSD License |
-| djangorestframework | 3.17.2 | BSD-3-Clause |
+| djangorestframework | 3.18.3 | BSD-3-Clause |
 | djangorestframework_simplejwt | 5.5.1 | MIT License |
 | docopt | 0.6.2 | MIT License |
 | et_xmlfile | 2.0.0 | MIT License |
@@ -49,7 +49,7 @@ Dependencias con su versión fijada y su licencia, generadas con `herramientas/a
 | oscrypto | 1.3.0 | MIT License |
 | packaging | 26.0 | Apache-2.0 OR BSD-2-Clause |
 | pandas | 3.0.1 | BSD License |
-| pillow | 12.3.0 | MIT-CMU |
+| pillow | 13.0.0 | MIT-CMU |
 | psycopg2-binary | 2.9.11 | GNU Library or Lesser General Public License (LGPL) |
 | pycairo | 1.29.0 | LGPL-2.1-only OR MPL-1.1 |
 | pycparser | 3.0 | BSD-3-Clause |
@@ -59,7 +59,7 @@ Dependencias con su versión fijada y su licencia, generadas con `herramientas/a
 | pyHanko | 0.34.0 | MIT |
 | pyhanko-certvalidator | 0.30.0 | MIT |
 | PyJWT | 2.15.0 | MIT |
-| pypdf | 6.19.0 | BSD-3-Clause |
+| pypdf | 6.21.4 | BSD-3-Clause |
 | pyphen | 0.17.2 | GNU General Public License v2 or later (GPLv2+), GNU Lesser General Public License v2 or later (LGPLv2+), Mozilla Public License 1.1 (MPL 1.1) |
 | python-bidi | 0.6.7 | GNU Library or Lesser General Public License (LGPL) |
 | python-dateutil | 2.9.0.post0 | BSD License, Apache Software License |
@@ -69,7 +69,7 @@ Dependencias con su versión fijada y su licencia, generadas con `herramientas/a
 | requests | 2.33.0 | Apache Software License |
 | resend | 2.26.0 | MIT License |
 | rlPyCairo | 0.4.0 | BSD License |
-| setuptools | 83.0.0 | MIT |
+| setuptools | 84.2.1 | MIT |
 | six | 1.17.0 | MIT License |
 | s3transfer | 0.11.0 | Apache Software License |
 | sqlparse | 0.6.0 | BSD License |
@@ -131,11 +131,11 @@ Dependencias con su versión fijada y su licencia, generadas con `herramientas/a
 | eslint-plugin-react-refresh | 0.4.26 | MIT |
 | globals | 16.5.0 | MIT |
 | jsdom | 26.1.0 | MIT |
-| postcss | 8.5.21 | MIT |
+| postcss | 8.5.32 | MIT |
 | tailwindcss | 4.1.18 | MIT |
 | typescript | 5.9.3 | Apache-2.0 |
 | typescript-eslint | 8.55.0 | MIT |
-| vite | 7.3.6 | MIT |
+| vite | 7.3.7 | MIT |
 | vitest | 3.2.7 | MIT |
 
 #### Licencias con reciprocidad {.unnumbered}

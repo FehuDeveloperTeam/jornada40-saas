@@ -74,8 +74,8 @@ jornada40-saas/
 | HTTP client | Axios | 1.13.5 |
 | Icons | Lucide React | 0.563.0 |
 | Excel | xlsx / pandas / openpyxl | — |
-| Backend framework | Django | 5.2.11 |
-| REST API | Django REST Framework | 3.16.1 |
+| Backend framework | Django | 5.2.17 |
+| REST API | Django REST Framework | 3.18.3 |
 | Auth | dj-rest-auth + simplejwt | — |
 | Database ORM | Django ORM (native) | — |
 | Email | Anymail (Resend backend) | — |

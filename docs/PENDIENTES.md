@@ -46,6 +46,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [ ] **Publicar en `main` las correcciones de seguridad de dependencias** (requiere autorización):
   - pdf.js permitía ejecutar JavaScript con un PDF malicioso, y la firma del trabajador muestra el reglamento que sube el empleador;
   - también Django 5.2.17, pypdf, Pillow, PyJWT, cryptography, axios y otros;
+  - (2026-10-29, en la rama y staging) avisos nuevos desde el 14-10: Pillow 13.0.0 (la corrección solo existe en la versión mayor nueva), pypdf 6.21.4, Django REST framework 3.18.3, brotli 1.2.1, certifi 2026.10.23, setuptools 84.2.1 y `follow-redirects` 1.16.2 (dependencia de axios). Probadas con las suites completas. Quedan avisos en herramientas de desarrollo que no se publican (vitest 4 y tinypool): se corrigen con vitest 5, un cambio mayor que conviene hacer aparte;
   - producción sigue con las versiones vulnerables hasta entonces;
   - van junto con las alertas de errores.
 - [ ] Con el archivo ya en `main`, activar en GitHub *Settings → Code security → Dependabot security updates*.
