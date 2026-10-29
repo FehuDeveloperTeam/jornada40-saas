@@ -178,6 +178,7 @@ REST_FRAMEWORK = {
         'portal_trabajador_sesion': '5000/day',
         'login': '3/minute',
         'register': '3/minute',
+        'codigo_prueba': '20/hour',
         'password_reset': '2/hour',
         'equipo_clave': '10/hour',
         'karin': '30/hour',

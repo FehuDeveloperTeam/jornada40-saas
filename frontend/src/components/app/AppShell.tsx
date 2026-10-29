@@ -18,7 +18,7 @@ import { MODULOS_DOCUMENTOS, usePermisos } from '../../hooks/usePermisos';
 import type { Permisos } from '../../hooks/usePermisos';
 import type { Empleado, Empresa, ModuloPanel } from '../../types';
 import { cn } from '../../utils/cn';
-import { capitalizar, decimalCL, iniciales } from '../../utils/formato';
+import { capitalizar, decimalCL, fechaCL, iniciales, textoRestante } from '../../utils/formato';
 import { DrawerTrabajador } from './DrawerTrabajador';
 
 // ── Contexto del panel ───────────────────────────────────────────────────────
@@ -100,6 +100,14 @@ const ESTADO_SUSCRIPCION: Record<string, { texto: string; tono: 'ok' | 'marca' |
 // Suscripción pagada cancelada que ya volvió al plan gratuito: no hay nada que reactivar.
 const AVISO_PLAN_GRATIS = { titulo: 'Tu plan pagado terminó', detalle: 'Estás en el plan gratuito. Tus datos siguen guardados; elige un plan cuando quieras volver.', clase: 'bg-brand-soft text-brand-text' };
 const CLAVE_AVISO_GRATIS = 'j40-aviso-plan-gratis-cerrado';
+const CLAVE_AVISO_PRUEBA = 'j40-aviso-prueba-terminada-cerrado';
+// La prueba gratuita se avisa en el panel en sus últimos días, como los correos (15 y 3 días antes).
+const DIAS_AVISO_PRUEBA = 15;
+
+/** Aviso del plan sobre el contenido del panel. Los informativos se pueden cerrar. */
+interface AvisoPlan { titulo: string; detalle: string; clase: string; informativo: boolean; enlace: string; cerrar?: () => void }
+
+const leerCerrado = (clave: string) => { try { return localStorage.getItem(clave) === '1'; } catch { return false; } };
 
 const AVISO_SUSCRIPCION: Record<string, { titulo: string; detalle: string; clase: string }> = {
   TRIAL: { titulo: 'Estás en período de prueba', detalle: 'Agrega un medio de pago para no perder el acceso a las funciones de tu plan.', clase: 'bg-brand-soft text-brand-text' },
@@ -132,9 +140,8 @@ export default function AppShell() {
   const [paletaAbierta, setPaletaAbierta] = useState(false);
   // El id distingue dos avisos con el mismo texto (reinicia el temporizador).
   const [toast, setToast] = useState<{ texto: string; tipo: TipoAviso; id: number } | null>(null);
-  const [avisoGratisCerrado, setAvisoGratisCerrado] = useState(() => {
-    try { return localStorage.getItem(CLAVE_AVISO_GRATIS) === '1'; } catch { return false; }
-  });
+  const [avisoGratisCerrado, setAvisoGratisCerrado] = useState(() => leerCerrado(CLAVE_AVISO_GRATIS));
+  const [avisoPruebaCerrado, setAvisoPruebaCerrado] = useState(() => leerCerrado(CLAVE_AVISO_PRUEBA));
 
   const avisar = useCallback((texto: string, tipo: TipoAviso = 'ok') => setToast((t) => ({ texto, tipo, id: (t?.id ?? 0) + 1 })), []);
   useEffect(() => {
@@ -184,13 +191,14 @@ export default function AppShell() {
     );
   }
 
-  const volvioAGratis = suscripcion?.estado === 'CANCELED' && !suscripcion.plan.precio;
-  // Los avisos del plan son para el titular: el equipo no puede hacer nada con ellos.
-  const aviso = !permisos.esTitular ? undefined : volvioAGratis ? (avisoGratisCerrado ? undefined : AVISO_PLAN_GRATIS) : suscripcion && AVISO_SUSCRIPCION[suscripcion.estado];
-  const cerrarAvisoGratis = () => {
-    setAvisoGratisCerrado(true);
-    try { localStorage.setItem(CLAVE_AVISO_GRATIS, '1'); } catch { /* sin almacenamiento: vuelve a verse al recargar */ }
+  const cerrar = (clave: string, marcar: (v: boolean) => void) => () => {
+    marcar(true);
+    try { localStorage.setItem(clave, '1'); } catch { /* sin almacenamiento: vuelve a verse al recargar */ }
   };
+  const aviso = avisoDelPlan(suscripcion, {
+    gratisCerrado: avisoGratisCerrado, cerrarGratis: cerrar(CLAVE_AVISO_GRATIS, setAvisoGratisCerrado),
+    pruebaCerrado: avisoPruebaCerrado, cerrarPrueba: cerrar(CLAVE_AVISO_PRUEBA, setAvisoPruebaCerrado),
+  });
   const vigentes = contexto.trabajadores.filter((t) => t.activo).length;
 
   return (
@@ -204,20 +212,21 @@ export default function AppShell() {
             abrirPaleta={() => setPaletaAbierta(true)}
             agregarTrabajador={permisos.puede('TRABAJADORES', true) ? contexto.agregarTrabajador : undefined} />
           <main className="flex-1 p-[clamp(16px,2.4vw,32px)] pb-24 min-[720px]:pb-[clamp(16px,2.4vw,32px)]">
-            {aviso && (
+            {/* Los avisos del plan son para el titular: el equipo no puede hacer nada con ellos. */}
+            {aviso && permisos.esTitular && (
               <div role="status" className={cn('max-w-[1440px] mx-auto mb-[18px] flex gap-3 items-center flex-wrap px-4 py-3 rounded-j40-card', aviso.clase)}>
-                {volvioAGratis
+                {aviso.informativo
                   ? <Info className="size-5 shrink-0" strokeWidth={2} aria-hidden />
                   : <TriangleAlert className="size-5 shrink-0" strokeWidth={2} aria-hidden />}
                 <div className="flex-[1_1_260px] flex flex-col">
                   <span className="text-[13.5px] font-semibold">{aviso.titulo}</span>
-                  <span className="text-[12.5px]">{volvioAGratis && suscripcion ? `Estás en ${suscripcion.plan.nombre}. Tus datos siguen guardados; elige un plan cuando quieras volver.` : aviso.detalle}</span>
+                  <span className="text-[12.5px]">{aviso.detalle}</span>
                 </div>
                 <Link to="/app/plan" className="h-[34px] px-3.5 inline-flex items-center rounded-[8px] border border-current text-inherit text-[13px] font-semibold no-underline hover:no-underline">
-                  {volvioAGratis ? 'Ver planes' : 'Ver plan'}
+                  {aviso.enlace}
                 </Link>
-                {volvioAGratis && (
-                  <button type="button" onClick={cerrarAvisoGratis} aria-label="Cerrar aviso" title="Cerrar aviso"
+                {aviso.cerrar && (
+                  <button type="button" onClick={aviso.cerrar} aria-label="Cerrar aviso" title="Cerrar aviso"
                     className="grid place-items-center size-[34px] rounded-[8px] text-inherit cursor-pointer hover:bg-surface/40">
                     <X className="size-[18px]" strokeWidth={2} aria-hidden />
                   </button>
@@ -250,6 +259,36 @@ export default function AppShell() {
       </J40Root>
     </Contexto.Provider>
   );
+}
+
+/** El aviso del plan que corresponde a la suscripción, si hay alguno. */
+function avisoDelPlan(suscripcion: Suscripcion | undefined, estado: {
+  gratisCerrado: boolean; cerrarGratis: () => void; pruebaCerrado: boolean; cerrarPrueba: () => void;
+}): AvisoPlan | undefined {
+  if (!suscripcion) return undefined;
+  const prueba = suscripcion.prueba;
+  if (prueba?.terminada) {
+    return estado.pruebaCerrado ? undefined : {
+      titulo: `Terminó tu prueba del plan ${prueba.plan}`, clase: 'bg-brand-soft text-brand-text', informativo: true,
+      detalle: `Estás en el plan ${suscripcion.plan.nombre}. Tus datos siguen guardados; elige un plan cuando quieras contratar.`,
+      enlace: 'Ver planes', cerrar: estado.cerrarPrueba,
+    };
+  }
+  if (prueba) {
+    return prueba.dias_restantes > DIAS_AVISO_PRUEBA ? undefined : {
+      titulo: `Prueba del plan ${prueba.plan}: ${textoRestante(prueba.dias_restantes)}`, clase: 'bg-brand-soft text-brand-text',
+      detalle: `Termina el ${fechaCL(prueba.hasta)}. Contrata el plan para seguir con todas sus funciones; si no, tu cuenta pasa al plan gratuito sin perder tus datos.`,
+      informativo: true, enlace: 'Ver plan',
+    };
+  }
+  if (suscripcion.estado === 'CANCELED' && !suscripcion.plan.precio) {
+    return estado.gratisCerrado ? undefined : {
+      ...AVISO_PLAN_GRATIS, informativo: true, enlace: 'Ver planes', cerrar: estado.cerrarGratis,
+      detalle: `Estás en ${suscripcion.plan.nombre}. Tus datos siguen guardados; elige un plan cuando quieras volver.`,
+    };
+  }
+  const porEstado = AVISO_SUSCRIPCION[suscripcion.estado];
+  return porEstado && { ...porEstado, informativo: false, enlace: 'Ver plan' };
 }
 
 // ── Barra lateral ────────────────────────────────────────────────────────────

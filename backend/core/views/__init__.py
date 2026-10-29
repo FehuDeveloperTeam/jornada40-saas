@@ -153,6 +153,7 @@ from .cuentas import (  # noqa: F401
     recuperacion_por_correo_cerrada,
     recuperar_password_por_rut,
     registrar_cliente,
+    revisar_codigo_prueba,
 )
 from .firma_publica import (  # noqa: F401
     _TIPO_LABELS_PUBLICO,

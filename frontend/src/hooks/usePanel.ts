@@ -53,7 +53,18 @@ export interface Suscripcion {
   renovacion_cancelada?: boolean;
   /** Bajada de plan programada: rige desde el próximo cobro. */
   cambio_programado?: { plan: { id: number; nombre: string }; desde: string | null } | null;
+  /** Prueba gratuita de un código de prueba: en curso, o terminada mientras la cuenta siga en el plan gratuito. */
+  prueba?: PruebaGratis | null;
   pagos?: PagoSuscripcion[];
+}
+
+export interface PruebaGratis {
+  /** Plan que regala la prueba. */
+  plan: string;
+  /** Último día de la prueba. */
+  hasta: string;
+  dias_restantes: number;
+  terminada: boolean;
 }
 
 export interface PagoSuscripcion {

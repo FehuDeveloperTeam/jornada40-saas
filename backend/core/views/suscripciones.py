@@ -4,7 +4,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
-from ..models import Cliente, EventoPasarela, IntentoPago, Plan, Suscripcion
+from ..models import Cliente, CodigoPrueba, EventoPasarela, IntentoPago, Plan, Suscripcion
+from ..pruebas import terminar_por_pago
 from ..serializers import PlanSerializer
 from django.conf import settings
 from django.utils import timezone
@@ -53,7 +54,9 @@ def mi_suscripcion(request):
     # encontrarlo en la lista de planes a la venta.
     plan = _plan_activo(request.user) or suscripcion.plan
     data = {
-        'estado': suscripcion.estado,
+        # Prueba vencida que el proceso diario aún no cierra: ya rige el plan gratuito.
+        'estado': 'ACTIVE' if suscripcion.prueba_vencida else suscripcion.estado,
+        'prueba': _datos_prueba(cliente, suscripcion, plan),
         'plan': {
             'id': plan.id,
             'nombre': plan.nombre,
@@ -84,6 +87,22 @@ def mi_suscripcion(request):
     }
 
     return Response(data, status=status.HTTP_200_OK)
+
+
+def _datos_prueba(cliente, suscripcion, plan):
+    """La prueba gratuita en curso, o la que terminó si la cuenta sigue en el plan gratuito; si no, None."""
+    if not suscripcion.prueba_hasta:
+        return None
+    if suscripcion.estado == 'TRIAL':
+        nombre = suscripcion.plan.nombre
+    elif suscripcion.estado == 'ACTIVE' and suscripcion.prueba_terminada_en and not plan.precio:
+        codigo = CodigoPrueba.objects.filter(usado_por=cliente).select_related('plan').first()
+        nombre = codigo.plan.nombre if codigo else suscripcion.plan.nombre
+    else:
+        return None  # pagó un plan durante la prueba o después de ella
+    restantes = (suscripcion.prueba_hasta - timezone.localdate()).days
+    return {'plan': nombre, 'hasta': suscripcion.prueba_hasta.isoformat(), 'dias_restantes': max(restantes, 0),
+            'terminada': restantes < 0}
 
 # ==========================================
 # PASARELA DE PAGOS (REVENIU)
@@ -204,7 +223,7 @@ def _ciclo_del_evento(evento, plan):
 
 def _plan_base():
     """Plan al que vuelve una cuenta cuya suscripción pagada terminó (Semilla)."""
-    return Plan.objects.filter(activo=True).order_by('nivel', 'precio', 'id').first()
+    return Plan.gratuito()
 
 
 def _avisar_pagos(asunto, cuerpo):
@@ -272,6 +291,8 @@ def aplicar_evento_pasarela(evento):
             # Cuentas anteriores al cambio pueden no tener suscripción: un
             # pago válido no puede perderse por eso.
             suscripcion = Suscripcion(cliente=cliente, plan=plan)
+        # Pagó durante una prueba gratuita: termina y rige lo pagado.
+        terminar_por_pago(suscripcion)
         suscripcion.plan = plan
         suscripcion.plan_programado = None  # aplicada, o reemplazada por un plan nuevo
         suscripcion.estado = 'ACTIVE'

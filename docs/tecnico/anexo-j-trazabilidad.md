@@ -12,6 +12,7 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 | `test_bitacora` | RF-CTA-03, RF-EQU-10, RF-EQU-11, RF-EQU-12, RNF-SEG-06, RNF-REN-02, RNF-PRI-01 |
 | `test_certificado_sueldos` | RF-ARC-09, RF-ARC-10, RF-ARC-11 |
 | `test_certificados` | RF-POR-12, RF-POR-13, RN-POR-02, RNF-PRI-03 |
+| `test_codigos_prueba` | RF-PAG-11, RF-PAG-12, RN-PAG-02 |
 | `test_csrf` | RNF-SEG-12 |
 | `test_cuentas` | RF-CTA-01, RF-CTA-02, RF-CTA-03, RF-CTA-04, RF-CTA-05, RF-CTA-06, RF-CTA-07, RF-REM-10, RNF-SEG-05, RNF-PRI-02 |
 | `test_denuncias_karin` | RF-KAR-04, RF-KAR-07, RF-KAR-08, RF-KAR-09, RF-KAR-10, RF-KAR-11, RF-KAR-12, RF-KAR-13, RF-KAR-14, RF-KAR-15, RF-KAR-16, RF-KAR-17, RF-KAR-18, RF-RES-05, RF-RES-07, RN-KAR-01, RNF-SEG-07, RNF-PRI-03 |
@@ -57,6 +58,7 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 | `llenar.test.tsx` | RF-EXT-06, RF-EXT-07, RF-EXT-08 |
 | `mapeo.test.ts` | RF-EXT-05, RF-EXT-07 |
 | `panel.spec.ts` | RF-TRA-05, RF-RES-06 |
+| `prueba.spec.ts` | RF-PAG-11, RF-PAG-12 |
 | `textos.test.ts` | RF-EXT-09 |
 
 #### Requerimientos sin un archivo de prueba propio {.unnumbered}

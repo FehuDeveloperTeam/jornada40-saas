@@ -100,11 +100,11 @@ Su forma la definen el código y las pruebas, no la base de datos.
 
 ## Entidades por dominio {#sec-datos-dominios}
 
-Los 45 modelos se agrupan en doce dominios. Once tienen un diagrama; los parámetros legales no se relacionan con otras tablas y se describen en la sección 6.3.
+Los 46 modelos se agrupan en doce dominios. Once tienen un diagrama; los parámetros legales no se relacionan con otras tablas y se describen en la sección 6.3.
 
 | Dominio | Modelos | Sección |
 |---|---|---|
-| Cuentas, planes y pagos | `Plan`, `Cliente`, `Suscripcion`, `IntentoPago`, `EventoPasarela` | 6.2.1 |
+| Cuentas, planes y pagos | `Plan`, `Cliente`, `Suscripcion`, `IntentoPago`, `EventoPasarela`, `CodigoPrueba` | 6.2.1 |
 | Empresas, trabajadores y contratos | `Empresa`, `Empleado`, `Contrato`, `AnexoContrato` | 6.2.2 |
 | Remuneraciones y certificados del SII | `ConceptoRemuneracion`, `Liquidacion`, `CertificadoSueldos` | 6.2.3 |
 | Cartas, pactos, constancias y reglamento | `DocumentoLegal`, `DocumentoLaboral`, `ReglamentoInterno` | 6.2.4 |
@@ -137,12 +137,22 @@ La cuenta es el usuario de Django del titular. Su perfil, `Cliente`, se relacion
 - el ciclo, mensual o anual;
 - las fechas de inicio, de próximo cobro y de cancelación;
 - el identificador de la suscripción en Reveniu;
-- el plan programado de una baja de plan, que se aplica con el siguiente pago.
+- el plan programado de una baja de plan, que se aplica con el siguiente pago;
+- en una prueba gratuita, su último día (`prueba_hasta`), el último aviso enviado y cuándo terminó [Solo en staging].
 
 **Pagos.**
 
 - `IntentoPago` es cada pago iniciado desde Jornada40. Su identificador viaja a Reveniu, y así el aviso de pago se asocia al cliente, al plan y al ciclo.
 - `EventoPasarela` guarda cada aviso de Reveniu tal como llegó (`datos`). Su orden de compra permite descartar los avisos repetidos. Un aviso que no se pudo asociar queda sin cliente hasta que se vincula a mano en el administrador (capítulo 7).
+
+**Códigos de prueba [Solo en staging].** `CodigoPrueba` es un código de un solo uso que regala un plan pagado por unos meses al crear la cuenta. Guarda:
+
+- la huella HMAC del código, nunca el código;
+- su prefijo y sus últimos 4 caracteres, para reconocerlo;
+- el plan, los meses gratis, la nota y el último día en que sirve;
+- quién lo generó y qué cuenta lo usó, y cuándo.
+
+No se borra: se anula (`activo`).
 
 ![Cuentas, planes y pagos](figuras/06-er-cuentas.png){width=100%}
 

@@ -1,4 +1,17 @@
+import datetime
+
+from django import forms
+from django.conf import settings
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
+from django.urls import path
+from django.utils import timezone
+from django.utils.html import format_html
+
+from . import pruebas
+from .models import CodigoPrueba
 from .models import PeriodoVacacionesEscolares, SolicitudConciliacion
 from .models import DispositivoExtension, LevantamientoMiDT
 from .models import (RegistroBitacora, ExportacionBitacora, Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
@@ -108,9 +121,131 @@ class PlanAdmin(admin.ModelAdmin):
 
 @admin.register(Suscripcion)
 class SuscripcionAdmin(admin.ModelAdmin):
-    list_display = ('cliente', 'plan', 'plan_programado', 'ciclo', 'estado', 'gateway_subscription_id', 'fecha_cancelacion')
+    list_display = ('cliente', 'plan', 'plan_programado', 'ciclo', 'estado', 'prueba_hasta', 'gateway_subscription_id',
+                    'fecha_cancelacion')
     list_filter = ('estado', 'plan')
     search_fields = ('cliente__rut', 'gateway_subscription_id')
+
+    def save_model(self, request, obj, form, change):
+        # Prueba extendida a mano: los avisos de término se vuelven a enviar según la nueva fecha.
+        if change and 'prueba_hasta' in form.changed_data and obj.estado == 'TRIAL':
+            obj.prueba_aviso = None
+        super().save_model(request, obj, form, change)
+
+
+class GenerarCodigosForm(forms.Form):
+    plan = forms.ModelChoiceField(queryset=Plan.objects.filter(activo=True, precio__gt=0).order_by('nivel'),
+                                  label='Plan que regala')
+    meses = forms.IntegerField(min_value=1, max_value=12, initial=pruebas.MESES_POR_DEFECTO, label='Meses gratis')
+    dias_validez = forms.IntegerField(min_value=1, max_value=365, initial=pruebas.DIAS_VALIDEZ_POR_DEFECTO,
+                                      label='Días para usarlo',
+                                      help_text='Si no se crea la cuenta dentro de este plazo, el código vence.')
+    cantidad = forms.IntegerField(min_value=1, max_value=pruebas.MAXIMO_POR_VEZ, initial=1, label='Cantidad de códigos')
+    nota = forms.CharField(max_length=200, label='Nota',
+                           help_text='Para quién es (p. ej. "Ferretería El Clavo, piloto"). Se ve en la lista y en '
+                                     'el correo que avisa cuando se usa.')
+
+
+class EstadoCodigoFilter(admin.SimpleListFilter):
+    title = 'estado'
+    parameter_name = 'estado'
+
+    def lookups(self, request, model_admin):
+        return [('DISPONIBLE', 'Disponible'), ('USADO', 'Usado'), ('VENCIDO', 'Vencido'), ('ANULADO', 'Anulado')]
+
+    def queryset(self, request, queryset):
+        hoy = timezone.localdate()
+        sin_usar = queryset.filter(usado_en__isnull=True)
+        return {
+            'DISPONIBLE': sin_usar.filter(activo=True, valido_hasta__gte=hoy),
+            'USADO': queryset.filter(usado_en__isnull=False),
+            'VENCIDO': sin_usar.filter(activo=True, valido_hasta__lt=hoy),
+            'ANULADO': sin_usar.filter(activo=False),
+        }.get(self.value(), queryset)
+
+
+@admin.register(CodigoPrueba)
+class CodigoPruebaAdmin(admin.ModelAdmin):
+    """Códigos que regalan un plan pagado por unos meses al crear la cuenta (core/pruebas.py).
+    "Agregar" abre la generación: el código completo se ve solo en ese momento."""
+    list_display = ('codigo', 'plan_nombre', 'meses', 'estado_visible', 'nota', 'valido', 'cuenta', 'usado')
+    list_select_related = ('plan', 'usado_por')
+    list_filter = (EstadoCodigoFilter, 'plan')
+    search_fields = ('nota', 'sufijo', 'usado_por__rut')
+    fields = ('visible', 'plan', 'meses', 'nota', 'valido_hasta', 'activo', 'creado_en', 'creado_por', 'usado_por',
+              'usado_en')
+    readonly_fields = ('visible', 'plan', 'meses', 'creado_en', 'creado_por', 'usado_por', 'usado_en')
+    actions = ['anular']
+
+    @admin.display(description='Código')
+    def visible(self, obj):
+        return obj.visible
+
+    @admin.display(description='Código', ordering='creado_en')
+    def codigo(self, obj):
+        return format_html('<span style="white-space:nowrap">{}</span>', obj.visible)
+
+    @admin.display(description='Plan', ordering='plan__nivel')
+    def plan_nombre(self, obj):
+        return obj.plan.nombre
+
+    @admin.display(description='Válido hasta', ordering='valido_hasta')
+    def valido(self, obj):
+        return obj.valido_hasta.strftime('%d-%m-%Y')
+
+    @admin.display(description='Cuenta')
+    def cuenta(self, obj):
+        c = obj.usado_por
+        return f'{c.rut} · {c.nombres} {c.apellido_paterno or ""}'.strip() if c else '—'
+
+    @admin.display(description='Usado el', ordering='usado_en')
+    def usado(self, obj):
+        return timezone.localtime(obj.usado_en).strftime('%d-%m-%Y %H:%M') if obj.usado_en else '—'
+
+    @admin.display(description='Estado')
+    def estado_visible(self, obj):
+        return {'DISPONIBLE': 'Disponible', 'USADO': 'Usado', 'VENCIDO': 'Vencido', 'ANULADO': 'Anulado'}[obj.estado()]
+
+    @admin.action(description='Anular los códigos seleccionados que no se han usado')
+    def anular(self, request, queryset):
+        anulados = queryset.filter(usado_en__isnull=True, activo=True).update(activo=False)
+        self.message_user(request, f'{anulados} código(s) anulado(s). Los ya usados no cambian: esas cuentas '
+                                   'conservan su prueba.')
+
+    def has_delete_permission(self, request, obj=None):
+        return False   # se anulan: un código usado es el respaldo de la prueba de esa cuenta
+
+    def get_urls(self):
+        propias = [path('generar/', self.admin_site.admin_view(self.generar_view), name='core_codigoprueba_generar')]
+        return propias + super().get_urls()
+
+    def add_view(self, request, form_url='', extra_context=None):
+        return redirect('admin:core_codigoprueba_generar')
+
+    def generar_view(self, request):
+        if not self.has_add_permission(request):
+            raise PermissionDenied
+        contexto = {**self.admin_site.each_context(request), 'opts': self.model._meta,
+                    'title': 'Generar códigos de prueba'}
+        if request.method == 'POST':
+            form = GenerarCodigosForm(request.POST)
+            if form.is_valid():
+                datos = form.cleaned_data
+                valido_hasta = timezone.localdate() + datetime.timedelta(days=datos['dias_validez'])
+                creados = pruebas.generar(datos['plan'], nota=datos['nota'], meses=datos['meses'],
+                                          cantidad=datos['cantidad'], valido_hasta=valido_hasta,
+                                          creado_por=request.user)
+                for codigo, _ in creados:
+                    self.log_addition(request, codigo, [{'added': {}}])
+                sitio = settings.SITIO_URL.rstrip('/')
+                contexto.update(
+                    codigos=[{'codigo': texto, 'enlace': f'{sitio}/register?codigo={texto}'} for _, texto in creados],
+                    plan=datos['plan'].nombre, meses=datos['meses'], valido_hasta=valido_hasta, nota=datos['nota'])
+                return TemplateResponse(request, 'admin/core/codigoprueba/generar.html', contexto)
+        else:
+            form = GenerarCodigosForm(initial={'plan': Plan.objects.filter(activo=True, nivel=3).first()})
+        contexto['form'] = form
+        return TemplateResponse(request, 'admin/core/codigoprueba/generar.html', contexto)
 
 
 @admin.register(IntentoPago)

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Gift } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 import client from '../../api/client';
@@ -16,6 +18,7 @@ import { SelectorCiclo } from '../../components/sitio/SelectorCiclo';
 import type { Plan } from '../../types';
 import { cn } from '../../utils/cn';
 import { problemaContrasena } from '../../utils/contrasena';
+import { fechaCL } from '../../utils/formato';
 import { esRutDePersona, validateRut } from '../../utils/rutUtils';
 
 // La cuenta es siempre de una persona: el titular. Sus empresas se crean
@@ -37,6 +40,16 @@ export interface DatosDesdeRegistro {
   plan: string;
 }
 
+/** Lo que da un código de prueba (POST /auth/codigo-prueba/) y el texto con que se usará al registrarse. */
+interface CodigoPrueba {
+  codigo: string;
+  plan: { nombre: string; nivel: number };
+  meses: number;
+  /** Último día de la prueba si la cuenta se crea hoy. */
+  hasta: string;
+}
+type RespuestaCodigo = Omit<CodigoPrueba, 'codigo'>;
+
 function validarCuenta(c: Cuenta): Errores {
   const e: Errores = {};
   if (!c.nombres.trim()) e.nombres = 'Ingresa tus nombres.';
@@ -49,14 +62,17 @@ function validarCuenta(c: Cuenta): Errores {
   return e;
 }
 
-function errorDelServidor(error: unknown): string {
+function errorDelServidor(error: unknown, porDefecto = 'No pudimos crear la cuenta. Intenta de nuevo en un momento.'): string {
   if (isAxiosError(error)) {
     if (error.response?.status === 429) return 'Hiciste demasiados intentos. Espera unos minutos y vuelve a intentarlo.';
     const mensaje = (error.response?.data as { error?: string } | undefined)?.error;
     if (mensaje) return mensaje;
   }
-  return 'No pudimos crear la cuenta. Intenta de nuevo en un momento.';
+  return porDefecto;
 }
+
+const esErrorDelCodigo = (error: unknown) =>
+  isAxiosError(error) && (error.response?.data as { campo?: string } | undefined)?.campo === 'codigo_prueba';
 
 export default function Registro() {
   const navigate = useNavigate();
@@ -78,6 +94,49 @@ export default function Registro() {
   const [enviando, setEnviando] = useState(false);
   // Cuenta creada pero el pago no se pudo iniciar: se ofrece seguir en Semilla.
   const [sinPago, setSinPago] = useState('');
+  // Código de prueba: llega en el enlace (?codigo=) o se escribe en el paso 2. Lo revisa el backend
+  // (sin usarlo: se usa al crear la cuenta).
+  const codigoEnlace = params.get('codigo')?.trim() ?? '';
+  const revisionEnlace = useQuery({
+    queryKey: ['codigo-prueba', codigoEnlace],
+    queryFn: async () => (await client.post<RespuestaCodigo>('/auth/codigo-prueba/', { codigo: codigoEnlace })).data,
+    enabled: Boolean(codigoEnlace),
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  // undefined: rige el código del enlace; null o un código: lo que se quitó o aplicó en el paso 2.
+  const [elegida, setElegida] = useState<CodigoPrueba | null>();
+  const prueba: CodigoPrueba | null = elegida !== undefined ? elegida
+    : revisionEnlace.data ? { ...revisionEnlace.data, codigo: codigoEnlace } : null;
+  const [textoCodigo, setTextoCodigo] = useState(codigoEnlace);
+  const [conCodigo, setConCodigo] = useState(Boolean(codigoEnlace));
+  const [errorManual, setErrorManual] = useState('');
+  const errorCodigo = errorManual || (elegida === undefined && revisionEnlace.isError
+    ? errorDelServidor(revisionEnlace.error, 'No pudimos revisar el código. Intenta de nuevo en un momento.') : '');
+  const [revisando, setRevisando] = useState(false);
+
+  const revisarCodigo = async () => {
+    const texto = textoCodigo.trim();
+    if (!texto) { setErrorManual('Escribe el código de prueba.'); return; }
+    setRevisando(true);
+    setErrorManual('');
+    try {
+      const { data } = await client.post<RespuestaCodigo>('/auth/codigo-prueba/', { codigo: texto });
+      setElegida({ ...data, codigo: texto });
+    } catch (err) {
+      setElegida(null);
+      setErrorManual(errorDelServidor(err, 'No pudimos revisar el código. Intenta de nuevo en un momento.'));
+    } finally {
+      setRevisando(false);
+    }
+  };
+  const quitarCodigo = () => {
+    setElegida(null);
+    setConCodigo(false);
+    setTextoCodigo('');
+    setErrorManual('');
+  };
 
   const cambiar = <K extends keyof Cuenta>(campo: K, valor: Cuenta[K]) => {
     setCuenta((c) => ({ ...c, [campo]: valor }));
@@ -94,7 +153,7 @@ export default function Registro() {
   const planElegido: Plan | undefined = planes.find((p) => p.nivel === nivelPlan) ?? planes[0];
 
   const irAlOnboarding = () => {
-    const datos: DatosDesdeRegistro = { plan: planElegido?.nombre ?? 'Semilla' };
+    const datos: DatosDesdeRegistro = { plan: prueba?.plan.nombre ?? planElegido?.nombre ?? 'Semilla' };
     navigate('/bienvenida', { state: datos });
   };
 
@@ -112,8 +171,17 @@ export default function Registro() {
         apellido_paterno: cuenta.apellidoPaterno.trim(),
         tipo_cliente: 'PERSONA',
         telefono: cuenta.telefono.trim(),
+        ...(prueba ? { codigo_prueba: prueba.codigo } : {}),
       });
     } catch (err) {
+      if (esErrorDelCodigo(err)) {
+        // El código se usó o venció mientras completaba el formulario: se queda en el paso 2.
+        setElegida(null);
+        setConCodigo(true);
+        setErrorManual(errorDelServidor(err));
+        setEnviando(false);
+        return;
+      }
       // Casi siempre es el RUT repetido, que está en el paso 1.
       setErrores({ general: errorDelServidor(err) });
       setPaso(1);
@@ -131,7 +199,8 @@ export default function Registro() {
       return;
     }
 
-    if (!planElegido || planElegido.precio === 0) { irAlOnboarding(); return; }
+    // Con código de prueba no hay pago: el plan ya quedó activo hasta el fin de la prueba.
+    if (prueba || !planElegido || planElegido.precio === 0) { irAlOnboarding(); return; }
 
     try {
       if (!desdeApi) throw new Error('planes de respaldo sin id');
@@ -150,7 +219,10 @@ export default function Registro() {
     }
   };
 
-  const descripcionLateral = {
+  const descripcionLateral = prueba ? {
+    titulo: `Prueba el plan ${prueba.plan.nombre} gratis.`,
+    descripcion: `Tu código te da ${prueba.meses} ${prueba.meses === 1 ? 'mes' : 'meses'} del plan ${prueba.plan.nombre}, sin tarjeta. Al terminar decides si lo contratas; si no, sigues gratis en el plan Semilla con tus datos guardados.`,
+  } : {
     titulo: 'Empieza hoy, ajusta tu jornada a tiempo.',
     descripcion: 'El plan Semilla es gratis hasta 3 trabajadores y no pide tarjeta.',
   };
@@ -180,6 +252,8 @@ export default function Registro() {
             ¿Ya tienes una? <Link to="/login" className="font-medium">Inicia sesión</Link>
           </EncabezadoForm>
           {errores.general && <AlertaError>{errores.general}</AlertaError>}
+          {prueba && <AvisoPrueba prueba={prueba} />}
+          {!prueba && errorCodigo && <AlertaError>{errorCodigo} Puedes crear la cuenta igual y elegir un plan.</AlertaError>}
 
           <form onSubmit={continuar} noValidate className="flex flex-col gap-4">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
@@ -224,6 +298,21 @@ export default function Registro() {
             <Button type="submit" tamano="lg" className="rounded-[10px]">Continuar</Button>
           </form>
         </>
+      ) : prueba ? (
+        <>
+          <EncabezadoForm titulo="Tu plan de prueba">
+            Tu código te da el plan {prueba.plan.nombre} sin costo. No te pediremos tarjeta.
+          </EncabezadoForm>
+          <AvisoPrueba prueba={prueba} />
+          <p className="text-[13px] text-fg-2">
+            Te avisaremos por correo antes de que termine. Si no contratas, tu cuenta pasa al plan gratuito Semilla sin
+            perder tus datos.
+          </p>
+          <button type="button" onClick={quitarCodigo}
+            className="self-start text-[13px] font-medium text-brand-text underline cursor-pointer">
+            No usar el código y elegir otro plan
+          </button>
+        </>
       ) : (
         <>
           <EncabezadoForm titulo="Elige tu plan">
@@ -244,6 +333,32 @@ export default function Registro() {
             ))}
           </div>
 
+          {conCodigo ? (
+            <form noValidate className="flex flex-col gap-1.5"
+              onSubmit={(e) => { e.preventDefault(); void revisarCodigo(); }}>
+              <label htmlFor="reg-codigo" className="text-[12.5px] font-medium text-fg-2">Código de prueba</label>
+              <div className="flex gap-2.5">
+                <Input id="reg-codigo" tamano="lg" mono autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                  placeholder="PYME-XXXX-XXXX-XXXX" value={textoCodigo} className="flex-1 min-w-0"
+                  invalido={Boolean(errorCodigo)} aria-describedby={errorCodigo ? 'reg-codigo-error' : undefined}
+                  onChange={(e) => { setTextoCodigo(e.target.value); setErrorManual(''); }} />
+                <Button type="submit" tamano="lg" variante="secundario" cargando={revisando} className="rounded-[10px]">
+                  Aplicar
+                </Button>
+              </div>
+              {errorCodigo && <p id="reg-codigo-error" role="alert" className="text-[12.5px] text-danger">{errorCodigo}</p>}
+            </form>
+          ) : (
+            <button type="button" onClick={() => setConCodigo(true)}
+              className="self-start text-[13px] font-medium text-brand-text underline cursor-pointer">
+              Tengo un código de prueba
+            </button>
+          )}
+        </>
+      )}
+
+      {paso === 2 && (
+        <>
           <div className="flex flex-col gap-2">
             <Casilla marcada={terminos} invalida={errorTerminos && !terminos}
               onChange={(v) => { setTerminos(v); setErrorTerminos(false); }}>
@@ -260,13 +375,26 @@ export default function Registro() {
               className="rounded-[10px] px-[18px]">
               Atrás
             </Button>
-            <Button tamano="lg" onClick={crearCuenta} cargando={enviando} className="rounded-[10px]">
+            <Button tamano="lg" onClick={crearCuenta} cargando={enviando} disabled={revisando || revisionEnlace.isFetching}
+              className="rounded-[10px]">
               {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
             </Button>
           </div>
         </>
       )}
     </AuthLayout>
+  );
+}
+
+function AvisoPrueba({ prueba }: { prueba: CodigoPrueba }) {
+  return (
+    <div role="status" className="flex items-start gap-2.5 px-3.5 py-3 rounded-[10px] bg-brand-soft text-brand-text text-[13.5px]">
+      <Gift className="size-[19px] shrink-0 mt-px" strokeWidth={2} aria-hidden />
+      <span>
+        <strong className="font-semibold">Plan {prueba.plan.nombre} gratis por {prueba.meses} {prueba.meses === 1 ? 'mes' : 'meses'}</strong>
+        {' '}con tu código de prueba: si creas la cuenta hoy, dura hasta el {fechaCL(prueba.hasta)}.
+      </span>
+    </div>
   );
 }
 

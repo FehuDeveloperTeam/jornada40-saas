@@ -1,7 +1,7 @@
 """Piezas comunes de las vistas: límites de intentos, plan activo y cupos, fechas y PDF."""
 from rest_framework.exceptions import ValidationError
-from rest_framework.throttling import AnonRateThrottle
-from ..models import Plan, Empleado
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
+from ..models import Plan, Empleado, Suscripcion
 from django.db.models import Q
 from django.utils import timezone
 from xhtml2pdf import pisa
@@ -73,6 +73,14 @@ class FirmaPublicaIpThrottle(AnonRateThrottle):
 
 
 THROTTLES_FIRMA_PUBLICA = [FirmaPublicaTokenThrottle, FirmaPublicaIpThrottle]
+
+
+class CodigoPruebaThrottle(SimpleRateThrottle):
+    """Revisión de códigos de prueba: por IP, con o sin sesión (no se prueban códigos al azar)."""
+    scope = 'codigo_prueba'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': self.get_ident(request)}
 
 
 class WebhookReveniuThrottle(AnonRateThrottle):
@@ -147,18 +155,22 @@ def estandarizar_fecha(fecha_valor):
 
 
 def _plan_activo(user):
-    """Devuelve el objeto Plan activo del usuario, o None si no tiene plan."""
+    """Devuelve el objeto Plan activo del usuario, o None si no tiene plan.
+
+    Una prueba gratuita vencida ya no da su plan, aunque el proceso diario
+    todavía no haya pasado la cuenta al plan gratuito (core/pruebas.py)."""
     cliente = getattr(user, 'perfil_cliente', None)
     if not cliente:
         return None
+    try:
+        suscripcion = cliente.suscripcion_activa
+    except Suscripcion.DoesNotExist:
+        suscripcion = None
+    if suscripcion is not None and suscripcion.prueba_vencida:
+        return Plan.gratuito()
     plan = cliente.plan
-    if not plan:
-        try:
-            suscripcion = cliente.suscripcion_activa
-            if suscripcion.estado in ('ACTIVE', 'TRIAL', 'PAST_DUE'):
-                plan = suscripcion.plan
-        except Exception:
-            pass
+    if not plan and suscripcion is not None and suscripcion.estado in ('ACTIVE', 'TRIAL', 'PAST_DUE'):
+        plan = suscripcion.plan
     return plan
 
 

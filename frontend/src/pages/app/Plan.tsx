@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Check, CreditCard, Info, RotateCcw, TriangleAlert } from 'lucide-react';
+import { Check, CreditCard, Gift, Info, RotateCcw, TriangleAlert } from 'lucide-react';
 import { AlertaError, Button, Chip, Modal } from '../../components/j40';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
@@ -15,7 +15,7 @@ import type { Ciclo } from '../../hooks/usePlanes';
 import { SelectorCiclo } from '../../components/sitio/SelectorCiclo';
 import type { Plan as TPlan } from '../../types';
 import { cn } from '../../utils/cn';
-import { fechaCL } from '../../utils/formato';
+import { fechaCL, textoRestante } from '../../utils/formato';
 
 const ESTADO: Record<string, { texto: string; tono: TonoChip }> = {
   ACTIVE: { texto: 'Activa', tono: 'ok' }, TRIAL: { texto: 'Prueba', tono: 'marca' },
@@ -88,16 +88,20 @@ export default function Plan() {
   const actual = planes.find((p) => p.id === suscripcion.plan.id);
   // Se canceló la suscripción pagada y la cuenta volvió al plan gratuito: no hay nada que "reactivar".
   const volvioAGratis = suscripcion.estado === 'CANCELED' && !suscripcion.plan.precio;
-  const pagado = suscripcion.plan.precio > 0 && !volvioAGratis;
+  // Prueba gratuita de un código: el plan pagado rige sin cobro hasta su término; después, el gratuito.
+  const prueba = suscripcion.prueba ?? null;
+  const enPrueba = suscripcion.estado === 'TRIAL' && prueba !== null && !prueba.terminada;
+  const pagado = suscripcion.plan.precio > 0 && !volvioAGratis && !enPrueba;
   const precioAnualActual = suscripcion.plan.precio_anual ?? actual?.precio_anual ?? 0;
-  const precioActual = !suscripcion.plan.precio ? 'Gratis'
+  const precioActual = enPrueba ? 'Gratis durante la prueba' : !suscripcion.plan.precio ? 'Gratis'
     : cicloActual === 'anual' && precioAnualActual ? `${formatearPrecio(precioAnualActual)} al año`
       : cicloActual === 'anual' ? 'Pago anual'
         : `${formatearPrecio(suscripcion.plan.precio)} al mes`;
   const usoTrabajadores = suscripcion.trabajadores_actuales ?? trabajadores.filter((t) => t.activo).length;
   const usoEmpresas = empresas.length;
-  const estado = volvioAGratis ? { texto: 'Plan gratuito', tono: 'neutro' as TonoChip } : ESTADO[suscripcion.estado] ?? ESTADO.ACTIVE;
-  const aviso = volvioAGratis ? undefined : AVISO[suscripcion.estado];
+  const estado = volvioAGratis || prueba?.terminada ? { texto: 'Plan gratuito', tono: 'neutro' as TonoChip }
+    : enPrueba ? { texto: 'Prueba gratis', tono: 'marca' as TonoChip } : ESTADO[suscripcion.estado] ?? ESTADO.ACTIVE;
+  const aviso = volvioAGratis || prueba ? undefined : AVISO[suscripcion.estado];
   const ordenados = [...planes].sort((a, b) => a.nivel - b.nivel);
 
   return (
@@ -112,6 +116,28 @@ export default function Plan() {
           <TriangleAlert className="size-5 shrink-0" strokeWidth={2} aria-hidden />
           <p className="flex-1 min-w-[220px] text-[13px]">{aviso.texto}</p>
           <Button tamano="sm" onClick={() => elegir(actual, 'nuevo', cicloActual)}>{aviso.accion}</Button>
+        </div>
+      )}
+
+      {enPrueba && prueba && (
+        <div className="flex flex-wrap items-center gap-3 rounded-j40-card px-4 py-3 bg-brand-soft text-brand-text">
+          <Gift className="size-5 shrink-0" strokeWidth={2} aria-hidden />
+          <p className="flex-1 min-w-[220px] text-[13px]">
+            Tienes el plan {suscripcion.plan.nombre} gratis hasta el {fechaCL(prueba.hasta)} ({textoRestante(prueba.dias_restantes)}).
+            Contrátalo cuando quieras para seguir con todas sus funciones; si no, al terminar la prueba tu cuenta pasa al
+            plan gratuito sin perder tus datos.
+          </p>
+          {actual && <Button tamano="sm" onClick={() => elegir(actual)}>Contratar {actual.nombre}</Button>}
+        </div>
+      )}
+
+      {prueba?.terminada && (
+        <div className="flex flex-wrap items-center gap-3 rounded-j40-card px-4 py-3 bg-brand-soft text-brand-text">
+          <Info className="size-5 shrink-0" strokeWidth={2} aria-hidden />
+          <p className="flex-1 min-w-[220px] text-[13px]">
+            Tu prueba del plan {prueba.plan} terminó el {fechaCL(prueba.hasta)}; estás en {suscripcion.plan.nombre}. Tus
+            datos siguen guardados: elige un plan abajo cuando quieras contratar.
+          </p>
         </div>
       )}
 
@@ -161,6 +187,13 @@ export default function Plan() {
         </div>
         <Uso titulo="Trabajadores vigentes" usado={usoTrabajadores} limite={suscripcion.plan.limite_trabajadores} />
         <Uso titulo="Empresas" usado={usoEmpresas} limite={maxEmpresas} />
+        {enPrueba && prueba && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[12px] text-fg-3">Prueba gratis hasta</span>
+            <span className="text-[14px] font-medium">{fechaCL(prueba.hasta)}</span>
+            <span className="text-[12px] text-fg-3">Sin cobros ni tarjeta</span>
+          </div>
+        )}
         {/* Sin plan pagado no hay cobros; sin datos de Reveniu no se muestran filas vacías. */}
         {pagado && (
           <div className="flex flex-col gap-1">
@@ -202,7 +235,13 @@ export default function Plan() {
                 // Pasar al plan gratuito siempre se puede (es no renovar): solo se advierte.
                 ? <p className="text-[12px] text-fg-3">{excede} Podrás seguir usando lo que tienes, pero no agregar más.</p>
                 : <p className="text-[12px] text-danger">{excede}</p>)}
-              {esActual && p.precio > 0 && p.precio_anual > 0 && ciclo !== cicloActual
+              {enPrueba
+                // En la prueba no hay suscripción pagada: cualquier plan pagado se contrata desde cero.
+                ? (p.precio
+                  ? <Button variante={esActual || sube ? 'primario' : 'secundario'} disabled={Boolean(excede)}
+                      onClick={() => elegir(p)}>{sube ? `Subir a ${p.nombre}` : `Contratar ${p.nombre}`}</Button>
+                  : <p className="text-[12px] text-fg-3">Si no contratas, pasarás a este plan al terminar la prueba.</p>)
+                : esActual && p.precio > 0 && p.precio_anual > 0 && ciclo !== cicloActual
                 ? <Button onClick={() => elegir(p, 'ciclo')}>Cambiar a {ciclo}</Button>
                 : esActual ? <Button variante="secundario" disabled>Plan actual{p.precio ? ` · ${cicloActual}` : ''}</Button>
                 : sube || (volvioAGratis && p.precio > 0) ? <Button onClick={() => elegir(p)}>{volvioAGratis ? `Elegir ${p.nombre}` : `Subir a ${p.nombre}`}</Button>
@@ -233,7 +272,8 @@ export default function Plan() {
         )}
       </section>
 
-      {eleccion && <Checkout plan={eleccion.plan} ciclo={eleccion.ciclo} modo={eleccion.modo} onCerrar={() => setEleccion(null)} />}
+      {eleccion && <Checkout plan={eleccion.plan} ciclo={eleccion.ciclo} modo={eleccion.modo} enPrueba={enPrueba}
+        onCerrar={() => setEleccion(null)} />}
       {bajada && <Bajada plan={bajada} nombreActual={suscripcion.plan.nombre} nivelActual={nivel} ciclo={cicloActual}
         proximoCobro={suscripcion.fecha_proximo_cobro} onCerrar={() => setBajada(null)}
         onListo={(mensaje) => { setBajada(null); avisar(mensaje); void queryClient.invalidateQueries({ queryKey: ['mi_suscripcion'] }); }} />}
@@ -254,7 +294,9 @@ function Uso({ titulo, usado, limite }: { titulo: string; usado: number; limite:
   );
 }
 
-function Checkout({ plan, ciclo, modo, onCerrar }: { plan: TPlan; ciclo: Ciclo; modo: Eleccion['modo']; onCerrar: () => void }) {
+function Checkout({ plan, ciclo, modo, enPrueba, onCerrar }: {
+  plan: TPlan; ciclo: Ciclo; modo: Eleccion['modo']; enPrueba: boolean; onCerrar: () => void;
+}) {
   const anual = ciclo === 'anual' && Boolean(plan.precio_anual);
   const [estado, setEstado] = useState<'resumen' | 'conectando'>('resumen');
   const [error, setError] = useState('');
@@ -288,6 +330,9 @@ function Checkout({ plan, ciclo, modo, onCerrar }: { plan: TPlan; ciclo: Ciclo; 
             ? `Te llevamos a Reveniu para pagar el ${anual ? 'año' : 'mes'}. Cuando se confirme, cancelamos tu suscripción ${anual ? 'mensual' : 'anual'} anterior en Reveniu. El período en curso no se prorratea ni se reembolsa.`
             : 'Te llevamos a Reveniu para pagar. Cuando el pago se confirme, los nuevos límites y funciones quedan activos en tu cuenta.'}
         </p>
+        {enPrueba && (
+          <p className="text-[13px] text-fg-2">Al confirmarse el pago termina tu prueba gratuita y el plan pagado empieza ese mismo día.</p>
+        )}
       </div>
     </Modal>
   );

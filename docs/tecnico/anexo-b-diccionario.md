@@ -66,6 +66,9 @@ Tabla `core_suscripcion`.
 | `gateway_subscription_id` | texto | admite nulo; hasta 100 caracteres; ID de la suscripción/tarjeta |
 | `metodo_pago_glosa` | texto | admite nulo; hasta 50 caracteres; Ej: Visa terminada en 4242 o Fintoc Banco de Chile |
 | `plan_programado` | relación | Referencia a `Plan`; al borrar: PROTECT; admite nulo; Plan que rige desde el próximo cobro (bajada de plan) |
+| `prueba_hasta` | fecha | admite nulo; Último día de la prueba gratuita |
+| `prueba_aviso` | entero | admite nulo; Días antes del término (15 o 3); 0 = se avisó que terminó |
+| `prueba_terminada_en` | fecha_hora | admite nulo |
 
 #### `IntentoPago` {.unnumbered}
 
@@ -97,6 +100,26 @@ Tabla `core_eventopasarela`. Cada aviso recibido de la pasarela (Reveniu), tal c
 | `datos` | json | por omisión: `{}` |
 | `aplicado` | booleano | por omisión: no; Si ya se reflejó en la suscripción del cliente |
 | `recibido_en` | fecha_hora | se fija al crear |
+
+#### `CodigoPrueba` {.unnumbered}
+
+Tabla `core_codigoprueba`. Código de ingreso que regala un plan pagado por unos meses (p. ej. Pyme por 3). Sirve una sola vez, al crear la cuenta (core/pruebas.py). Se guarda solo su huella HMAC: el código completo se ve una vez, al generarlo en el admin.
+
+| Campo | Tipo | Detalle |
+|---|---|---|
+| `id` | entero | identificador |
+| `codigo_hash` | texto | único; hasta 64 caracteres |
+| `prefijo` | texto | hasta 12 caracteres |
+| `sufijo` | texto | hasta 4 caracteres; Últimos 4 caracteres, para reconocerlo |
+| `plan` | relación | Referencia a `Plan`; al borrar: PROTECT |
+| `meses` | entero | por omisión: `3` |
+| `nota` | texto | hasta 200 caracteres; Para quién es (p. ej. "Ferretería El Clavo, piloto") |
+| `valido_hasta` | fecha | Último día en que sirve para crear una cuenta |
+| `activo` | booleano | por omisión: sí; Desmarcado: anulado, ya no sirve |
+| `creado_en` | fecha_hora | se fija al crear |
+| `creado_por` | relación | Referencia a `User`; al borrar: SET_NULL; admite nulo |
+| `usado_en` | fecha_hora | admite nulo |
+| `usado_por` | relación | Uno a uno con `Cliente`; al borrar: SET_NULL; admite nulo |
 
 ## Empresas, trabajadores y contratos {.unnumbered}
 

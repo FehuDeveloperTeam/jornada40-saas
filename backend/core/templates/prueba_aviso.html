@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;color:#1f2937;">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:26px 32px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">{% if terminada %}Terminó tu prueba del plan {{ plan }}{% else %}Tu prueba del plan {{ plan }} termina pronto{% endif %}</h1>
+      <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:15px;">Jornada40</p>
+    </div>
+    <div style="padding:26px 32px;font-size:17px;line-height:1.6;">
+      <p style="margin:0 0 14px;">Hola {{ nombre }}:</p>
+      {% if terminada %}
+        <p style="margin:0 0 14px;">Tu prueba gratuita del plan <b>{{ plan }}</b> terminó el <b>{{ hasta }}</b>. Desde hoy tu cuenta está en el plan gratuito <b>{{ gratuito }}</b>.</p>
+        <ul style="margin:0 0 18px;padding-left:22px;">
+          <li style="margin:0 0 6px;">No se borró nada: tus empresas, trabajadores y documentos siguen guardados.</li>
+          <li style="margin:0 0 6px;">Rigen los límites de {{ gratuito }}: {{ empresas }} {% if empresas == 1 %}empresa{% else %}empresas{% endif %} y {{ trabajadores }} trabajadores. Las funciones del plan {{ plan }} vuelven apenas contrates.</li>
+        </ul>
+        <a href="{{ sitio }}/app/plan" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-size:17px;font-weight:700;padding:14px 26px;border-radius:8px;">Ver planes y contratar</a>
+      {% else %}
+        <p style="margin:0 0 14px;">Tu prueba gratuita del plan <b>{{ plan }}</b> termina el <b>{{ hasta }}</b> ({% if restantes == 0 %}hoy{% elif restantes == 1 %}mañana{% else %}en {{ restantes }} días{% endif %}). Para seguir con todas sus funciones, contrata un plan antes de esa fecha.</p>
+        <p style="margin:0 0 8px;">Si no contratas, tu cuenta pasa al plan gratuito <b>{{ gratuito }}</b>:</p>
+        <ul style="margin:0 0 18px;padding-left:22px;">
+          <li style="margin:0 0 6px;">No se borra nada: tus empresas, trabajadores y documentos quedan guardados.</li>
+          <li style="margin:0 0 6px;">Rigen sus límites ({{ empresas }} {% if empresas == 1 %}empresa{% else %}empresas{% endif %} y {{ trabajadores }} trabajadores) y las funciones del plan {{ plan }} quedan en pausa hasta que contrates.</li>
+        </ul>
+        <a href="{{ sitio }}/app/plan" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-size:17px;font-weight:700;padding:14px 26px;border-radius:8px;">Contratar un plan</a>
+        <p style="font-size:14px;color:#6b7280;margin:18px 0 0;">Al contratar termina la prueba y el plan pagado empieza ese mismo día.</p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

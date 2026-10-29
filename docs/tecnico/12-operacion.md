@@ -75,7 +75,8 @@ La configuración se lee de variables de entorno: en Railway para la API y la ta
 - los tramos de asignación familiar;
 - los factores de actualización del SII de cada año;
 - los períodos de vacaciones escolares;
-- los precios de los planes.
+- los precios de los planes;
+- los códigos de prueba para clientes piloto, en "Códigos de prueba → Añadir": el código completo se ve una sola vez, con su enlace de registro, y después solo sus últimos 4 caracteres [Solo en staging].
 
 La sección 12.7 indica cuándo se actualiza cada uno.
 
@@ -183,7 +184,7 @@ Conviene probar la restauración en una base aparte antes de necesitarla.
 | Rotar la clave de cifrado de la Ley Karin | Si se sospecha que se filtró, o periódicamente | Agregar la clave nueva al principio de `KARIN_CLAVES_CIFRADO`, desplegar, ejecutar `rotar_cifrado` y luego quitar la clave antigua |
 | Rotar `SECRET_KEY` | Si se sospecha que se filtró | Cambiarla en Railway y desplegar. Se cierran todas las sesiones y quedan sin efecto los códigos, las invitaciones y los enlaces de recuperación pendientes; los enlaces de firma siguen sirviendo con un código nuevo. Conviene hacerlo en un horario de poco uso |
 | Diagnóstico de la IP del visitante | Si los límites de intentos o la auditoría muestran IP raras | Activar `DIAGNOSTICO_RED=1`, consultar `GET /api/diagnostico/red/` y volver a desactivarlo |
-| Tarea programada en un ambiente nuevo | Al crear el ambiente | Segundo servicio desde el mismo repositorio, con comando `python manage.py enviar_resumenes`, horario `0 12 * * *` y las mismas variables que el servicio web. **[Solo en staging]** La tarea también crea la tabla de la caché si falta y, al final, borra los tokens de sesión vencidos de la lista negra (`flushexpiredtokens`) |
+| Tarea programada en un ambiente nuevo | Al crear el ambiente | Segundo servicio desde el mismo repositorio, con comando `python manage.py enviar_resumenes`, horario `0 12 * * *` y las mismas variables que el servicio web. **[Solo en staging]** La tarea también crea la tabla de la caché si falta, avisa y cierra las pruebas gratuitas de los códigos de prueba y, al final, borra los tokens de sesión vencidos de la lista negra (`flushexpiredtokens`) |
 | Responder a una alerta de error | Al recibirla | Ubicar la ruta y la traza en el registro de Railway, reproducir con una prueba, corregir y publicar por staging |
 
 : Procedimientos de operación

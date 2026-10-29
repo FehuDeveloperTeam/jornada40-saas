@@ -1,0 +1,18 @@
+Hola {{ nombre }}:
+{% if terminada %}
+Tu prueba gratuita del plan {{ plan }} terminó el {{ hasta }}. Desde hoy tu cuenta está en el plan gratuito {{ gratuito }}.
+
+- No se borró nada: tus empresas, trabajadores y documentos siguen guardados.
+- Rigen los límites de {{ gratuito }}: {{ empresas }} {% if empresas == 1 %}empresa{% else %}empresas{% endif %} y {{ trabajadores }} trabajadores. Las funciones del plan {{ plan }} vuelven apenas contrates.
+
+Ver planes y contratar: {{ sitio }}/app/plan
+{% else %}
+Tu prueba gratuita del plan {{ plan }} termina el {{ hasta }} ({% if restantes == 0 %}hoy{% elif restantes == 1 %}mañana{% else %}en {{ restantes }} días{% endif %}). Para seguir con todas sus funciones, contrata un plan antes de esa fecha.
+
+Si no contratas, tu cuenta pasa al plan gratuito {{ gratuito }}:
+- No se borra nada: tus empresas, trabajadores y documentos quedan guardados.
+- Rigen sus límites ({{ empresas }} {% if empresas == 1 %}empresa{% else %}empresas{% endif %} y {{ trabajadores }} trabajadores) y las funciones del plan {{ plan }} quedan en pausa hasta que contrates.
+
+Contratar un plan: {{ sitio }}/app/plan
+Al contratar termina la prueba y el plan pagado empieza ese mismo día.
+{% endif %}

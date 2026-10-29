@@ -1,6 +1,6 @@
 # Anexo C. Rutas de la API {.unnumbered #sec-anexo-c}
 
-Las 219 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enrutador de Django. Las convenciones, los códigos de estado y los límites de intentos están en la sección 7.2. Columnas:
+Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enrutador de Django. Las convenciones, los códigos de estado y los límites de intentos están en la sección 7.2. Columnas:
 
 - **Métodos:** los que admite la ruta.
 - **Vista:** la función o clase que la atiende; en las de DRF, también sus acciones.
@@ -23,6 +23,7 @@ Las 219 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 
 | Métodos | Ruta | Vista | Acceso | Módulo |
 |---|---|---|---|---|
+| POST | `/api/auth/codigo-prueba/` | revisar_codigo_prueba | Público | — |
 | POST | `/api/auth/equipo/clave/` | clave_equipo | Público | — |
 | POST | `/api/auth/equipo/ingresar/` | ingresar_equipo | Público | — |
 | POST | `/api/auth/equipo/recuperar/` | recuperar_equipo | Público | — |

@@ -10,6 +10,9 @@ erDiagram
   Plan ||--o{ IntentoPago : "plan"
   Cliente |o--o{ EventoPasarela : "cliente"
   Plan |o--o{ EventoPasarela : "plan"
+  Plan ||--o{ CodigoPrueba : "plan"
+  User |o--o{ CodigoPrueba : "creado_por"
+  Cliente ||--o| CodigoPrueba : "usado_por"
   Plan {
     texto nombre
     entero nivel
@@ -31,6 +34,7 @@ erDiagram
     texto gateway_subscription_id
     fecha_hora fecha_proximo_cobro
     fecha_hora fecha_cancelacion
+    fecha prueba_hasta
   }
   IntentoPago {
     texto ciclo
@@ -42,4 +46,12 @@ erDiagram
     texto gateway_subscription_id
     entero monto
     booleano aplicado
+  }
+  CodigoPrueba {
+    texto codigo_hash UK
+    texto sufijo
+    entero meses
+    fecha valido_hasta
+    fecha_hora usado_en
+    booleano activo
   }

@@ -29,6 +29,11 @@ class Plan(models.Model):
     def __str__(self):
         return f"{self.nombre} ({self.limite_trabajadores} trab.) - ${self.precio}"
 
+    @classmethod
+    def gratuito(cls):
+        """Plan al que vuelve una cuenta sin plan pagado vigente (Semilla: el de menor nivel)."""
+        return cls.objects.filter(activo=True).order_by('nivel', 'precio', 'id').first()
+
 
 class ParametroPrevisional(models.Model):
     """Parámetros legales del sistema previsional chileno, versionados por período.
@@ -931,13 +936,25 @@ class Suscripcion(models.Model):
     # el plan cambia cuando llega el aviso de ese pago.
     plan_programado = models.ForeignKey(Plan, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
                                         help_text='Plan que rige desde el próximo cobro (bajada de plan).')
+    # Prueba gratuita de un plan pagado (código de prueba, core/pruebas.py):
+    # estado TRIAL hasta este día inclusive; después la cuenta pasa al plan gratuito.
+    prueba_hasta = models.DateField('prueba hasta', null=True, blank=True, help_text='Último día de la prueba gratuita.')
+    # Último aviso de término enviado (días antes: 15 o 3; 0 = ya se avisó que terminó).
+    prueba_aviso = models.PositiveSmallIntegerField('último aviso de la prueba', null=True, blank=True,
+                                                    help_text='Días antes del término (15 o 3); 0 = se avisó que terminó.')
+    prueba_terminada_en = models.DateTimeField('prueba terminada el', null=True, blank=True)
 
     def __str__(self):
         return f"{self.cliente.rut} - {self.plan.nombre} ({self.estado})"
-    
+
     @property
     def is_active(self):
         return self.estado in ['ACTIVE', 'TRIAL']
+
+    @property
+    def prueba_vencida(self):
+        """La prueba gratuita ya terminó, aunque el proceso diario todavía no pase la cuenta al plan gratuito."""
+        return self.estado == 'TRIAL' and self.prueba_hasta is not None and timezone.localdate() > self.prueba_hasta
 
 
 class IntentoPago(models.Model):
@@ -984,6 +1001,49 @@ class EventoPasarela(models.Model):
 
     def __str__(self):
         return f"{self.evento} · {self.gateway_subscription_id or 'sin suscripción'} · {self.recibido_en:%d-%m-%Y}"
+
+
+class CodigoPrueba(models.Model):
+    """Código de ingreso que regala un plan pagado por unos meses (p. ej. Pyme
+    por 3). Sirve una sola vez, al crear la cuenta (core/pruebas.py). Se guarda
+    solo su huella HMAC: el código completo se ve una vez, al generarlo en el admin."""
+    codigo_hash = models.CharField('huella', max_length=64, unique=True)
+    prefijo = models.CharField(max_length=12)
+    sufijo = models.CharField(max_length=4, help_text='Últimos 4 caracteres, para reconocerlo.')
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name='+')
+    meses = models.PositiveSmallIntegerField('meses gratis', default=3,
+                                             validators=[MinValueValidator(1), MaxValueValidator(12)])
+    nota = models.CharField(max_length=200, help_text='Para quién es (p. ej. "Ferretería El Clavo, piloto").')
+    valido_hasta = models.DateField('válido hasta', help_text='Último día en que sirve para crear una cuenta.')
+    activo = models.BooleanField(default=True, help_text='Desmarcado: anulado, ya no sirve.')
+    creado_en = models.DateTimeField('creado el', auto_now_add=True)
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   verbose_name='creado por')
+    usado_en = models.DateTimeField('usado el', null=True, blank=True)
+    usado_por = models.OneToOneField(Cliente, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='codigo_prueba', verbose_name='usado por')
+
+    class Meta:
+        ordering = ['-creado_en']
+        verbose_name = 'código de prueba'
+        verbose_name_plural = 'códigos de prueba'
+
+    @property
+    def visible(self):
+        """El código sin su parte secreta, como se muestra después de generarlo."""
+        return f'{self.prefijo}-····-····-{self.sufijo}'
+
+    def estado(self, hoy=None):
+        if self.usado_en:
+            return 'USADO'
+        if not self.activo:
+            return 'ANULADO'
+        if (hoy or timezone.localdate()) > self.valido_hasta:
+            return 'VENCIDO'
+        return 'DISPONIBLE'
+
+    def __str__(self):
+        return f'{self.visible} · {self.plan.nombre} {self.meses} meses'
 
 
 # ==========================================

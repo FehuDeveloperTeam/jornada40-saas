@@ -3,8 +3,10 @@
 Pensado para correr una vez al día (cron de Railway). Es seguro repetirlo el
 mismo día: quien ya recibió su resumen hoy no recibe otro.
 
-Como es la tarea diaria, también hace el mantenimiento: borra los tokens de
-sesión vencidos de la lista negra (crecen con cada renovación).
+Como es la tarea diaria, también avisa el término de las pruebas gratuitas y
+pasa al plan gratuito las que vencieron (core/pruebas.py), y hace el
+mantenimiento: borra los tokens de sesión vencidos de la lista negra (crecen
+con cada renovación).
 """
 import logging
 
@@ -13,6 +15,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from core.models import Cliente, EncargadoKarin, UsuarioEquipo
+from core.pruebas import procesar_pruebas
 from core.views.resumen import corresponde, enviar, enviar_encargado_karin, enviar_equipo
 
 logger = logging.getLogger(__name__)
@@ -57,6 +60,11 @@ class Command(BaseCommand):
                 errores += 1
                 logger.exception('Resumen: falló el aviso al encargado Ley Karin %s', enc.id)
         self.stdout.write(f'Resumen: {revisados} revisados, {enviados} enviados, {errores} con error.')
+        # Pruebas gratuitas (códigos de prueba): avisos de término y paso al plan gratuito.
+        try:
+            self.stdout.write(f'Pruebas: {procesar_pruebas(hoy)} avisos enviados.')
+        except Exception:
+            logger.exception('Pruebas: falló el proceso diario')
         try:
             call_command('flushexpiredtokens', verbosity=0)
         except Exception:

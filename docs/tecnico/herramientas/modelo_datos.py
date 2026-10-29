@@ -27,7 +27,8 @@ from django.apps import apps  # noqa: E402
 # Dominios del capítulo 6. Cada modelo aparece en su dominio; los de otros
 # dominios que se relacionan con él se dibujan sin atributos, como referencia.
 DOMINIOS = {
-    'cuentas': ('Cuentas, planes y pagos', ['Plan', 'Cliente', 'Suscripcion', 'IntentoPago', 'EventoPasarela']),
+    'cuentas': ('Cuentas, planes y pagos', ['Plan', 'Cliente', 'Suscripcion', 'IntentoPago', 'EventoPasarela',
+                                             'CodigoPrueba']),
     'trabajadores': ('Empresas, trabajadores y contratos', ['Empresa', 'Empleado', 'Contrato', 'AnexoContrato']),
     'remuneraciones': ('Remuneraciones y certificados del SII',
                        ['ConceptoRemuneracion', 'Liquidacion', 'CertificadoSueldos']),
@@ -60,7 +61,9 @@ INVERTIR = {('AnexoContrato', 'contrato'), ('EncargadoKarin', 'empresas'), ('Usu
 ATRIBUTOS = {
     'Plan': ['nombre', 'nivel', 'max_empresas', 'limite_trabajadores', 'precio', 'precio_anual'],
     'Cliente': ['rut', 'tipo_cliente', 'nombres', 'correo', 'frecuencia_resumen'],
-    'Suscripcion': ['estado', 'ciclo', 'gateway_subscription_id', 'fecha_proximo_cobro', 'fecha_cancelacion'],
+    'Suscripcion': ['estado', 'ciclo', 'gateway_subscription_id', 'fecha_proximo_cobro', 'fecha_cancelacion',
+                    'prueba_hasta'],
+    'CodigoPrueba': ['codigo_hash', 'sufijo', 'meses', 'valido_hasta', 'usado_en', 'activo'],
     'IntentoPago': ['ciclo', 'creado_en'],
     'EventoPasarela': ['evento', 'orden_compra', 'gateway_subscription_id', 'monto', 'aplicado'],
     'Empresa': ['rut', 'nombre_legal', 'mutual', 'ccaf', 'activo'],

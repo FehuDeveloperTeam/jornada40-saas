@@ -12,8 +12,10 @@ import {
 } from '../../components/j40';
 import { useAuth } from '../../context/AuthContext';
 import { usePlanes } from '../../hooks/usePlanes';
+import type { Suscripcion } from '../../hooks/usePanel';
 import type { Empresa } from '../../types';
 import { cn } from '../../utils/cn';
+import { fechaCL } from '../../utils/formato';
 import { jornadaMaximaVigente } from '../../utils/ley40';
 import { validateRut } from '../../utils/rutUtils';
 import type { DatosDesdeRegistro } from './Registro';
@@ -73,7 +75,7 @@ export default function Bienvenida() {
   });
   const suscripcion = useQuery({
     queryKey: ['mi_suscripcion'],
-    queryFn: async () => (await client.get<{ plan: { id: number; nombre: string; nivel?: number } }>('/clientes/mi_suscripcion/')).data,
+    queryFn: async () => (await client.get<Pick<Suscripcion, 'plan' | 'prueba'>>('/clientes/mi_suscripcion/')).data,
   });
 
   // El onboarding es para cuentas nuevas: con empresas ya creadas no aplica.
@@ -83,6 +85,7 @@ export default function Bienvenida() {
 
   const planActual = planes.find((p) => p.id === suscripcion.data?.plan.id);
   const nombrePlan = suscripcion.data?.plan.nombre ?? registro?.plan;
+  const prueba = suscripcion.data?.prueba;
   const permiteCargaMasiva = (suscripcion.data?.plan.nivel ?? planActual?.nivel ?? 1) >= NIVEL_CARGA_MASIVA;
 
   /** Entra al panel con la empresa recién creada como activa. */
@@ -179,6 +182,7 @@ export default function Bienvenida() {
         <div className="flex flex-col gap-2.5">
           <span className="text-[13px] text-[#86BDF5] font-medium">
             Cuenta creada{nombrePlan ? ` · plan ${nombrePlan}` : ''}
+            {prueba && !prueba.terminada ? ` gratis hasta el ${fechaCL(prueba.hasta)}` : ''}
           </span>
           <h1 className="text-[clamp(26px,3vw,34px)] leading-[1.15] font-semibold tracking-[-0.025em] text-balance">
             {nombre ? `Te damos la bienvenida, ${nombre}.` : 'Te damos la bienvenida.'}

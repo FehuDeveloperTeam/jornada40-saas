@@ -13,10 +13,12 @@ from ..models import Plan, Suscripcion, Cliente
 from django.contrib.auth.forms import PasswordResetForm
 from django.conf import settings
 from ..rut import es_rut_de_persona, formatear_rut, normalizar_rut_usuario, validar_rut
+from .. import pruebas
 from decouple import config
+from django.utils import timezone
 from dj_rest_auth.views import LoginView as DjRestLoginView
 
-from .base import logger, error_interno, LoginAccountRateThrottle, LoginRateThrottle, PasswordResetAccountRateThrottle, PasswordResetRateThrottle, RegisterAccountRateThrottle, RegisterRateThrottle, _plan_activo
+from .base import logger, error_interno, CodigoPruebaThrottle, LoginAccountRateThrottle, LoginRateThrottle, PasswordResetAccountRateThrottle, PasswordResetRateThrottle, RegisterAccountRateThrottle, RegisterRateThrottle, _plan_activo
 
 
 # ==========================================
@@ -114,6 +116,8 @@ def registrar_cliente(request):
         tipo_cliente = 'PERSONA'
     razon_social = (request.data.get('razon_social') or '').strip() if tipo_cliente == 'EMPRESA' else ''
     telefono = (request.data.get('telefono') or '').strip()[:20]
+    # Código de prueba (core/pruebas.py): la cuenta nace con un plan pagado gratis por unos meses.
+    codigo_prueba = str(request.data.get('codigo_prueba') or '').strip()
 
     # Validaciones básicas
     # La razón social se exige en el formulario, no aquí: el registro anterior
@@ -141,7 +145,10 @@ def registrar_cliente(request):
         validate_password(password, user=User(username=rut, email=email, first_name=nombres))
     except DjangoValidationError as exc:
         return Response({'error': ' '.join(exc.messages)}, status=400)
+    if codigo_prueba and pruebas.vigente(codigo_prueba) is None:
+        return Response({'error': pruebas.MENSAJE_NO_VALIDO, 'campo': 'codigo_prueba'}, status=400)
 
+    prueba = None
     try:
         with transaction.atomic():
             # 1. Creamos el acceso en la tabla core_users (User de Django)
@@ -179,15 +186,36 @@ def registrar_cliente(request):
             # La suscripción nace con la cuenta. Antes solo se creaba al abrir
             # la página de suscripción, y el webhook de Reveniu (que actualiza
             # una suscripción existente) fallaba si el pago llegaba antes.
-            Suscripcion.objects.create(cliente=cliente, plan=plan_semilla, estado='ACTIVE')
-            
-           
-        return Response({'mensaje': 'Cliente creado con éxito'}, status=201)
-        
+            if codigo_prueba:
+                # Deja el código usado y la cuenta en prueba; si el código ya no sirve, no se crea la cuenta.
+                prueba = pruebas.canjear(codigo_prueba, cliente)
+            else:
+                Suscripcion.objects.create(cliente=cliente, plan=plan_semilla, estado='ACTIVE')
+
+        respuesta = {'mensaje': 'Cliente creado con éxito'}
+        if prueba:
+            respuesta['prueba'] = {'plan': prueba.plan.nombre, 'hasta': prueba.hasta.isoformat()}
+        return Response(respuesta, status=201)
+
+    except pruebas.CodigoNoValido:
+        return Response({'error': pruebas.MENSAJE_NO_VALIDO, 'campo': 'codigo_prueba'}, status=400)
     except IntegrityError:
         return Response({'error': 'Este RUT ya está registrado en el sistema.'}, status=400)
     except Exception:
         return error_interno('cuentas')
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([CodigoPruebaThrottle])
+def revisar_codigo_prueba(request):
+    """Dice qué da un código de prueba antes de crear la cuenta. No lo usa: eso
+    pasa al registrarse, que lo vuelve a revisar."""
+    codigo = pruebas.vigente(request.data.get('codigo'))
+    if codigo is None:
+        return Response({'error': pruebas.MENSAJE_NO_VALIDO}, status=400)
+    return Response({'plan': {'nombre': codigo.plan.nombre, 'nivel': codigo.plan.nivel}, 'meses': codigo.meses,
+                     'hasta': pruebas.sumar_meses(timezone.localdate(), codigo.meses).isoformat()})
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

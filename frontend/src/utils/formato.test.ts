@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { antiguedad, capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes, periodo } from './formato';
+import { antiguedad, capitalizar, clp, fechaCL, fechaLarga, fechaLocal, hoyISO, iniciales, nombreMes, periodo, textoRestante } from './formato';
 
 describe('formato', () => {
   afterEach(() => { vi.useRealTimers(); });
+
+  it('dice cuántos días quedan de un plazo', () => {
+    expect(textoRestante(12)).toBe('quedan 12 días');
+    expect(textoRestante(1)).toBe('queda 1 día');
+    expect(textoRestante(0)).toBe('termina hoy');
+  });
 
   it('formatea pesos chilenos redondeando y con signo', () => {
     expect(clp(1450000)).toBe('$1.450.000');

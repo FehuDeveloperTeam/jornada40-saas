@@ -63,6 +63,11 @@ export function antiguedad(iso: string | null | undefined, hoy: Date = new Date(
   return partes.join(' ');
 }
 
+/** Días que quedan de un plazo: "quedan 12 días", "queda 1 día", "termina hoy". */
+export function textoRestante(dias: number): string {
+  return dias <= 0 ? 'termina hoy' : dias === 1 ? 'queda 1 día' : `quedan ${dias} días`;
+}
+
 /** Iniciales para avatares: "Matías Soto" → "MS". */
 export function iniciales(...partes: (string | null | undefined)[]): string {
   return partes.filter(Boolean).map((p) => p!.trim()[0] ?? '').join('').slice(0, 2).toUpperCase();

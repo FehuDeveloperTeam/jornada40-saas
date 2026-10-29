@@ -20,7 +20,7 @@ from .views import karin_portal
 from rest_framework.routers import DefaultRouter
 from .views import (
     DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet,
-    AnexoContratoViewSet, registrar_cliente, LiquidacionViewSet, PlanViewSet,
+    AnexoContratoViewSet, registrar_cliente, revisar_codigo_prueba, LiquidacionViewSet, PlanViewSet,
     SolicitudFirmaViewSet, VacacionViewSet, mi_suscripcion, recuperar_password_por_rut, diagnostico_red, indicadores_del_dia, parametros_vigentes,
     webhook_reveniu, crear_checkout_reveniu, bajar_plan, cancelar_cambio_plan, reanudar_renovacion, perfil_usuario,
     firma_publica_info, firma_publica_solicitar_otp, firma_publica_verificar_otp, firma_publica_verificar_clave,
@@ -109,6 +109,7 @@ urlpatterns = [
     path('pagos/cancelar-cambio/', cancelar_cambio_plan, name='cancelar_cambio_plan'),
     path('pagos/reanudar/', reanudar_renovacion, name='reanudar_renovacion'),
     path('auth/register/', registrar_cliente, name='api_register'),
+    path('auth/codigo-prueba/', revisar_codigo_prueba, name='revisar_codigo_prueba'),
     path('auth/recuperar-por-rut/', recuperar_password_por_rut, name='recuperar_por_rut'),
     path('diagnostico/red/', diagnostico_red, name='diagnostico_red'),
     path('indicadores/', indicadores_del_dia, name='indicadores_del_dia'),

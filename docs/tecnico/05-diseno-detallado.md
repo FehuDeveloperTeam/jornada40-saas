@@ -71,6 +71,7 @@ Fuera del paquete de vistas, `backend/core/` reúne las piezas que no responden 
 | Reglas | `registro_dt.py` | Registro electrónico laboral: plazos, tablas oficiales y archivo masivo |
 | Reglas | `lre.py` | Tablas y columnas del Libro de Remuneraciones Electrónico |
 | Reglas | `permisos.py` | Módulos del panel, rutas por módulo y cupos de usuarios |
+| Reglas | `pruebas.py` | Códigos de prueba: generación, canje al crear la cuenta, avisos y término de la prueba [Solo en staging] |
 | Catálogos | `bancos.py`, `seguridad.py`, `direcciones.py`, `rut.py` | Listas cerradas de bancos y de seguridad laboral; direcciones por partes; RUT |
 | Documentos | `pdf_firma.py`, `documentos_karin.py`, `docx_simple.py`, `reglamento_plantilla.py` | Certificado de firma, documentos de la Ley Karin, Word mínimo, plantilla del reglamento |
 | Seguridad | `autenticacion.py`, `contexto.py`, `sesion_inactividad.py`, `cifrado.py`, `bitacora.py`, `karin.py`, `middleware.py` | Cerco del equipo, empresas visibles, cookies firmadas, cifrado, bitácoras e IP real |
@@ -284,12 +285,14 @@ Al encargado Ley Karin, además, se le cierran las sesiones con `version_sesion`
 
 ### Suscripción {#sec-dis-estado-suscripcion}
 
-La suscripción no sigue un diagrama de estados completo: en la operación normal solo se usan `ACTIVE` y `CANCELED`.
+La suscripción no sigue un diagrama de estados completo: en la operación normal solo se usan `ACTIVE` y `CANCELED`, además de `TRIAL` en las pruebas de los códigos de prueba [Solo en staging].
 
 | Evento | Origen | Efecto |
 |---|---|---|
 | Registro de la cuenta | Panel | Suscripción `ACTIVE` con el plan Semilla |
-| Activación o pago | Aviso de Reveniu | `ACTIVE` con el plan pagado, o con el plan programado; borra la fecha de cancelación y actualiza el próximo cobro |
+| Registro con un código de prueba [Solo en staging] | Panel | `TRIAL` con el plan del código hasta `prueba_hasta`; el código queda usado |
+| Avisos y término de la prueba [Solo en staging] | Tarea diaria (`enviar_resumenes`) | Correos 15 y 3 días antes; al vencer, `ACTIVE` con el plan gratuito, sin borrar nada, y un correo que lo avisa. Desde el día siguiente al término el plan de la prueba ya no rige, aunque la tarea no haya corrido |
+| Activación o pago | Aviso de Reveniu | `ACTIVE` con el plan pagado, o con el plan programado; borra la fecha de cancelación y actualiza el próximo cobro. Si llega durante una prueba, la termina [Solo en staging] |
 | Baja a un plan pagado menor | Panel (`bajar-plan`) | Guarda el plan programado y cambia el monto en Reveniu; se aplica con el siguiente pago |
 | Baja a Semilla | Panel (`bajar-plan`) | Desactiva la renovación en Reveniu y fija la fecha de cancelación; el plan pagado se mantiene hasta el fin del período |
 | Anular un cambio programado | Panel (`cancelar-cambio`) | Restituye el monto y borra el plan programado |
@@ -299,7 +302,7 @@ La suscripción no sigue un diagrama de estados completo: en la operación norma
 
 : Eventos de la suscripción
 
-**Estados no usados.** El modelo define también `TRIAL` y `PAST_DUE`. El código no asigna `PAST_DUE`, y `TRIAL` solo aparece si no existe un plan de nivel 1 al crear la suscripción.
+**Estados no usados.** El modelo define también `PAST_DUE`, que el código no asigna. `TRIAL`, fuera de las pruebas de los códigos de prueba [Solo en staging], solo aparece si no existe un plan de nivel 1 al crear la suscripción.
 
 ### Peticiones y solicitudes del portal {#sec-dis-estado-portal}
 
