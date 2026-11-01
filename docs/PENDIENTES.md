@@ -146,6 +146,13 @@ Aparecieron al comprobar el manual contra las pantallas. No se corrigieron: el m
 - [ ] **El candado de "Generar documento" dice siempre "Desde el plan Starter"** (`components/app/carpeta/DocumentosTab.tsx`), también en "Información de riesgos", que es del plan Pyme.
 - [ ] **Firmar el anexo Ley 40 horas no cambia las horas del contrato.** El anexo fija la jornada en el máximo vigente, pero el contrato guardado sigue con las horas anteriores: el aviso "Jornada sobre el máximo legal" no desaparece y los cálculos siguen usando esas horas. El manual (sección 5.3) indica ajustar el contrato o usar un anexo de contrato. Decidir si la firma del anexo debe actualizar el contrato.
 
+## Comentarios de clientes (por averiguar)
+
+- [ ] **La DT no acepta montos de más de 8 dígitos** (reunión con Alejandra, 2026-10-31). Contó que la Dirección del Trabajo rechaza montos sobre $99.999.999 y que, ante un sueldo de $100 millones o más, le indicaron dejar a ese trabajador fuera. Es poco común, pero ocurre (ella dio un caso). Por averiguar:
+  - si es así y en qué trámite pasa: lo más probable es el Libro de Remuneraciones Electrónico (revisar el manual del LRE de la DT y su validador), pero también puede ser el registro de contratos en Mi DT;
+  - qué indica la DT para declarar a ese trabajador;
+  - cómo resolverlo en Jornada40. Hoy ni el libro electrónico (`core/views/lre.py`), ni el archivo Previred (`core/views/previred.py`), ni el registro de contratos (`core/registro_dt.py`) revisan el largo de los montos. Si se confirma, una primera medida es avisarlo en la revisión del libro (`revisar_lre`), con la instrucción de la DT, antes de que el archivo sea rechazado.
+
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 
 - [x] (2026-10-08) Aprobar el plan (fases, y que la persona presiona siempre el botón final en Mi DT). Primero en staging.
