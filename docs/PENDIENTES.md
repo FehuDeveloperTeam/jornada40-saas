@@ -68,7 +68,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
 - [ ] **Manual de usuario** (`docs/manual/`, mismo formato que el documento técnico), por fases que aprueba el titular antes de seguir. No incluye la extensión de Mi DT, el archivo masivo de la DT, el administrador interno ni lo que esté solo en staging, y no da asesoría legal:
   - [x] (2026-11-01) Fase 1: definiciones e índice.
   - [x] (2026-11-01) Fase 2: Cómo usar este manual y capítulos 1 a 3 (bienvenida, cuenta y empresa, panel).
-  - [ ] Fase 3: capítulos 4 a 6 (trabajadores, contratos y Ley 40 horas, documentos y cartas).
+  - [x] (2026-11-01) Fase 3: capítulos 4 a 6 (trabajadores, contratos y Ley 40 horas, documentos y cartas).
   - [ ] Fase 4: capítulo 7 (remuneraciones).
   - [ ] Fase 5: capítulos 8 a 10 (firma electrónica, vacaciones y término).
   - [ ] Fase 6: capítulos 11 y 12 (Dirección del Trabajo, con "Si te fiscalizan"; reglamento y seguridad).
@@ -136,6 +136,15 @@ Aparecieron al corregir los hallazgos anteriores y al redactar los borradores le
 - [ ] **Diferencia de tiempo en las respuestas que no revelan datos.** El ingreso al portal, las recuperaciones de clave y el portal de fiscalización responden lo mismo exista o no la cuenta o la empresa, pero cuando existe envían el correo antes de responder y tardan más. Medirlo exige muchas peticiones, que los límites frenan. Propuesta: enviar esos correos en segundo plano o igualar el tiempo de respuesta. Menor.
 - [ ] **La dependencia `stripe` está instalada y no se usa** (`requirements.txt`). Propuesta: quitarla junto con las dependencias que solo ella usa. Menor.
 - [ ] **Unicidad del número de ficha en la base de datos.** Revisar en producción que no haya números repetidos por empresa y, si no los hay, agregar la restricción (migración). Menor.
+
+## Hallazgos del manual de usuario (2026-11-01, por decidir)
+
+Aparecieron al comprobar el manual contra las pantallas. No se corrigieron: el manual describe lo que el panel hace hoy.
+
+- [ ] **La renuncia o mutuo acuerdo no se puede crear desde el panel.** El servidor la admite y su firma funciona, pero el formulario de documentos legales solo ofrece amonestación, constancia y carta de término (`components/app/carpeta/Formularios.tsx`). El manual (sección 6.3) indica registrar el término en el finiquito con la causal del Art. 159 N°1 o N°2. Decidir si se agrega al formulario.
+- [ ] **Los pactos y constancias sin firmar no se pueden anular desde el panel.** El servidor lo permite (`POST /api/documentos-laborales/<id>/anular/`), pero no hay botón; el error de un pacto de horas extra que se cruza con otro dice "Anúlalo o elige otras fechas".
+- [ ] **El candado de "Generar documento" dice siempre "Desde el plan Starter"** (`components/app/carpeta/DocumentosTab.tsx`), también en "Información de riesgos", que es del plan Pyme.
+- [ ] **Firmar el anexo Ley 40 horas no cambia las horas del contrato.** El anexo fija la jornada en el máximo vigente, pero el contrato guardado sigue con las horas anteriores: el aviso "Jornada sobre el máximo legal" no desaparece y los cálculos siguen usando esas horas. El manual (sección 5.3) indica ajustar el contrato o usar un anexo de contrato. Decidir si la firma del anexo debe actualizar el contrato.
 
 ## Extensión "Jornada40 para Mi DT" (plan en `docs/PLAN_EXTENSION_MIDT.md`)
 
