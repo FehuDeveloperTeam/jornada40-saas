@@ -54,7 +54,7 @@ PyJWT==2.15.0
 pypdf==6.21.4
 pyphen==0.17.2
 python-bidi==0.6.7
-python-dateutil==2.9.0.post0
+python-dateutil==3.0.0
 python-decouple==3.8
 PyYAML==6.0.3
 reportlab==4.4.10
