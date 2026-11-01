@@ -76,7 +76,7 @@ jobs:
       - run: npm run build
       - name: Extensión para Mi DT (staging y producción)
         run: npm run extension:staging && npm run extension:produccion
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: extension-mi-dt
           path: frontend/extension/dist/*.zip
@@ -126,7 +126,7 @@ jobs:
         working-directory: frontend
       - name: Reporte si falla
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
