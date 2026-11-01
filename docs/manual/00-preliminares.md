@@ -63,7 +63,7 @@ Los capítulos siguen el orden en que se trabaja: primero la cuenta y la empresa
 | Cómo aparece                           | Qué significa                                                                                         |
 |----------------------------------------|-------------------------------------------------------------------------------------------------------|
 | **Guardar**                            | Botón, menú, pestaña, campo u opción, escrito tal como aparece en la pantalla.                         |
-| **Empresa › Plan y facturación**       | Camino: abre **Empresa** y luego **Plan y facturación**.                                               |
+| **Remuneraciones › Conceptos**         | Camino: abre **Remuneraciones** y luego presiona **Conceptos**.                                        |
 | "Revisa tu RUT y tu contraseña."       | Mensaje que muestra la pantalla.                                                                      |
 | *Disponible desde el plan Starter.*    | La función se incluye desde ese plan en adelante. Si una sección no lo indica, está en todos los planes. |
 | *Solo el titular.*                     | Solo la usa el titular de la cuenta; los usuarios del equipo no la ven.                               |
