@@ -71,7 +71,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [x] (2026-11-01) Fase 3: capítulos 4 a 6 (trabajadores, contratos y Ley 40 horas, documentos y cartas).
   - [x] (2026-11-01) Fase 4: capítulo 7 (remuneraciones).
   - [x] (2026-11-01) Fase 5: capítulos 8 a 10 (firma electrónica, vacaciones y término).
-  - [ ] Fase 6: capítulos 11 y 12 (Dirección del Trabajo, con "Si te fiscalizan"; reglamento y seguridad).
+  - [x] (2026-11-01) Fase 6: capítulos 11 y 12 (Dirección del Trabajo, con "Si te fiscalizan"; reglamento y seguridad).
   - [ ] Fase 7: capítulos 13 a 16 (portal y solicitudes, equipo y bitácora, mi cuenta, empresas y plan).
   - [ ] Fase 8: anexos A a E (guía del trabajador, encargado Ley Karin, fiscalizador DT, preguntas frecuentes y glosario).
   - [ ] Fase 9: capturas de pantalla con datos ficticios (las figuras ya están referenciadas en `docs/manual/figuras/`).
