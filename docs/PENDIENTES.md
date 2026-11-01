@@ -65,6 +65,17 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [ ] Revisar la versión 0.9.1 y enviar las correcciones; con ellas se publica la 1.0.
   - [ ] Completar en la ficha de control quién elabora, revisa y aprueba (lo define el titular).
   - [ ] Quitar las marcas [Solo en staging] de lo publicado en `main` el 2026-11-01. Siguen solo en staging la tarjeta de la extensión en el panel y la extensión misma.
+- [ ] **Manual de usuario** (`docs/manual/`, mismo formato que el documento técnico), por fases que aprueba el titular antes de seguir. No incluye la extensión de Mi DT, el archivo masivo de la DT, el administrador interno ni lo que esté solo en staging, y no da asesoría legal:
+  - [x] (2026-11-01) Fase 1: definiciones e índice.
+  - [x] (2026-11-01) Fase 2: Cómo usar este manual y capítulos 1 a 3 (bienvenida, cuenta y empresa, panel).
+  - [ ] Fase 3: capítulos 4 a 6 (trabajadores, contratos y Ley 40 horas, documentos y cartas).
+  - [ ] Fase 4: capítulo 7 (remuneraciones).
+  - [ ] Fase 5: capítulos 8 a 10 (firma electrónica, vacaciones y término).
+  - [ ] Fase 6: capítulos 11 y 12 (Dirección del Trabajo, con "Si te fiscalizan"; reglamento y seguridad).
+  - [ ] Fase 7: capítulos 13 a 16 (portal y solicitudes, equipo y bitácora, mi cuenta, empresas y plan).
+  - [ ] Fase 8: anexos A a E (guía del trabajador, encargado Ley Karin, fiscalizador DT, preguntas frecuentes y glosario).
+  - [ ] Fase 9: capturas de pantalla con datos ficticios (las figuras ya están referenciadas en `docs/manual/figuras/`).
+  - [ ] Fase 10: revisión y generación del Word y el PDF.
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
   - [ ] Actualizarlo con lo publicado el 2026-11-01 (seguridad, correcciones y códigos de prueba).
 
