@@ -4,6 +4,7 @@
 Uso (desde la raíz del repositorio):
     python3 docs/tecnico/herramientas/construir.py            # Word y PDF
     python3 docs/tecnico/herramientas/construir.py --figuras  # además, redibuja los diagramas
+    python3 docs/tecnico/herramientas/construir.py --doc docs/manual   # otro documento (el manual de usuario)
 
 Requisitos: pandoc 3, LibreOffice 7.6 o superior con Python UNO (paquete
 python3-uno; se usa el python3 del sistema). Para --figuras: Node y Chromium.
@@ -17,7 +18,9 @@ Pasos:
    de tablas, con sus números de página) y exporta el PDF y una copia del Word
    con los índices ya calculados.
 
-Salida en docs/tecnico/salida/ (no se versiona).
+Salida en <carpeta del documento>/salida/ (no se versiona). La carpeta es docs/tecnico/
+salvo que se indique otra con --doc; su documento.json da el nombre del archivo ("archivo").
+
 """
 import json
 import os
@@ -65,7 +68,8 @@ def _ajustar_docx(ruta, datos):
     nucleo = re.sub(r'<dc:creator>.*?</dc:creator>|<dc:creator\s*/>', '', nucleo)
     extra = (f'<dc:title>Jornada40 · {datos["titulo-documento"]}</dc:title>'
              f'<dc:creator>{datos["autor"]}</dc:creator><dc:language>es-CL</dc:language>'
-             f'<cp:keywords>Jornada40; documento técnico; versión {datos["version"]}</cp:keywords>')
+             f'<cp:keywords>Jornada40; {datos.get("palabras-clave", "documento técnico")}; '
+             f'versión {datos["version"]}</cp:keywords>')
     nucleo = nucleo.replace('</cp:coreProperties>', extra + '</cp:coreProperties>')
     partes['docProps/core.xml'] = nucleo.encode()
     # Ninguna fila de tabla se parte entre dos páginas (pandoc no lo permite indicar).
@@ -152,12 +156,21 @@ def generar_pdf(docx, pdf, docx_final):
             proceso.wait(timeout=30)
 
 
+def _elegir_documento():
+    """--doc <carpeta> compila otro documento con estas mismas herramientas."""
+    global RAIZ_DOC, SALIDA, FIGURAS
+    if '--doc' in sys.argv:
+        RAIZ_DOC = Path(sys.argv[sys.argv.index('--doc') + 1]).resolve()
+        SALIDA, FIGURAS = RAIZ_DOC / 'salida', RAIZ_DOC / 'figuras'
+
+
 def main():
+    _elegir_documento()
     datos = json.loads((RAIZ_DOC / 'documento.json').read_text())
     if '--figuras' in sys.argv:
         dibujar_figuras()
     SALIDA.mkdir(exist_ok=True)
-    nombre = f'Jornada40-documento-tecnico-v{datos["version"]}'
+    nombre = f'{datos.get("archivo", "Jornada40-documento-tecnico")}-v{datos["version"]}'
     borrador = SALIDA / f'{nombre}-pandoc.docx'
     print('Word (pandoc)…')
     generar_word(datos, borrador)

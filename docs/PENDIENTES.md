@@ -75,7 +75,8 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [x] (2026-11-01) Fase 7: capítulos 13 a 16 (portal y solicitudes, equipo y bitácora, mi cuenta, empresas y plan).
   - [x] (2026-11-01) Fase 8: anexos A a E (guía del trabajador, encargado Ley Karin, fiscalizador DT, preguntas frecuentes y glosario).
   - [x] (2026-11-01) Fase 9: capturas de pantalla con datos ficticios (las figuras ya están referenciadas en `docs/manual/figuras/`).
-  - [ ] Fase 10: revisión y generación del Word y el PDF.
+  - [x] (2026-11-04) Fase 10: revisión y compilación de la versión 1.0 (89 páginas; `python3 docs/tecnico/herramientas/construir.py --doc docs/manual`).
+  - [ ] Entregar la versión 1.0 cuando el titular lo indique.
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
   - [ ] Actualizarlo con lo publicado el 2026-11-01 (seguridad, correcciones y códigos de prueba).
 
