@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import client from '../api/client';
 import { obtenerTodo } from '../api/lista';
 import type {
-  AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, Liquidacion, RegistroDT, SaldoVacaciones, SolicitudDocumentoPanel,
-  SolicitudFirma, VacacionEmpleado, PeticionesPanel } from '../types';
+  AnexoContrato, DocumentoLaboral, DocumentoLegal, Empleado, Empresa, FirmasEmpleador, Liquidacion, RegistroDT, SaldoVacaciones,
+  SolicitudDocumentoPanel, SolicitudFirma, VacacionEmpleado, PeticionesPanel } from '../types';
 import { MODULOS_DOCUMENTOS, usePermisos } from './usePermisos';
 import { usePlanes } from './usePlanes';
 
@@ -123,6 +123,15 @@ export function useTrabajadores(empresaId: number | undefined) {
 
 export function useFirmas(habilitado = true) {
   return useQuery({ queryKey: ['firmas'], queryFn: () => obtener<SolicitudFirma>('/firmas/'), enabled: habilitado });
+}
+
+/** Firma del empleador de cada empresa (las del usuario) y su último pedido a distancia. */
+export function useFirmasEmpleador(habilitado = true) {
+  return useQuery({
+    queryKey: ['firmas-empleador'],
+    queryFn: async () => (await client.get<FirmasEmpleador>('/firmas-empleador/')).data,
+    enabled: habilitado,
+  });
 }
 
 /** Registros pendientes en la Dirección del Trabajo y consentimientos de la empresa. */

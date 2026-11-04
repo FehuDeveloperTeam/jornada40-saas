@@ -40,6 +40,7 @@ Las vistas están en el paquete `backend/core/views/`, con un módulo por tema. 
 | Documentos | `ley_karin` | Aviso semestral de los canales de denuncia |
 | Firma | `firmas` | Solicitudes de firma del empleador y confirmación de su identidad |
 | Firma | `firma_publica` | Flujo público del trabajador: identidad, documento, firma y rechazo |
+| Firma | `firma_empleador` | Firma del empleador a distancia (plan Corporativo): pedido desde el panel y flujo público del representante legal, con su constancia |
 | Dirección del Trabajo | `direccion_trabajo` | Obligaciones de registro en Mi DT, fichas y anexos de consentimiento |
 | Dirección del Trabajo | `inspeccion` | Portal de fiscalización |
 | Dirección del Trabajo | `extension` | Conexión y servicios de la extensión para Mi DT [Solo en staging] |
@@ -209,7 +210,7 @@ Cada página se carga al visitarla con `diferida()` (`src/utils/cargaDiferida.ts
 - un botón claro por acción;
 - textos en español de Chile.
 
-**Accesibilidad.** Una prueba automática revisa 21 pantallas con axe, según WCAG 2.1 A y AA (capítulo 11).
+**Accesibilidad.** Una prueba automática revisa 26 pantallas con axe, según WCAG 2.1 A y AA (capítulo 11).
 
 ## Extensión para Mi DT {#sec-dis-extension}
 

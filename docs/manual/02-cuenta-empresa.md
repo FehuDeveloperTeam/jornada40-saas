@@ -87,7 +87,7 @@ Después de crear la cuenta, la bienvenida te guía en tres pasos para dejar lis
 ![Bienvenida: datos de la empresa](figuras/02-bienvenida.png){width=100%}
 
 1. **Datos de la empresa.** Completa **RUT de la empresa** y **Razón social**, que son obligatorios, y **Nombre de fantasía**, **Giro**, la dirección, **Comuna** y **Ciudad**. Presiona **Guardar y continuar**.
-2. **Representante legal.** Completa **Nombre completo**, **RUT** y **Cargo**, y dibuja la firma en el recuadro con el mouse o el dedo (**Limpiar** la borra para volver a dibujarla). La firma es opcional en este paso; puedes configurarla después en **Empresa** (sección 2.5). Presiona **Guardar y continuar**.
+2. **Representante legal.** Completa **Nombre completo**, **RUT** y **Cargo**, y dibuja la firma en el recuadro con el mouse o el dedo (**Limpiar** la borra para volver a dibujarla). La firma es opcional en este paso; puedes dibujarla después en **Empresa** o, desde el plan Corporativo, pedírsela al representante legal por correo (sección 2.5). Presiona **Guardar y continuar**.
 3. **Tu equipo.** Elige cómo cargar a tus trabajadores: **Importar desde Excel** (disponible desde el plan Pyme; sección 4.2) o **Agregar uno por uno** (sección 4.1). También puedes presionar **Ir a mi panel** y hacerlo después.
 
 La dirección se escribe por partes: **Calle, pasaje o camino**, **Número** y **Depto, oficina o casa (opcional)**. Si la dirección no tiene número, marca **Sin número (S/N)** y, si quieres, escribe la **Altura o kilómetro (opcional)**. Así sale bien en los documentos y en los trámites ante la Dirección del Trabajo.
@@ -106,11 +106,13 @@ En el menú, presiona **Empresa**. La página reúne los datos de la empresa que
 |----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Datos legales**                      | Razón social, nombre de fantasía, giro, dirección, comuna, ciudad, sucursal, representante legal y su RUT. Aparecen en los contratos, las liquidaciones y los demás documentos. El RUT de la empresa no se puede cambiar. |
 | **Seguridad social**                   | Mutual de seguridad, tasa de accidentes, sucursal para el pago de la mutual y caja de compensación. Los usa el archivo de Previred.               |
-| **Firma del empleador**                | La firma que se estampa en los documentos firmados electrónicamente.                                                                              |
+| **Firma del empleador**                | La firma que se estampa en los documentos firmados electrónicamente. La dibujas tú o, desde el plan Corporativo, se la pides al representante legal por correo. |
 | **Plan y suscripción**                 | Tu plan y cuántos trabajadores vigentes tienes en todas tus empresas, con el enlace **Gestionar plan**.                                          |
 | **Parámetros previsionales vigentes**  | Ingreso mínimo, topes imponibles, UF y UTM del día, jornada máxima legal y tasas de cotización. Los actualiza Jornada40 con los indicadores oficiales y no se editan. |
 
 : Secciones de la página Empresa
+
+Para agregar otra empresa o cambiar entre ellas, presiona **Agregar o administrar empresas**, arriba a la derecha (sección 16.1).
 
 ### Datos legales y seguridad social
 
@@ -128,12 +130,48 @@ Si la dirección de la empresa quedó escrita en un solo campo, verás "Direcci�
 
 ### Firma del empleador
 
-1. En **Firma del empleador**, presiona **Configurar firma** (o **Cambiar firma**, si ya tienes una).
+La sección muestra si la empresa tiene firma (**Firma registrada**, con el nombre y el cargo de quien firma y la fecha) o si falta (**Falta la firma**).
+
+Para dibujarla tú:
+
+1. En **Firma del empleador**, presiona **Dibujar firma** (o **Cambiar firma**, si ya tienes una).
 2. Completa **Nombre de quien firma** y **Cargo**.
 3. Dibuja la firma en el recuadro y presiona **Guardar firma**.
 
-La firma se estampa en todos los documentos de la empresa que se firman electrónicamente. Dibujar una nueva reemplaza la anterior para los documentos que se firmen desde ese momento; los ya firmados no cambian.
+La firma se estampa en todos los documentos de la empresa que se firman electrónicamente. Una firma nueva reemplaza la anterior para los documentos que se firmen desde ese momento; los ya firmados no cambian.
 
-> **Importante:** sin firma configurada no se puede enviar ningún documento a firma, y los trabajadores no pueden emitir certificados desde su portal (sección 13.3). Configúrala antes de empezar.
+> **Importante:** sin firma registrada no se puede enviar ningún documento a firma, y los trabajadores no pueden emitir certificados desde su portal (sección 13.3). Regístrala antes de empezar.
 
-Para agregar otra empresa o cambiar entre ellas, presiona **Agregar o administrar empresas**, arriba a la derecha (sección 16.1).
+### Pedir la firma a distancia {#sec-firma-distancia}
+
+*Disponible desde el plan Corporativo.*
+
+Si el representante legal no está contigo, por ejemplo cuando una sola persona administra la cuenta de varias empresas, pídele la firma por correo: la registra desde su teléfono o su computador, sin entrar al panel. Lo puede hacer el titular, aquí o en **Firma electrónica**, y también un usuario del equipo con **Ver y gestionar** en alguno de los módulos que envían documentos a firma (Contratos y anexos, Remuneraciones, Vacaciones y permisos, Documentos y pactos, Término de contrato o Reglamento y seguridad), desde **Firma electrónica** (sección 8.2).
+
+1. En **Firma del empleador**, presiona **Pedir firma a distancia**.
+2. Revisa **Nombre completo**, **RUT** y **Cargo**. Vienen del representante legal registrado en la empresa o del pedido anterior.
+3. Escribe el **Correo del representante**: ahí le llegan el enlace y el código de verificación.
+4. Presiona **Enviar pedido**.
+
+![Pedir la firma a distancia](figuras/02-firma-distancia.png){width=100%}
+
+Jornada40 te avisa, sin impedir el envío, si el RUT no es el del representante legal registrado en la empresa o si la empresa ya tiene una firma, que se reemplazará cuando el representante firme. Si la empresa no tiene representante legal registrado, queda con estos datos cuando firme.
+
+El representante recibe un correo con el enlace, que vence en 7 días. En la página:
+
+1. Escribe su RUT y presiona **Enviar código**. Debe ser el RUT que indicaste en el pedido.
+2. Escribe el código de 6 dígitos que le llega al correo. Vence en 10 minutos y tiene 3 intentos; después de un minuto puede pedir otro.
+3. Lee la declaración, marca **Leí la declaración y la acepto**, dibuja su firma y presiona **Registrar mi firma**.
+
+![El representante registra su firma desde el teléfono](figuras/02-firma-representante.png){width=45%}
+
+En la declaración, el representante afirma que es representante legal de la empresa y autoriza que su firma se estampe como firma del empleador en los documentos laborales que la empresa envíe a firma desde Jornada40, por medio de quienes administran la cuenta. El código solo confirma su identidad: la firma es su aceptación de la declaración más el trazo que dibuja.
+
+Mientras espera, la sección muestra **Pedido pendiente**, con **Reenviar correo** y **Cancelar pedido**. Si pides la firma de nuevo, el pedido anterior se cancela y su enlace deja de funcionar. Si vence sin firma, presiona **Pedir de nuevo**: los datos vienen completos.
+
+Cuando el representante firma:
+
+- su firma queda como firma del empleador de la empresa, con su nombre y cargo, y reemplaza la anterior para los documentos que se firmen desde ese momento;
+- el titular, quien pidió la firma y el representante reciben por correo la constancia en PDF, con la declaración aceptada, cómo se verificó la identidad, la fecha y hora, la IP y la firma;
+- **Constancia**, en la sección **Firma del empleador**, la descarga de nuevo;
+- la bitácora registra el pedido y la firma (sección 14.2).

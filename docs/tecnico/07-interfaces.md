@@ -24,7 +24,7 @@ La sección 5.2 describe cómo está construida la aplicación web. La tabla sig
 | Panel: remuneraciones | `/app/remuneraciones`, `/app/remuneraciones/conceptos`, `/app/reportes` | Emisión del período, archivos legales, conceptos y reportes |
 | Panel: DT y administración | `/app/dt`, `/app/empresa`, `/app/empresas`, `/app/plan`, `/app/cuenta`, `/app/equipo` | Registro en Mi DT y fiscalizaciones, datos de la empresa, plan, cuenta, usuarios y bitácora |
 | Portal del trabajador | `/trabajador/portal/…` | Inicio, liquidaciones, documentos, certificados, vacaciones, solicitudes, conciliación, seguridad y Ley Karin |
-| Firma | `/firma/:token` | Identidad, revisión, aceptación y firma |
+| Firma | `/firma/:token`, `/firma-empleador/:token` | Identidad, revisión, aceptación y firma del trabajador; registro a distancia de la firma del empleador por el representante legal |
 | Ley Karin | `/karin/panel`, `/karin/denuncias/…` | Lista de denuncias con sus plazos y el expediente de cada una |
 | Fiscalización | `/inspeccion` | Trabajadores y documentos de la empresa, descarga y ratificación |
 
@@ -98,6 +98,8 @@ El menú lateral muestra solo lo que la persona puede usar según su permiso y s
 | `/api/documentos_legales/`, `/api/documentos-laborales/`, `/api/vacaciones/`, `/api/finiquitos/` | Panel | Cartas, pactos y constancias, vacaciones, finiquitos |
 | `/api/firmas/` | Panel | Solicitudes de firma, confirmación de identidad, cancelación, reenvío y descarga |
 | `/api/firma-publica/{token}/` | Público, con token | Datos de la solicitud, código, clave, documento, firma y rechazo |
+| `/api/firmas-empleador/` | Panel | Firma del empleador por empresa y pedidos a distancia: pedido, reenvío, cancelación y constancia |
+| `/api/firma-empleador/{token}/` | Público, con token | Datos del pedido, código, verificación, firma y constancia del representante legal |
 | `/api/reglamentos/`, `/api/ley-karin/`, `/api/encargados-karin/` | Panel | Reglamento, riesgos, canales de denuncia y encargados |
 | `/api/registro-dt/`, `/api/inspeccion/bitacora/` | Panel | Registro en Mi DT y accesos de fiscalización |
 | `/api/solicitudes-documento/`, `/api/solicitudes-permiso/`, `/api/solicitudes-conciliacion/`, `/api/peticiones-portal/` | Panel | Atención de lo que piden los trabajadores |
@@ -143,7 +145,7 @@ El menú lateral muestra solo lo que la persona puede usar según su permiso y s
 | `password_reset` | 2 por hora | IP y RUT |
 | `equipo_clave` | 10 por hora | IP, al crear la clave del equipo |
 | `confirmar_identidad` | 30 por hora | Usuario |
-| `firma_publica` | 120 por hora | Enlace de firma |
+| `firma_publica` | 120 por hora | Enlace de firma (del trabajador o del representante legal) |
 | `firma_publica_ip` | 1.500 por día | IP, en todas las rutas públicas de firma |
 | `portal_trabajador` | 60 por hora | IP, en el ingreso al portal |
 | `portal_trabajador_sesion` | 5.000 por día | Cuenta del portal |
@@ -201,6 +203,7 @@ Las variables de configuración se nombran aquí sin sus valores; el capítulo 1
 | Identificador | Formato | Dónde aparece |
 |---|---|---|
 | Folio de firma | `J40-<año>-<NNNNNN>`, correlativo por empresa | Página de certificado de un documento firmado |
+| Constancia de firma del empleador | `FE-<NNNNNN>` | Constancia del registro a distancia de la firma del empleador |
 | Certificado del portal | Folio `C-<NNNNNNN>` y código `XXXX-XXXX-XXXX` con QR | Certificados que emite el trabajador |
 | Copia de la bitácora | Folio `B-<NNNNNN>` y código `XXXX-XXXX-XXXX` con QR | PDF o Excel de la bitácora |
 | Denuncia Ley Karin | `LK-<año>-<NNN>`, correlativo por empresa | Documentos del expediente y correos |
@@ -215,6 +218,9 @@ Las variables de configuración se nombran aquí sin sus valores; el capítulo 1
 | Código de firma | En el código (`firma_publica`) | Al pedir el código en la página de firma | Trabajador |
 | Documento firmado | En el código (`firma_publica`) | Al completar la firma; lleva el PDF firmado | Trabajador y empleador |
 | Documento rechazado | En el código (`firma_publica`) | Cuando el trabajador rechaza | Empleador |
+| Pedido de firma del empleador | `firma_empleador_pedido.*` | Al pedir o reenviar la firma a distancia | Representante legal |
+| Código de la firma del empleador | `firma_empleador_codigo.*` | Al pedir el código en la página del representante | Representante legal |
+| Firma del empleador registrada | `firma_empleador_registrada.*` | Al registrar la firma; lleva la constancia en PDF | Representante, titular y quien la pidió |
 | Código del portal | `portal_trabajador_codigo.html` | Al ingresar al portal sin clave | Trabajador |
 | Invitación al portal | `portal_invitacion.*` | Desde la carpeta, como máximo una cada 24 h | Trabajador |
 | Aviso de petición | `peticion_aviso.*` | Cuando el trabajador pide algo y cuando el empleador responde | Titular o trabajador |

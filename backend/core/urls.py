@@ -17,6 +17,7 @@ from .views import equipo
 from .views import acceso_karin
 from .views import denuncias_karin
 from .views import karin_portal
+from .views import firma_empleador
 from rest_framework.routers import DefaultRouter
 from .views import (
     DocumentoLegalViewSet, EmpresaViewSet, EmpleadoViewSet, ContratoViewSet,
@@ -38,6 +39,7 @@ router.register(r'anexos_contrato', AnexoContratoViewSet, basename='anexo_contra
 router.register(r'liquidaciones', LiquidacionViewSet, basename='liquidacion')
 router.register(r'planes', PlanViewSet, basename='plan')
 router.register(r'firmas', SolicitudFirmaViewSet, basename='firma')
+router.register(r'firmas-empleador', firma_empleador.SolicitudFirmaEmpleadorViewSet, basename='firma_empleador')
 router.register(r'vacaciones', VacacionViewSet, basename='vacacion')
 router.register(r'finiquitos', FiniquitoViewSet, basename='finiquito')
 router.register(r'conceptos', ConceptoRemuneracionViewSet, basename='concepto')
@@ -142,6 +144,14 @@ urlpatterns = [
     path('firma-publica/<uuid:token>/firmar/', firma_publica_firmar, name='firma_publica_firmar'),
     path('firma-publica/<uuid:token>/documento/', firma_publica_documento, name='firma_publica_documento'),
     path('firma-publica/<uuid:token>/rechazar/', firma_publica_rechazar, name='firma_publica_rechazar'),
+    # Firma del empleador a distancia: flujo público del representante legal (plan Corporativo)
+    path('firma-empleador/<uuid:token>/', firma_empleador.publica_info, name='firma_empleador_info'),
+    path('firma-empleador/<uuid:token>/codigo/', firma_empleador.publica_codigo, name='firma_empleador_codigo'),
+    path('firma-empleador/<uuid:token>/verificar/', firma_empleador.publica_verificar,
+         name='firma_empleador_verificar'),
+    path('firma-empleador/<uuid:token>/firmar/', firma_empleador.publica_firmar, name='firma_empleador_firmar'),
+    path('firma-empleador/<uuid:token>/constancia/', firma_empleador.publica_constancia,
+         name='firma_empleador_constancia'),
     # Extensión "Jornada40 para Mi DT": panel (sesión del panel) y extensión (solo con su token).
     path('extension/dispositivos/', vistas_extension.dispositivos, name='extension_dispositivos'),
     path('extension/dispositivos/<int:pk>/desconectar/', vistas_extension.desconectar, name='extension_desconectar'),

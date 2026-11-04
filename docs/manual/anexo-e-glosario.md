@@ -22,6 +22,7 @@
 | Feriado legal                          | Vacaciones anuales pagadas: 15 días hábiles por año de servicio.                                                                    |
 | Feriado progresivo                     | Días adicionales de feriado por los años de trabajo sobre diez.                                                                     |
 | Finiquito                              | Documento que pone fin a la relación laboral y detalla lo que se paga al término.                                                   |
+| Firma del empleador                    | Firma del representante legal que se estampa en los documentos de la empresa firmados electrónicamente. La dibuja el titular en el panel o, desde el plan Corporativo, la registra el representante a distancia. |
 | Firma electrónica simple               | Firma electrónica de la Ley 19.799 que usa Jornada40: verificación de identidad más la aceptación y el trazo del firmante.          |
 | Fonasa                                 | Fondo Nacional de Salud, el sistema público de salud.                                                                               |
 | Fuero                                  | Protección que impide despedir a un trabajador sin autorización judicial previa.                                                    |

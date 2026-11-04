@@ -39,7 +39,7 @@ Este capítulo describe el sistema; no es una opinión legal. Las brechas de la 
 | Personas en una denuncia Ley Karin (afectada, denunciante, denunciados, testigos e investigador) | Nombres, RUT, cargo, vínculo, relato, declaraciones, medidas y archivos del expediente | Procedimiento de la Ley 21.643 | El encargado de denuncias o el propio trabajador desde el portal |
 | Titular de la cuenta | RUT, nombres, razón social, correo, teléfono, dirección; clave (en huella); pagos y suscripción | Cuenta, cobro y soporte | El titular; Reveniu |
 | Usuarios del equipo y encargados Ley Karin | RUT, nombres, correo, permisos, empresas asignadas, clave (en huella) | Acceso y auditoría | El titular |
-| Representante legal y firmante del empleador | Nombre, RUT, cargo e imagen de la firma | Firma de los documentos de la empresa | El titular |
+| Representante legal y firmante del empleador | Nombre, RUT, cargo e imagen de la firma; si la registró a distancia, su correo, la IP, las fechas y la declaración aceptada | Firma de los documentos de la empresa y evidencia de su registro | El titular, quien administra la cuenta o el propio representante |
 | Fiscalizadores de la DT | Nombre, RUT, correo institucional, IP y firma de las ratificaciones | Acceso y registro de la fiscalización | El propio fiscalizador |
 | Cualquier persona que usa el sistema | IP, ruta y hora de cada acción del panel; registros de ejecución del servidor | Seguridad y auditoría | El sistema |
 

@@ -25,6 +25,7 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 | `test_extension` | RF-EXT-01, RF-EXT-02, RF-EXT-03, RF-EXT-04, RF-EXT-05, RF-EXT-09, RNF-SEG-05 |
 | `test_feriado` | RF-VAC-01, RF-VAC-02, RF-VAC-03, RN-VAC-01, RN-VAC-02, RN-VAC-03, RN-VAC-04 |
 | `test_finiquito` | RF-CON-05, RF-CON-06, RF-VAC-01, RF-DOC-04, RF-FIN-02, RF-FIN-03, RF-FIN-04, RF-FIN-05, RF-FIN-06, RN-FIN-01, RN-FIN-02, RN-FIN-03, RN-FIN-04, RN-FIN-05, RN-FIN-07 |
+| `test_firma_empleador` | RF-FIR-17, RF-FIR-18 |
 | `test_firmas` | RF-CON-08, RF-REM-14, RF-VAC-07, RF-DOC-01, RF-DOC-03, RF-FIR-01, RF-FIR-02, RF-FIR-05, RF-FIR-06, RF-FIR-08, RF-FIR-09, RF-FIR-10, RF-FIR-12, RF-FIR-13, RF-FIR-15, RNF-SEG-05, RNF-DIS-01, RNF-DIS-02, RNF-LEG-03 |
 | `test_horas_compensatorias` | RF-REM-15, RF-VAC-05, RF-VAC-07, RF-DOC-07, RN-REM-15 |
 | `test_indemnizacion_todo_evento` | RF-REM-15, RN-REM-14, RN-FIN-06 |
@@ -36,7 +37,7 @@ El capítulo 3 da, para cada requerimiento, la norma que lo origina y las prueba
 | `test_pagos` | RF-CTA-02, RF-TRA-03, RF-TRA-04, RF-ARC-07, RF-DOC-01, RF-DOC-02, RF-PAG-01, RF-PAG-02, RF-PAG-03, RF-PAG-04, RF-PAG-05, RF-PAG-06, RF-PAG-07, RF-PAG-08, RF-PAG-09, RF-PAG-10, RN-PAG-01, RNF-DIS-01 |
 | `test_parametros` | RF-REM-10, RF-REM-11, RF-REM-16, RN-REM-01, RN-REM-02, RN-REM-03, RN-REM-08, RN-REM-10, RN-REM-16, RNF-DIS-01, RNF-MAN-04, RNF-LEG-01 |
 | `test_permisos` | RF-EQU-01 |
-| `test_permisos_equipo` | RF-CTA-05, RF-CTA-13, RF-TRA-02, RF-FIR-03, RF-EQU-06, RF-EQU-07, RF-EQU-08, RNF-SEG-03 |
+| `test_permisos_equipo` | RF-CTA-05, RF-CTA-13, RF-TRA-02, RF-FIR-03, RF-FIR-17, RF-EQU-06, RF-EQU-07, RF-EQU-08, RNF-SEG-03 |
 | `test_peticiones_portal` | RF-TRA-12, RF-VAC-06, RF-POR-14, RF-POR-15, RN-POR-03 |
 | `test_portal_trabajador` | RF-POR-01, RF-POR-02, RF-POR-03, RF-POR-04, RF-POR-05, RF-POR-06, RF-POR-07, RF-POR-08, RF-POR-09, RN-POR-01, RNF-SEG-02, RNF-PRI-02, RNF-PRI-03 |
 | `test_previred` | RF-CTA-10, RF-ARC-01, RF-ARC-02, RF-ARC-03, RNF-COM-04 |

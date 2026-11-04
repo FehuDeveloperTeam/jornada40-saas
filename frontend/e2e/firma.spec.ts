@@ -19,11 +19,14 @@ async function pedirCodigo(page: Page, token: string) {
 test('firma del empleador y envío a firma', async ({ page }) => {
   await entrar(page);
   await page.goto('/app/firmas');
-  await expect(page.getByText('Falta la firma del empleador.')).toBeVisible();
-  await page.getByRole('button', { name: 'Configurar ahora' }).click();
+  const tarjeta = page.getByRole('region', { name: 'Firma del empleador' });
+  await expect(tarjeta.getByText('Falta la firma', { exact: true })).toBeVisible();
+  // Bajo el plan Corporativo no se ofrece pedirla a distancia: solo dibujarla.
+  await expect(tarjeta.getByRole('button', { name: 'Pedir firma a distancia' })).toHaveCount(0);
+  await tarjeta.getByRole('button', { name: 'Dibujar firma' }).click();
   await dibujarFirma(page, page.getByRole('dialog').locator('canvas'));
   await page.getByRole('button', { name: 'Guardar firma' }).click();
-  await expect(page.getByText('Falta la firma del empleador.')).toHaveCount(0);
+  await expect(tarjeta.getByText('Firma registrada', { exact: true })).toBeVisible();
 
   await page.goto(`/app/trabajadores/${MATIAS.id}?tab=documentos`);
   const fila = page.locator('div', { hasText: new RegExp(`^Liquidación de sueldo · ${periodo(-2)}`) })

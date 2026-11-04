@@ -65,6 +65,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [ ] Revisar la versión 0.9.1 y enviar las correcciones; con ellas se publica la 1.0.
   - [ ] Completar en la ficha de control quién elabora, revisa y aprueba (lo define el titular).
   - [ ] Quitar las marcas [Solo en staging] de lo publicado en `main` el 2026-11-01. Siguen solo en staging la tarjeta de la extensión en el panel y la extensión misma.
+  - [x] (2026-11-04) Fuentes al día con la firma del empleador a distancia: RF-FIR-17 y RF-FIR-18, módulo `firma_empleador`, modelo `SolicitudFirmaEmpleador` (diagramas del capítulo 6), interfaces, seguridad, datos personales, cifras de pruebas y anexos generados. Se verá en la próxima versión que se compile; no se envió.
 - [x] (2026-11-04) **Manual de usuario** (`docs/manual/`, mismo formato que el documento técnico), por fases que aprueba el titular antes de seguir. No incluye la extensión de Mi DT, el archivo masivo de la DT, el administrador interno ni lo que esté solo en staging, y no da asesoría legal:
   - [x] (2026-11-01) Fase 1: definiciones e índice.
   - [x] (2026-11-01) Fase 2: Cómo usar este manual y capítulos 1 a 3 (bienvenida, cuenta y empresa, panel).
@@ -77,6 +78,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [x] (2026-11-01) Fase 9: capturas de pantalla con datos ficticios (las figuras ya están referenciadas en `docs/manual/figuras/`).
   - [x] (2026-11-04) Fase 10: revisión y compilación de la versión 1.0 (89 páginas; `python3 docs/tecnico/herramientas/construir.py --doc docs/manual`).
   - [x] (2026-11-04) Versión 1.0 entregada en PDF (89 páginas).
+  - [x] (2026-11-04) Versión 1.1: firma del empleador a distancia (plan Corporativo) en las secciones 1.3, 2.4, 2.5, 8.1, 8.2, 14.1 y 16.1 y los anexos D y E, con dos capturas nuevas y la de Firma electrónica rehecha (93 páginas).
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
   - [ ] Actualizarlo con lo publicado el 2026-11-01 (seguridad, correcciones y códigos de prueba).
 
@@ -145,9 +147,15 @@ Aparecieron al comprobar el manual contra las pantallas. No se corrigieron: el m
 - [ ] **La renuncia o mutuo acuerdo no se puede crear desde el panel.** El servidor la admite y su firma funciona, pero el formulario de documentos legales solo ofrece amonestación, constancia y carta de término (`components/app/carpeta/Formularios.tsx`). El manual (sección 6.3) indica registrar el término en el finiquito con la causal del Art. 159 N°1 o N°2. Decidir si se agrega al formulario.
 - [ ] **Los pactos y constancias sin firmar no se pueden anular desde el panel.** El servidor lo permite (`POST /api/documentos-laborales/<id>/anular/`), pero no hay botón; el error de un pacto de horas extra que se cruza con otro dice "Anúlalo o elige otras fechas".
 - [ ] **El candado de "Generar documento" dice siempre "Desde el plan Starter"** (`components/app/carpeta/DocumentosTab.tsx`), también en "Información de riesgos", que es del plan Pyme.
-- [ ] **El representante legal no puede firmar a distancia.** Si el panel lo usa un contador (como titular de la cuenta o como usuario del equipo), no hay cómo pedirle al dueño o representante legal de la empresa que registre su firma desde su teléfono o computador. Hoy la firma del empleador se dibuja en el mismo panel, en **Empresa › Firma del empleador** o en la bienvenida (`POST /api/empresas/<id>/configurar_firma/`, solo el titular), así que el representante tiene que estar frente al equipo de quien opera la cuenta. Propuesta por evaluar: un enlace al correo del representante para que dibuje su firma, con verificación por código (como la firma del trabajador), y que quede registrado quién la dibujó y cuándo.
-- [ ] **El aviso de la firma del empleador no dice lo que pasa.** La página Empresa y el aviso de Firma electrónica dicen que, sin firma configurada, los documentos firmados muestran "Sin firma registrada"; pero el servidor no deja enviar ningún documento a firma sin ella ("La empresa no tiene firma del empleador configurada", `core/views/firmas.py`). El manual describe el bloqueo. Corregir el texto de esas pantallas.
+- [x] (2026-11-04) **El representante legal no puede firmar a distancia.** Resuelto desde el plan Corporativo: el titular, o un usuario del equipo con un módulo de documentos en "ver y gestionar", le pide la firma por correo al representante, que la registra desde su teléfono con su RUT, un código enviado a su correo, la aceptación de una declaración y su trazo; queda la constancia en PDF y el registro en la bitácora (`core/views/firma_empleador.py`, manual sección 2.5).
+- [x] (2026-11-04) **El aviso de la firma del empleador no dice lo que pasa.** Corregido al rehacer esa parte para la firma a distancia: la sección **Firma del empleador** de Firma electrónica y de Empresa dice que sin ella no se pueden enviar documentos a firma.
 - [ ] **Firmar el anexo Ley 40 horas no cambia las horas del contrato.** El anexo fija la jornada en el máximo vigente, pero el contrato guardado sigue con las horas anteriores: el aviso "Jornada sobre el máximo legal" no desaparece y los cálculos siguen usando esas horas. El manual (sección 5.3) indica ajustar el contrato o usar un anexo de contrato. Decidir si la firma del anexo debe actualizar el contrato.
+
+## Firma del empleador a distancia (2026-11-04)
+
+- [ ] Publicar en `main` (espera la autorización del titular; no pasó por staging, por decisión del titular).
+- [ ] Después de publicarla, generar en el administrador los códigos de prueba del plan Corporativo (3 a 6 meses) para la contadora que la va a probar (Códigos de prueba → Añadir). No requiere cambios en el código.
+- [ ] Revisar en el administrador que el máximo de empresas del plan Corporativo (10 en la base inicial) alcance para la contadora, que lleva unas 10 empresas.
 
 ## Comentarios de clientes (por averiguar)
 

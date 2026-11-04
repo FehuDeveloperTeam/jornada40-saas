@@ -14,7 +14,7 @@ Para verlas, presiona **Empresa › Agregar o administrar empresas** o, en el se
 2. Completa **Razón social**, **RUT de la empresa**, **Giro**, la dirección, **Comuna**, **Ciudad**, **Sucursal (opcional)**, **Representante legal** y **RUT del representante**.
 3. Presiona **Crear empresa**. El panel pasa a la empresa nueva.
 
-Después, completa sus datos de seguridad social y su firma del empleador en **Empresa** (sección 2.5).
+Después, completa sus datos de seguridad social y su firma del empleador en **Empresa**. Desde el plan Corporativo, también puedes pedírsela por correo a su representante legal (sección 2.5).
 
 En la lista **Activas**, **Trabajar en esta** cambia a esa empresa. Si llegaste al máximo de empresas de tu plan, cambia a un plan con más empresas o desactiva una.
 

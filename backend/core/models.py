@@ -234,6 +234,9 @@ class Empresa(models.Model):
     firma_firmante_nombre = models.CharField(max_length=200, blank=True, default='')
     firma_firmante_cargo  = models.CharField(max_length=200, blank=True, default='')
     firma_configurada_en  = models.DateTimeField(null=True, blank=True)
+    # Si la firma la registró el representante a distancia (plan Corporativo), su solicitud con la evidencia.
+    firma_solicitud       = models.ForeignKey('SolicitudFirmaEmpleador', null=True, blank=True,
+                                              on_delete=models.SET_NULL, related_name='+')
 
     def save(self, *args, **kwargs):
         completar_direccion(self)
@@ -1266,6 +1269,83 @@ class OTPFirma(models.Model):
 
     def __str__(self):
         return f"OTP {self.solicitud_id} — {'✓' if self.verificado else '⏳'}"
+
+
+class SolicitudFirmaEmpleador(models.Model):
+    """Pedido al representante legal para que registre a distancia la firma del empleador (plan Corporativo).
+
+    El representante abre el enlace del correo, confirma su RUT con un código de un solo uso enviado a ese
+    correo, acepta la declaración y dibuja su firma: queda como firma del empleador de la empresa, y esta
+    solicitud guarda la evidencia del registro (declaración aceptada, IP, fecha, huella de la firma)."""
+    ESTADOS = [('PENDIENTE', 'Pendiente'), ('FIRMADA', 'Firmada'), ('EXPIRADA', 'Vencida'), ('CANCELADA', 'Cancelada')]
+    DIAS_VIGENCIA = 7
+    MINUTOS_CODIGO = 10
+    INTENTOS_CODIGO = 3
+    CODIGOS_MAXIMOS = 10   # por solicitud: con 3 intentos cada uno, acota los intentos de adivinar
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, related_name='solicitudes_firma_empleador')
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    nombre = models.CharField(max_length=200)
+    rut = models.CharField(max_length=20)
+    cargo = models.CharField(max_length=200)
+    email = models.EmailField()
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='PENDIENTE')
+    pedida_por = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    pedida_por_nombre = models.CharField(max_length=200, blank=True, default='')
+    correo_enviado = models.BooleanField(default=False)
+    creada_en = models.DateTimeField(auto_now_add=True)
+    expira_en = models.DateTimeField()
+    # Código de un solo uso: la base guarda solo su huella (HMAC), nunca el código.
+    codigo_hash = models.CharField(max_length=64, blank=True, default='')
+    codigo_creado_en = models.DateTimeField(null=True, blank=True)
+    codigo_intentos = models.PositiveSmallIntegerField(default=0)
+    codigos_pedidos = models.PositiveSmallIntegerField(default=0)
+    sesion = models.UUIDField(null=True, blank=True)
+    verificada_en = models.DateTimeField(null=True, blank=True)
+    # Evidencia del registro.
+    firmada_en = models.DateTimeField(null=True, blank=True)
+    declaracion = models.TextField(blank=True, default='')
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    firma_imagen = models.TextField(blank=True, default='')
+    huella_firma = models.CharField(max_length=64, blank=True, default='')
+    cancelada_en = models.DateTimeField(null=True, blank=True)
+
+    objects = EnEmpresas('empresa_id')   # empresas del usuario del equipo
+
+    class Meta:
+        verbose_name = 'Solicitud de firma del empleador'
+        verbose_name_plural = 'Solicitudes de firma del empleador'
+        ordering = ['-creada_en']
+
+    @staticmethod
+    def huella(token, codigo):
+        """HMAC-SHA256 del código con la clave del sistema, ligado a la solicitud."""
+        import hashlib
+        import hmac
+        from django.conf import settings
+        return hmac.new(settings.SECRET_KEY.encode(), f'firma-empleador:{token}:{codigo}'.encode(),
+                        hashlib.sha256).hexdigest()
+
+    def coincide(self, codigo):
+        import hmac
+        return bool(self.codigo_hash) and hmac.compare_digest(self.codigo_hash, self.huella(self.token, codigo))
+
+    @property
+    def folio(self):
+        return f'FE-{self.pk:06d}' if self.pk else ''
+
+    @classmethod
+    def actualizar_estados(cls, qs):
+        """Las pendientes vencidas pasan a vencidas."""
+        qs.filter(estado='PENDIENTE', expira_en__lt=timezone.now()).update(estado='EXPIRADA')
+
+    def save(self, *args, **kwargs):
+        if not self.expira_en:
+            self.expira_en = timezone.now() + timezone.timedelta(days=self.DIAS_VIGENCIA)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.folio} {self.empresa} · {self.nombre} ({self.get_estado_display()})'
 
 # ==========================================
 # PORTAL DEL TRABAJADOR

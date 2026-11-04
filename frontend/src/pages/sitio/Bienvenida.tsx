@@ -24,6 +24,8 @@ import { partesDe } from '../../utils/direccion';
 
 // La carga masiva desde Excel es del plan Pyme en adelante (backend: nivel 3).
 const NIVEL_CARGA_MASIVA = 3;
+// Pedir la firma del empleador a distancia, desde Corporativo (backend: firma_empleador.NIVEL_FIRMA_A_DISTANCIA).
+const NIVEL_FIRMA_A_DISTANCIA = 4;
 
 const PASOS = [
   { titulo: 'Datos de la empresa', detalle: 'RUT, razón social y domicilio' },
@@ -86,7 +88,8 @@ export default function Bienvenida() {
   const planActual = planes.find((p) => p.id === suscripcion.data?.plan.id);
   const nombrePlan = suscripcion.data?.plan.nombre ?? registro?.plan;
   const prueba = suscripcion.data?.prueba;
-  const permiteCargaMasiva = (suscripcion.data?.plan.nivel ?? planActual?.nivel ?? 1) >= NIVEL_CARGA_MASIVA;
+  const nivelPlan = suscripcion.data?.plan.nivel ?? planActual?.nivel ?? 1;
+  const permiteCargaMasiva = nivelPlan >= NIVEL_CARGA_MASIVA;
 
   /** Entra al panel con la empresa recién creada como activa. */
   const irA = (ruta: string) => {
@@ -281,7 +284,11 @@ export default function Bienvenida() {
                 </Grilla>
                 <div className="flex flex-col gap-2">
                   <FirmaPad onChange={(firma) => setRep((d) => ({ ...d, firma }))} />
-                  <span className="text-[12px] text-fg-3">Puedes configurarla más tarde desde Empresa.</span>
+                  <span className="text-[12px] text-fg-3">
+                    {nivelPlan >= NIVEL_FIRMA_A_DISTANCIA
+                      ? 'Puedes dibujarla más tarde en Empresa o, si el representante no está contigo, pedírsela por correo desde Firma electrónica.'
+                      : 'Puedes configurarla más tarde desde Empresa.'}
+                  </span>
                 </div>
               </>
             )}

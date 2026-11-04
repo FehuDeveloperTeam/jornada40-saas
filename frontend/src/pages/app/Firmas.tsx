@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Download, Mail, PenLine, RotateCcw, Search, Send, TriangleAlert, X } from 'lucide-react';
+import { Download, Mail, RotateCcw, Search, Send, TriangleAlert, X } from 'lucide-react';
 import { Button, Chip, Modal } from '../../components/j40';
 import { FirmaEmpleador } from '../../components/app/FirmaEmpleador';
+import { EstadoFirmaEmpleador } from '../../components/app/FirmaDistancia';
 import type { TonoChip } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import client from '../../api/client';
@@ -69,7 +70,7 @@ const datosReenvio = (f: SolicitudFirma) => ({
 export default function Firmas() {
   const { empresa, avisar } = usePanelContexto();
   const queryClient = useQueryClient();
-  // La firma del empleador es de la empresa (solo titular); cada solicitud, del módulo de su documento.
+  // Dibujar la firma del empleador es del titular; cada solicitud, del módulo de su documento.
   const { esTitular, puede } = usePermisos();
   const firmas = useFirmas();
   const [filtro, setFiltro] = useState<Filtro>('PENDIENTE');
@@ -134,23 +135,19 @@ export default function Firmas() {
           <h1 className="text-[clamp(20px,2.4vw,26px)] font-semibold tracking-[-0.015em]">Firma electrónica</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">Documentos enviados a firmar por correo · firma electrónica simple (Ley 19.799)</p>
         </div>
-        {esTitular && (
-          <Button variante="secundario" onClick={() => setConfigurar(true)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>
-            Firma del empleador
-          </Button>
-        )}
       </div>
 
-      {!empresa.firma_configurada && (
-        <div className="flex flex-wrap items-center gap-3 rounded-j40-card bg-warn-soft text-warn px-4 py-3">
-          <TriangleAlert className="size-5 shrink-0" strokeWidth={2} aria-hidden />
-          <p className="flex-1 min-w-[220px] text-[13px]">
-            <strong className="font-semibold">Falta la firma del empleador.</strong> Sin ella, los documentos firmados muestran
-            "Sin firma registrada" en la parte del empleador.
-          </p>
-          {esTitular && <Button tamano="sm" onClick={() => setConfigurar(true)}>Configurar ahora</Button>}
-        </div>
-      )}
+      {/* La firma del empleador se estampa en cada documento: sin ella no se envía nada a firma.
+          El titular la dibuja; el titular o el equipo pueden pedírsela al representante (Corporativo). */}
+      <section aria-labelledby="titulo-firma-empleador"
+        className="bg-surface border border-line rounded-j40-card shadow-card px-[18px] py-4 flex flex-col gap-3">
+        <h2 id="titulo-firma-empleador" className="flex items-center gap-2 text-[14px] font-semibold">
+          {!empresa.firma_configurada && <TriangleAlert className="size-4 text-warn" strokeWidth={2} aria-hidden />}
+          Firma del empleador
+        </h2>
+        <EstadoFirmaEmpleador empresaId={empresa.id} avisar={avisar} conOtras
+          onDibujar={esTitular ? () => setConfigurar(true) : undefined} />
+      </section>
 
       <div className="flex flex-wrap gap-2.5 items-center">
         <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filtrar por estado">

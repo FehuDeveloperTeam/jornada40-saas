@@ -1,0 +1,17 @@
+Hola {{ nombre }}:
+
+{{ quien }}, que administra los documentos laborales de {{ empresa }} (RUT {{ empresa_rut }}) en Jornada40, te pide registrar tu firma como representante legal.
+
+Tu firma se estampará como firma del empleador en los contratos, anexos, liquidaciones y demás documentos que la empresa envíe a firma a sus trabajadores.
+
+Regístrala en este enlace:
+{{ enlace }}
+
+Son tres pasos:
+1. Escribe tu RUT y el código que te enviaremos a este correo.
+2. Lee la declaración y, si estás de acuerdo, acéptala.
+3. Dibuja tu firma con el dedo o con el mouse.
+
+El enlace vence el {{ vence }}.
+
+Si no eres el representante legal de {{ empresa }} o no esperabas este correo, no hagas nada: sin el código que llega a este correo nadie puede registrar la firma.

@@ -1,6 +1,6 @@
 # Anexo C. Rutas de la API {.unnumbered #sec-anexo-c}
 
-Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enrutador de Django. Las convenciones, los códigos de estado y los límites de intentos están en la sección 7.2. Columnas:
+Las 229 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enrutador de Django. Las convenciones, los códigos de estado y los límites de intentos están en la sección 7.2. Columnas:
 
 - **Métodos:** los que admite la ruta.
 - **Vista:** la función o clase que la atiende; en las de DRF, también sus acciones.
@@ -196,6 +196,16 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | GET | `/api/finiquitos/{pk}/generar_pdf/` | FiniquitoViewSet (generar_pdf) | Panel | Término de contrato |
 | POST | `/api/finiquitos/{pk}/registrar_ratificacion/` | FiniquitoViewSet (registrar_ratificacion) | Panel | Término de contrato |
 
+#### `/api/firma-empleador/` {.unnumbered}
+
+| Métodos | Ruta | Vista | Acceso | Módulo |
+|---|---|---|---|---|
+| GET | `/api/firma-empleador/{token}/` | publica_info | Público | — |
+| POST | `/api/firma-empleador/{token}/codigo/` | publica_codigo | Público | — |
+| GET | `/api/firma-empleador/{token}/constancia/` | publica_constancia | Público | — |
+| POST | `/api/firma-empleador/{token}/firmar/` | publica_firmar | Público | — |
+| POST | `/api/firma-empleador/{token}/verificar/` | publica_verificar | Público | — |
+
 #### `/api/firma-publica/` {.unnumbered}
 
 | Métodos | Ruta | Vista | Acceso | Módulo |
@@ -219,6 +229,15 @@ Las 220 rutas bajo `/api/`, generadas con `herramientas/anexos.py` desde el enru
 | PATCH | `/api/firmas/{pk}/cancelar/` | SolicitudFirmaViewSet (cancelar) | Panel | Según el tipo de documento |
 | POST | `/api/firmas/{pk}/descargar/` | SolicitudFirmaViewSet (descargar) | Panel | Según el tipo de documento |
 | POST | `/api/firmas/{pk}/reenviar/` | SolicitudFirmaViewSet (reenviar) | Panel | Según el tipo de documento |
+
+#### `/api/firmas-empleador/` {.unnumbered}
+
+| Métodos | Ruta | Vista | Acceso | Módulo |
+|---|---|---|---|---|
+| GET, POST | `/api/firmas-empleador/` | SolicitudFirmaEmpleadorViewSet (create, list) | Panel | Documentos y pactos o Término de contrato o Vacaciones y permisos o Reglamento y seguridad o Contratos y anexos o Remuneraciones |
+| POST | `/api/firmas-empleador/{pk}/cancelar/` | SolicitudFirmaEmpleadorViewSet (cancelar) | Panel | Documentos y pactos o Término de contrato o Vacaciones y permisos o Reglamento y seguridad o Contratos y anexos o Remuneraciones |
+| GET | `/api/firmas-empleador/{pk}/pdf/` | SolicitudFirmaEmpleadorViewSet (pdf) | Panel | Documentos y pactos o Término de contrato o Vacaciones y permisos o Reglamento y seguridad o Contratos y anexos o Remuneraciones |
+| POST | `/api/firmas-empleador/{pk}/reenviar/` | SolicitudFirmaEmpleadorViewSet (reenviar) | Panel | Documentos y pactos o Término de contrato o Vacaciones y permisos o Reglamento y seguridad o Contratos y anexos o Remuneraciones |
 
 #### `/api/indicadores/` {.unnumbered}
 

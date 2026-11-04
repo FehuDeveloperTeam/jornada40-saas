@@ -1,0 +1,9 @@
+Hola {{ nombre }}:
+
+Tu código de verificación para registrar la firma del empleador de {{ empresa }} es: {{ codigo }}
+
+Vence en {{ minutos }} minutos.
+
+El código solo confirma tu identidad. Después lees la declaración y, si estás de acuerdo, dibujas tu firma.
+
+Si no lo pediste, ignora este mensaje: nadie puede registrar la firma sin este código.

@@ -124,6 +124,8 @@ RUTAS_MODULO = [
     ('/api/solicitudes-conciliacion/', ('TRABAJADORES',)),
     ('/api/solicitudes-permiso/', ('VACACIONES',)),
     ('/api/peticiones-portal/', ('VACACIONES', 'TRABAJADORES')),
+    # Pedir la firma del empleador a distancia: quien envía documentos a firma (cualquier módulo de documentos).
+    ('/api/firmas-empleador/', ('DOCUMENTOS', 'TERMINO', 'VACACIONES', 'SEGURIDAD', 'CONTRATOS', 'REMUNERACIONES')),
 ]
 
 # Documentos que se firman o se crean por tipo: el módulo sale del tipo.

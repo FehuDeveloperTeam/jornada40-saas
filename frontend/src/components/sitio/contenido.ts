@@ -119,7 +119,8 @@ export const INCLUYE_POR_NIVEL: Record<number, string[]> = {
   3: ['Todo lo de Starter', 'Portal del trabajador: certificados y solicitudes', 'Previred y Libro de Remuneraciones Electrónico',
       'Reglamento interno e información de riesgos', 'Ley Karin con encargado de denuncias',
       'Horas extra compensadas con días libres', 'Carga masiva desde Excel y descarga en ZIP'],
-  4: ['Todo lo de Pyme', 'Más empresas y trabajadores en una sola cuenta', 'Más usuarios del equipo'],
+  4: ['Todo lo de Pyme', 'Más empresas y trabajadores en una sola cuenta', 'Más usuarios del equipo',
+      'Firma del representante legal a distancia, por correo'],
 };
 
 /** Plan destacado con la etiqueta "Más elegido". */

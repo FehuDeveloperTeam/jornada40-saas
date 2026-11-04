@@ -33,7 +33,7 @@ Arriba de **Usuarios del equipo** ves cuántos usuarios usas del cupo: el plan p
 
 : Secciones que se asignan a un usuario del equipo
 
-Con **Solo ver**, el usuario consulta y descarga; con **Ver y gestionar**, también crea, edita y envía a firma. Cualquier acceso le permite ver las fichas de los trabajadores. Los datos de la empresa, la firma del empleador, el plan, las empresas, los usuarios y la bitácora son solo del titular. El contenido de las denuncias de Ley Karin no lo ve nadie más que el encargado (sección 12.3).
+Con **Solo ver**, el usuario consulta y descarga; con **Ver y gestionar**, también crea, edita y envía a firma. Cualquier acceso le permite ver las fichas de los trabajadores. Los datos de la empresa, dibujar la firma del empleador, el plan, las empresas, los usuarios y la bitácora son solo del titular. Pedirle la firma al representante legal por correo (plan Corporativo) también lo puede hacer un usuario con **Ver y gestionar** en un módulo que envía documentos a firma (sección 2.5). El contenido de las denuncias de Ley Karin no lo ve nadie más que el encargado (sección 12.3).
 
 ### Cómo entra el usuario del equipo
 

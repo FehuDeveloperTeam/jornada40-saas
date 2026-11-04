@@ -12,6 +12,8 @@ erDiagram
   DocumentoLaboral |o--o{ SolicitudFirma : "documento_laboral"
   User |o--o{ SolicitudFirma : "emisor"
   SolicitudFirma ||--o{ OTPFirma : "solicitud"
+  Empresa ||--o{ SolicitudFirmaEmpleador : "empresa"
+  User |o--o{ SolicitudFirmaEmpleador : "pedida_por"
   SolicitudFirma {
     uuid token UK
     texto tipo_documento
@@ -25,4 +27,13 @@ erDiagram
     texto codigo_hash
     fecha_hora expira_en
     entero intentos
+  }
+  SolicitudFirmaEmpleador {
+    uuid token UK
+    texto estado
+    texto rut
+    correo email
+    fecha_hora expira_en
+    fecha_hora firmada_en
+    texto huella_firma
   }

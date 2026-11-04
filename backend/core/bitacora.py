@@ -21,8 +21,9 @@ from .models import Empresa, RegistroBitacora
 
 logger = logging.getLogger(__name__)
 
-_EXCLUIDAS = ('/api/trabajador/', '/api/inspeccion/', '/api/firma-publica/', '/api/auth/token/refresh/',
-              '/api/auth/login/', '/api/auth/equipo/', '/api/ley-karin/denuncias/', '/api/karin/')
+_EXCLUIDAS = ('/api/trabajador/', '/api/inspeccion/', '/api/firma-publica/', '/api/firma-empleador/',
+              '/api/auth/token/refresh/', '/api/auth/login/', '/api/auth/equipo/', '/api/ley-karin/denuncias/',
+              '/api/karin/')
 # POST que solo calculan una vista previa: no son acciones.
 _SOLO_CALCULO = re.compile(r'/(simular|evaluar-jornada|evaluar_jornada|dias_habiles)/?$')
 _DESCARGA = re.compile(r'(pdf|descargar|exportar|zip|plantilla|resumen-dj1887|csv)', re.IGNORECASE)
@@ -52,6 +53,10 @@ _ESPECIALES = {
     'extension_salir': ('EXTENSION', 'Desconectó la extensión para Mi DT desde el navegador'),
     'extension_marcar': ('REGISTRO_DT', 'Marcó como registrado en Mi DT con la extensión'),
     'extension_levantamiento': ('EXTENSION', 'Envió la estructura de una pantalla de Mi DT'),
+    'firma_empleador-list': ('FIRMA_EMPLEADOR', 'Pidió al representante legal registrar a distancia la firma del empleador'),
+    'firma_empleador-reenviar': ('FIRMA_EMPLEADOR', 'Reenvió al representante legal el pedido de firma del empleador'),
+    'firma_empleador-cancelar': ('FIRMA_EMPLEADOR', 'Canceló el pedido de firma del empleador a distancia'),
+    'firma_empleador-pdf': ('DESCARGA', 'Descargó la constancia de la firma del empleador'),
 }
 
 

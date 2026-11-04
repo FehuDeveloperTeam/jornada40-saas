@@ -158,6 +158,7 @@ Tabla `core_empresa`.
 | `firma_firmante_nombre` | texto | por omisión: vacío; hasta 200 caracteres |
 | `firma_firmante_cargo` | texto | por omisión: vacío; hasta 200 caracteres |
 | `firma_configurada_en` | fecha_hora | admite nulo |
+| `firma_solicitud` | relación | Referencia a `SolicitudFirmaEmpleador`; al borrar: SET_NULL; admite nulo |
 
 #### `Empleado` {.unnumbered}
 
@@ -489,6 +490,38 @@ Tabla `core_otpfirma`. Código de un solo uso que confirma la identidad del trab
 | `expira_en` | fecha_hora |  |
 | `verificado` | booleano | por omisión: no |
 | `intentos` | entero | por omisión: `0` |
+
+#### `SolicitudFirmaEmpleador` {.unnumbered}
+
+Tabla `core_solicitudfirmaempleador`. Pedido al representante legal para que registre a distancia la firma del empleador (plan Corporativo).
+
+| Campo | Tipo | Detalle |
+|---|---|---|
+| `id` | entero | identificador |
+| `empresa` | relación | Referencia a `Empresa`; al borrar: PROTECT |
+| `token` | uuid | único; por omisión: un identificador aleatorio |
+| `nombre` | texto | hasta 200 caracteres |
+| `rut` | texto | hasta 20 caracteres |
+| `cargo` | texto | hasta 200 caracteres |
+| `email` | correo |  |
+| `estado` | texto | por omisión: `PENDIENTE`; opciones: `PENDIENTE`, `FIRMADA`, `EXPIRADA`, `CANCELADA` |
+| `pedida_por` | relación | Referencia a `User`; al borrar: SET_NULL; admite nulo |
+| `pedida_por_nombre` | texto | por omisión: vacío; hasta 200 caracteres |
+| `correo_enviado` | booleano | por omisión: no |
+| `creada_en` | fecha_hora | se fija al crear |
+| `expira_en` | fecha_hora |  |
+| `codigo_hash` | texto | por omisión: vacío; hasta 64 caracteres |
+| `codigo_creado_en` | fecha_hora | admite nulo |
+| `codigo_intentos` | entero | por omisión: `0` |
+| `codigos_pedidos` | entero | por omisión: `0` |
+| `sesion` | uuid | admite nulo |
+| `verificada_en` | fecha_hora | admite nulo |
+| `firmada_en` | fecha_hora | admite nulo |
+| `declaracion` | texto | por omisión: vacío |
+| `ip` | ip | admite nulo |
+| `firma_imagen` | texto | por omisión: vacío |
+| `huella_firma` | texto | por omisión: vacío; hasta 64 caracteres |
+| `cancelada_en` | fecha_hora | admite nulo |
 
 ## Vacaciones, permisos, conciliación y término {.unnumbered}
 

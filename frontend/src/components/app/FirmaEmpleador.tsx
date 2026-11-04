@@ -28,6 +28,7 @@ export function FirmaEmpleador({ onCerrar, avisar }: { onCerrar: () => void; avi
         firma_imagen: firma, firma_firmante_nombre: nombre.trim().toUpperCase(), firma_firmante_cargo: cargo.trim().toUpperCase(),
       });
       await queryClient.invalidateQueries({ queryKey: ['empresas'] });
+      await queryClient.invalidateQueries({ queryKey: ['firmas-empleador'] });
       avisar('Firma del empleador guardada');
       onCerrar();
     } catch (err) {

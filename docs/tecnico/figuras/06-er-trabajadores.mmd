@@ -2,6 +2,7 @@
 erDiagram
   direction TB
   User ||--o{ Empresa : "owner"
+  SolicitudFirmaEmpleador |o--o{ Empresa : "firma_solicitud"
   Empresa ||--o{ Empleado : "empresa"
   Empleado ||--o| Contrato : "empleado"
   AnexoContrato }o--|| Contrato : "contrato"

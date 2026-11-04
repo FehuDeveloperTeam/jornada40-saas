@@ -41,6 +41,7 @@ La sección 4.7 resume los mecanismos de sesión de cada acceso, el capítulo 6 
 - **Encargado Ley Karin:** RUT y clave, por un acceso separado.
 - **Trabajador:** RUT y un código enviado a cada correo de sus fichas, o una clave opcional.
 - **Firmante:** RUT y código de un solo uso, o la clave del portal de la cuenta que verificó ese correo.
+- **Representante legal que registra la firma del empleador a distancia (plan Corporativo):** el enlace del pedido, su RUT y un código de un solo uso enviado al correo del pedido, que abre una sesión válida solo para ese pedido. Las rutas públicas no aceptan la sesión del panel y tienen los mismos límites de intentos que la firma del trabajador.
 - **Fiscalizador:** RUT del empleador, su identificación y un código enviado a un correo institucional.
 - **Extensión:** un código de 8 caracteres que se canjea por un token revocable.
 
@@ -146,7 +147,7 @@ Una ruta nueva queda cerrada para el equipo hasta que se asigna a un módulo. La
 | Contraseñas del panel y del portal | PBKDF2 con SHA-256, 1.000.000 de iteraciones y sal por clave | No aplica | `User.password`, `CuentaTrabajador.password` |
 | Tokens de sesión del panel (JWT) | HMAC-SHA256 (HS256) | `SECRET_KEY` | Cookies del panel |
 | Cookies firmadas (portal, Ley Karin, fiscalización, confirmación) | Firma de Django con HMAC-SHA256 y una sal por acceso | `SECRET_KEY` | `core/sesion_inactividad.py`, `core/views/firmas.py` |
-| Códigos de firma, de la extensión y de prueba [Solo en staging los de prueba] | HMAC-SHA256 | `SECRET_KEY` | `OTPFirma`, `CodigoExtension`, `CodigoPrueba` |
+| Códigos de firma, de la extensión y de prueba [Solo en staging los de prueba] | HMAC-SHA256 | `SECRET_KEY` | `OTPFirma`, `SolicitudFirmaEmpleador`, `CodigoExtension`, `CodigoPrueba` |
 | Códigos del portal y de fiscalización | SHA-256 del código junto con la clave secreta | `SECRET_KEY` | `CodigoTrabajador`, `CodigoInspeccion` |
 | Token de la extensión | SHA-256 (el token es aleatorio y largo) | No aplica | `DispositivoExtension` |
 | Datos y archivos de la Ley Karin | Fernet: AES-128 en modo CBC con autenticación HMAC-SHA256 | `KARIN_CLAVES_CIFRADO`, rotable | `core/cifrado.py` |

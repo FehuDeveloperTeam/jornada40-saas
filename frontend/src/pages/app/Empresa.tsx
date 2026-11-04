@@ -3,10 +3,11 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
-import { Building2, Info, PenLine, TriangleAlert } from 'lucide-react';
+import { Building2, Info } from 'lucide-react';
 import { AlertaError, Button, CampoRut, Chip, Input } from '../../components/j40';
 import { usePanelContexto } from '../../components/app/AppShell';
 import { FirmaEmpleador } from '../../components/app/FirmaEmpleador';
+import { EstadoFirmaEmpleador } from '../../components/app/FirmaDistancia';
 import client from '../../api/client';
 import type { Empresa as TEmpresa } from '../../types';
 import { capitalizar, clp, decimalCL, fechaCL } from '../../utils/formato';
@@ -89,16 +90,9 @@ export default function Empresa() {
 
       <SeguridadSocial key={`ss-${empresa.id}`} empresa={empresa} avisar={avisar} />
 
-      <Seccion titulo="Firma del empleador" accion={<Button variante="secundario" tamano="sm" onClick={() => setFirma(true)} iconoInicio={<PenLine className="size-4" strokeWidth={2} />}>{empresa.firma_configurada ? 'Cambiar firma' : 'Configurar firma'}</Button>}>
-        {empresa.firma_configurada ? (
-          <p className="text-[13px] text-fg-2">
-            Firma {capitalizar(empresa.firma_firmante_nombre)} ({capitalizar(empresa.firma_firmante_cargo)}), configurada el {fechaCL(empresa.firma_configurada_en)}.
-            Se estampa en todos los documentos que se firman electrónicamente.
-          </p>
-        ) : (
-          <p className="flex gap-2 text-[13px] text-warn"><TriangleAlert className="size-4 shrink-0 mt-0.5" strokeWidth={2} aria-hidden />
-            Sin firma configurada: los documentos firmados muestran "Sin firma registrada" en la parte del empleador.</p>
-        )}
+      <Seccion titulo="Firma del empleador"
+        nota="Se estampa en todos los documentos que se firman electrónicamente.">
+        <EstadoFirmaEmpleador key={`firma-${empresa.id}`} empresaId={empresa.id} avisar={avisar} onDibujar={() => setFirma(true)} />
       </Seccion>
 
       {suscripcion && (

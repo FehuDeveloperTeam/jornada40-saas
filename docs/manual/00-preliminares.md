@@ -34,7 +34,8 @@ Historial de versiones
 
 | Versión     | Fecha       | Descripción                          |
 |-------------|-------------|--------------------------------------|
-| {{version}} | {{fecha}}   | Primera versión del manual.          |
+| 1.0         | 04-11-2026  | Primera versión del manual.          |
+| {{version}} | {{fecha}}   | Firma del empleador a distancia (plan Corporativo): el titular o el equipo se la piden por correo al representante legal, que la registra desde su teléfono (secciones 1.3, 2.4, 2.5, 8.1, 8.2, 14.1 y 16.1, y anexos D y E). |
 
 ::: {custom-style="Título de página"}
 Índice general

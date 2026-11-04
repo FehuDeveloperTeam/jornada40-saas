@@ -51,7 +51,10 @@ En **Firma electrónica** verás su motivo. Corrige el documento y presiona **En
 Cancela la solicitud en **Firma electrónica**, corrige la liquidación y envíala de nuevo. Si ya está firmada, no se puede corregir (secciones 7.2 y 8.2).
 
 **Al enviar a firma aparece "La empresa no tiene firma del empleador configurada".**
-Falta configurar la firma del empleador en **Empresa**; sin ella no se envía nada a firma (sección 2.5).
+Falta la firma del empleador; sin ella no se envía nada a firma. El titular la dibuja en **Empresa** o en **Firma electrónica** y, desde el plan Corporativo, también se le puede pedir al representante legal por correo (sección 2.5).
+
+**El representante legal no está conmigo. ¿Cómo registro su firma?**
+Desde el plan Corporativo, presiona **Pedir firma a distancia** en **Firma electrónica** o en **Empresa**: le llega un correo y la registra desde su teléfono. En los demás planes, la firma se dibuja en el panel (sección 2.5).
 
 #### Remuneraciones y término {.unnumbered}
 

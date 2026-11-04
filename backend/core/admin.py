@@ -14,6 +14,7 @@ from . import pruebas
 from .models import CodigoPrueba
 from .models import PeriodoVacacionesEscolares, SolicitudConciliacion
 from .models import DispositivoExtension, LevantamientoMiDT
+from .models import SolicitudFirmaEmpleador
 from .models import (RegistroBitacora, ExportacionBitacora, Empresa, Empleado, Contrato, AnexoContrato, Plan, Cliente,
                      ParametroPrevisional, TasaAFP, ConceptoRemuneracion, Suscripcion, EventoPasarela, IntentoPago,
                      RegistroDT, TramoAsignacionFamiliar, SolicitudDocumento, CertificadoEmitido,
@@ -289,6 +290,26 @@ class ClienteAdmin(admin.ModelAdmin):
 class EmpresaAdmin(admin.ModelAdmin):
     list_display = ('nombre_legal', 'rut', 'owner', 'created_at')
     search_fields = ('nombre_legal', 'rut', 'owner__username')
+    readonly_fields = ('firma_solicitud',)   # evidencia de la firma registrada a distancia
+
+
+@admin.register(SolicitudFirmaEmpleador)
+class SolicitudFirmaEmpleadorAdmin(admin.ModelAdmin):
+    """Pedidos de firma del empleador a distancia: solo lectura (son la evidencia del registro).
+    No muestra el enlace, la huella del código ni la sesión: con ellos se podría intentar firmar."""
+    list_display = ('folio', 'empresa', 'nombre', 'estado', 'correo_enviado', 'creada_en', 'firmada_en')
+    list_filter = ('estado',)
+    search_fields = ('empresa__nombre_legal', 'empresa__rut', 'nombre', 'rut', 'email')
+    fields = ('empresa', 'nombre', 'rut', 'cargo', 'email', 'estado', 'pedida_por_nombre', 'correo_enviado',
+              'creada_en', 'expira_en', 'codigos_pedidos', 'verificada_en', 'firmada_en', 'ip', 'huella_firma',
+              'declaracion', 'cancelada_en')
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 @admin.register(Empleado)
 class EmpleadoAdmin(admin.ModelAdmin):

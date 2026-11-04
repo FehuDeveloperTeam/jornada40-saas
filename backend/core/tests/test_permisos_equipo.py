@@ -39,7 +39,8 @@ def _rutas_panel():
             ruta = re.sub(r'<[^>]+>', '1', ruta).replace('^', '').replace('$', '').replace('?', '')
             rutas.add('/' + ruta)
     recorrer(get_resolver().url_patterns)
-    publicas = ('/api/trabajador/', '/api/inspeccion/', '/api/firma-publica/', '/api/certificados/verificar/',
+    publicas = ('/api/trabajador/', '/api/inspeccion/', '/api/firma-publica/', '/api/firma-empleador/',
+                '/api/certificados/verificar/',
                 '/api/auth/', '/api/pagos/webhook/', '/api/diagnostico/')
     return sorted(r for r in rutas if r.startswith('/api/') and r != '/api/' and not r.startswith(publicas))
 

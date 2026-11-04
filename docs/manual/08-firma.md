@@ -1,6 +1,6 @@
 # Firma electrónica {#sec-firma}
 
-Jornada40 firma los documentos laborales con firma electrónica simple (Ley 19.799). El trabajador recibe un correo con un enlace, confirma su identidad y firma desde el celular o el computador. El documento lleva también la firma del empleador configurada en **Empresa** (sección 2.5).
+Jornada40 firma los documentos laborales con firma electrónica simple (Ley 19.799). El trabajador recibe un correo con un enlace, confirma su identidad y firma desde el celular o el computador. El documento lleva también la firma del empleador de la empresa (sección 2.5).
 
 Para que el trabajador firme:
 
@@ -19,7 +19,7 @@ Los documentos se envían a firma desde donde se crean:
 Antes de enviar, revisa dos cosas:
 
 - que el trabajador tenga un correo registrado en su ficha; si no lo tiene, Jornada40 te lo pide;
-- que la empresa tenga configurada la firma del empleador: sin ella no se puede enviar nada a firma. Si falta, **Firma electrónica** muestra "Falta la firma del empleador." y el botón **Configurar ahora** (solo el titular).
+- que la empresa tenga la firma del empleador: sin ella no se puede enviar nada a firma. Si falta, la sección **Firma del empleador** de **Firma electrónica** muestra **Falta la firma**. El titular la dibuja con **Dibujar firma**; desde el plan Corporativo, el titular o un usuario del equipo también pueden pedírsela al representante legal con **Pedir firma a distancia** (sección 2.5).
 
 ### Confirmar tu identidad
 
@@ -36,6 +36,8 @@ El trabajador recibe un correo con el enlace para firmar, que vence en 7 días. 
 ## Seguimiento {#sec-seguimiento-firma}
 
 En el menú, **Firma electrónica** muestra todos los documentos enviados a firma. Por defecto muestra los **Pendientes**.
+
+Arriba, la sección **Firma del empleador** muestra la firma de la empresa seleccionada y sus acciones (sección 2.5). Si administras varias empresas, **Ver tus N empresas** las muestra todas, con cuántas no tienen firma, para revisarlas o pedir la firma sin cambiar de empresa.
 
 ![Firma electrónica](figuras/08-firmas.png){width=100%}
 

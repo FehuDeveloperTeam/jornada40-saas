@@ -65,8 +65,9 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         empresa.firma_firmante_nombre = nombre
         empresa.firma_firmante_cargo  = cargo
         empresa.firma_configurada_en  = timezone.now()
+        empresa.firma_solicitud       = None   # dibujada en el panel, no a distancia
         empresa.save(update_fields=['firma_imagen', 'firma_firmante_nombre',
-                                    'firma_firmante_cargo', 'firma_configurada_en'])
+                                    'firma_firmante_cargo', 'firma_configurada_en', 'firma_solicitud'])
 
         serializer = self.get_serializer(empresa)
         return Response(serializer.data)

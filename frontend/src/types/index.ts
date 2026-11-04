@@ -609,6 +609,58 @@ export interface Suscripcion {
     metodo_pago_glosa: string | null;
 }
 
+// ── Firma del empleador a distancia (/firmas-empleador/, plan Corporativo) ──
+
+export type EstadoPedidoFirmaEmpleador = 'PENDIENTE' | 'FIRMADA' | 'EXPIRADA' | 'CANCELADA';
+
+/** Pedido por correo al representante legal para que registre la firma del empleador. */
+export interface PedidoFirmaEmpleador {
+    id: number;
+    folio: string;
+    empresa: number;
+    nombre: string;
+    rut: string;
+    cargo: string;
+    email: string;
+    estado: EstadoPedidoFirmaEmpleador;
+    estado_display: string;
+    creada_en: string | null;
+    expira_en: string | null;
+    firmada_en: string | null;
+    correo_enviado: boolean;
+    /** Quien lo pidió: el titular o un usuario del equipo. */
+    pedida_por: string;
+    /** Solo al crearlo: advertencias que no bloquean (otro RUT, una firma que se reemplaza…). */
+    avisos?: string[];
+}
+
+/** Firma del empleador de una empresa y su último pedido a distancia. */
+export interface FirmaEmpleadorEmpresa {
+    id: number;
+    nombre: string;
+    rut: string;
+    representante_legal: string;
+    rut_representante: string;
+    firma: {
+        configurada: boolean;
+        nombre: string;
+        cargo: string;
+        configurada_en: string | null;
+        /** La registró el representante a distancia: tiene constancia. */
+        a_distancia: boolean;
+        solicitud_id: number | null;
+        folio: string;
+    };
+    solicitud: PedidoFirmaEmpleador | null;
+}
+
+export interface FirmasEmpleador {
+    /** Pedir la firma a distancia: desde el plan Corporativo. */
+    permitido: boolean;
+    dias_vigencia: number;
+    empresas: FirmaEmpleadorEmpresa[];
+}
+
 // ── Registro en la Dirección del Trabajo (/registro-dt/) ─────────────────────
 
 export interface ResumenRegistroDT { VENCIDO: number; PENDIENTE: number; REGISTRADO: number; por_vencer: number }

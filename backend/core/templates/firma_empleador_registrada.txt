@@ -1,0 +1,12 @@
+{% if para_representante %}Hola {{ nombre }}:
+
+Tu firma quedó registrada como firma del empleador de {{ empresa }} (RUT {{ empresa_rut }}) el {{ firmada }}.
+
+Desde ahora se estampará en los documentos laborales que la empresa envíe a firma desde Jornada40.
+{% else %}{{ nombre }} ({{ cargo }}) registró su firma como firma del empleador de {{ empresa }} el {{ firmada }}.
+
+Desde ahora puedes enviar a firma los documentos de esta empresa: llevarán esa firma.
+{% endif %}
+Constancia {{ folio }}: {% if adjunto %}va adjunta a este correo, guárdala.{% else %}se puede descargar desde Firma electrónica, en el panel de Jornada40.{% endif %}
+
+La constancia registra la declaración aceptada, cómo se verificó la identidad (código enviado al correo), la fecha, la IP y la firma.

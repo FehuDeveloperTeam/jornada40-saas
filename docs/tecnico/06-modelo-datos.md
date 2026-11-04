@@ -100,7 +100,7 @@ Su forma la definen el código y las pruebas, no la base de datos.
 
 ## Entidades por dominio {#sec-datos-dominios}
 
-Los 46 modelos se agrupan en doce dominios. Once tienen un diagrama; los parámetros legales no se relacionan con otras tablas y se describen en la sección 6.3.
+Los 47 modelos se agrupan en doce dominios. Once tienen un diagrama; los parámetros legales no se relacionan con otras tablas y se describen en la sección 6.3.
 
 | Dominio | Modelos | Sección |
 |---|---|---|
@@ -108,7 +108,7 @@ Los 46 modelos se agrupan en doce dominios. Once tienen un diagrama; los paráme
 | Empresas, trabajadores y contratos | `Empresa`, `Empleado`, `Contrato`, `AnexoContrato` | 6.2.2 |
 | Remuneraciones y certificados del SII | `ConceptoRemuneracion`, `Liquidacion`, `CertificadoSueldos` | 6.2.3 |
 | Cartas, pactos, constancias y reglamento | `DocumentoLegal`, `DocumentoLaboral`, `ReglamentoInterno` | 6.2.4 |
-| Firma electrónica | `SolicitudFirma`, `OTPFirma` | 6.2.5 |
+| Firma electrónica | `SolicitudFirma`, `OTPFirma`, `SolicitudFirmaEmpleador` | 6.2.5 |
 | Vacaciones, permisos, conciliación y término | `VacacionEmpleado`, `SolicitudPermiso`, `SolicitudConciliacion`, `Finiquito` | 6.2.6 |
 | Portal del trabajador | `CuentaTrabajador`, `CorreoTrabajador`, `CodigoTrabajador`, `SolicitudDocumento`, `CertificadoEmitido` | 6.2.7 |
 | Registro en Mi DT y fiscalización | `RegistroDT`, `CodigoInspeccion`, `RegistroInspeccion`, `RatificacionInspeccion` | 6.2.8 |
@@ -260,6 +260,16 @@ Para el documento tiene siete claves foráneas opcionales, una por clase de docu
 
 Que un documento no tenga dos solicitudes vivas (pendiente, en proceso o firmada) lo controla el servidor al crear la solicitud; la base no tiene una restricción para eso.
 
+`SolicitudFirmaEmpleador` es el pedido al representante legal de una empresa para que registre a distancia la firma del empleador (plan Corporativo). Guarda:
+
+- la empresa, con relación `PROTECT`: la evidencia no se borra con ella;
+- los datos del representante (nombre, RUT, cargo y correo), quién lo pidió y si el correo salió;
+- el token del enlace público (UUID único), su vencimiento y el estado: `PENDIENTE`, `FIRMADA`, `EXPIRADA` o `CANCELADA`;
+- el código de un solo uso solo como huella (sección 6.5), con sus intentos y cuántos se pidieron, y la sesión que abre al verificarse;
+- la evidencia del registro: la declaración aceptada, la fecha, la IP, la imagen de la firma y su huella SHA-256.
+
+Al firmar, la imagen pasa a `Empresa.firma_imagen` y `Empresa.firma_solicitud` apunta al pedido, que respalda esa firma; si después se dibuja otra en el panel, esa relación queda vacía y el pedido se conserva.
+
 ![Firma electrónica](figuras/06-er-firma.png){width=100%}
 
 ### Vacaciones, permisos, conciliación y término {#sec-datos-termino}
@@ -393,6 +403,7 @@ La base de datos garantiza los valores únicos de la tabla siguiente. Las demás
 | `ReglamentoInterno` | Empresa y versión | Versiones numeradas por empresa |
 | `RegistroDT` | Empresa y clave | Una constancia por obligación de registro |
 | `SolicitudFirma` | Token | Un enlace por solicitud |
+| `SolicitudFirmaEmpleador` | Token | Un enlace por pedido |
 | `CorreoTrabajador` | Cuenta y correo | Un correo verificado una vez por cuenta |
 | `CertificadoEmitido` | Código | Un código de verificación por certificado |
 | `DispositivoExtension` | Huella del token | Un token por navegador |

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import * as XLSX from 'xlsx';
-import { MATIAS, consultar, entrar, restaurarBase, ultimoCodigoOtp } from './utiles';
+import { MATIAS, consultar, dibujarFirma, entrar, restaurarBase, ultimoCodigoOtp, ultimoCodigoPortal } from './utiles';
 
 XLSX.set_fs(fs);
 
@@ -292,4 +292,43 @@ test('firma del trabajador', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Revisa el documento' })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('canvas[aria-label^="Página 1"]')).toBeVisible({ timeout: 30_000 });
   await capturar(page, '08-firma-trabajador');
+});
+
+test('firma del empleador a distancia', async ({ page }) => {
+  test.setTimeout(180_000);
+  // Plan Corporativo: la segunda empresa (sin firma ni representante) se la pide a su representante.
+  const plan = (nombre: string) => consultar('from core.models import Cliente, Plan;'
+    + ` Cliente.objects.filter(rut="12.345.678-5").update(plan=Plan.objects.get(nombre="${nombre}")); print("ok")`);
+  plan('Corporativo');
+  try {
+    await entrar(page);
+    await abrir(page, '/app/firmas');
+    const tarjeta = page.getByRole('region', { name: 'Firma del empleador' });
+    await tarjeta.getByRole('button', { name: /^Ver tus/ }).click();
+    await tarjeta.getByRole('button', { name: 'Pedir firma a distancia' }).last().click();
+    const dialogo = page.getByRole('dialog', { name: 'Pedir la firma a distancia' });
+    await dialogo.getByLabel('Nombre completo').fill('Rodrigo Fuentes Mella');
+    await dialogo.getByLabel('RUT', { exact: true }).fill('15.555.551-3');
+    await dialogo.getByLabel('Correo del representante').fill('rodrigo.fuentes@example.com');
+    await capturar(page, '02-firma-distancia');
+    await dialogo.getByRole('button', { name: 'Enviar pedido' }).click();
+    await page.getByRole('dialog', { name: 'Pedido enviado' }).getByRole('button', { name: 'Listo' }).click();
+
+    // El representante, en su teléfono.
+    const token = consultar('from core.models import SolicitudFirmaEmpleador as S; print(S.objects.latest("id").token)');
+    await page.context().clearCookies();
+    await page.setViewportSize({ width: 400, height: 980 });
+    await page.goto(`/firma-empleador/${token}`);
+    await page.getByLabel('Tu RUT').fill('15.555.551-3');
+    await page.getByRole('button', { name: 'Enviar código' }).click();
+    await expect.poll(() => ultimoCodigoPortal(`firma-empleador:${token}`)).toMatch(/^\d{6}$/);
+    await page.getByLabel('Código de 6 dígitos').fill(ultimoCodigoPortal(`firma-empleador:${token}`));
+    await expect(page.getByRole('heading', { name: 'Lee y firma' })).toBeVisible();
+    await page.getByRole('checkbox').check();
+    await dibujarFirma(page, page.locator('canvas'));
+    await page.getByRole('heading', { name: 'Lee y firma' }).scrollIntoViewIfNeeded();
+    await capturar(page, '02-firma-representante');
+  } finally {
+    plan('Pyme');
+  }
 });

@@ -48,6 +48,7 @@ const EquipoPanel = diferida(() => import('./pages/app/Equipo'));
 const Terminos = diferida(() => import('./pages/sitio/Terminos'));
 const PrivacidadExtension = diferida(() => import('./pages/sitio/PrivacidadExtension'));
 const FirmaPublica = diferida(() => import('./pages/sitio/Firma'));
+const FirmaEmpleadorPublica = diferida(() => import('./pages/sitio/FirmaEmpleador'));
 
 // Portal del trabajador: sesión propia (cookie del portal), independiente del panel.
 const IngresoTrabajador = diferida(() => import('./pages/sitio/Trabajador'));
@@ -169,6 +170,7 @@ export default function App() {
           <Route path="/karin/denuncias/:id" element={<ExpedienteKarin />} />
         </Route>
         <Route path="/firma/:token" element={<FirmaPublica />} />
+        <Route path="/firma-empleador/:token" element={<FirmaEmpleadorPublica />} />
         <Route path="/inspeccion" element={<InspeccionDT />} />
         <Route path="/verificar" element={<VerificarCertificado />} />
         <Route path="/verificar/:codigo" element={<VerificarCertificado />} />

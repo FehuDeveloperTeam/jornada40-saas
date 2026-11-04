@@ -61,6 +61,7 @@ Hay cuatro planes y cada uno incluye todo lo del anterior. Semilla es gratuito; 
 | Portal del trabajador: solicitudes y certificados                                                         | Pyme          |
 | Reportes multiempresa                                                                                     | Pyme          |
 | Más empresas, trabajadores y usuarios del equipo en una sola cuenta                                       | Corporativo   |
+| Firma del empleador a distancia: el representante legal la registra desde su teléfono                     | Corporativo   |
 
 : Funciones por plan
 

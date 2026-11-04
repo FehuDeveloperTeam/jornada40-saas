@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6f9;margin:0;padding:0;color:#1f2937;">
+  <div style="max-width:520px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0c1a35,#1e3a6e);padding:26px 32px;">
+      <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">Tu código de verificación</h1>
+      <p style="color:rgba(255,255,255,0.75);margin:6px 0 0;font-size:15px;">Firma del empleador · {{ empresa }}</p>
+    </div>
+    <div style="padding:26px 32px;font-size:16px;line-height:1.6;">
+      <p style="margin:0 0 18px;">Hola {{ nombre }}, ingresa este código en la página para confirmar que eres tú:</p>
+      <div style="text-align:center;margin:0 0 22px;">
+        <div style="display:inline-block;background:#f0f4ff;border:2px dashed #2563eb;border-radius:12px;padding:18px 36px;">
+          <span style="font-size:38px;font-weight:900;letter-spacing:0.3em;color:#1e3a6e;font-family:monospace;">{{ codigo }}</span>
+        </div>
+        <p style="color:#6b7280;font-size:14px;margin:10px 0 0;">Vence en <b>{{ minutos }} minutos</b></p>
+      </div>
+      <p style="margin:0;">El código solo confirma tu identidad. Después lees la declaración y, si estás de acuerdo, dibujas tu firma.</p>
+      <p style="font-size:13px;color:#6b7280;margin:18px 0 0;">Si no lo pediste, ignora este mensaje: nadie puede registrar la firma sin este código.</p>
+    </div>
+  </div>
+</body>
+</html>
