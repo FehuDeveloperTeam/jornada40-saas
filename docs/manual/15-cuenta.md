@@ -11,7 +11,7 @@
 En **Datos del titular** están tus datos como titular de la cuenta:
 
 1. Elige el **Tipo de cliente**: **Persona natural** o **Empresa** (en ese caso, agrega la **Razón social**).
-2. Corrige **Nombres**, **Apellido paterno**, **Apellido materno**, **Correo** o **Teléfono**.
+2. Corrige **Nombres**, **Apellido paterno**, **Apellido materno**, **Correo**, **Teléfono** o tu dirección, que se escribe por partes, como en la sección 2.4.
 3. Presiona **Guardar** (o **Descartar** para volver a lo guardado).
 
 El **RUT del titular** es tu usuario para ingresar y no se puede cambiar. El correo es al que llegan la recuperación de contraseña y el resumen por correo.

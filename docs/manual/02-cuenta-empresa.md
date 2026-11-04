@@ -10,7 +10,7 @@ La cuenta es tuya, como persona: la creas con tu RUT personal y con ese mismo RU
 4. Marca la casilla de aceptación de los términos y condiciones y de la política de privacidad, y presiona **Crear cuenta**.
 5. Si elegiste el plan Semilla, entras directo a la bienvenida. Si elegiste un plan pagado, Jornada40 te lleva a Reveniu, el servicio de pagos, donde inscribes tu tarjeta. Tu plan se activa cuando Reveniu confirma el pago; mientras tanto, la cuenta funciona en el plan Semilla.
 
-![Crear la cuenta: elegir el plan](figuras/02-registro.png){width=100%}
+![Crear la cuenta](figuras/02-registro.png){width=100%}
 
 > **Importante:** usa tu RUT personal, no el de tu empresa. Si escribes el RUT de una empresa, verás el mensaje "Ese RUT es de una empresa. Usa tu RUT personal: las empresas se agregan después."
 
@@ -134,6 +134,6 @@ Si la dirección de la empresa quedó escrita en un solo campo, verás "Direcci�
 
 La firma se estampa en todos los documentos de la empresa que se firman electrónicamente. Dibujar una nueva reemplaza la anterior para los documentos que se firmen desde ese momento; los ya firmados no cambian.
 
-> **Importante:** sin firma configurada, los documentos firmados muestran "Sin firma registrada" en la parte del empleador y los trabajadores no pueden emitir certificados desde su portal (sección 13.3). Configúrala antes de enviar documentos a firma.
+> **Importante:** sin firma configurada no se puede enviar ningún documento a firma, y los trabajadores no pueden emitir certificados desde su portal (sección 13.3). Configúrala antes de empezar.
 
 Para agregar otra empresa o cambiar entre ellas, presiona **Agregar o administrar empresas**, arriba a la derecha (sección 16.1).

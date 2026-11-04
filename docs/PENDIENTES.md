@@ -74,7 +74,7 @@ La publicación quedó en pausa el 2026-10-06 hasta completar estos puntos en el
   - [x] (2026-11-01) Fase 6: capítulos 11 y 12 (Dirección del Trabajo, con "Si te fiscalizan"; reglamento y seguridad).
   - [x] (2026-11-01) Fase 7: capítulos 13 a 16 (portal y solicitudes, equipo y bitácora, mi cuenta, empresas y plan).
   - [x] (2026-11-01) Fase 8: anexos A a E (guía del trabajador, encargado Ley Karin, fiscalizador DT, preguntas frecuentes y glosario).
-  - [ ] Fase 9: capturas de pantalla con datos ficticios (las figuras ya están referenciadas en `docs/manual/figuras/`).
+  - [x] (2026-11-01) Fase 9: capturas de pantalla con datos ficticios (las figuras ya están referenciadas en `docs/manual/figuras/`).
   - [ ] Fase 10: revisión y generación del Word y el PDF.
 - [x] (2026-10-10) **Dossier del producto** para preparar la propuesta a inversionistas con otro agente: `docs/dossier-jornada40.md` (describe lo que está en `main`). Actualizarlo con cada publicación en `main` y completar con el titular los datos de su sección 12 (equipo, tracción, finanzas, ronda).
   - [ ] Actualizarlo con lo publicado el 2026-11-01 (seguridad, correcciones y códigos de prueba).
@@ -145,6 +145,7 @@ Aparecieron al comprobar el manual contra las pantallas. No se corrigieron: el m
 - [ ] **Los pactos y constancias sin firmar no se pueden anular desde el panel.** El servidor lo permite (`POST /api/documentos-laborales/<id>/anular/`), pero no hay botón; el error de un pacto de horas extra que se cruza con otro dice "Anúlalo o elige otras fechas".
 - [ ] **El candado de "Generar documento" dice siempre "Desde el plan Starter"** (`components/app/carpeta/DocumentosTab.tsx`), también en "Información de riesgos", que es del plan Pyme.
 - [ ] **El representante legal no puede firmar a distancia.** Si el panel lo usa un contador (como titular de la cuenta o como usuario del equipo), no hay cómo pedirle al dueño o representante legal de la empresa que registre su firma desde su teléfono o computador. Hoy la firma del empleador se dibuja en el mismo panel, en **Empresa › Firma del empleador** o en la bienvenida (`POST /api/empresas/<id>/configurar_firma/`, solo el titular), así que el representante tiene que estar frente al equipo de quien opera la cuenta. Propuesta por evaluar: un enlace al correo del representante para que dibuje su firma, con verificación por código (como la firma del trabajador), y que quede registrado quién la dibujó y cuándo.
+- [ ] **El aviso de la firma del empleador no dice lo que pasa.** La página Empresa y el aviso de Firma electrónica dicen que, sin firma configurada, los documentos firmados muestran "Sin firma registrada"; pero el servidor no deja enviar ningún documento a firma sin ella ("La empresa no tiene firma del empleador configurada", `core/views/firmas.py`). El manual describe el bloqueo. Corregir el texto de esas pantallas.
 - [ ] **Firmar el anexo Ley 40 horas no cambia las horas del contrato.** El anexo fija la jornada en el máximo vigente, pero el contrato guardado sigue con las horas anteriores: el aviso "Jornada sobre el máximo legal" no desaparece y los cálculos siguen usando esas horas. El manual (sección 5.3) indica ajustar el contrato o usar un anexo de contrato. Decidir si la firma del anexo debe actualizar el contrato.
 
 ## Comentarios de clientes (por averiguar)

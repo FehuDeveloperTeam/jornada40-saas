@@ -50,8 +50,8 @@ En **Firma electrónica** verás su motivo. Corrige el documento y presiona **En
 **Necesito corregir una liquidación que está en firma.**
 Cancela la solicitud en **Firma electrónica**, corrige la liquidación y envíala de nuevo. Si ya está firmada, no se puede corregir (secciones 7.2 y 8.2).
 
-**Los documentos firmados dicen "Sin firma registrada" en la parte del empleador.**
-Falta configurar la firma del empleador en **Empresa** (sección 2.5).
+**Al enviar a firma aparece "La empresa no tiene firma del empleador configurada".**
+Falta configurar la firma del empleador en **Empresa**; sin ella no se envía nada a firma (sección 2.5).
 
 #### Remuneraciones y término {.unnumbered}
 

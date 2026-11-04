@@ -19,7 +19,7 @@ Los documentos se envían a firma desde donde se crean:
 Antes de enviar, revisa dos cosas:
 
 - que el trabajador tenga un correo registrado en su ficha; si no lo tiene, Jornada40 te lo pide;
-- que la empresa tenga configurada la firma del empleador. Si falta, **Firma electrónica** muestra "Falta la firma del empleador." y el botón **Configurar ahora** (solo el titular).
+- que la empresa tenga configurada la firma del empleador: sin ella no se puede enviar nada a firma. Si falta, **Firma electrónica** muestra "Falta la firma del empleador." y el botón **Configurar ahora** (solo el titular).
 
 ### Confirmar tu identidad
 
