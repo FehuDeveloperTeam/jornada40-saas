@@ -153,9 +153,9 @@ Aparecieron al comprobar el manual contra las pantallas. No se corrigieron: el m
 
 ## Firma del empleador a distancia (2026-11-04)
 
-- [ ] Publicar en `main` (espera la autorización del titular; no pasó por staging, por decisión del titular).
+- [x] (2026-11-04) Publicado en `main` con autorización del titular (no pasó por staging, por decisión del titular).
 - [ ] Después de publicarla, generar en el administrador los códigos de prueba del plan Corporativo (3 a 6 meses) para la contadora que la va a probar (Códigos de prueba → Añadir). No requiere cambios en el código.
-- [ ] Revisar en el administrador que el máximo de empresas del plan Corporativo (10 en la base inicial) alcance para la contadora, que lleva unas 10 empresas.
+- [x] (2026-11-04) El máximo de 10 empresas del plan Corporativo alcanza: la contadora lo confirmó en la reunión.
 
 ## Comentarios de clientes (por averiguar)
 

@@ -574,7 +574,7 @@ PDF files may optionally be saved to `MEDIA_ROOT` (`backend/media/`).
 
 ## Manual de usuario
 
-`docs/manual/` is the end-user manual for clients (titular and team; annexes for the worker, the Ley Karin officer and the DT inspector), in Spanish Markdown with the technical document's conventions (README there). Build with `python3 docs/tecnico/herramientas/construir.py --doc docs/manual` (output in `docs/manual/salida/`, not versioned). Screenshots: `frontend/e2e/capturas-manual.spec.ts` (`CAPTURAS_MANUAL=1 npx playwright test capturas-manual`; skipped otherwise; prices are masked). Version 1.0 (2026-11-04). It describes only what a client sees and can use (no Mi DT extension, DT CSV, admin or staging-only features), never prices and never legal advice. When a visible feature changes, update its chapter and retake its capture.
+`docs/manual/` is the end-user manual for clients (titular and team; annexes for the worker, the Ley Karin officer and the DT inspector), in Spanish Markdown with the technical document's conventions (README there). Build with `python3 docs/tecnico/herramientas/construir.py --doc docs/manual` (output in `docs/manual/salida/`, not versioned). Screenshots: `frontend/e2e/capturas-manual.spec.ts` (`CAPTURAS_MANUAL=1 npx playwright test capturas-manual`; skipped otherwise; prices are masked). Version 1.1 (2026-11-04): adds the remote employer signature (Corporativo) to 1.0. It describes only what a client sees and can use (no Mi DT extension, DT CSV, admin or staging-only features), never prices and never legal advice. When a visible feature changes, update its chapter and retake its capture.
 
 ## Deuda técnica (en espera)
 
