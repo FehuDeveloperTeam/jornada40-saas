@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Dependencias del sistema (pycairo)
         run: sudo apt-get update && sudo apt-get install -y libcairo2-dev pkg-config
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: pip
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - name: Python (pip-audit)
@@ -107,7 +107,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Dependencias del sistema (pycairo)
         run: sudo apt-get update && sudo apt-get install -y libcairo2-dev pkg-config
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: pip
